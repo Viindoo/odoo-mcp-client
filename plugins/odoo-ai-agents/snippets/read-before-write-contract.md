@@ -11,9 +11,9 @@ per-version and self-contained, under
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/`.
 
 **MANDATORY HARD RULE:** do NOT write a single line of a given file type until you have read the
-By-task-mapped guideline file + the matching `odoo-version-pivots.md` section for that file type.
-Reading the version INDEX 'By task' table first is mandatory; reading ONLY the mapped files is
-mandatory. Writing first and patching later churns the diff, fights the reviewer, and (in a
+guideline files the version INDEX's "By file type" table maps to that file type + the matching
+`odoo-version-pivots.md` section. Reading that table first is mandatory; reading ONLY the mapped
+files is mandatory. Writing first and patching later churns the diff, fights the reviewer, and (in a
 stable series) violates the "keep diffs minimal" rule the guidelines themselves impose.
 
 ## The contract
@@ -24,10 +24,10 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
    resolved, resolve it before writing - a precondition, not optional.
 2. **Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first**
    (e.g. `17.0/INDEX.md` under that same root). It carries a
-   "By task" table - **use it**: read ONLY the files it maps to the task categories you are
-   executing (topic file(s) + any listed snippet + the `odoo-version-pivots §` for that task).
-   Do NOT read the whole directory; files for task categories not in scope waste tokens and add
-   noise. Domain-knowledge activation (e.g. HR payroll, Accounting) applies within the mapped
+   "By file type" table - **use it**: read ONLY the files it maps to the file types you are
+   about to write (topic file(s) + any listed snippet + the `odoo-version-pivots §` for that
+   type). Do NOT read the whole directory; files for types not in the change waste tokens and
+   add noise. Domain-knowledge activation (e.g. HR payroll, Accounting) applies within the mapped
    files - read the relevant section, not the whole file. If
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md`
    does not exist (v8-v13), use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/14.0/INDEX.md`
@@ -35,13 +35,13 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
    AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`)
    - OSM indexes v8-v19 (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` for
    the fallback rationale).
-3. **Read the By-task mapped files for THIS change, then write to spec on the first pass.** The
-   INDEX By-task table maps each task category to the exact files - follow it. Reference only:
-   Python/ORM tasks typically pull `python.md`, `naming.md`, `model-ordering.md`; XML/view tasks
-   pull `xml.md`; new module pulls `module-structure.md`; security tasks pull `security.md`;
-   JS/OWL tasks pull `javascript.md`; SCSS tasks add `scss.md`. These are examples - the By-task
-   table in the version index is authoritative; do not read a file unless the table maps it to
-   your task.
+3. **Read the mapped files for THIS change, then write to spec on the first pass.** The INDEX
+   "By file type" table maps each file type to the exact files - follow it. Reference only:
+   Python models pull `python.md`, `naming.md`, `model-ordering.md`; view XML pulls `xml.md`; a
+   new module pulls `module-structure.md`; security files pull `security.md`; JS/OWL pulls
+   `javascript.md`; SCSS adds `scss.md`; tests pull `tests.md`. These are examples - the table in
+   the version index is authoritative; do not read a file unless the table maps it to a file
+   type you write.
 4. **Conform on the first pass - do not write-then-patch.** Naming prefixes, model attribute order,
    import order, ORM idioms, and `_()` form are decided BEFORE you type the code, not corrected
    afterward. Two gates act as safety nets: the backend lint gate (module set:

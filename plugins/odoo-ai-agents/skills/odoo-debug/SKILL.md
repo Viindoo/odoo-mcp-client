@@ -7,22 +7,20 @@ description: >-
 
 ## Role
 
-Odoo debugging conductor. Own a symptom from first report to a PROVEN root cause (no fix before
-the cause is proven). Keep your own context clean for decisions; delegate each heavy investigation
-to a specialist debug agent, choosing the model per phase. Every brief you write is self-contained;
-every output you demand carries evidence, not guesses.
-
-Method SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` (defines the loop and the
-mandatory Output Contract). Odoo symptom catalog:
+Front door for root-causing one broken Odoo behaviour. It classifies the symptom, launches ONE
+debugger for the incident (`odoo-backend-debugger` or `odoo-ui-debugger`, by layer), escalates
+the same incident one tier at a time when a full pass proves no root cause, and hands the proven
+cause to the fix. No fix before the cause is proven. Method SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`; symptom catalog:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md`.
 
 ## Out of Scope
 
-- **Writing the fix once the cause is proven** → `odoo-coding`
-- **Proactive scan with no specific symptom** (audit a module for latent issues) → `odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`
-- **Static review of a diff / PR / pasted block** → `odoo-code-review`
-- **Rating a working screen** (aesthetics/a11y/perf verdict) → `odoo-ui-review`
-- **Comparing two builds for visual drift** → `odoo-visual-regression`
+- **Writing the fix once the cause is proven** -> `odoo-coding` (step 4 hands it there)
+- **Proactive scan with no specific symptom** -> `odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`
+- **Static review of a diff, PR or pasted block** -> `odoo-code-review`
+- **Rating a working screen** (aesthetics, a11y, perf verdict) -> `odoo-ui-review`
+- **Comparing two builds for visual drift** -> `odoo-visual-regression`
 
 ## MCP tools
 
@@ -48,244 +46,70 @@ mandatory Output Contract). Odoo symptom catalog:
 - `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
 <!-- END GENERATED TOOLS -->
 
-The orchestrator stays light on tools: pin the version once with
-`set_active_version(odoo_version=<concrete>)` (reachability probe) and pass that CONCRETE version
-to every dispatched agent in its brief - agents pass it on every OSM call themselves (the pin is
-session-scoped and racy when actors share a session, see
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). Use `entity_lookup` /
-`model_inspect` / `check_module_exists` only for Phase 1 layer classification when needed; all
-deep localization happens inside the dispatched agents.
+`set_active_version` once (the reachability probe) and pass the concrete version in the brief;
+the debugger makes every other OSM call itself.
 
-## Browser concurrency
+## Steps
 
-`odoo-ui-debugger` is an **exclusive, serial step per MCP family** - at most ONE browser-driving
-agent runs at a time within a given family (chrome-devtools, playwright, pagecast; each
-headed/headless variant is its own family); distinct families may run in parallel. Full rule +
-close-before-done: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. For
-flat/off-theme symptoms it applies the token-reality check from
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
+1. **Triage, inline.** From the report, the traceback or the console text, write three lines
+   before any launch: the symptom in one line; the layer per `odoo-failure-modes.md` (`backend`
+   for Python, ORM, data state, access rules, module load and migration; `ui` for OWL, JS,
+   QWeb, SCSS, console and network; `perf` for "slow now"; `security` only when the report itself
+   names a leak, an escalation or an injection); the modules in scope and whether they live in a
+   worktree under edit (`W`). A WARNING that matches a deny-path, guard or SQL-constraint
+   signature in a test run is expected noise, not a symptom. Capture `SHARE_DIR` and
+   `ISOLATE_DIR` once with `project_dir`; mint the session slug per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1 and sweep
+   abandoned evidence first (Clause 2):
 
-- **Headless default / headed on request.** Only add `BROWSER MODE: headed` to the dispatch
-  brief when the human explicitly asks to *see/watch*. On CI/no-display hosts, warn instead
-  of dispatching a doomed headed run.
-- **Parallel visual checks are out of scope for this skill today.** Running two would need
-  separate server instances (distinct ports/user-data-dir), which this skill does not
-  provision - serialize visual checks for now.
-
-## Workflow
-
-Run in phases. Dispatch the heavy work, collect the structured result, decide the next phase.
-Every dispatched debug agent is a non-spawning leaf: it may NOT spawn further subagents and may
-NOT invoke the Skill tool (read-only diagnosers, not orchestrators).
-
-### Phase 0 - Scope gate
-
-Emit a one-screen preview before dispatching anything:
-
-```
-Symptom: <one line>
-Suspected layer(s): <backend | ui | perf | security | install> (why)
-Plan: Phase 1 triage (<model>) → Phase 2 localize via <agent(s)/audit(s)> → Phase 3 verify → Phase 4 synthesize
-Proceed? (approve / refine: [feedback] / cancel)
-```
-
-This skill writes its run notes under `<ISOLATE_DIR>/debug/` (gate tier L1; resolve `<ISOLATE_DIR>`
-once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
-absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit), so
-confirm before a long run unless the caller already authorized auto-run.
-
-**Orphan sweep (do this every run, BEFORE minting this session's slug below).**
-`visual/debug/<slug>/` evidence is RETAINED past its own run (the Output Contract's Observation
-field cites it) - nothing else ever deletes it, so it leaks one directory per run forever unless a
-later run reaps it:
-
-`find <ISOLATE_DIR>/visual/debug/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
-
-(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed).
-Full rule + bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
-Clause 2. Enforcer: whoever executes `odoo-debug` next, unconditionally, every run - not a separate
-cleanup agent or cron.
-
-Generate one `slug` for this debug session per
-`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1 (collision-proof
-derivation: `<intent-slug>-<YYYYMMDD>-<4 random chars>`, the SAME mechanism `odoo-visual-regression`
-uses) and reuse it in every artifact path below, including the `SLUG:` field passed to
-`odoo-ui-debugger` in Phase 2 (it composes `<ISOLATE_DIR>/visual/debug/<slug>/` for its own
-captured evidence from that literal, never improvising its own).
-
-### Phase 1 - Triage (classify + reproduce)
-
-> **Expected-log triage (deny-path / guard / constraint WARNING - check before escalating).** A WARNING in a test run that matches a deny-path, guard, or SQL-constraint signature is EXPECTED noise - verify it is wrapped with `assertLogs` / `mute_logger`; do NOT open a code investigation. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
-
-Dispatch ONE **anonymous** Explore/recon-class subagent (model **haiku**, always) - NOT a layer specialist (`odoo-backend-debugger`/`odoo-ui-debugger`),
-NOT a registered agent - to: pin the version, read the symptom/traceback/console, produce the
-**smallest stable reproduction recipe**, classify the layer using `odoo-failure-modes.md`, and emit
-a **complexity score** (contained-1-layer vs cross-file/multi-hypothesis), which informs the Phase 2 brief.
-
-**Persist the scout's return (mandatory).** The `Explore`/recon-class agent type is
-Write-constrained (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) - it cannot save its own file,
-so it returns its findings in chat. YOU (the orchestrator) transcribe that return VERBATIM into
-`<ISOLATE_DIR>/debug/<slug>/findings.md` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2 (path/schema) and
-clause 3 (verbatim per-agent capture - a paraphrased digest is not compliant): the reproduction
-recipe, layer classification, and complexity score, one finding per line, never reworded. Resolve
-`<ISOLATE_DIR>` once, then, before this Phase
-runs, glob `<ISOLATE_DIR>/debug/*/findings.md` for this session's slug; a match -> READ it back and
-SKIP this Phase entirely (resume rule: clause 1). Phase 2 and Phase 4 read `findings.md` back
-rather than relying on Phase 1's chat text still being in context on a compacted or resumed
-session.
-
-### Phase 2 - Localize (root-cause hunt, per layer)
-
-Route each suspected layer to its specialist, choosing the model **explicitly** (see the table):
-
-| Layer / symptom | Dispatch to | Mechanism |
-|---|---|---|
-| Python/ORM, data-state, Expected singleton, routine AccessError (`ir.model.access`/`ir.rule` misconfig - no suspected leak/escalation/injection), compute/onchange/constraint, traceback, module-load/migration/ParseError, `test_lint` failure (`gettext-placeholders`/E8505, v18+ - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders) | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
-| OWL/JS/QWeb/SCSS runtime, console/network/blank render | `odoo-ui-debugger` agent | subagent launch (BROWSER → serial, exclusive) |
-| "why is it slow" / N+1 happening now | `odoo-perf-audit` (reactive mode) | Skill tool |
-| AccessError WITH a suspected leak, privilege escalation, or injection (not a routine access-rule misconfig) | `odoo-security-audit` (reactive mode) | Skill tool |
-| pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | Skill tool |
-| need a broad static sweep of code | `odoo-code-review` | Skill tool |
-
-**AccessError routing:** dispatch `odoo-backend-debugger` for EVERY AccessError - it owns the
-`ir.model.access` vs `ir.rule` diagnosis. Do NOT screen the symptom yourself for leak / privilege
-escalation / injection: add `odoo-security-audit` as a PARALLEL leg only when the initial REPORT
-already states one of those; when the report is silent on it, ASK the reporter rather than inferring
-it from the traceback.
-
-Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents in the SAME MCP family at once (per-family single-flight; see `## Browser concurrency` above).
-
-
-**Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-backend-debugger`,
-`odoo-ui-debugger`, or any other specialist agent dispatched below, fill the caller-side skeleton
-in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
-family delta; never inline that file verbatim into a hard-leaf brief.
-
-**Agent dispatch - prompt template (use verbatim, fill the brackets):**
-
-```
-DISPATCH MODEL: <sonnet|opus>  <- set this as the subagent `model` parameter on THIS dispatch; do not rely on the agent's frontmatter default
-You are the <odoo-backend-debugger | odoo-ui-debugger> agent. Diagnose this Odoo issue to a PROVEN
-root cause following the scientific method - do NOT propose a fix before the cause is proven.
-
-SYMPTOM: [symptom + any traceback/console text]
-REPRODUCTION (from triage): [smallest stable recipe]
-SUSPECTED LAYER: [layer]
-ODOO VERSION: [concrete version]
-SLUG: [the slug generated at Phase 0 for this debug session - odoo-ui-debugger substitutes this
-literal wherever this file's evidence paths say <slug>; odoo-backend-debugger ignores this field]
-ISOLATE_DIR: [the absolute path captured at Phase 0 - odoo-ui-debugger writes its captured evidence
-under <ISOLATE_DIR>/visual/debug/<slug>/ using this literal, never re-resolving from its own cwd;
-odoo-backend-debugger ignores this field]
-USER LANGUAGE: <lang | omit when the user works in English> - write the summary/human-facing prose
-in this language; identifiers, file paths, and tool names stay English (per
-`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`, which both debugger agents already consume).
-
-Step 0: pin the OSM version and ground per your own § Standalone-first fallback
-(`odoo-backend-debugger` / `odoo-ui-debugger`) - its reachability probe,
-Tier-1-MISS/hybrid-grounding procedure, and HARD LEAF never-spawn rule are not restated here.
-Fill EVERY field of the Output Contract in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md.
-```
-
-The agent frontmatter `model:` is only the default - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (per the table below); if you omit it, the dispatch silently runs at the frontmatter default and an escalated Phase-2 pass will be under-powered.
-
-Dispatch mechanism: the agent rows (backend/ui) are dispatched as subagents with an explicit model. The audit rows (perf/security/deprecation/code-review) are invoked via the Skill tool by YOU, the orchestrator, in the main context - this is NOT delegated to a Phase-1 triage agent, and each audit runs at its own `model: inherit` (this context), outside the per-phase model table.
-
-When invoking an audit skill via the Skill tool, pass the symptom + reproduction + version, asking for a root-cause (reactive), not a full proactive scan.
-
-### Phase 3 - Verify (adversarial)
-
-For each layer Phase 2 localized, dispatch ONE independent agent - a **fresh instance of that
-layer's Phase-2 specialist** (`odoo-backend-debugger` / `odoo-ui-debugger`), never the same
-instance that produced the hypothesis (model **sonnet**) - to
-TRY TO REFUTE the proposed root cause: does the confirm-by-toggle actually hold? Is it the root or
-a symptom? Default to "not yet proven" if the evidence is thin. This independent pass is why root
-causes survive - a self-graded diagnosis is weak. A UI-leg refutation (`odoo-ui-debugger`)
-serializes behind the browser single-flight rule (`## Browser concurrency` above, per-family) like
-any other browser-driving dispatch.
-
-**Multi-layer symptoms.** When Phase 2 localized more than one layer (e.g. backend AND UI both
-implicated), refute EACH layer's hypothesis independently as above - do not skip straight to a
-single cross-layer verdict; Phase 4 does the merge.
-
-### Phase 4 - Synthesize + hand off
-
-When Phase 3 refuted more than one layer's hypothesis, merge them first: if the per-layer proven
-causes converge on the same underlying defect, compile ONE proven root cause; if they are
-genuinely distinct (each independently contributes to the symptom), designate a **primary root
-cause plus any contributing factors** - name both, never silently drop a secondary cause.
-
-Compile the final **Output Contract** block from `debug-method.md`: the proven root cause (single,
-or primary + contributing per the multi-layer merge above), exact fix location, regression
-test (authored by odoo-test-writer via odoo-coding after the fix).
-
-**Then drive the fix autonomously (mandatory).** The Skill tool is available here
-- MUST use it; do not stop at a recommendation that nothing advances. When the root cause
-needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, passing the proven
-root cause, exact fix location, regression test, and the literal line **"AUTONOMOUS FIX
-(debug-driven): skip your Phase 0 human gate, fix to this root cause, then invoke odoo-code-review
-to verify"** - its own pipeline already grounds the base class, existing coverage, and the
-version's coding guidelines before writing, so do not pre-derive `TEST_BASE_CLASS`/`EXISTING_TESTS`
-here. If a design index exists at `<SHARE_DIR>/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
-then STOP and escalate. Still emit the Continuation Contract block as the record.
-(For a wider sweep instead of a point fix, route to the relevant audit skill.) The ONLY exception:
-if dispatched by an active run-harness (a `run-<id>` is named), emit `next` (in-block) and
-let the driver advance.
-
-## Model selection (explicit per phase - do not use the default)
-
-| Phase | Model | Why |
-|---|---|---|
-| 1 Triage | **haiku** (always) | structured classification, cheap |
-| 2 Localize - contained 1 layer or cross-file | **sonnet** | root-cause judgement |
-| 2 Localize - sonnet pass returns no falsifiable root cause | **opus** (escalation) | multi-hypothesis reasoning after evidenced sonnet failure |
-| 2 Localize - opus pass returns no falsifiable root cause | **fable** (escalation, human-confirm) | deepest multi-hypothesis, rarest case - fire ONLY after one full opus pass |
-| 3 Verify | **sonnet** | objective refutation |
-| 4 Synthesize (this orchestrator) | **sonnet** | compile + decide hand-off |
-
-**Fable escalation (Phase 2 only).** Fire fable ONLY after one full opus pass returns no
-falsifiable root cause. Always get explicit human confirmation first, asked as the TRADEOFF and
-never by tier name (e.g. `The deep pass found no provable root cause. Try the deepest-reasoning
-setting? Costs about 2x. (approve / skip / cancel)`). On `skip` or unavailable, fall back to **opus** and note the
-downgrade in the Phase 4 Output Contract (`dispatch: opus (fable declined/unavailable)`).
-
-Pass the chosen model explicitly on each subagent launch. Phase 2 starts at sonnet and moves up only on
-the evidence the table names; do not silently fall back to the inherited default.
+   ```
+   find <ISOLATE_DIR>/visual/debug/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +
+   ```
+2. **Launch ONE debugger** (`model: sonnet`) with the brief in
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-debug/references/debugger-brief.md`: `odoo-backend-debugger`
+   for `backend`, `odoo-ui-debugger` for `ui` (browser-exclusive per MCP family,
+   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2; `BROWSER MODE: headed` only
+   when the human asks to watch and a display exists). A `perf` symptom invokes
+   `odoo-perf-audit` inline (reactive mode) instead; a named leak, escalation or injection adds
+   `odoo-security-audit` inline beside the backend debugger. A symptom with both a backend and a
+   UI face gets the backend debugger first; the UI debugger only when the backend report finds
+   no cause.
+3. **Escalate the same incident, never fan out.** The report's `Root cause` line is proven only
+   with an executed or described confirm-by-toggle. `NOT YET CONFIRMED` after a full pass:
+   launch the same debugger once more at `model: opus` with `PRIOR_FINDINGS` = the report path,
+   so the excluded hypotheses are not re-tested. Still unproven after the opus pass: ask the human
+   once, as a trade-off and never by tier name ("The deep pass found no provable cause. Try the
+   deepest-reasoning setting? Costs about 2x. (approve / skip / cancel)"); `approve` launches the
+   same brief at `model: fable`, `skip` ends with the hypotheses excluded as `concerns`.
+4. **Hand off the fix.** With a proven cause: as a plan node, return `NEEDS_NEXT` with the report
+   path and `next: odoo-coding`, and stop; standalone, invoke `odoo-coding` inline (Skill tool)
+   with the report path and the line "fix to this proven root cause; the regression test the
+   report names comes first". A wider sweep instead of a point fix routes to the audit skill of
+   that layer.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** the agents fall back to disk Read/Grep (their own fallback protocol); they
-  still diagnose, labeling `grounded: local-source - not OSM-indexed`. Do not stop.
-- **Browser/instance unreachable:** if pre-captured console/network/screenshot evidence exists in
-  context, the `odoo-ui-debugger` uses it (prefix `⚠ Instance unreachable - diagnosis from
-  pre-captured evidence only`); otherwise emit `status: NEEDS_NEXT` with:
-  ```
-  next:
-    - skill: odoo-instance
-      reason: provision the Odoo instance needed for browser-layer diagnosis
-      inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules under test>"]}
-      confidence: 0.9
-  ```
-  so the run-harness provisions one; fall back to `BLOCKED` for that leg only if
-  provisioning is itself impossible. Never ask the user to paste console output or screenshots -
-  those are evidence the browser agent captures.
-- **Orchestrator.** Dispatches specialist debug agents (subagents) and audit skills (Skill tool). Does NOT accept re-invocation from inside a subagent: a spawned agent that needs this exact diagnosis should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
+- **OSM unreachable:** the debugger grounds from disk per its own fallback and labels
+  `grounded: local-source`; the run continues.
+- **Browser or instance unreachable:** the UI debugger uses pre-captured console, network and
+  screenshot evidence when the context holds it; otherwise return `NEEDS_NEXT` with
+  `next: odoo-instance` (`operation: ensure-up`, the series and the modules under test) and
+  launch the UI debugger once the instance is up. Never ask the user to paste console output.
+
+## Agent-managed tools
+
+`odoo-backend-debugger`, `odoo-ui-debugger` (one per incident; a later tier resumes the incident
+with `PRIOR_FINDINGS`); the audit skills inline. A debugger launches nothing and never invokes
+this skill back.
 
 ## Output format
 
-Use the mandatory **Output Contract** defined in
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` - every field filled, an honest
-"NOT YET CONFIRMED" where a step is incomplete. That contract is the soft enforcement of the
-scientific loop: a truthful fill is only possible if each step was actually performed.
-
-## Examples
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-debug/references/examples.md` for worked examples
-(backend/contained and UI/browser-serial).
+The debugger's Output Contract of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`, every
+field filled, an honest `NOT YET CONFIRMED` where a step is incomplete. Worked examples:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-debug/references/examples.md`.
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness - it does not change anything produced above.
+Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
+report path; `next: odoo-coding` with a proven cause; `status: DONE` with `concerns` listing the
+excluded hypotheses when no tier proved one.
