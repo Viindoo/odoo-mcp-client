@@ -804,15 +804,27 @@
     "odoo-solution-architect": {
       "role": "spawner",
       "spawns_agents": [
+        "odoo-impact-recon",
         "odoo-gap-analyzer"
       ],
-      "notes": "Designer that may source its own missing grounding. It PREFERS the front-door skill (odoo-gap-analysis, odoo-feature-check, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory), which fans out below it; odoo-gap-analyzer is listed because the architect launches it DIRECTLY on the R0-move-1 fallback where the Skill tool is absent from its own toolset (fence: agents/odoo-solution-architect.md § Direct-launch fallback). It may also launch anonymous read-only research workers for a bounded external question. It never launches a coder/reviewer/executor and never writes production source.",
+      "notes": "Design-session owner: writes the SRS, launches ONE odoo-impact-recon (haiku) for the dependency and blast-radius facts, decides the design depth, writes the light or full design with a build_tier_hint per node, and stops at the srs and design gates for the caller to resume it with SendMessage. May invoke a grounding skill (odoo-feature-check, odoo-gap-analysis, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory) or launch a read-only research worker for a fact recon did not give; launches odoo-gap-analyzer directly only when the Skill tool is absent. Never launches a coder, reviewer or executor; never writes production source.",
       "brief": {
         "required": [
-          "REQUIREMENT"
+          "REQUEST",
+          "ODOO VERSION",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
         ],
         "optional": [
           "MODE",
+          "PROFILE",
+          "WORKTREE_PATH",
+          "RUN_ID",
+          "DOMAIN",
+          "GAP_MATRIX",
+          "SRS_REQUIRED",
+          "RETURN_TO",
+          "DESIGN_SLUG_HINT",
           "USER LANGUAGE"
         ]
       }
@@ -1272,6 +1284,23 @@
           "BROWSER MODE"
         ]
       }
+    },
+    "odoo-impact-recon": {
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "SCOPE",
+          "WORKTREE_PATH",
+          "ODOO VERSION",
+          "SHARE_DIR"
+        ],
+        "optional": [
+          "PROFILE",
+          "DOMAIN",
+          "USER LANGUAGE"
+        ]
+      },
+      "notes": "Read-only haiku recon: upstream closure, dependents, sibling overrides and references, existing features and tests, one row each with its source (worktree or index). Launched once per change by odoo-solution-architect (design session) or by a coder that works without a design; launches nothing."
     }
   },
   "orchestration": {
@@ -1537,13 +1566,14 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-solution-architect",
-        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order, then MODE: consistency and, on any contested symbol, a MANDATORY MODE: reconcile architect call that picks the winner - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword). The architect is itself role=spawner: when a fact the design turns on was not handed to it (an uncosted requirement list, an unknown current behavior, a bounded external question) it sources that GROUNDING for itself - invoking odoo-gap-analysis / odoo-feature-check / odoo-override-finding / odoo-version-diff / odoo-deprecation-audit / odoo-frontend-design / odoo-doc-feature-map via the Skill tool, or launching read-only research workers (Mode A cap) - so a nested fan-out below this skill is sanctioned, never a violation to forbid. It still launches no coder/reviewer/executor and writes no production source"
+        "(one design session per change: SRS -> gate -> recon by odoo-impact-recon -> design -> gate; the skill resumes the same architect with SendMessage at each gate; master-child mode adds MODE: master, child, consistency and reconcile passes per snippets/master-child-design-contract.md and an optional MODE: review on a human opt-in keyword)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
       "spawns_agents": [
+        "odoo-impact-recon",
         "odoo-solution-architect"
       ]
     },
