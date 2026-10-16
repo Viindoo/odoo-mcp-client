@@ -57,7 +57,7 @@
 #     report's closed continuation fence, never from assistant text the caller never saw.
 #   - A stop that WAITS is not the end of the dispatch. On a surface that wakes a stopped subagent
 #     once per teammate it launched (any surface but the unattended one - the same surface test
-#     enforce-background-wait.sh applies), a coordinator ends its turn to wait for a teammate while
+#     enforce-background-wait.sh applies), a spawner ends its turn to wait for a teammate while
 #     it still holds its node lease for the work it resumes (snippets/spawner-completion-contract.md
 #     R0 move 3). So a SubagentStop whose payload still lists, running, a teammate THIS subagent
 #     launched asynchronously (hooks/teammate-wait.sh - the wait gate's own correlation) is not

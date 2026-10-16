@@ -170,4 +170,4 @@ self-contained - a colleague who was not on the call should understand the full 
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-harness output, changes nothing above.
+(status / produced / next) - additive plan-runner output, changes nothing above.

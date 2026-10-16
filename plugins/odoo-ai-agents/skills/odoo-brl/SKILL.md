@@ -518,7 +518,7 @@ emit a partial order + dag.mermaid for the acyclic remainder.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness.
+output for the plan runner.
 
 **Hand off to planning/design before coding.** Set `status: NEEDS_NEXT`:
 - Any Extension-L or Custom-XL item → `next: odoo-solution-design` (designed + approved before code),

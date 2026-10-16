@@ -18,13 +18,13 @@ them here.
 
 ## Dispatch
 
-<!-- engages-run-harness: routes via /odoo-intake Phase P so the workflow's on_complete chain auto-advances -->
+<!-- engages-run: routes via /odoo-intake Phase P so the workflow's on_complete chain auto-advances -->
 
 Yield to the `odoo-intake` skill with the intent already resolved: run the `odoo-plan-upgrade`
-workflow over this command's `$ARGUMENTS` (optional version range such as `v16-to-v17` or
-`16.0-17.0`). Because that workflow declares an `on_complete` cross-workflow chain, intake MUST engage
+workflow over this command's `$ARGUMENTS` (an optional version range, `<from>-to-<to>` or
+`<from>-<to>`). Because that workflow declares an `on_complete` cross-workflow chain, intake MUST engage
 Phase P (trigger 3: a single workflow node whose YAML declares `on_complete`) - serializing a 1-node
-RUN-DAG and dispatching the `run-harness` above it. The run-harness then dispatches `workflow-chaining`,
+RUN-DAG and running it (`plan-mode-schema.md` § Running the plan). The runner then dispatches `workflow-chaining`,
 which reads the workflow YAML, collects missing inputs (source version, target version, scope,
 deadline), emits the soft-plan-gate, and executes the four-phase pipeline:
 
@@ -33,14 +33,14 @@ risk-overview -> deprecation-audit -> version-diff -> synthesis
 ```
 
 Output is written to `<ISOLATE_DIR>/upgrade-plans/` on explicit user confirmation at the final gate. Do NOT
-dispatch `workflow-chaining` directly - without the run-harness above it, the `on_complete` design
+dispatch `workflow-chaining` directly - without a run above it, the `on_complete` design
 handoff degrades to a human suggestion (see below).
 
 **Design handoff (`on_complete`).** When the plan contains migration/refactor items with more than one
 viable approach (`needs_design == true`), `on_complete` chains to `odoo-solution-design` so those items
-are designed before any code is written. Routing through `/odoo-intake` Phase P keeps the run-harness
+are designed before any code is written. Routing through `/odoo-intake` Phase P keeps a run
 present to read the emitted Continuation Contract and auto-advance - the chain fires automatically. A
-bare `workflow-chaining` dispatch (no run-harness) degrades this to a visible human suggestion, which is
+bare `workflow-chaining` dispatch (no run) degrades this to a visible human suggestion, which is
 why this command routes via intake.
 
 **Execute handoff.** For the code-level upgrade once this plan is approved, invoke `odoo-modules-upgrade`

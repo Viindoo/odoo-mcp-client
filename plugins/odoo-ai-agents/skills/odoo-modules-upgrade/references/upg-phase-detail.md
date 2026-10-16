@@ -341,13 +341,13 @@ inputs:
 `next: odoo-modules-upgrade` with `design_doc`; it does NOT enter a code Plan Mode and does NOT
 dispatch a coder (P3 Plan Mode + P4 coder are owned by THIS skill).
 
-On re-entry (run-harness returns with `design_doc`): read the `design_doc` path from the returned
+On re-entry (the plan runner returns with `design_doc`): read the `design_doc` path from the returned
 contract `inputs`; record it against the module; set `checkpoint.json` `<module>: designed`;
 proceed to P3 with the design linked - do NOT re-run design. If `design_doc` is ABSENT from the
 returned inputs (design crashed before producing it), set the module back to `<module>: absorbed`
 and re-enter P2b next run rather than advancing to P3 with no design.
 
-Multiple modules may trigger P2b in one cluster. Route them one at a time (the run-harness advances
+Multiple modules may trigger P2b in one cluster. Route them one at a time (the plan runner advances
 one design hop per yield); a module whose status is already `designed` is skipped on the next P2b
 pass. P3 Plan Mode is entered only after EVERY P2b-triggered module in the cluster has a recorded
 `design_doc`.
@@ -428,7 +428,8 @@ poison-containment FIRST, which holds whether or not two modules ever run at onc
 notes that P4 is "Per module in dep order" has established nothing about whether the worktree is
 needed, and disjoint file sets establish less still: units sharing a tree share `.git/index` and one
 HEAD, which no amount of file-level disjointness separates. Semantics:
-`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Single-unit collapse.
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` (one source-writing unit: the saga
+reduces to the integration branch's own history).
 
 1. Create child worktree - invoke `git-toolkit:git-ops` to add a worktree (branch
    `upg/<src>-<tgt>-<cluster>-<module>`, worktree `<path>/upg-<module>`,
@@ -833,9 +834,8 @@ Keep exactly ONE commit per module; never one commit per cluster.
 
 ## P7 - Final review, then PR creation command
 
-Stage order inside this phase is the **Terminal stage order** constant
-(${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md § Pre-PR tail, its ONE
-owner): checklist -> final dep-order review -> push -> open PR. Do not reorder it locally.
+Stage order inside this phase follows the default tail (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail): checklist -> final
+dep-order review -> push -> open PR. Do not reorder it locally.
 
 **Pre-PR checklist (extends P6 sign-off).** Run the Runbot parity gates
 (${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md) PLUS

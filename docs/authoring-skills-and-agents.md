@@ -73,7 +73,7 @@ disclosure).
   never by raising a share. A command that is purely a user shortcut for a
   skill that stays visible may set `disable-model-invocation: true`, which takes it out of the
   listing - but then the model cannot invoke it, so the test refuses it for anything `odoo-intake`,
-  `run-harness`, `workflow-chaining` or a workflow YAML routes to.
+  `workflow-chaining` or a workflow YAML routes to.
 - **Field maximum = 1024 chars** for a skill `description` (Anthropic's documented maximum, enforced
   at skill upload, not by the CLI), also asserted by the test. The aggregate budget is far tighter in
   practice.
@@ -222,7 +222,7 @@ platform lever for this level of control is `.claude/agents/`, outside any plugi
 `tests/test_plugin_agent_ignored_fields.py`.
 
 **Leaf/spawner status is SSOT'd, not just prose.** Every agent's `role` (`leaf` | `spawner` |
-`coordinator`) is declared in `generator/skill_tool_deps.json` `agents.<name>.role` and
+`node-owner`) is declared in `generator/skill_tool_deps.json` `agents.<name>.role` and
 lint-enforced (`check_orchestration.py`'s agent-role pass) - a `role: leaf` agent's body is
 checked for the never-git/never-spawn clause and for any contradicting spawn/git language. The
 body-prose declaration ("You are a HARD LEAF...") stays required regardless; the SSOT does not
@@ -243,7 +243,7 @@ and `tests/test_chp_hardening.py`).
 
 **Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
 `snippets/dispatch-brief.md` is the SSOT for how a spawner (main agent, a dispatching skill, or a
-nested coordinator) fills the dispatch prompt when it dispatches a specialist agent -
+node owner) fills the dispatch prompt when it dispatches a specialist agent -
 the universal skeleton (`OBJECTIVE`, `WHY`, `SCOPE`, ..., `RETURN_BUDGET`, `RUN_ID`) plus a per-family delta
 (Designer/planner, Coder, Reviewer/auditor, Tester/QA, Doc-writer, Instance/ops, Survey/analyst).
 Every spawner skill/agent **reads it BY PATH** while composing a dispatch prompt; it is **NEVER
@@ -271,7 +271,7 @@ Names encode role so a router can tell the layers apart even when a name appears
 - **Command = imperative verb-object** (`odoo-run-brl`, `odoo-plan-upgrade`); frontmatter `name`
   **must equal the filename**.
 - **Prefix `odoo-`** on every Odoo-specific skill/agent/command. The only unprefixed
-  (domain-agnostic) names are `run-harness` and `workflow-chaining`.
+  (domain-agnostic) name is `workflow-chaining`.
 - A skill and the agent it dispatches **must have different names** (capability vs actor) - e.g.
   skill `odoo-code-review` dispatches agent `odoo-code-reviewer`.
 
@@ -309,7 +309,7 @@ deliberately, never silently. A file becomes subject to it two ways:
 - **Declared** - it has an entry in `tests/fixtures/card_budget_grandfather.json`. The entry is
   both the qualification and the budget, and the file is measured wherever it lives. This is the
   only door for a hot contract that is not a shared snippet - notably a top-level
-  `skills/<name>/SKILL.md` runtime contract such as `run-harness`, whose basename is shared by
+  `skills/<name>/SKILL.md` runtime contract such as `odoo-intake`, whose basename is shared by
   every skill and so is invisible to the citer heuristic below.
 - **Discovered** - it is a `snippets/*.md` or `skills/_shared/*.md` file cited by >=3 distinct
   skills+agents, and its budget is the default 4,096 B cap.

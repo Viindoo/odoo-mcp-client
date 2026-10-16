@@ -30,11 +30,10 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
    add noise. Domain-knowledge activation (e.g. HR payroll, Accounting) applies within the mapped
    files - read the relevant section, not the whole file. If
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md`
-   does not exist (v8-v13), use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/14.0/INDEX.md`
-   as the closest curated baseline
-   AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`)
-   - OSM indexes v8-v19 (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` for
-   the fallback rationale).
+   does not exist for the series, use the earliest series index under that root as the closest
+   curated baseline AND ground version-specifics via OSM (`set_active_version` +
+   `api_version_diff`/`suggest_pattern`; `list_available_versions` names the indexed series - see
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` for the fallback rationale).
 3. **Read the mapped files for THIS change, then write to spec on the first pass.** The INDEX
    "By file type" table maps each file type to the exact files - follow it. Reference only:
    Python models pull `python.md`, `naming.md`, `model-ordering.md`; view XML pulls `xml.md`; a

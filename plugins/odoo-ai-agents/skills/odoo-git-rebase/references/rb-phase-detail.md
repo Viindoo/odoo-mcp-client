@@ -425,7 +425,7 @@ inputs:
   classification: "<outcome bucket (c or b)> - <one-line reason>"
 ```
 
-On re-entry (run-harness returns with `design_doc`): read `design_doc` path from returned
+On re-entry (the plan runner returns with `design_doc`): read `design_doc` path from returned
 contract inputs; record it against the commit; set `checkpoint.json` `<sha>: designed`;
 proceed to P6 with the design linked. If `design_doc` is absent, set commit back to
 `status=extracted` and re-enter P5 next run.
@@ -594,7 +594,7 @@ Read the stopped commit's P4 outcome first. Outcome (a) or (d): invoke git-ops t
 Outcome (b)/(c): dispatch Explore first if context is needed, then the `odoo-coding` skill via the
 Skill tool (mirroring P9b - do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
 `odoo-frontend-coder` agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its
-`odoo-coder` per-node coordinator), and synthesis):
+`odoo-coder`), and synthesis):
 
 ```
 SKILL: odoo-coding
@@ -773,7 +773,7 @@ ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 RUN_ID: <this run's id>
 INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none' when P8b provisioned none>
-ADDONS_PATH: <that handle's addons_path, comma-joined - the coordinator's addons coverage assertion
+ADDONS_PATH: <that handle's addons_path, comma-joined - the coder's addons coverage assertion
       reads it; omit with INSTANCE_HANDLE: none>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
@@ -922,9 +922,8 @@ P9 for test failures) before re-presenting.
 
 ## P12 - Final review + PR
 
-Stage order inside this phase is the **Terminal stage order** constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail, its ONE
-owner): review -> push -> open PR. Do not reorder it locally.
+Stage order inside this phase follows the default tail (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail): review -> push -> open PR.
+Do not reorder it locally.
 
 **Step 1 (FIRST) - final code review of the integration worktree, BEFORE any push or PR.**
 Delegate a code review passing `TARGET: worktree:<WT_ROOT>/rb-integration`. This review can force

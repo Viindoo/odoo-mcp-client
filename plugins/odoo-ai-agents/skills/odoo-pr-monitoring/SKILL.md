@@ -11,30 +11,30 @@ model: inherit
 
 ## Where this sits in the flow
 
-Begins where `run-harness`'s terminal `integrate` land-tail stops at "PR opened": once every node in
-that repo is terminal and a DONE verification node covers every module its coding nodes touched,
-run-harness squashes the repo's run-integration branch, fresh FIRST-pushes it (non-force), opens ONE
-PR for that repo (run-integration -> principal), and STOPS (never merges). The surviving invariant is
-exactly ONE PR per repo per run. `monitor` and `merge` are ORDINARY plan nodes that `run-harness`'s
-`pick_ready` dispatches like any other node - `monitor depends_on integrate`, `merge depends_on
-monitor` - and this skill is what runs each time either is dispatched; `run-harness` never
-materializes a second one dynamically. CI runs minutes-to-hours and review takes hours-to-days, so a
+Begins where the plan's `integrate` node stops at "PR opened": once every node in that repo is
+terminal and a DONE verification node covers every module its coding nodes touched, the main
+agent (`plan-mode-schema.md` § Running the plan) squashes the repo's run-integration branch, fresh
+FIRST-pushes it (non-force), opens ONE PR for that repo (run-integration -> principal), and STOPS
+(never merges). The surviving invariant is exactly ONE PR per repo per run. `monitor` and `merge`
+are ORDINARY plan nodes the runner launches like any other node - `monitor depends_on integrate`,
+`merge depends_on monitor` - and this skill is what runs each time either is dispatched; the runner
+never materializes a second one dynamically. CI runs minutes-to-hours and review takes hours-to-days, so a
 dispatch of `monitor` never holds the run's turn open for that long: each poll tick reads once,
 classifies, and PARKS - it emits a `NEEDS_NEXT` Continuation Contract naming itself in `next[]` so the
-driver's turn ends cleanly, and a later `/loop` tick or `/schedule` cron re-invocation re-attaches via
+runner's turn ends cleanly, and a later `/loop` tick or `/schedule` cron re-invocation re-attaches via
 `run-<id>.json` and resumes. Once the watch classifies green + approved + mergeable, the `monitor`
 node itself reaches DONE - it does NOT also perform the merge; that is the separate `merge` node's
 job, dispatched only once `monitor` is DONE, so the outward L2 gate keeps its own `depends_on` edge
 and its own `gate_log` entry.
 
 ```
-run-harness's last verification node for this repo closes green  ->  integrate land-tail: squash + fresh first-push + open ONE PR  ->  STOP at "PR opened"
-   --- `monitor` node (run-harness dispatches it like any other node; each tick PARKS via NEEDS_NEXT instead of blocking the turn) ---
+the repo's last verification node closes green  ->  integrate node: squash + fresh first-push + open ONE PR  ->  STOP at "PR opened"
+   --- `monitor` node (the runner launches it like any other node; each tick PARKS via NEEDS_NEXT instead of blocking the turn) ---
 odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
    -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
         -> proposed re-push is HUMAN-GATED (X2); max_review_rounds cap; exhaustion -> BLOCKED
    -> green + approved + mergeable  ->  `monitor` node reaches DONE
-   --- `merge` node (depends_on: monitor; run-harness dispatches it once monitor is DONE) ---
+   --- `merge` node (depends_on: monitor; the runner launches it once monitor is DONE) ---
 odoo-pr-monitoring  ->  present merge approval gate  ->  merge (git-ops)
         -> post-merge cleanup (worktrees/branches/tag via git-ops)
 ```
@@ -59,9 +59,9 @@ or re-derive it):
 - **PR URL + branches** - from the active `run-<id>.json`, which lives under the Tier-2 ISOLATE
   dir; resolve it via the resolve-capture-substitute protocol in
   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
-  below) - `<ISOLATE_DIR>/run-<id>.json` (run-harness's terminal `integrate` land-tail step
-  `produced` carries the PR URL, the run-integration branch, the squashed SHA). A fresh session re-attaches by
-  reading `run-<id>.json` for the PR URL and resuming. (`run-harness` owns writing `run-<id>.json`;
+  below) - `<ISOLATE_DIR>/run-<id>.json` (the `integrate` node's `produced` carries the PR URL,
+  the run-integration branch, the squashed SHA). A fresh session re-attaches by reading
+  `run-<id>.json` for the PR URL and resuming. (The runner owns writing `run-<id>.json`;
   this skill only SURFACES the PR URL + poll state in its Continuation Contract `produced`, and
   writes its own poll-state notes under `<ISOLATE_DIR>/pr-monitoring/<id>.md`.)
 - **Direct user invocation** - "watch PR #N" supplies the PR number/URL directly; no run file
@@ -117,8 +117,8 @@ one of three branches:
 - **pending** -> record the tick, keep polling (no action).
 - **any warning / error / fail** -> Phase 3 (D3).
 - **green + approved + mergeable** -> the `monitor` node's watch is complete; report `DONE`. Do
-  NOT proceed to Phase 4 from here - that is the separate `merge` node's job, dispatched by
-  `run-harness` only once this `monitor` node is DONE.
+  NOT proceed to Phase 4 from here - that is the separate `merge` node's job, launched by the
+  runner only once this `monitor` node is DONE.
 
 Record each tick's classification in the poll-state note so the next tick (or a resumed session)
 sees the history.
@@ -155,22 +155,31 @@ NEVER pushed autonomously.
 ## Phase 4 - Dispatched as `merge`: the merge approval gate -> merge -> cleanup
 
 1. **Present the merge approval gate (always human).** The merge is irreversible/outward (git merge to the
-   principal branch), so it is L2 and the autonomy dial can NEVER lower it (`run-harness` hard rule
-   #5). Present a tight summary - PR URL, CI green, review approved, squashed SHA + tree-identity
-   result from run-harness's terminal integrate land-tail - and WAIT for human approval. Write the gate in the USER'S LANGUAGE
+   principal branch), so it is a human gate the autonomy dial can NEVER lower
+   (`plan-mode-schema.md` § Running the plan, step 7). Present a tight summary - PR URL, CI green,
+   review approved, squashed SHA + tree-identity result from the `integrate` node - and WAIT for
+   human approval. Write the gate in the USER'S LANGUAGE
    (translate labels/prose; keep PR URL, branch, SHA, and module names verbatim).
 2. **Merge.** On approval, invoke `git-ops` to merge (pass the human approval through
    as `confirmed: yes - <quote>`). This is the only place this skill triggers the merge; there is no
    auto-merge and no CI-triggered merge.
 3. **Post-merge cleanup.** After the merge is confirmed on the remote, invoke `git-ops` to run the
-   cleanup in one brief (the checklist `run-harness` reserved for this owner:
-   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` Cleanup Checklist): remove
-   ALL node worktrees and the run-integration worktree, delete the per-node
-   branches + the run-integration branch, delete the run-integration-backup tag, and prune stale
-   worktree refs. `<ISOLATE_DIR>/integration/<slug>/` (outside any git
-   working tree, so no gitignore entry applies) and this skill's own
-   `<ISOLATE_DIR>/pr-monitoring/<id>.md` may be removed inline. Optionally surface a
-   version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for `run-harness` to
+   cleanup in one brief (`op=integration-cleanup`): remove every node worktree and the
+   run-integration worktree, delete the per-node branches and the run-integration branch, delete
+   the run-integration-backup tag, and prune stale worktree refs:
+
+   ```
+   [ ] remove worktree <worktree_root>/<node-id>   (every node worktree of this run)
+   [ ] remove worktree <worktree_root>/run-integration
+   [ ] delete branch node/<slug>-<node-id>         (every node branch of this run)
+   [ ] delete branch run-integration-<slug>        (after the merge is confirmed on the remote)
+   [ ] delete tag run-integration-backup-<slug>
+   [ ] worktree-prune
+   ```
+
+   `<ISOLATE_DIR>/integration/<slug>/` (outside any git working tree) and this skill's own
+   `<ISOLATE_DIR>/pr-monitoring/<id>.md` are removed inline. Optionally surface a
+   version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for the runner to
    gate - do not run it autonomously.
 
 ## MCP tools
@@ -211,9 +220,9 @@ family delta; never inline that file verbatim into a hard-leaf brief.
 
 ## Out of Scope
 
-- **Opening or squashing the PR** -> `run-harness`'s terminal `integrate` land-tail owns that (ONE PR
-  per repo, opened once that repo's last verification node closes green) and STOPS at "PR opened";
-  this skill starts after.
+- **Opening or squashing the PR** -> the plan's `integrate` node owns that (ONE PR per repo,
+  opened once that repo's last verification node closes green) and STOPS at "PR opened"; this
+  skill starts after.
 - **Writing a fix** -> `odoo-coding` (backend + frontend); **diagnosing a failure** -> `odoo-debug`
   (root-cause first). This skill only ROUTES to them and gates the re-push.
 - **Any inline git / GitHub-API op** -> delegated to git-toolkit via the `git-ops` skill (PR read +
@@ -246,11 +255,11 @@ state), append a Continuation Contract block per
   re-push stays human-gated (X2).
 - **Green + approved + mergeable, dispatched as `monitor`** -> `status: DONE`. Never emit a `next[]`
   entry for the merge here - the plan's separate `merge` node (`depends_on: monitor`) is what
-  `run-harness` dispatches next; this skill does not materialize it.
+  the runner launches next; this skill does not materialize it.
 - **Dispatched as `merge`, gate awaiting the human** -> `status: NEEDS_NEXT` with the merge approval
   gate as the next step; after a confirmed merge + cleanup -> `status: DONE` with the merged PR URL
   and the cleanup result in `produced`.
 - **Bounded out / blocked** -> `status: BLOCKED` with `blocked_reason` (e.g. "max_review_rounds
   exhausted - human review") or `NEEDS_CONTEXT` when the PR handle is missing.
 
-The block is additive; advancing on `next[]` is `run-harness`'s job, never this skill's.
+The block is additive; advancing on `next[]` is the runner's job, never this skill's.

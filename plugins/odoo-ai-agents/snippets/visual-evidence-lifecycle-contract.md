@@ -155,7 +155,7 @@ Tier-1 subpaths (`logs/`, `conf/`) are OUT OF SCOPE here - see § 3.7.
 | Subpath | Owner | Bound | Why this bound |
 |---|---|---|---|
 | `worklog/<run-or-slug>/` | every multi-agent run (via `worklog-contract.md`) | 30d | decision log stays useful after the run for the next resume/audit; no self-cleanup step exists |
-| `integration/<slug>/` | `run-harness` (integration) | 24h | Self-deletes at its own post-merge cleanup (`run-integration.md` § Cleanup Checklist). TTL crash-backstop wired at `run-harness` § Run start + `run-integration.md` § Stale integration-dir sweep - fail-closed, run-status-correlated (never a bare mtime check; see § 3.6 for why the naive Clause-2 recipe was unsafe here). |
+| `integration/<slug>/` | the plan runner (integration) | 24h | Self-deletes at `odoo-pr-monitoring`'s post-merge cleanup. TTL crash-backstop wired at `plan-mode-schema.md` § Running the plan, Run start - fail-closed, run-status-correlated (never a bare mtime check; see § 3.6 for why the naive Clause-2 recipe was unsafe here). |
 | `git-rebase/<slug>/` | `odoo-git-rebase` | 30d | checkpoint/commit-dump working state; retained as evidence of what the rebase did, no self-cleanup step |
 | `forward-port/<slug>/` | `odoo-forward-port` | 30d | same reasoning as `git-rebase/<slug>/` |
 | `modules-upgrade/<slug>/` (+ `checkpoint.json`) | `odoo-modules-upgrade` | 30d | same reasoning as `git-rebase/<slug>/` |
@@ -204,7 +204,7 @@ against `state-root-resolution.md`'s own exhaustive ISOLATE table.
 ### 3.3 - `run-<id>.json`: the write-once-while-still-alive failure mode
 
 `run-<id>.json` is rewritten after every COMPLETED phase (`workflow-chaining` § Resume logic /
-`run-harness` §8.3) - so far, the same mtime argument as every other row above would apply.
+`plan-mode-schema.md` § Run file) - so far, the same mtime argument as every other row above would apply.
 But a run legitimately PAUSES at a gate ("approve / refine / cancel", an L2 human-confirm, a
 `/schedule` cron waiting on an external event) for an UNBOUNDED period while still alive and
 resumable - nothing touches the file during that pause, so its mtime goes stale while the run
@@ -268,17 +268,16 @@ never reopened by its own run (§ 3.1's own "no still-alive window to protect ag
 plain mtime sweep `pr-monitoring/` already uses is directly correct with no correlation check
 needed. Wired at that command's Phase 0, step 0.
 
-**`integration/<slug>/` (owner: `skills/run-harness/references/run-integration.md` /
-`run-harness`) - a bare mtime sweep is UNSAFE here; do not copy Clause 2's generic
-recipe verbatim.** Applying `find ... -mmin +1440 -type d -exec rm -rf {} +` as-is would reopen the
-exact danger `run-<id>.json` is excluded from this sweep for (§ 3.3): `run-harness` can pause at an
-L2 human-confirm gate for an UNBOUNDED period mid-run (§ Gate-tier
-resolution - "ALWAYS human - emit gate, end turn, resume after approve/skip/cancel"), during which
+**`integration/<slug>/` (owner: the plan runner, `plan-mode-schema.md` § Running the plan) - a
+bare mtime sweep is UNSAFE here; do not copy Clause 2's generic recipe verbatim.** Applying
+`find ... -mmin +1440 -type d -exec rm -rf {} +` as-is would reopen the exact danger
+`run-<id>.json` is excluded from this sweep for (§ 3.3): a run can pause at a human gate for an
+UNBOUNDED period mid-run (emit the gate, end the turn, resume on the reply), during which
 `integration/<slug>/plan.md` sits untouched - its mtime goes stale while the run is PAUSED, not abandoned.
 
 **The criterion (mtime alone is never sufficient; a candidate must ALSO be positively correlated
 to a TERMINAL run status before it may be deleted) - read the status with `jq`, never `grep`.**
-`run-<id>.json`'s own schema (`docs/reference/workflow-harness.md` §8.3) nests a SECOND,
+`run-<id>.json`'s own schema (`plan-mode-schema.md` § Run file) nests a SECOND,
 differently-scoped `"status"` key inside EVERY entry of its `nodes[]` array (a per-node progress
 flag: `PENDING`/`READY`/`RUNNING`/`DONE`/...) alongside the run's own top-level `"status"`
 (`NEEDS_NEXT`/`DONE`/`BLOCKED`/`NEEDS_CONTEXT`) - an unanchored text match against either key name
@@ -319,10 +318,9 @@ name authorizes deletion - mirroring the lease tools' own age-unknown-means-not-
 (`lease_gc` never reclaims what it cannot prove dead) and the resolve-or-refuse discipline this contract
 already applies to `run-<id>.json` itself (§ 3.3). This is deliberately NOT a bare one-liner like
 the other 14 rows - it trades that uniformity for the one property that actually matters here: it
-can never delete a live paused run's evidence. Wired at `run-harness` § Run start
-(the first action there, before this run creates or writes anything under
-its OWN `integration/<slug>/` for the first time) and detailed at `run-integration.md` § Stale integration-dir
-sweep.
+can never delete a live paused run's evidence. Wired at `plan-mode-schema.md` § Running the
+plan, Run start (before this run creates or writes anything under its OWN `integration/<slug>/`
+for the first time).
 
 ### 3.7 - Tier-1 `logs/` and `conf/`: swept elsewhere, deliberately outside this clause
 

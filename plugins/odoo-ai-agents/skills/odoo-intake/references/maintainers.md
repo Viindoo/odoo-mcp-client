@@ -19,13 +19,11 @@ when changing intake's structure, the routing table, or the harness wiring.
   disjoint `files-in-scope`), Dependency graph (`nodes` + `edges` with edge types + a
   `topological_order` + `critical_path` + `cycles` - `depends_on` is the ONLY ordering statement a
   plan makes; no field, header, or grouping construct may batch nodes together), and Assignment
-  (node → skill/agent + effort + est_agents (advisory) + verify - model/count owned by the dispatched
-  skill at runtime, never bound by the plan).
-  The work-item is `odoo-coder`'s INTERNAL intra-node unit and never a plan block.
+  (node → agent + mode + model, or skill/workflow, + effort + est_agents (advisory) + verify).
   A chat-only Approach skips Plan Mode (decision tree at the top of § Plan Mode). Full schema:
   `references/plan-mode-schema.md`.
-- See `docs/reference/workflow-harness.md` for the full design rationale of the harness and the
-  schemas borrowed here (the node invocation brief, BRL DAG, gap-analysis effort legend).
+- The run rules, the node brief and the run file schema live in `references/plan-mode-schema.md`;
+  the BRL DAG and the gap-analysis effort legend in their own skills.
 - **Dispatch mechanism rationale** (why the Skill tool, not a direct agent launch - § Dispatch mechanism
   keeps only the rule + table): a skill is not an agentType, so launching an agent by a skill *name* fails;
   launching the bare underlying agent directly launches it but **bypasses the skill's own orchestration**
@@ -36,14 +34,14 @@ when changing intake's structure, the routing table, or the harness wiring.
   subagents/fork-workers only (a subagent calling it on a spawner skill creates uncontrolled nesting).
 - Routing table currently lists 63 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
-  rows 33-40 = Phase E+ BRL flagship + workflow domains + parallel-WI delivery (row 40 -> `odoo-planning`;
-  the node loop it plans for is internal to `run-harness`, never user-invoked); rows 41-49 =
+  rows 33-40 = Phase E+ BRL flagship + workflow domains + parallel delivery (row 40 -> `odoo-planning`;
+  the main agent runs the plan it writes); rows 41-49 =
   solution-design, implement-feature, frontend-design, doc-illustration, git-rebase, modules-upgrade,
   acceptance, planning, pr-monitoring; rows 50-54 = icon-design, doc-feature-map, doc-walkthrough,
   module-packaging, doc-illustration DOC LAYER:both; rows 55-63 = coverage rows so every user-facing
   front-door skill is reachable - perf-audit, security-audit, data-migration, customer-health, i18n,
   pricing-proposal, rfp-response, test-writing, instance). `odoo-deep-survey` stays out of the table
-  by design (opt-in only); `run-harness`/`workflow-chaining` are internal machinery, not routing targets.
+  by design (opt-in only); `workflow-chaining` is internal machinery, not a routing target.
   Update both the table AND `references/collision-zones.md` when adding entries.
 - **Deep survey gate (opt-in)**: after the Proposed Plan, a SEPARATE offer line under the plan asks
   whether to run a deep survey on *large* jobs - the heavy alternative to light Phase R recon. The

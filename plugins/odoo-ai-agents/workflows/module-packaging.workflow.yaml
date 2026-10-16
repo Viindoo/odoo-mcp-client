@@ -58,7 +58,7 @@ phases:
     # Establish <run> = doc-run-<timestamp>. Every PER-MODULE artifact gets a <module>/ subdir
     # under <OUT>/<run>/ or <DOC> (avoids flat-path collision when the run covers several modules).
     # FIRST classify doc_root - classify only, this phase writes nothing to any module tree.
-    # doc_root = the worktree the run passes (run-harness or the caller made it), else the top
+    # doc_root = the worktree the run passes (the plan runner or the caller made it), else the top
     # level of the repo holding the modules. One bounded read tells the kinds apart
     # (snippets/git-delegation.md § Bounded-read allowlist):
     # `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir` - two

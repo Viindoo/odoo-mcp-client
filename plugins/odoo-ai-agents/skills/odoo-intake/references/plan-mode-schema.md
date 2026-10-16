@@ -1,329 +1,296 @@
-# Plan Mode Content Schema (writes-files Approach)
+# Plan schema and run rules (writes-files Approach)
 
-**SSOT owned by `odoo-planning`** (authored by its `odoo-planner` agent). Physically hosted here
-under `skills/odoo-intake/references/` for backward-compat with intake Plan Mode and the
-`docs/reference/workflow-harness.md` labeled-pointer - do NOT relocate it (`odoo-planner`'s own
-contract forbids relocation). Edit the schema here; every other site points at this file.
+**SSOT owned by `odoo-planning`** (authored by its `odoo-planner` agent, or filled by the main
+agent from the default tail for a one-node change). Hosted under `skills/odoo-intake/references/`
+because intake Phase P serializes it; every other site points here.
 
-Load this when the approved Approach has `output_mode = writes-files` and the plan is being written
-inside Plan Mode (step 3 of the Plan Mode procedure in SKILL.md). The plan MUST contain three
-blocks. None is optional for a `writes-files` Approach.
+Load this when the approved Approach has `output_mode = writes-files`. The plan has three blocks
+and a run header; the main agent runs it by § Running the plan. **The plan is the only place a
+run decision is made**: the runner executes what is written here and computes nothing this file
+could have stated. `nodes` and `edges` are the ONLY ordering statement a plan makes: no field,
+header, annotation or grouping construct batches nodes together.
 
-**The plan is the only place a run decision is made.** `run-harness` executes what is written here
-and computes nothing this file could have stated. Never author a field for the executor's
-convenience; never leave a decision for the executor to improvise. `nodes` and `edges` are the ONLY
-ordering statement a plan makes: no field, header, annotation, or grouping construct may batch nodes
-together.
+**Run header** (above Block 1): `odoo_version: <concrete series>`; optional
+`viindoo_profile: <name|none>`, `grounded: osm | hybrid | local-source | ungrounded`. Resolve
+`odoo_version` by the rungs of `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`,
+never a silent default.
 
-**Run header (required on every `writes-files` plan, ABOVE Block 1).**
-`odoo_version: <concrete series, e.g. 18.0>`; optional `viindoo_profile: <name|none>`,
-`grounded: osm | hybrid | local-source | ungrounded`. Resolve `odoo_version` by working the rungs of
-`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order and stopping at the first that
-answers - NEVER a silent default. This run header is a documented schema field so `run-harness` /
-`odoo-coding` read it as a field, not a header line they must guess. Read-only/chat Approaches never
-load this schema and carry no such field.
+## Block 1 - Node list
 
-**Block 1 - Node list.** The plan's unit is the **node**: one piece of work with one owner skill.
-A node is NOT a module. The MODULE is a property of a node, never a unit of planning: one node MAY
-span several modules, and one module MAY be covered by several nodes when the changes must land
-separately. Each node entry carries:
+The plan's unit is the **node**: one piece of work with one owner. A node is NOT a module; one
+node MAY span several modules, and one module MAY be covered by several nodes when the changes
+must land separately. Each node carries:
 
-- `id` - short, stable, kebab-case, unique in the plan. It is the human's handle at the approval
-  gate and the driver's tie-break key, so name it for the WORK, not for a module.
-- `objective` - the BUSINESS result the node delivers, in one line: WHO is helped and WHICH business
-  job gets done for them (e.g. "fleet managers invoice each vehicle's monthly usage without a
-  spreadsheet"). Never a technical end-state - "add field X", "create model Y", "write file Z" names
-  HOW, which belongs to the design doc and the coder, so a plan that states it delegates a method
-  instead of a result. A terminal lifecycle or verification node, whose job its stage already
-  fixes, states the business outcome it protects for this change (e.g. "existing fleet and
-  accounting users keep every flow they had").
-- `modules` - the module technical names this node touches, in dependency order (omit for a node
-  that touches no Odoo module, e.g. a chat-only synthesis node). Ordering rule: OSM
-  `module_inspect(name=<m>, method='dependencies', odoo_version=<concrete>)` per module, restricted
-  to the plan's own module set (SSOT for the algorithm:
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`). On a node whose `approach` is
-  `odoo-instance`, this same field IS the suite scope - the modules whose tests must run GREEN.
-- `files-in-scope` - the file globs this node may write. **File scopes across nodes MUST be
-  DISJOINT.** This used to be free (each module owned a directory); once one module can be covered by
-  several nodes it must be authored deliberately. `run-harness` re-checks it and STOPS BLOCKED on an
-  overlap rather than guessing an owner. Two changes to the same file are ONE node, or two nodes
-  ordered by `depends_on` and rescoped so their globs do not overlap.
+| Field | Value |
+|---|---|
+| `id` | short, stable, kebab-case, unique; named for the WORK, never for a module |
+| `objective` | the BUSINESS result in one line: who is helped and which job gets done; never a technical end-state ("add field X" names HOW, which belongs to the design and the coder). A tail node states the outcome it protects |
+| `modules` | technical names the node touches, in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`); omitted for a node that touches no module. On an `odoo-instance` node this IS the suite scope |
+| `approach`, `approach_kind` | the skill, agent or workflow; `skill | agent | workflow | inline | integrate` |
+| `agent`, `mode` | the agent the node launches and its `MODE` (e.g. `odoo-code-reviewer` `R1`), when the node launches one directly |
+| `model` | `haiku`, `sonnet`, `opus`, `fable` - the launch tier, from `build_tier_hint` for a build node, else the default tail |
+| `build_tier_hint` | a build node: the design's hint plus its six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the plan copies, the runner checks presence |
+| `business_function`, `audience` | the unit's Domain line (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`); `audience: n/a` for a unit with no user-facing screen |
+| `when` | a condition the runner evaluates with a tool before launching (§ Default tail); absent = always |
+| `depends_on` | node ids; the only ordering statement |
+| `files_in_scope` | file globs the node writes; two nodes that may run in parallel must have DISJOINT sets, else they are ordered by `depends_on` |
+| `inputs` | `objective`, `acceptance` (verbatim, with their SRS or design pointer), `survey` (`none` when none), optional `recon_findings`, `needs_worktree` |
 
-For a multi-repo delivery also note worktree + branch + verify command per node, and ONE Repo
-Capability Card per REPO (serialized as the run file's `repos[]`; a single-repo delivery has a
-one-entry list).
+**A node's module set is closed under "same landing moment":** two modules belong in ONE node
+when no other node depends on one without the other, neither needs independent revert, and
+neither needs deeper reasoning than the other. Any of the three fails -> two nodes ordered by
+`depends_on`. Odoo installs and tests a comma-separated module list in ONE run on every series,
+so a multi-module node costs one database and one suite pass.
 
-**A node's module set MUST be closed under "same landing moment".** Apply this test BEFORE deciding
-how many nodes a `dag_layers` edge becomes: two modules belong in ONE node when ALL THREE hold -
-(1) no OTHER node depends on one of them without also depending on the other, (2) neither needs to be
-independently revertable from the other, and (3) neither needs deeper reasoning/review than the
-other. If ANY of the three fails, they are TWO nodes, ordered by `depends_on`. One node is cheaper
-when the test passes: Odoo installs and tests a comma-separated module list in ONE `odoo-bin` run in
-every series from 8.0 onward, so a multi-module node costs ONE database and ONE suite pass, not N.
+For a multi-repo delivery, one Repo Capability Card per repo (`repos[]` below).
 
-**Block 2 - Dependency graph.** `nodes` + `edges` where each edge has a `type` of
-`technical | business-logic | data-flow` and a `reason`; a `topological_order` (Kahn's algorithm), a
-`critical_path`, and `cycles` (empty `[]` for a valid DAG - a cycle is reported, never silently
-dropped).
+## Block 2 - Dependency graph
 
-**Edges you MUST emit:**
-- **Module dependency.** If node Y touches a module that `depends` (directly or transitively) on a
-  module node X touches, and X's module is in this plan's set, then `Y depends_on X`. Odoo cannot
-  load a module before its declared dependencies in any series v8-v19. Auto-infer this even when the
-  human did not state it (the auto-infer rule already lives at
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`; do not restate it here).
-- **Verification.** A node whose `approach` is `odoo-instance` `depends_on` every node whose work it
-  must prove.
-- **Lifecycle.** Each terminal stage `depends_on` the stage before it, in the Terminal stage order
-  constant (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail).
+`nodes` + `edges` (`type`: `technical | business-logic | data-flow`, with a `reason`), a
+`topological_order`, a `critical_path`, `cycles` (`[]` for a valid DAG). Edges you MUST emit: a
+module-dependency edge whenever node Y touches a module that `depends` on a module node X touches
+(auto-inferred per `odoo-module-graph.md`); a verification edge from every `odoo-instance` node to
+each node it proves; the tail edges of § Default tail.
 
-**REQUIRED - ASCII dependency-graph block.** Render Block 2 with a fenced ```text ASCII graph (NOT
-mermaid - mermaid does not render in the plan file or the terminal where the human reviews the plan).
-One box per node, annotated `[repo: <repo>]` and tagged `[skill: <execute-skill>]`, each name in
-`modules` marked `(NEW)`/`(existing)`; a `depends-on:` line per node AND a flat edge list
-(`X --> Y` = Y depends on X, X runs first). List nodes in topological order top-to-bottom: that is a
-reading convenience, NOT a grouping - never add a header that batches nodes. ASCII only (ETHOS rule
-0): only `-`, `|`, `+`, `>`, `[`, `]` - NO box-drawing Unicode. Exact template (reusable verbatim):
+Render Block 2 as a fenced ```text ASCII graph (never mermaid; only `-`, `|`, `+`, `>`, `[`, `]`):
+one box per node with `[repo: <repo>] [agent: <agent> <mode> @ <model>]` or `[skill: <skill>]`,
+each module `(NEW)` or `(existing)` (evaluated once, the same tag everywhere), a `depends-on:` line
+and a `when:` line, listed in topological order, then a flat edge list (`X --> Y` = Y depends on X).
+Template:
 
 ````
 ## Block 2 - Dependency graph
 
 ```text
-Node dependency graph
-  Legend: [node-id] [repo: <repo>] [skill: <execute-skill>]  modules: <m> (NEW|existing), ...
-          "X --> Y" = Y depends on X (X runs first)
-  Nodes are listed in topological order for reading only. The edge list below is the ONLY
-  ordering statement; nothing groups nodes together.
-  [repo: ...] renders a SERIALIZED schema field: intake Phase P writes it onto every node as
-  `repo`, and each repo's capability card into the run file's `repos[]` (harness section 8.3).
-  ONE integrate node -> ONE PR -> per REPO. This example is SINGLE-REPO.
-  Terminal lifecycle ORDER is not chosen per plan - it is the Terminal stage order constant in
-  run-harness/references/run-integration.md section Pre-PR tail. Copy the order, never invent one.
-
-  [billing-core] [repo: fleet-addons] [skill: odoo-coding]
+  [billing-core] [repo: fleet-addons] [agent: odoo-coder @ sonnet]
       modules: viin_fleet_billing (NEW)
       depends-on: (none)
 
-  [billing-accounting-bridge] [repo: fleet-addons] [skill: odoo-coding]
+  [billing-accounting-bridge] [repo: fleet-addons] [agent: odoo-coder @ haiku]
       modules: viin_fleet_billing_account (NEW), viin_fleet_billing (NEW)
       depends-on: billing-core
-      One node spanning two modules: the bridge cannot land without the field it reads, so
-      both modules land in ONE commit. `viin_fleet_billing` is (NEW) here too - the tag is
-      evaluated once, at plan time, and stays the SAME everywhere the module appears; the
-      `depends-on: billing-core` edge, not a per-node retag, is what tells the reader
-      billing-core is the module's creating node. Its cross-module test is staged - see Block 3.
 
-  [regression-after-bridge] [repo: fleet-addons] [skill: odoo-instance]
+  [verify] [repo: fleet-addons] [skill: odoo-instance]
       modules: viin_fleet_billing, viin_fleet_billing_account
       depends-on: billing-accounting-bridge
-      An ORDINARY node. It runs the suites of the modules it names. Its `modules` list must
-      cover, at minimum, every module named by the nodes it transitively depends on -
-      run-harness re-computes that floor and STOPS BLOCKED if this list is below it. Widen it
-      beyond the floor when regression-scope.md's algorithm says a sibling module is at risk.
 
-  [review] [repo: fleet-addons] [skill: odoo-code-review]
-      depends-on: regression-after-bridge
-      Static REVIEW node - part of the Terminal stage order, positioned before the i18n/
-      acceptance/doc tail so a review-forced code fix is re-verified once, not translated or
-      documented twice. Closes DONE only after any fix it forces re-runs verify.
-
-  [cluster-i18n] [repo: fleet-addons] [skill: odoo-i18n]
-      depends-on: review
-
-  [cluster-acceptance] [repo: fleet-addons] [skill: odoo-acceptance]
-      depends-on: cluster-i18n
-      Authored STATICALLY like every other node - never omitted pending a later decision.
-      Acceptance criteria come from the QA oracle (odoo-qa-planner's scenarios.md) when
-      already authored, else from the design's section 9 Acceptance Criteria. An ABSENT
-      oracle means "source criteria from section 9 instead", never "omit this node".
-
-  [cluster-docs] [repo: fleet-addons] [skill: odoo-doc-illustration]
-      depends-on: cluster-acceptance
-      ONE doc node for the WHOLE run, over the aggregate module set - never per module.
-
+  [review-r1] [repo: fleet-addons] [agent: odoo-code-reviewer R1 @ haiku]
+      depends-on: verify
+  [review-r2] [repo: fleet-addons] [agent: odoo-code-reviewer R2 @ sonnet]
+      depends-on: review-r1
+  [acceptance] [repo: fleet-addons] [agent: odoo-qa-tester A1A2 @ haiku]
+      depends-on: verify
+      when: the diff touches a view, menu, report, controller, JS file, or a state change of a model with a workflow
+  [fix-round] [repo: fleet-addons] [inline: merge findings, SendMessage the node's coder]
+      depends-on: review-r2, acceptance
+  [i18n] [repo: fleet-addons] [agent: odoo-translator @ sonnet]
+      depends-on: fix-round
+      when: the .pot exported on the stable tip has a msgid the committed .pot lacks
+  [docs] [repo: fleet-addons] [agent: odoo-doc-writer full @ sonnet]
+      depends-on: i18n
+      when: the SRS names a user-visible feature, or a changed module ships doc files
   [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
-      depends-on: cluster-docs
-      opens THE ONE PR for [repo: fleet-addons]. Name here every node in this repo that is
-      NOT in the land-tail set {integrate, monitor, merge}. run-harness evaluates its own
-      readiness predicate over ALL nodes (including any materialized at runtime) and treats
-      this list as a floor: a narrower list is reported as an advisory finding, never a block.
-
-  [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring]
+      depends-on: docs
+  [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring @ haiku]
       depends-on: integrate
-      post-PR: CI-failure triage and review polling.
-
-  [merge] [repo: fleet-addons] [skill: odoo-pr-monitoring]
+  [merge] [repo: fleet-addons] [skill: odoo-pr-monitoring]   human gate, always
       depends-on: monitor
-      the single outward L2 gate. Always a human.
 
-  The pre-PR lint-class gate runs INSIDE run-harness between the doc node and integrate - a driver
-  step over the integration branch's aggregate diff, not a plan node, so it gets no box here.
-
-  Second repo (absent from this example): a run touching repo-2 adds a SIBLING terminal chain -
-  the same terminal lifecycle nodes, in the same constant's order, every node tagged
-  [repo: <repo-2>] - and THAT chain's own [integrate] opens repo-2's ONE PR.
-  Two repos = two integrate nodes = two PRs.
-
-  Edges (depends direction; flat list for grep/diff stability):
-    billing-core               --> billing-accounting-bridge
-    billing-accounting-bridge  --> regression-after-bridge
-    regression-after-bridge    --> review
-    review                     --> cluster-i18n
-    cluster-i18n               --> cluster-acceptance
-    cluster-acceptance         --> cluster-docs
-    cluster-docs               --> integrate
-    integrate                  --> monitor
-    monitor                    --> merge
+  Edges:
+    billing-core --> billing-accounting-bridge
+    billing-accounting-bridge --> verify
+    verify --> review-r1
+    review-r1 --> review-r2
+    verify --> acceptance
+    review-r2 --> fix-round
+    acceptance --> fix-round
+    fix-round --> i18n
+    i18n --> docs
+    docs --> integrate
+    integrate --> monitor
+    monitor --> merge
 ```
 ````
 
-**Serialized form (what Phase P writes from those tags).** The run file is stamped
-`"schema_version": "run/2.0"` (SSOT: `docs/reference/workflow-harness.md` section 8.3 - this schema's
-node shape is incompatible with `run/1.0` and the driver refuses anything older). Each
-`[repo: <repo>]` becomes a node's `repo` field, and each repo's Repo Capability Card becomes one
-`repos[]` entry (harness 8.3):
+A second repo adds a sibling tail in the same order, every node tagged `[repo: <repo-2>]`, and
+its own `integrate`: N repos = N PRs.
 
-```json
-"schema_version": "run/2.0",
-"repos": [{"id": "fleet-addons", "base": "<principal branch>", "verify": "<command>",
-           "commit": "<resolved by git-toolkit:git-ops>", "confidential": "public",
-           "worktree_root": "<sibling of the repo root, never the ambient temp dir - rule: run-harness/references/run-integration.md>"}],
-"nodes": [{"id": "billing-core", "repo": "fleet-addons", "approach": "odoo-coding",
-           "approach_kind": "skill", "modules": ["viin_fleet_billing"],
-           "files_in_scope": ["fleet-addons/viin_fleet_billing/**"], "depends_on": []},
-          {"id": "regression-after-bridge", "repo": "fleet-addons", "approach": "odoo-instance",
-           "approach_kind": "skill",
-           "modules": ["viin_fleet_billing", "viin_fleet_billing_account"],
-           "files_in_scope": [],
-           "depends_on": ["billing-accounting-bridge"]},
-          {"id": "integrate", "repo": "fleet-addons", "approach_kind": "integrate"},
-          {"id": "run-summary", "repo": null, "approach_kind": "inline"}]
+**Design is an INPUT to this plan, never a node of it.** No node's `approach` is
+`odoo-solution-design` and no node launches `odoo-solution-architect`; the design is read by
+pointer and approved before the plan exists. A design is optional at every complexity level
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule); its absence
+is carried as `none`, never a node.
+
+**Data source.** The node graph derives from the design's `dag_layers`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`) plus the Block 3 assignment;
+`(NEW)` vs `(existing)` from `odoo-module-graph.md`. Every repo carries at least ONE
+`odoo-instance` node on `integrate`'s path whose `modules` cover every module a coding node of that
+repo names (never a PR on a red suite); its `modules` grow monotonically down the graph
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`). A cross-module acceptance criterion
+is owned by the verification node whose `modules` cover every module it spans, named on that
+node's Block 3 line.
+
+## Block 3 - Assignment
+
+One line per node: `node -> agent <mode> @ <model> | skill | workflow (effort S/M/L/XL)`, the
+node's **acceptance criteria** (business-observable outcomes that make the `objective` true,
+each with its SRS or design pointer - never "field X exists") and the repo's **verify command**.
+For a criterion that spans several modules, name on the owning verification node which
+assertions cross a module boundary. A workflow is ONE node (`files_in_scope` = its `output_dir/`);
+its phases stay in the `.workflow.yaml`. The plan for a single-node change is the node plus the
+default tail.
+
+## Default tail
+
+The planner copies this tail after the last verification node and adapts it with a reason
+written in the plan (an SRS with a language criterion puts `i18n` before `acceptance`; a
+forward-port has no `docs`). A position the run does not have is skipped in place; the rest keep
+their order. Why this order: review and acceptance read one tip and change nothing, so they run
+in parallel and their findings become one fix round; i18n after the tip is stable, so no
+translation delta is forced by a later fix; docs after i18n (screenshots show translated
+labels) and before lint (docs write manifest keys); everything that can force a code change
+runs before the PR; merge is the only human gate of the tail.
+
+```yaml
+- id: review-r1
+  agent: odoo-code-reviewer   mode: R1   model: haiku
+  depends_on: [<last verify>]
+- id: review-r2
+  agent: odoo-code-reviewer   mode: R2   model: sonnet
+  depends_on: [review-r1]
+  # R3 (mode R3, model opus) is launched in the same message as R2 and R2 waits for its report
+  # when the unit's business_function is on the specialist list of business-taxonomy.md or
+  # recon.md meets the thresholds of concurrency-guard.md section 5.2
+- id: acceptance
+  agent: odoo-qa-tester   mode: A1A2   model: haiku
+  depends_on: [<last verify>]
+  when: the diff touches a view, menu, report, controller, JS file, or a state change of a model with a workflow
+  # A4 (mode A4, model sonnet) follows when audience is not n/a and the diff adds or changes a screen
+- id: fix-round
+  inline: merge the findings of review-r2 and acceptance, deduplicated by symbol and line,
+          classified per acceptance-oracle-contract.md; SendMessage the node's coder once;
+          then SendMessage review-r2 (FIX_DIFF) and acceptance (the failed and the touched
+          scenarios); at most 3 rounds, two consecutive rounds with a new HIGH in the same
+          area stop the run and return to the design
+  depends_on: [review-r2, acceptance]
+- id: i18n
+  agent: odoo-translator   model: sonnet   # one launch per language of the deployment catalog
+  depends_on: [fix-round]
+  when: instance_i18n_export on the stable tip yields a msgid the committed .pot lacks or changed
+- id: docs
+  agent: odoo-doc-writer   mode: full   model: sonnet   # one launch per module; landing by SendMessage
+  depends_on: [i18n]
+  when: the SRS names a user-visible feature, or a changed module ships doc/ or static/description/
+- id: integrate
+  approach_kind: integrate   # git-ops: pre-PR lint over the aggregate diff, squash, push, ONE PR per repo
+  depends_on: [docs]
+- id: monitor
+  skill: odoo-pr-monitoring   model: haiku
+  depends_on: [integrate]
+- id: merge
+  skill: odoo-pr-monitoring   # the human gate, always
+  depends_on: [monitor]
 ```
 
-The node's `objective` (Block 1) and acceptance criteria (Block 3) ride in its `inputs` map as
-`inputs.objective` (one string) and `inputs.acceptance` (a list of strings), copied verbatim - they are
-`inputs` keys, never new node fields.
+## Running the plan (the main agent, inline)
 
-`approach_kind` is one of `skill | agent | workflow | inline | integrate` - five values, exhaustive.
-A node's serialized field set is exactly: `id`, `repo`, `approach`, `approach_kind`, `modules`,
-`files_in_scope`, `inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE
-and there is no field that groups, batches, layers, or orders nodes other than `depends_on`.** A node
-carries NO `gate_tier`: the tier is a total function `run-harness` resolves at dispatch. Writing a
-tier here is a schema violation.
+**Inputs.** The approved plan; `SHARE_DIR` and `ISOLATE_DIR` captured once; the run file
+`<ISOLATE_DIR>/run-<id>.json` intake Phase P wrote; each repo's Capability Card.
 
-A second repo adds a second `repos[]` entry AND its own `integrate` node - N repos = N PRs.
-`repo: null` means the node belongs to no repository (chat-only synthesis / routing): it gets no
-worktree and sits outside EVERY repo's `integrate` readiness scope. A source-writing node, an
-`odoo-instance` node, or an `integrate` node never carries `null`.
+**Invariants, checked before the first launch.** Two nodes with no path between them share no
+module and no file glob; `depends_on` has no cycle; every node that can change code precedes
+`integrate`; `merge` follows `integrate` and is a human gate; every repo has a verification node
+on `integrate`'s path covering its coding nodes' modules. A failed invariant is a plan error:
+return it to `odoo-planning` with the finding; never patch the plan yourself.
 
-**Design is an INPUT to this plan, never a node of it (a SCHEMA constraint, not a preference).** No
-node's `approach` may be `odoo-solution-design`, and no node may be wired to the
-`odoo-solution-architect` agent - not in Block 1, not in Block 2's `[skill: ...]` tag, not in a Block 3
-assignment line, not in the serialized `nodes[]`, and not in a node materialized at runtime from a
-`next[]`. The design is READ BY POINTER as this plan's own data source (§ Data source below) and is
-APPROVED before the plan is authored, so a design node inside the plan is a contradiction in terms:
-the plan is DERIVED from the design, so a design produced afterwards either invalidates the ordering
-the human just approved or gets reverse-engineered to justify it. What this constrains is the plan's
-SHAPE, and ONLY its shape: it says nothing whatever about whether a design has to EXIST. A design is
-OPTIONAL at every complexity level and is never a precondition here - planning is mandatory for all
-work and is never withheld for a missing design
-(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule), so an
-unauthored design is carried as a `none` pointer and the work itself is what gets planned. The
-absence of a design is therefore not a schema condition at all; only a design NODE is. A plan that
-carries one anyway is a schema violation - `run-harness` STOPS the run BLOCKED and routes it back to
-`odoo-planning`
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier node classes).
+**Run start.** Fork ONE `run-integration` branch per repo from its base through `git-ops`
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`), and before creating this run's own
+`<ISOLATE_DIR>/integration/<slug>/`, reap abandoned ones - age alone never decides, the
+correlating run's own top-level status must prove terminal
+(`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` § 3.6):
 
-**Data source (never hand-drawn).** The node graph is DERIVED from the design's `dag_layers`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` `index.yaml`, the LOGICAL truth)
-PLUS the Block 3 `node -> SKILL` assignment for each `[skill: ...]` tag. `dag_layers` states which
-work must precede which; turn each layer edge into a `depends_on` edge between the nodes carrying
-that work - never into a node, a batch, or a grouping. NEW vs existing comes from the module-graph
-resolution (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`: a module resolving to
-NEITHER OSM NOR disk is `(NEW)`; otherwise `(existing)`). Evaluate this tag ONCE per module name, at
-plan time: the SAME module carries the SAME `(NEW)`/`(existing)` tag in EVERY node where it appears,
-never re-evaluated situationally per node - the `depends_on` edge, not a per-node retag, is what
-tells the reader which node creates it. Every terminal lifecycle stage appears as its own node wired
-to its execute-SKILL, INCLUDING `review` and `acceptance` - both are authored STATICALLY like any
-other node, never omitted pending a later runtime decision. `acceptance`'s criteria come from the QA
-oracle (`odoo-qa-planner`'s `scenarios.md`) when already authored, else from the design's §9
-Acceptance Criteria - either way stated as business outcomes with a pointer back (§ Block 3); an
-absent oracle changes WHERE the criteria come from, never WHETHER the node
-exists. Neither WHICH stages exist nor their ORDER is a per-plan choice: read both from the Terminal
-stage order constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` section Pre-PR tail),
-which is its ONE owner. A stage the run does not have is skipped in place; the rest keep their order.
+```bash
+command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -maxdepth 1 -type d -mmin +1440 -print0 |
+  while IFS= read -r -d '' d; do
+    case "$(jq -r '.status // empty' "<ISOLATE_DIR>/run-$(basename "$d").json" 2>/dev/null)" in
+      DONE|BLOCKED|NEEDS_CONTEXT) rm -rf "$d" ;;   # proven terminal
+      *) : ;;                                       # absent, unreadable or NEEDS_NEXT: never delete
+    esac
+  done
+```
 
-**Master-child reconciliation (extend, not fork).** The dep-graph is a RENDERING of `index.yaml`
-`dag_layers`; it adds no field to `index.yaml` and introduces no second DAG schema. Likewise, a
-node's Block-2 `[skill: ...]` tag and its Block-3 assignment line are TWO RENDERINGS OF ONE
-assignment, never two independent sources - a disagreement between them is one authoring error to
-fix, not two facts to reconcile.
+**Loop.** A node is ready when every `depends_on` is `DONE` or `SKIPPED`.
+1. Evaluate `when:` with a tool (a bounded `git-ops` diff read, `instance_i18n_export`, the SRS
+   file) and write the evidence to the worklog; false -> `SKIPPED`.
+2. A node that writes source gets a worktree from `git-toolkit:git-ops` under `worktree_root`
+   (`project_dir` axis `worktree`, `name` = the node id) starting at the repo's `run-integration`
+   branch; `inputs.worktree_path` records it.
+3. Launch the node's agent at its `model` with the brief of § Node brief (every launch in one
+   message when several nodes are ready and their file sets are disjoint; the in-flight weight
+   stays inside `concurrency-guard.md` Mode B; the reason letter of launch economics goes to the
+   worklog). A skill node is invoked inline; a workflow node through `workflow-chaining`.
+4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
+   file; cherry-pick a source node's range onto `run-integration` through `git-ops`
+   (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`); a continuation `next[]` entry
+   with confidence >= 0.5 becomes a dynamic node, below 0.5 a suggestion in the summary.
+5. A worker that returns `BLOCKED` or `NEEDS_CONTEXT` without a `gate:` is launched once more one
+   tier higher with its own artifacts as `PRIOR_FINDINGS`; a second failure stops the run at that
+   node and asks the human. A resumed round (a fix, a verification of a fix) goes to the SAME
+   agent with `SendMessage`, never to a new launch.
+6. **Verdict currency.** Before `integrate`, compare the `run-integration` tip the last green
+   verification recorded with the live tip (a bounded `git-ops` read); they differ -> re-run that
+   verification node on the new tip. A `.po` or `.pot` change alone does not change behaviour and
+   does not trigger it.
+7. **Human gates** are exactly: the SRS, the design, the plan (two or more nodes), `merge`, and
+   any outward or irreversible operation. At a gate: write the state to the run file, ask with a
+   closed question (`approve / refine: <text> / cancel`), end the turn; on the reply read the run
+   file and continue. A finished node is never a reason to stop.
+8. The run file is the truth for resuming after a broken session: a node left `RUNNING` is
+   reconciled against the worktree and the worklog before any re-launch. Workers write detail to
+   `ISOLATE_DIR` and return a short report (status, paths, numbers).
+9. When the session runs at an expensive tier, the whole loop may be handed to one
+   general-purpose `sonnet` agent with the plan and this section; it reports back at each gate
+   (launch economics reason e).
 
-**Where the test-running nodes go.** Never open a PR on a red suite. Every repo MUST therefore carry
-at least ONE node whose `approach` is `odoo-instance`, on `integrate@R`'s dependency path, whose
-`modules` cover every module named by any coding node in that repo. `run-harness` refuses to open the
-PR without it (`run-harness` section integrate readiness), so a plan that omits it BLOCKS
-rather than shipping untested code. Place EARLIER `odoo-instance` nodes wherever catching a
-regression late would be expensive; each one's `modules` must cover at least the union over its own
-transitive dependencies, so scope grows monotonically down the graph.
+**`integrate`.** When every non-tail node of the repo is `DONE` or `SKIPPED` and the verdict is
+current: run the pre-PR lint-class gate over the aggregate diff (the module set of
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, through `odoo-instance`), then invoke
+`git-toolkit:git-ops` to squash `run-integration`, push it and open ONE PR against the principal
+branch (update it when a resumed run finds one open). `monitor` and `merge` are plan nodes, never
+materialized twice.
 
-**Cross-module acceptance-criterion ownership.** A cross-module acceptance criterion - including the
-design's §9 solution-level summary - is OWNED by the verification node whose `modules` cover EVERY
-module that criterion spans, whether those modules sit
-in one coding node or are split across sibling coding nodes. Name that ownership on the owning
-verification node's Block 3 line (below) - a cross-module criterion is never left unowned because no
-single coding node's own module set happens to cover it.
+## Node brief
 
-**Block 3 - Assignment.** One line per node:
-`node -> skill | command | agent  (effort + est_agents ESTIMATE; model + count owned by the dispatched skill at runtime - ADVISORY / du kien, non-binding) -> which skill that agent uses`.
-Add per-node **acceptance criteria** + a **verify command** (Repo Capability Card). Acceptance
-criteria are BUSINESS-OBSERVABLE outcomes that make the node's `objective` true: what a user can now
-do, see or no longer has to do, and which figures come out right (e.g. "a vehicle's invoice total
-equals its logged usage times the contract rate; an accountant sees it posted to the fleet revenue
-account"). Never a technical check such as "field X exists" or "model Y has method Z". When the
-source criterion is technical - a design §9 line or an oracle scenario phrased as a field, model or
-file - restate it as the business outcome it serves and point to its origin for the technical detail
-(e.g. `(design §9 AC-3)`); the detail stays in the design, never copied here. `effort` follows
-the gap-analysis legend (S/M/L/XL); `est_agents` is a rough advisory count. The plan binds WHICH
-skill, never a per-agent `model`, fan-out `count`, or `gate_tier`. For ANY acceptance criterion that
-spans more than one module - whether those modules sit in ONE node or are split across SIBLING
-nodes - state in one line, on the OWNING node's Block 3 line (the verification node named under
-§ Cross-module acceptance-criterion ownership above), which of its assertions cross a module
-boundary, so `odoo-coder` knows what to stage. This 3-block plan
-is ALWAYS authored by `odoo-planning` (its `odoo-planner`); planning is mandatory for all work -
-`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` section Mandatory-planning rule.
+Inputs only; the agent's body owns the procedure. A build node gets the fields of
+`odoo-coder` § You receive, filled from the plan: `NODE`, `REQUEST` (= `inputs.objective`, then
+"Done when:" and `inputs.acceptance` verbatim), `MODULES` (`name @ path`, dependency order),
+`WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID`, `WORKLOG`,
+`DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SRS`, `RECON`, `DOMAIN`, `SELF_PROVISION: worktree-addons` or
+an `INSTANCE_HANDLE` with `ADDONS_PATH`, `SURVEY` (`none` when none), `CONSTRAINTS` (the Block 3
+cross-module assertions). Return: the commit range `<base>..<head>` on the node's branch. A tail
+node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
+`odoo-i18n`, `odoo-doc-illustration`) with `WORKTREE_PATH: <repo>/run-integration` and
+`SELF_PROVISION: worktree-addons` where the agent builds its own instance (i18n always: an export
+build needs demo data and the target languages, which a test lease cannot provide). A verification
+node: `OPERATION: run-tests`, `SERIES`, `MODULES` (= `node.modules`), `MODE: fresh`,
+`PERSIST: ephemeral`, `SELF_PROVISION: worktree-addons`, `WORKTREE_PATH`, `SHARE_DIR`,
+`ISOLATE_DIR`, `WORKLOG`, `GATE_ROLE: node-verify`, `TEST_TAGS` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
 
-**Terminal `integrate` land node (ONE per REPO the plan touches).** The plan does not end at
-`review`; it carries a terminal `integrate` node so the change is committed AND landed. The minimal
-plan for a single-node change is `[code, verify, review, integrate, monitor, merge]`. After every
-non-land-tail node in that repo is terminal and its verification is green, `run-harness` invokes
-`git-toolkit:git-ops` to squash and push the repo's integration branch and open a PR against the
-principal branch, and reaches DONE. It materializes NOTHING: `monitor` and `merge` are the plan's own
-nodes and `pick_ready` dispatches them once `integrate` is DONE - a materialized node here would
-dispatch the watch twice. There is no local merge to the principal. Block 3 line:
-`integrate -> run-harness invokes git-toolkit:git-ops (squash + push + open PR) -> DONE`.
+## Run file (`<ISOLATE_DIR>/run-<id>.json`, `schema_version: run/2.0`)
 
-**Workflow-as-node (G-B):** when a node's approach is a workflow-command it is **one node** -
-`files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the workflow's internal
-phases into separate nodes (that logic is SSOT in the `.workflow.yaml`), and do NOT draw its internal
-phase-sequence in Block 2. Block 3 line: `node -> /<command> via workflow-chaining (model per-phase
-in YAML, effort = total) -> verify: artifact in output_dir`.
-
-*Examples (short):*
-- Full-stack feature in one module -> ONE node; `odoo-coding` dispatches one `odoo-coder`, which
-  splits it into a backend work-item and a frontend work-item and sequences them (backend first).
-  That split is `odoo-coder`'s INTERNAL concern - the plan shows one node.
-- A behaviour change spanning three modules that must land atomically -> ONE node whose `modules`
-  lists all three in dependency order, ONE `odoo-coder`, ONE instance, ONE commit.
-- Three unrelated fixes inside ONE module, each independently revertable -> THREE nodes, each with
-  `modules: <that module>` and DISJOINT `files-in-scope`, chained `depends_on` in landing order.
-- Three disjoint fixes in three modules -> three nodes, no edges between them; `run-harness` runs
-  them one at a time in any order (it dispatches SEQUENTIALLY, never concurrently).
+Written once by intake Phase P, then only by the runner. `run_id`, `intent`, `autonomy`
+(`auto | step | plan`), `status`, `cursor`, `budget`, `repos[]` (one Capability Card per repo:
+`id` origin-derived, `base`, `verify`, `commit`, `confidential`, `worktree_root` from
+`project_dir` axis `worktree`), `nodes[]` (the Block 1 fields plus `status`
+`PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED|NEEDS_CONTEXT`, `produced`, `contract` = the last
+continuation block), `dynamic_nodes[]`, `gate_log[]`, `completion`. `repo: null` only for a node
+that writes into no repository and gates no delivery; every source-writing, verification,
+`integrate` and tail node names a declared `repos[].id`. Resume: skip `DONE` nodes, continue at
+the first ready node in topological order.
 
 ## Rejection flow
 
-If the user refines or rejects in the Plan Mode UI (step 5), loop back to the **soft-plan-gate**, not
-to execution: re-run the relevant part - pick a different skill, adjust node parameters (objective /
-acceptance / scope / files / assignment / effort), or `cancel`. Re-enter Plan Mode only once the revised plan is
-re-approved at the text gate. Never dispatch a writes-files specialist off a rejected plan.
+A `refine` or `cancel` at the plan gate loops back to the planner, never to execution: adjust the
+nodes (objective, acceptance, scope, files, assignment, effort) and re-present. Never launch a
+writes-files node off a rejected plan.

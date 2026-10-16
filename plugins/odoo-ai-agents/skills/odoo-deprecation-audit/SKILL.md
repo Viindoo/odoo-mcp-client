@@ -160,4 +160,4 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deprecation-audit/references/era-referenc
 
 ## Continuation Contract
 
-Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next) - additive run-harness output, changes nothing above.
+Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next) - additive plan-runner output, changes nothing above.

@@ -96,7 +96,7 @@ trees named individually (never "...").
 |---|---|
 | `run-<id>.json` | the continuation hook needs exactly ONE active run per scope - two worktrees sharing this dir break the "one active thing" invariant |
 | `worklog/<run-or-slug>/` | per-run execution log; parallel runs must not interleave |
-| `integration/<slug>/` | run-harness's integration log, per active run |
+| `integration/<slug>/` | the plan runner's integration log, per active run |
 | `brainstorm/state.json` | per-run/session active state |
 | `git-rebase/<slug>/` | branch-slug rebase working state; one-worktree-one-branch |
 | `forward-port/<slug>/` | branch/run-scoped, same reasoning as `git-rebase/` |
@@ -158,7 +158,7 @@ resolve `RUN_DIR` via the shared `hooks/run-ownership.sh` (`resolve_project_dir.
 only on the resolver's own documented REFUSAL case, fall back to legacy `<project>/.odoo-ai`
 before globbing `run-*.json`. Tolerated for these two call sites and no others, because all
 three conditions hold simultaneously: (1) **read-only glob, never a
-write** - `run-<id>.json` is written ONLY by `run-harness` (§8.3), which always resolves through
+write** - `run-<id>.json` is written ONLY by the plan runner (`plan-mode-schema.md` § Run file), which always resolves through
 the real two-axis root, so a degraded glob at the wrong location cannot corrupt or fork the lease
 registry; (2) **fail-closed** - only existing record files count, so a wrong-location
 fallback matches no files - the hook emits NO nudge, never a false one; (3) **hard

@@ -319,7 +319,7 @@ block and must be confirmed before any DELETE action proceeds. -->
 
 <!-- Version-anchored TODO/FIXME/XXX/HACK markers found during the SAME read above (upgrade
 mode only). One row per marker. Empty table if the module has none - record that fact, do not
-omit the section. DUE items feed P4 as real work-items (§ P4 step 0b); DEFERRED items are left
+omit the section. DUE items feed P4 as real work (§ P4 step 0b); DEFERRED items are left
 untouched in source; UNANCHORED items are recorded and flagged for the human - never silently
 absorbed into DUE nor silently dropped. -->
 
@@ -399,7 +399,7 @@ proposed_classification:  # per-class count aggregate - an EXTRA roll-up, not th
 reuse_candidates: <count>  # new-feature wire-in candidates listed in absorption file (RECONCILE features)
 breaking_change_flags: <N>
 data_at_risk: true | false  # true if module is installable:True AND has stored non-computed fields or noupdate records
-deferred_work_due: <count>         # version-anchored TODO/FIXME/XXX/HACK markers DUE at target - feed P4 as real work-items
+deferred_work_due: <count>         # version-anchored TODO/FIXME/XXX/HACK markers DUE at target - feed P4 as real work
 deferred_work_unanchored: <count>  # markers with no parseable version anchor - flagged for human at P3/P6, never silently absorbed or dropped
 grounded: <osm | local-source | ungrounded>
 ```

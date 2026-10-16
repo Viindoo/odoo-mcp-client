@@ -1,15 +1,15 @@
 <!-- SSOT snippet. The single source for the Continuation Contract that every skill/agent
-     emits at the end of its output so run-harness can advance a drive-to-done run. Referenced
+     emits at the end of its output so the plan runner can advance a run. Referenced
      via ${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md instead of pasting the block
      into every SKILL.md and agent file that emits a continuation contract - grep the plugin
      tree for the literal path `snippets/continuation-contract.md` to enumerate the current set
      (spans SKILL.md and agents/*.md; the set grows as skills/agents are added, so this comment
-     states no count of its own). Full rationale + schema: docs/reference/workflow-harness.md §8. -->
+     states no count of its own). The run loop that reads it: skills/odoo-intake/references/plan-mode-schema.md § Running the plan. -->
 
 # Continuation Contract (emit at the very end of your output)
 
 After your normal output (the artifact/answer this step produces), append ONE fenced block
-tagged `continuation`. It is a machine-readable handoff the `run-harness` reads to
+tagged `continuation`. It is a machine-readable handoff the plan runner (the main agent) reads to
 decide what runs next, and the only one: a status or a next step written outside the block
 reaches no driver. It does NOT replace or alter anything above it - it is purely additive.
 
@@ -23,9 +23,9 @@ concerns:                                   # OPTIONAL, DONE only: one line per 
 produced: [<real artifact path>, ...]      # files you actually wrote; [] for chat-only
 next:                                       # [] when nothing to add; REQUIRED (>=1 entry) on
                                              # NEEDS_NEXT; DONE MAY also carry a low-confidence
-                                             # (<0.5) advisory entry - the driver's "materialize
-                                             # next[] -> dynamic node" step (workflow-harness.md
-                                             # §8.1) reads next[] regardless of your own status
+                                             # (<0.5) advisory entry - the runner's "materialize
+                                             # next[] -> dynamic node" step (plan-mode-schema.md
+                                             # § Running the plan, step 4) reads next[] regardless of your own status
   - skill: <skill-or-workflow-name>
     reason: <why this is the next step>
     inputs: {<key>: <value>}                 # odoo_version, viindoo_profile are RESERVED - see Rules
@@ -36,10 +36,10 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 
 `status` has exactly four values: `DONE`, `NEEDS_NEXT`, `BLOCKED`, `NEEDS_CONTEXT`.
 
-`DONE_WITH_CONCERNS` is NOT one of them. To report a caveat on completed work, emit `status: DONE`
-plus a `concerns:` list - one line per caveat, each naming the dimension and an evidence path. A
-driver schedules `DONE` + `concerns` as DONE and surfaces the list. (ODOO-AI-ETHOS #10's
-`DONE_WITH_CONCERNS` is a different field - a human-facing self-report, not this DAG signal.)
+There is no fifth value. To report a caveat on completed work, emit `status: DONE` plus a
+`concerns:` list - one line per caveat, each naming the dimension and an evidence path. The runner
+schedules `DONE` + `concerns` as DONE and surfaces the list. (ODOO-AI-ETHOS #10's completion
+status is a different field - a human-facing self-report, not this DAG signal.)
 
 This is the ONE declaring file for `status` (`continuation_status`) and its `concerns:` qualifier;
 every other file in this plugin that mentions either POINTS here rather than restating the values -
@@ -48,9 +48,9 @@ other overloaded terms.
 
 Rules:
 - **You only EMIT this - you never dispatch the next step yourself, with one narrow category
-  exception.** Advancing ANOTHER agent's `next` is always the driver's (run-harness's) job. The
+  exception.** Advancing ANOTHER agent's `next` is always the plan runner's job. The
   exception: a front-door ORCHESTRATOR skill that drives its OWN bounded next/fix loop when it is
-  NOT running as a run-harness node MAY self-dispatch its next spawner - its own instructions carry
+  NOT running as a plan node MAY self-dispatch its next spawner - its own instructions carry
   the exact condition and iteration bound for doing so. A leaf worker/agent NEVER self-dispatches.
   See `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
 - **Spawner completion barrier (distinct from the no-self-dispatch rule above).** If you launched
@@ -68,7 +68,7 @@ Rules:
   (Completion Status) is cited here ONLY for the general evidence-over-assertion principle it
   states for every domain - it is NOT the authority for the four-value `status` enum above, which
   this file declares in its own right and which diverges from ETHOS #10's own value set (see the
-  `DONE_WITH_CONCERNS` note above). Your output, in order, is
+  no-fifth-value note above). Your output, in order, is
   (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
   evidence, (c) this fenced `continuation` block. Your report IS that output, delivered once - as
   the `message` of `SubagentHandback` when that tool is in your toolset, else as your final
@@ -81,7 +81,7 @@ Rules:
   or what can unblock it, and (c) what the caller should do next - AND each of (a)-(c) MUST cite a
   concrete, checkable referent from THIS turn's actual work (a specific file path, symbol/field/
   method name, error message, or tool-call result you already produced), never a generic
-  paraphrase of the category ("missing information", "the coordinator", "more context", "additional
+  paraphrase of the category ("missing information", "the orchestrator", "more context", "additional
   detail"). **Decidability check (apply it):** if you could swap in a different module, task, or
   caller and the sentence would read equally true unchanged, it names nothing and fails this rule -
   a `blocked_reason` that could be copy-pasted verbatim into any OTHER agent's report on any OTHER

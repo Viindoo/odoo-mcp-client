@@ -18,9 +18,9 @@ GREEN before `integrate` may open a PR. The scope is the monotonically-growing r
 - `C_N` = the union of `modules` over the `odoo-instance` node's OWN transitive `depends_on`
   closure - every module named by any coding node that node depends on, directly or transitively.
 - `odoo-planner` AUTHORS `C_N` into that node's `modules` field at plan-authoring time. It is not
-  injected at runtime by anything: `run-harness` only computes the FLOOR (the same union, computed
-  from the live `depends_on` graph) and BLOCKS the plan if the authored `modules` list is below it
-  (`run-harness` § `verify_plan_agreement`, check 4).
+  injected at runtime by anything: the runner only computes the FLOOR (the same union, computed
+  from the live `depends_on` graph) and returns the plan to the planner if the authored `modules`
+  list is below it (`plan-mode-schema.md` § Running the plan, invariants).
 - `C_N` grows with the node's position in the graph - a node placed later in the dependency order
   covers a larger union, because it depends (transitively) on more coding nodes. This is the
   regression guard: an earlier node's module must stay green after a later node lands.

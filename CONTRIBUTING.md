@@ -131,7 +131,7 @@ contributors, not for agents.
 | `plugins/odoo-ai-agents/agents/*.md` | Orchestration agents |
 | `plugins/odoo-ai-agents/commands/*.md` | Workflow slash commands |
 | `plugins/odoo-ai-agents/.mcp.json` | Bundled MCP servers loaded with the plugin: the eager headless browser server (`chrome-devtools`, started by `scripts/mcp/browser_mcp_launch.py`; `playwright`/`pagecast` are opt-in, wired later by `odoo-setup`) for the visual stack, and the local `odoo-local` server (instance-allocation lease/instance/translation-export/catalog tools, Claude-only) |
-| `plugins/odoo-ai-agents/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) - e.g. the SessionStart visual-stack readiness probe, the subagent lease gates (PreToolUse denies + the SubagentStop teardown block), the coordinator source-write deny, the SubagentStop background-wait gate, and the browser capture-path deny |
+| `plugins/odoo-ai-agents/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) - e.g. the SessionStart visual-stack readiness probe, the subagent lease gates (PreToolUse denies + the SubagentStop teardown block), the spawner source-write deny, the SubagentStop background-wait gate, and the browser capture-path deny |
 | `plugins/odoo-ai-agents/scripts/lib/` | Shared bash/python utilities reused by setup steps and the `odoo-local` server - e.g. `config_merge.py` (catalog upserts), `discover_odoo.sh`, the instance allocator (`allocator.py`), and `odoo_source_facts.py`, which reads each series' facts from an Odoo checkout's source text |
 | `plugins/odoo-ai-agents/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-ai-agents:odoo-setup` |
 | `plugins/odoo-ai-agents/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
@@ -250,8 +250,7 @@ or in the model's own reasoning. The rule:
 - **Prefix `odoo-`** on every Odoo-specific skill/agent/command. `odoo-intake` follows this
   convention like every other skill; the bare `intake` namespace is reserved for a future
   domain-agnostic front door (one that may invoke `odoo-intake` when it detects Odoo intent).
-  The two remaining unprefixed names are the domain-agnostic mechanisms: `run-harness`,
-  `workflow-chaining`.
+  The one remaining unprefixed name is the domain-agnostic mechanism `workflow-chaining`.
 
 A skill that dispatches an agent pairs a capability with an actor: skill `odoo-code-review`
 dispatches agent `odoo-code-reviewer`; skill `odoo-backend-coding` dispatches agent

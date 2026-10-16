@@ -26,7 +26,7 @@ remaining failure path is the assertion.
 
 ## Why principles, not a record grammar
 
-A parsed record grammar, a coordinator-side hash manifest and a closed change-kind list add steps an
+A parsed record grammar, a caller-side hash manifest and a closed change-kind list add steps an
 agent skips under load and prose a reader cannot hold, while real changes keep falling outside any
 closed list. So the contract states each principle once with its intent and an example; the
 test-writer owns its own restore and reports in free form.

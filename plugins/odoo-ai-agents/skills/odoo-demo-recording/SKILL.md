@@ -298,7 +298,7 @@ any file here regardless of suffix:
       inputs: {operation: ensure-up, series: "<the resolved series>", modules: ["<modules required for workflow>"]}
       confidence: 0.9
   ```
-  so the run-harness provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
+  so the caller provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 
 ## Output format
 
@@ -342,4 +342,4 @@ Narrated-mode overlay bundle + calling convention:
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-harness output, changes nothing above.
+(status / produced / next) - additive plan-runner output, changes nothing above.

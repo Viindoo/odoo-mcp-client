@@ -1,7 +1,7 @@
 # BRL Artifact Schema
 
 > SSOT for all artifacts written by the `odoo-brl` skill.
-> Source of truth for artifact layout: `docs/reference/workflow-harness.md` §3 (BRL job schema).
+> Source of truth for the BRL job artifact layout: this file.
 > This file documents field-level detail and JSON schema for each artifact type.
 
 ---
@@ -260,7 +260,7 @@ req_id,req_text,req_category,priority,classification,module,edition,effort_tier,
 ## 10. cost.json
 
 Project-level cost roll-up. All numbers trace to `cost-config.json` via the formula
-in `docs/reference/workflow-harness.md`.
+below.
 
 ```json
 {
@@ -322,7 +322,7 @@ Informational only - does not block the batch. Written throughout the pipeline.
 ## 12. dag.json (Phase D)
 
 Dependency adjacency written by Phase D after all chunks finish. The reasoning algorithm
-(cluster-cut + Kahn + EST/EFT) is in `dag-prompt.md`. See `docs/reference/workflow-harness.md` for the overall architecture.
+(cluster-cut + Kahn + EST/EFT) is in `dag-prompt.md`.
 
 ```json
 {
@@ -386,6 +386,4 @@ Edge `type` values: `technical | business-logic | data-flow`
 
 ## References
 
-- `docs/reference/workflow-harness.md` §3 - BRL job schema SSOT
 - `cost-config.json` - effort lookup + rate card SSOT
-- `docs/reference/workflow-harness.md` - harness architecture and BRL schema SSOT

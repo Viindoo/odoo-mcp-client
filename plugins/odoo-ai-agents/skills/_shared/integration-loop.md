@@ -8,7 +8,7 @@
 
 # Integration-loop + saga/rollback contract (SSOT)
 
-An integration loop builds ONE integration branch from N independently-produced work-items (WIs):
+An integration loop builds ONE integration branch from N independently-produced nodes:
 for each WI, in node-DAG dependency order, cherry-pick its commit(s) onto the integration branch and
 re-run the repo verify command. The branch must never be left half-built: a failure mid-loop is
 rolled back or resumed deterministically, never left ambiguous.
@@ -17,9 +17,10 @@ rolled back or resumed deterministically, never left ambiguous.
 
 These owners run an integration loop and reference THIS file instead of restating it:
 
-- `run-harness` - the **canonical per-node integration consumer** and SOLE owner (no separate
-  git-executor skill exists): it forks ONE `run-integration` branch from base at run start
-  (its own § Run start); every source-writing node's worktree forks from it, and
+- the main agent running a plan (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`
+  § Running the plan) - the **canonical per-node integration consumer** and SOLE owner (no separate
+  git-executor skill exists): it forks ONE `run-integration` branch from base at run start;
+  every source-writing node's worktree forks from it, and
   this saga cherry-picks each node's returned commit, in node-DAG order, onto run-integration
   before moving to the next ready node. Review and regression verification are ordinary PLAN
   nodes (dispatched to `odoo-code-review` / `odoo-instance`), not a driver-owned close step.
@@ -57,17 +58,16 @@ unrecoverable failure unwinds to a known-clean point:
    markers in the tree). Always report which WI failed and which outcome (abort | resume) was
    taken.
 
-When a repo has exactly one source-writing node (enum owner:
-`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Single-unit collapse)
-the saga reduces to the integration branch's own history: record the pre-node SHA (step 1), write
+When a repo has exactly one source-writing node, the saga reduces to the integration branch's
+own history: record the pre-node SHA (step 1), write
 NO per-node checkpoint (step 2), and clean-abort (worktree abandon + re-fork) to that SHA on
 failure.
 
 **Verification is its own plan node, not a driver-owned close step.** The regression suite that
 must be GREEN before `integrate` opens runs as an ordinary `odoo-instance` plan node, scoped by
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`; a red verdict fails that node -
-`run-harness` never opens a repo's PR without a DONE verification node on `integrate`'s dependency
-path (its own § integrate readiness).
+the runner never opens a repo's PR without a DONE verification node on `integrate`'s dependency
+path (`plan-mode-schema.md` § Running the plan, `integrate`).
 
 ## Git-mutation safety - POINT, do not restate (dependency direction)
 
@@ -93,7 +93,8 @@ and never-pushed, and every commit up to the anchor stays reachable on its own s
 `worktree add`/`worktree remove` is an ordinary, ungated mutation verb
 (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § No LEAF-worker git), distinct from the
 8-item destructive gate list. So a mid-node failure does NOT stop for human confirmation -
-drive-to-done continues autonomously (`run-harness`'s own § Gate-tier resolution). The terminal
+the run continues autonomously (the human gates are the closed list of `plan-mode-schema.md`
+§ Running the plan). The terminal
 closing push is a fresh FIRST push of the never-pushed
 run-integration branch (non-force, no history rewrite on any remote branch) - also NOT a
 destructive op, also firing no confirm gate; it runs as part of drive-to-done. The only

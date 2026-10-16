@@ -75,7 +75,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Front-door coding orchestrator (spawner) - stays light on tools: it scopes the modules and orders them, then dispatches one odoo-coder coordinator per work node (heavy per-module OSM localization happens inside the coders / odoo-test-writer, not here). set_active_version pins ONE concrete series for the whole run; module_inspect(dependencies) builds the module DAG that orders the nodes (SSOT skills/_shared/odoo-module-graph.md). find_override_point (>=3-entry override chain) + impact_analysis (wide downstream ripple) are the tier-classification signals that gate the opus row. The coverage pre-flight grounds the test scope before dispatch and forwards it into the odoo-test-writer brief: tests_covering (TestMethods already covering the model -> additive-only), test_coverage_audit (fields with zero/partial coverage), test_base_classes (base class + cr.commit()-forbidden contract). min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit)."
+      "notes": "Front-door coding orchestrator (spawner) - stays light on tools: it scopes the modules and orders them, then launches one odoo-coder per node (heavy per-module OSM localization happens inside the coders / odoo-test-writer, not here). set_active_version pins ONE concrete series for the whole run; module_inspect(dependencies) builds the module DAG that orders the nodes (SSOT skills/_shared/odoo-module-graph.md). find_override_point (>=3-entry override chain) + impact_analysis (wide downstream ripple) are the tier-classification signals that gate the opus row. The coverage pre-flight grounds the test scope before dispatch and forwards it into the odoo-test-writer brief: tests_covering (TestMethods already covering the model -> additive-only), test_coverage_audit (fields with zero/partial coverage), test_base_classes (base class + cr.commit()-forbidden contract). min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit)."
     },
     "odoo-competitive-brief": {
       "mcp_tools": [
@@ -316,7 +316,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Post-PR lifecycle owner (poller; NOT a blocking DAG node). Stays LIGHT on tools - it makes essentially no OSM calls: all PR/CI/review reads + the merge are GitHub-API ops routed through git-toolkit's `git-ops` skill, post-merge cleanup is likewise routed through `git-ops`, and deep source grounding happens INSIDE the odoo-debug / odoo-coding it routes to. set_active_version pins the run's target Odoo series once at attach (doubling as the OSM reachability probe) so the version-pinned context travels with any D3 hand-off to odoo-debug and into the merge report. Writes only its own poll-state under <ISOLATE_DIR>/pr-monitoring/ (gitignored); the PR URL lives in run-<id>.json (run-harness owns that write) so a fresh session can re-attach to the watch. min_server 0.6.0 for set_active_version."
+      "notes": "Post-PR lifecycle owner (poller; NOT a blocking DAG node). Stays LIGHT on tools - it makes essentially no OSM calls: all PR/CI/review reads + the merge are GitHub-API ops routed through git-toolkit's `git-ops` skill, post-merge cleanup is likewise routed through `git-ops`, and deep source grounding happens INSIDE the odoo-debug / odoo-coding it routes to. set_active_version pins the run's target Odoo series once at attach (doubling as the OSM reachability probe) so the version-pinned context travels with any D3 hand-off to odoo-debug and into the merge report. Writes only its own poll-state under <ISOLATE_DIR>/pr-monitoring/ (gitignored); the PR URL lives in run-<id>.json (the plan runner owns that write) so a fresh session can re-attach to the watch. min_server 0.6.0 for set_active_version."
     },
     "odoo-risk-overview": {
       "mcp_tools": [
@@ -412,12 +412,6 @@
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
       "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to <ISOLATE_DIR>/qa/. Test inventory pre-flight (before Phase 1): tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline; test_base_classes grounds the cr.commit()-forbidden base-class menu before any TransactionCase/HttpCase row; js_test_inspect grounds the per-module JS framework (hoot/qunit/tour) for frontend modules. min_server 0.15.0 for the test-surface tools (was 0.8.0 - too low for these)."
-    },
-    "run-harness": {
-      "mcp_tools": [],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Drive-to-done loop: walks the RUN-DAG in <ISOLATE_DIR>/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
     },
     "odoo-test-writing": {
       "mcp_tools": [
@@ -1189,7 +1183,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch; no subagent spawn of its own - a skill's own spawns cell may still list an anonymous review/resolver subagent) | spawner-agent (dispatches a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: a FACT about the skill, not a tier lever - true when the skill's OWN procedure drives a live instance (calls the allocator lease API, dispatches the odoo-instance skill / odoo-instance-ops agent, or emits odoo-bin), false when it only ROUTES an instance need away (a NEEDS_NEXT hand-off, an Out-of-Scope row). Declared true, it must ground CLI via OSM cli_help per target version. check_orchestration.py's [instance-truth] rule reads the skill's own SKILL.md body and contradicts this field when the evidence disagrees, so the value can no longer be whatever tier its author wanted. output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). the per-node tier is a total function of this registry default plus whether the node is dynamic and whether run-harness itself composed a fresh-database brief; there is no per-node override field. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: a launcher resumes a child it launched, by the id its own launch returned, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via a fresh agent launch + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md. instance_scope: `ephemeral` when every instance the skill touches is a lease the run owns (a throwaway database the final release drops) - such a skill is L1, never L2; L2 is reserved for a SHARED instance or an outward git or third-party action.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch; no subagent spawn of its own - a skill's own spawns cell may still list an anonymous review/resolver subagent) | spawner-agent (dispatches a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: a FACT about the skill, not a tier lever - true when the skill's OWN procedure drives a live instance (calls the allocator lease API, dispatches the odoo-instance skill / odoo-instance-ops agent, or emits odoo-bin), false when it only ROUTES an instance need away (a NEEDS_NEXT hand-off, an Out-of-Scope row). Declared true, it must ground CLI via OSM cli_help per target version. check_orchestration.py's [instance-truth] rule reads the skill's own SKILL.md body and contradicts this field when the evidence disagrees, so the value can no longer be whatever tier its author wanted. output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). the per-node tier is a total function of this registry default plus whether the node is dynamic and whether the runner itself composed a fresh-database brief; there is no per-node override field. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: a launcher resumes a child it launched, by the id its own launch returned, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via a fresh agent launch + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md. instance_scope: `ephemeral` when every instance the skill touches is a lease the run owns (a throwaway database the final release drops) - such a skill is L1, never L2; L2 is reserved for a SHARED instance or an outward git or third-party action.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -1406,7 +1400,7 @@
         "Explore (read-only range enumerate + diff read)",
         "odoo-intent-extractor (rebase MODE, per-commit, base-head grounding)",
         "odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify)",
-        "odoo-coding skill (via Skill tool: P8 conflict resolution + adapt; owns the coder fan-out (odoo-coder coordinator / odoo-coder / odoo-frontend-coder) and synthesis - the rebase does NOT dispatch raw coders for conflicts)",
+        "odoo-coding skill (via Skill tool: P8 conflict resolution + adapt; owns the node's coder (odoo-coder, with odoo-frontend-coder for a disjoint JS/OWL part) and synthesis - the rebase does NOT dispatch raw coders for conflicts)",
         "odoo-code-review skill (via Skill tool: P9b in-pipeline review + P12 final PR review)",
         "odoo-instance skill (CONDITIONAL at P10: provisions ONE instance when range touches DB-stateful behavior; its INSTANCE_HANDLE is forwarded to every downstream verify/coder brief - downstream never self-provisions)",
         "git-ops (all local git mutations - cherry-pick, branch, squash, force-with-lease - plus read-only diff/range analysis + tree-identity verify and PR create/review - via git-ops skill - git-toolkit)"
@@ -1565,20 +1559,6 @@
       "default_gate_tier": "L1",
       "spawns_agents": []
     },
-    "run-harness": {
-      "spawn_class": "orchestrator-nl",
-      "spawns": [
-        "odoo-coding (INVOKED per NODE via the Skill tool when the driver dispatches a coding node; odoo-coding owns coder count + model; the odoo-coder coordinator COMMITS the node and returns its commit range `<node base>..<head>` (normally one commit) - the work-item is odoo-coder's INTERNAL unit)",
-        "git-ops (worktree add per node lineage: one run-integration branch per repo at run start, one child worktree per source-writing node forked from it; cherry-picks each node's returned commit range onto the run-integration branch as a saga/checkpoint - only the range's commits not already on run-integration (compared by patch id), verified after each node's range, no per-node PR, no force-push; ONCE, when the repo's terminal integrate node runs, squashes run-integration + a fresh non-force FIRST push, then opens ONE PR run-integration->principal; no L2-squash-gate - the only L2 is the downstream outward merge, owned by odoo-pr-monitoring; no auto-merge - via git-ops skill - git-toolkit)",
-        "(anonymous Sonnet conflict-resolver subagent - dispatched ONLY when a cherry-pick reports a semantic conflict: handed the conflict diff + both node briefs via worker-brief.md, it edits the conflicting files (markers removed), then git-ops runs cherry-pick --continue; NOT a registered agent - see skills/run-harness/references/run-integration.md § Conflict Resolver)",
-        "(cross-cutting review escalation is NOT a run-harness spawn: the review is an ordinary PLAN node the planner places, dispatched here like any other node to odoo-code-review, which owns the review escalation decision itself (sonnet inline by default; opus only per the opus row of the capability map in skills/_shared/concurrency-guard.md; never a size-based fable) - see skills/run-harness/references/run-integration.md § Review Escalation for the ownership move)"
-      ],
-      "stack": "none",
-      "instance_touching": false,
-      "output_mode": "chat-only",
-      "default_gate_tier": "L0",
-      "spawns_agents": []
-    },
     "odoo-test-writing": {
       "spawn_class": "leaf",
       "spawns": [],
@@ -1665,7 +1645,7 @@
       "spawns": [
         "odoo-intent-extractor (read-only, one instance PER MODULE covering that module's full ordered commit list - never per commit; model per the capability map in skills/_shared/concurrency-guard.md)",
         "odoo-installable-prober (read-only per-module category-3 disambiguation in P2: reads the orchestrator-written target clean-tip manifest + the source manifest history dump; haiku)",
-        "odoo-coding (P8 adapt via the Skill tool; one invocation per module, MODE: adapt, COMMIT: caller; owns the coder fan-out (odoo-coder coordinator -> odoo-coder / odoo-frontend-coder, then the node's odoo-test-writer test leg that adapts the forwarded tests and break-checks them) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); modules adapted serially in the one integration worktree; the coordinator is launched ONCE per module and its returned id recorded, then resumed by that id on every later invocation for that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
+        "odoo-coding (P8 adapt via the Skill tool; one invocation per module, MODE: adapt, COMMIT: caller; owns the node's coder (odoo-coder, with odoo-frontend-coder for a disjoint JS/OWL part; the coder writes the node's tests test leg that adapts the forwarded tests and break-checks them) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); modules adapted serially in the one integration worktree; the coder is launched ONCE per module and its returned id recorded, then resumed by that id on every later invocation for that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
         "git-ops (P5 absorb-all - ONE no-ff no-commit merge of the batch's range TIP, the pipeline's only git shape - plus branch/worktree ops, the single P10 merge commit, and all other local git mutations, plus read-only diff/range map and PR create/review - via git-ops skill - git-toolkit; never a per-commit merge, and never a cherry-pick at any granularity)",
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
         "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
@@ -1717,7 +1697,7 @@
         "odoo-diff-comparator (per-module core-absorption comparison)",
         "odoo-gap-analysis (core-feature coverage)",
         "odoo-solution-architect (conditional hard-call design)",
-        "odoo-coding (P4 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-coder / odoo-frontend-coder) + model; dep order, per-module worktrees)",
+        "odoo-coding (P4 adapt via the Skill tool; owns the node's coder (odoo-coder, with odoo-frontend-coder for a disjoint JS/OWL part) + model; dep order, per-module worktrees)",
         "odoo-instance skill (P5 install/test via the Skill tool; owns the odoo-instance-ops fan-out) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)",
         "odoo-acceptance (P5.8 acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole cluster, gates alongside the P6 sign-off)",
@@ -1793,7 +1773,7 @@
     }
   },
   "vocabulary": {
-    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by tests/test_status_vocabulary.py; rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses). DONE_WITH_CONCERNS is listed under reserved_tokens - it is NOT a continuation_status or node_status value in this plugin; ODOO-AI-ETHOS.md #10 Completion Status defines it as a separate, human-facing self-report field outside this plugin's ownership and is not touched by this block.",
+    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by tests/test_status_vocabulary.py; rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses).",
     "continuation_status": [
       "DONE",
       "NEEDS_NEXT",
@@ -1822,8 +1802,6 @@
         "cancel"
       ]
     },
-    "reserved_tokens": [
-      "DONE_WITH_CONCERNS"
-    ]
+    "reserved_tokens": []
   }
 }

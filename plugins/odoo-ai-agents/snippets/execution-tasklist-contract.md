@@ -1,13 +1,13 @@
 <!-- SSOT snippet. The single home for the EXECUTOR'S OWN live, in-session progress checklist -
      distinct from resuming a child you launched (context-handoff-protocol.md Tier A) and from the
      durable run-<id>.json blackboard / worklog (worklog-contract.md, the state SSOT). Referenced
-     (not copy-pasted) by run-harness, workflow-chaining, odoo-planning, and every spawner.
+     (not copy-pasted) by the plan runner, workflow-chaining, odoo-planning, and every spawner.
      Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md. -->
 
 # Execution Task-List Contract (live, in-session progress checklist)
 
-When you begin executing a multi-step plan - nodes, phases, or work-items - create a
+When you begin executing a multi-step plan - nodes or phases - create a
 live task list and keep it updated as execution progresses: one item per unit of work; mark an
 item in-progress when you start it, done when you finish it, and add newly-discovered work as a
 new item rather than folding it silently into an existing one.
@@ -19,8 +19,8 @@ concrete tool differs by harness.
 
 ## Not the same surface as ...
 
-- **The blackboard** (`run-<id>.json`) - the durable DAG state machine, written only by
-  `run-harness`. The live task list MIRRORS this state for human visibility; it never replaces or
+- **The blackboard** (`run-<id>.json`) - the durable DAG state machine, written only by the
+  plan runner. The live task list MIRRORS this state for human visibility; it never replaces or
   redefines it. Update both together when a unit of work changes status - they must not drift.
 - **The worklog** (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) - the durable, append-only
   *why* journal. The live task list carries only status, never rationale.

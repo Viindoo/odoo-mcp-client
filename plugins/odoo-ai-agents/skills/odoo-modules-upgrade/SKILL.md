@@ -165,7 +165,7 @@ future version -> **DEFERRED** (leave it untouched); no parseable version anchor
 silently dropped. The comparator returns this as a compact `deferred_work` block inside
 `absorption/<module>.md` (never raw grep output) - the orchestrator only CONSUMES that structured
 list; it never greps module source itself for this. For a module that survives (KEEP/REWRITE/
-MERGE/SPLIT), every DUE item becomes a REAL upgrade work-item: P4 folds it into that module's SAME
+MERGE/SPLIT), every DUE item becomes REAL upgrade work: P4 folds it into that module's SAME
 implement -> P4b review -> P5 test path, not a side note (see § P4).
 
 **P2b - Hard-call design [mandatory route-out for specific verdicts].**
@@ -233,7 +233,7 @@ in a child worktree off integration - the reason is POISON-CONTAINMENT and it is
 the modules touch disjoint files, which is the deviation this prescription keeps losing to; read it
 before deciding otherwise at `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`
 § Child worktree per module. `odoo-coding` owns the backend/frontend split, coder fan-out
-(via its `odoo-coder` per-node coordinator), and model, and grounds any ported OWL/QWeb/SCSS against
+(its `odoo-coder`, the node owner), and model, and grounds any ported OWL/QWeb/SCSS against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder`,
 `odoo-backend-coder`, or `odoo-frontend-coder`).
 For DELETE-absorbed and OBSOLETE modules: invoke `odoo-coding` to run the dangling-reference
@@ -250,7 +250,7 @@ module's code actually hits, because deciding that here would need the source re
 Principle above forbids; never pre-select or pre-apply rows -
 the per-module deprecation fix list from P1, and this module's DUE version-anchored
 deferred-work items from P2's `absorption/<module>.md` `deferred_work` block (executed NOW as
-REAL work-items in the SAME implement -> P4b review -> P5 test path, not a side note; DEFERRED
+REAL work in the SAME implement -> P4b review -> P5 test path, not a side note; DEFERRED
 and UNANCHORED items stay untouched in source); flip `installable: False -> True`; do NOT bump the
 manifest `version` (keep the short form; a series-prefixed value is CONVERTED to it, never bumped -
 `references/upg-classification-table.md` § Manifest breaks, the Rule A row); set
@@ -369,9 +369,8 @@ DELETED-absorbed modules + their reasons) + the P5.8 acceptance verdict (or its 
 narrow-escape). Wait for human sign-off before the PR.
 
 **P7 - Final review + PR [human merge].**
-Stage order inside this phase is the **Terminal stage order** constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail, its ONE
-owner): every code-changing check clears, THEN the PR opens. Do not reorder it locally.
+Stage order inside this phase follows the default tail (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail): every code-changing check
+clears, THEN the PR opens. Do not reorder it locally.
 Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
 add a convention-compliance pass (manifest version-form - short, no series prefix, not bumped, per
@@ -545,7 +544,7 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR URL.
 When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
-Contract payload and the run YIELDS. Additive output for the run-harness - does not change
+Contract payload and the run YIELDS. Additive output for the plan runner - does not change
 anything produced above.
 Note: this workflow has TWO review points - the P4b in-pipeline code-review loop (per module,
 dep order, fix-until-clean, findings folded into the module rows of `install-test.md`) and the

@@ -15,7 +15,7 @@ genuinely absent - so `odoo-coding` can turn that raw BLOCKED into a specific, e
 decision.
 
 **Scope note.** Every source-writing node's worktree forks from the ONE `run-integration` branch
-(lineage: `run-harness` § Run start), so it always CONTAINS its dependencies' committed
+(lineage: `plan-mode-schema.md` § Running the plan, Run start), so it always CONTAINS its dependencies' committed
 source - but that is not the same as the source being on the verification instance's addons-path
 (the catalog's `addons_path` points at the principal checkout by default). Reaching it is a
 POLICY step: the node's brief carries `WORKTREE_PATH` + `SELF_PROVISION: worktree-addons`
@@ -77,7 +77,7 @@ so it is the only actor that knows when a module transitions state.
 - **`odoo-coder` stays LEDGER-UNAWARE** - it never reads or writes `$LEDGER_ROOT`; it runs the
   dependency pre-flight and emits a RAW `BLOCKED: manifest dependency <D> unresolved on
   addons-path`, which `odoo-coding` classifies.
-- **`run-harness` neither writes the ledger nor drives any ledger decision.** It receives
+- **The plan runner neither writes the ledger nor drives any ledger decision.** It receives
   `odoo-coding`'s already-classified BLOCKED and runs its saga path; it may read the ledger
   read-only for its own execution log, but never runs the WAIT or decision table.
 
@@ -95,7 +95,7 @@ a module in this node's own `modules` list that another run already holds - EXTE
 mechanism rather than inventing a second one (§ Claim = atomic `mkdir` below). Because a node can
 claim several modules at once, the staleness window is WIDER than a single-module claim's: any
 claimed-but-not-yet-`done` module going stale reopens the wait. When the wait is EXHAUSTED with no
-progress it returns a clean `BLOCKED` (case 6) - `run-harness` treats that like any other BLOCKED,
+progress it returns a clean `BLOCKED` (case 6) - the runner treats that like any other BLOCKED,
 never re-implementing a barrier wait of its own.
 
 ## Claim = atomic `mkdir` (no flock, no lock file)
@@ -197,7 +197,7 @@ the leaf coder. Evaluate the cases IN ORDER; first match wins:
 4. **Ledger shows `D` `done` but `D` is NOT on this worktree's addons-path** -> `BLOCKED:
    dependency <D> was built in run <X> - integrate/rebase it onto this worktree before
    continuing`. Fires ONLY cross-run: intra-run the worktree already contains `D`'s committed
-   source (fork-from-integrated-parent lineage, `run-harness` § Run start), and
+   source (fork-from-integrated-parent lineage, `plan-mode-schema.md` § Running the plan), and
    `SELF_PROVISION: worktree-addons` re-roots the verification instance onto it - a POLICY
    guarantee (§ Scope note above), not structural.
 5. **Ledger shows `D` `failed`** (THIS run's own sibling OR a different run - a terminally failed

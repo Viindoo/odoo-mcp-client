@@ -81,7 +81,7 @@ once per writer.
 
 ## Relation to the blackboard
 
-`run-<id>.json` is the driver-only state machine (only `run-harness` writes it). The worklog is the
+`run-<id>.json` is the runner-only state machine (only the plan runner writes it). The worklog is the
 human- and agent-readable narrative every participant writes. The driver stores the worklog dir path
 in the blackboard so all nodes resolve the same dir; standalone, the skill derives it from its own
 slug. The two never duplicate: blackboard = machine state, worklog = decision rationale.

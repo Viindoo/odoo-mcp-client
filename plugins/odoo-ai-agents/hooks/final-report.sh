@@ -281,7 +281,7 @@ _handback_delivered() {
 # when its report travels as its final message (no SubagentHandback) the caller receives the
 # message that turn ENDS on, not the report it stopped with - so a text that does not say so costs
 # the caller the report. A report already delivered through SubagentHandback is final: nothing the
-# extra turn writes reaches the caller. A coordinator that stopped only to WAIT for a teammate it
+# extra turn writes reaches the caller. A spawner that stopped only to WAIT for a teammate it
 # launched (any surface but the unattended one wakes it for that teammate - hooks/teammate-wait.sh)
 # has not written its report yet, so it is told to keep waiting instead; that branch needs the
 # caller to have sourced teammate-wait.sh and to pass the payload.
