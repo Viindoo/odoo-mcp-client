@@ -7,265 +7,85 @@ description: >-
 
 ## Role
 
-Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
+Front door for reviewing Odoo code. It resolves the target, computes the changed set, launches
+`odoo-code-reviewer` in its three modes at three tiers, and returns the verdict. It launches and
+returns; it does not wait on a fix, and the findings go back to the coder that built the node
+through the caller's fix round.
 
 ## Out of Scope
 
-- **Writing new code** → route to `odoo-coding`
-- **Module-level pre-upgrade audit** → route to `odoo-deprecation-audit`
-- **Override safety analysis** → route to `odoo-override-finding`
-- **Verifying a render error in a real browser** → route to `odoo-debug`
-- **Rating a rendered screen's look / UX / accessibility** → route to `odoo-ui-review` (static source review here never judges rendered appearance)
+- **Writing new code or fixing a finding** -> `odoo-coding` (the caller resumes the node's coder)
+- **Module-level pre-upgrade audit** -> `odoo-deprecation-audit`
+- **Override safety analysis of one hook** -> `odoo-override-finding`
+- **Verifying a render error in a real browser** -> `odoo-debug`
+- **Rating a rendered screen's look, UX or accessibility** -> `odoo-ui-review`
+- **Executing acceptance scenarios on a live instance** -> `odoo-acceptance`
 
-## When to invoke
+## Target
 
-Invoke the `odoo-code-reviewer` agent when Odoo code needs review. Review scales with change size: one module -> one reviewer; many modules -> per-module fan-out + one integration pass.
-
-**Two entry paths - choose before dispatching the scoper:**
-
-- **Pasted block or single file_path (not a git target):** dispatch ONE `odoo-code-reviewer` directly (skip scoper); the block/file is the scope.
-- **Git target (local tree, worktree, or PR):** dispatch `odoo-review-scoper` first (Phase 0), then fan-out reviewers from its output. Each leg runs as an autonomous agent.
-
-**Derive `TARGET` from user intent:**
-
-| User intent | TARGET to pass |
+| User intent | `TARGET` |
 |---|---|
-| "review this" on the working tree | `TARGET: local` |
-| "review PR #N" or a GitHub PR URL | `TARGET: pr:<N>` or `TARGET: pr:<url>` |
-| Work lives in another worktree | `TARGET: worktree:<abs-path>` - REQUIRED; if omitted, scoper diffs principal cwd (empty diff -> BLOCKED) |
-| Pasted block / single file_path, no git context | skip scoper (see above) |
+| "review this" on the working tree | `local` |
+| "review PR #N" or a GitHub PR URL | `pr:<N>` |
+| work in another worktree, a node's worktree, an integration branch | `worktree:<abs-path>` (required; without it a review of the principal cwd finds an empty diff) |
+| a pasted block or one file with no git context | `file:<path>` - R1 and R2 over that file only |
 
-For a sibling git worktree (a node's run-integration tree, or a forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
+## Steps
 
-**Node-scoped review (`files-in-scope`).** A caller driving a plan node's review MAY supply that
-node's `files-in-scope` globs directly. Once a node can cover PART of a module, a per-module review
-dispatch reviews a diff WIDER than the node that actually produced it - so when `files-in-scope` is
-supplied, scope the review (and the diff the scoper/reviewer reads) to those globs rather than the
-whole module.
+1. **Resolve the tree.** `local` -> this cwd's toplevel; `worktree:` -> the path given; `pr:` ->
+   invoke `git-toolkit:git-ops` to fetch the PR metadata and changed files and to check the PR
+   branch out in a worktree at the path `project_dir` (axis `worktree`, `name` = `pr-<N>`)
+   returns. Capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir` against that tree.
+2. **Changed set.** A bounded `git-ops` read (`diff --name-only BASE..HEAD`, `BASE` default
+   `master` or the PR base) gives `CHANGED_SET`; the modules it touches and their manifests give
+   the Domain line when the brief carries none (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`).
+   Delete `<ISOLATE_DIR>/reviews/<slug>-<date>/` directories untouched for 30 days
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
+3. **Launch R1** (`odoo-code-reviewer`, `MODE: R1`, `model: haiku`) with the brief in
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`. A diff whose
+   changed files exceed one agent's budget is split by module into several R1 launches in one
+   message.
+4. **Launch R2, and R3 when due**, in ONE message after R1 returns: R2 (`MODE: R2`,
+   `model: sonnet`) with `R1_FINDINGS`; R3 (`MODE: R3`, `model: opus`) only when the unit's
+   `business_function` is on the specialist list of the taxonomy or `RECON` records an override
+   chain or dependent count at the thresholds of
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.2. When R3 runs, R2 is
+   launched after R3 returns, with `R3_FINDINGS`, so one report carries the verdict. When an
+   `INSTANCE_HANDLE` is available and `CHANGED_SET` holds views, launch `odoo-ui-reviewer`
+   (`model: sonnet`) in the same message as R2 for the rendered screens; R2 reads its report
+   path when both are given.
+5. **Return.** The R2 report path, verdict and score, the severity counts, and the Continuation
+   Contract (`next: odoo-ui-review` when R2 asked for it). Present the summary in the user's
+   language. Post to the PR only on the explicit keyword `post`: convert every finding row to
+   `{path, startLine, line, severity, body, suggestion}` and invoke `git-toolkit:git-ops` to open
+   one pending review, one inline comment per finding, submitted as `REQUEST_CHANGES` when any
+   CRITICAL or HIGH remains, else `COMMENT`, plus one top-level verdict comment.
 
-## Phase 0 - Scope the review (git targets only)
+## A later round
 
-**Resolve `review_root` first (all TARGET kinds), before resolving any state dir:**
-- `TARGET=local` -> `review_root` = this skill's own cwd (`git rev-parse --show-toplevel`).
-- `TARGET=worktree:<abs-path>` -> `review_root` = `<abs-path>` (given directly in `TARGET`).
-- `TARGET=pr:<N>` -> resolved by the pre-resolution step below.
-
-**Pre-resolution for `TARGET=pr:<N>` (before resolving state dirs or dispatching the scoper)** - resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill (delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
-1. Invoke `git-toolkit:git-ops` to fetch PR metadata + changed-file list: `pr_meta = {number, title, head, base, repo}`, `pr_changed_files = [<path>, ...]`.
-2. Invoke `git-toolkit:git-ops` to create an isolated worktree (`<repo-root>/.pr-worktrees/pr-<N>`, S9 - never the main checkout) with the PR branch checked out; receive `review_root`.
-
-**Resolve the review's state dirs ONCE, against `review_root` (cross-worktree dispatch rule - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).** THIS skill is the dispatcher for the whole pipeline (scoper + every per-module reviewer + ui-reviewer + synthesis), so it resolves once here and threads the captured literals through every leg below - no leg re-resolves from its own inherited cwd, which would diverge from `review_root` for `worktree`/`pr` targets:
-call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice, axis `share` then axis `isolate`, each with `cwd` = `review_root`.
-Capture both returned absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
-
-**Orphan sweep (do this every run, BEFORE dispatching the scoper below).** `reviews/<slug>-<date>/`
-is never deleted by anything today, so it leaks one directory per run forever:
-
-`find <ISOLATE_DIR>/reviews/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
-
-(any sibling `<slug>-<date>/` dir untouched for over 30 days is presumed consumed). Full rule + bound rationale:
-`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
-executes `odoo-code-review` next, unconditionally, every run.
-
-Pass `review_root`, `pr_meta`, `pr_changed_files`, `SHARE_DIR`, `ISOLATE_DIR` into the scoper brief.
-
-Dispatch agent `odoo-review-scoper` (haiku). Pass:
-- `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also `review_root`, `pr_meta`, `pr_changed_files`)
-- `BASE:` - default `master`
-- `odoo_version:` - target series
-- `USER LANGUAGE:` - language for the scoper's output
-- `SHARE_DIR:` / `ISOLATE_DIR:` - the absolute paths captured above; the scoper writes `_scope.md` under `<ISOLATE_DIR>/reviews/<slug>-<date>/` using THESE literals, never its own re-resolution.
-
-The scoper writes `<ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md` and returns the compact scope. Do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context - the scoper handles all of it.
-
-**Resume: read `_scope.md` back, do not re-scope.** Before dispatching the scoper, glob
-`<ISOLATE_DIR>/reviews/*/_scope.md` for this slug; a match whose recorded BASE ref still holds is
-READ and used verbatim - skip the scoper dispatch. Any later phase that needs a scope field it no
-longer holds in context reads it from that file, never from a re-dispatch. Contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1.
-
-**Handle scoper terminals first, before reading `fanout`.** If the scoper returns `status: BLOCKED` or `status: NEEDS_CONTEXT` (e.g. an empty diff, an unresolvable `TARGET`, or a PR it could not map to modules), surface that status and its reason immediately and STOP - do NOT read `fanout` and do NOT dispatch any reviewer. A `BLOCKED`/`NEEDS_CONTEXT` scope has no reliable module list to fan out over.
-
-Scope output fields used by main (once the scoper's status is neither `BLOCKED` nor `NEEDS_CONTEXT`). Key dispatch behaviors:
-
-**Mode detection:** master-child mode iff `master_design_doc != none` in the scope block; else single mode.
-
-- `design_doc` (per-module column in master-child; `### Design doc` field in single): when non-null, pass as `DESIGN_DOC:` to each per-module reviewer - MANDATORY TDD verify (§1 Intent + §9 ACs + `### TDD Conformance`; skipping is a review defect).
-- `master_design_doc`: when != none, pass as `MASTER_DESIGN_DOC:` to all reviewers AND synthesis - MANDATORY §10 cross-module constraint check; violation = CRITICAL.
-- `coverage_baseline`: pass as `COVERAGE_BASELINE:` - label BASELINE throughout to distinguish from per-model `COVERAGE_CHECK`.
-- `needs_ui_review` (per module): drives `UI_REVIEW=delegated` arm (Phase A) and Phase A.5 dispatch.
-
-Decide review topology from `fanout`: `single` → one reviewer pass; `multi` → fan-out + synthesis.
-
-## Single module (the common case)
-
-Dispatch ONE `odoo-code-reviewer` agent (sonnet), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. It writes its report to `<ISOLATE_DIR>/reviews/<slug>-<date>/<module>.md` using those literals - it does not re-resolve. No synthesis pass needed for a single module. When `module.needs_ui_review` is `true` or `candidate`, add `UI_REVIEW=delegated` to the reviewer brief and run Phase A.5 (same instance-check + dispatch, same captured `SHARE_DIR`/`ISOLATE_DIR`) after the reviewer completes.
-
-## Multi-module - fan-out, then integration synthesis
-
-### Phase A - Per-module fan-out (parallel, sonnet)
-
-Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch, each carrying the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Concurrency is bounded by the harness automatically - do NOT set a manual concurrency cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `<ISOLATE_DIR>/reviews/<slug>-<date>/` using the passed literal, and returns a short summary + path.
-
-
-**When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime (delegated to Phase A.5's `odoo-ui-reviewer`). It still writes `<module>.md` (for a `candidate`, resolve view-binding via OSM and record `ui_review_required` there).
-
-**Do NOT run the coverage sweep in this context** - each reviewer runs it for its OWN module. Put this line in every reviewer brief: `COVERAGE_CHECK: for each affected model in your module, call OSM tests_covering(model='<affected_model>', odoo_version='<version>') and report the counts` (model-edge level; distinct from the scoper's module-level `COVERAGE_BASELINE`). The reviewer already holds its module's affected-model list, so this front door never issues N OSM calls of its own before dispatching.
-
-**Before flagging a behavior change with no protecting test as HIGH**, the reviewer verifies with evidence from the `COVERAGE_CHECK` it ran: if that shows zero covering tests, the HIGH finding stands, noting "zero test edges confirmed via `tests_covering` (model-level)"; if tests exist but do not cover the changed path, it stays HIGH noting "tests exist for model but do not cover this behavior"; without this check, downgrade to MED. (Method-narrow-zero handling is the reviewer's own call.)
-
-### Phase A.5 - Rendered-UI review (conditional, per module)
-
-**Widen the render-check scope to dependents (blast-radius)** - a changed field/method/view/component ripples into DEPENDENT modules that `super()`/`xpath`/`inherit` it. Derive the widened set per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (reverse-closure -> risk rank -> affected screens): `render_check_set` = every screen binding a changed symbol across the changed modules AND their dependents, each tagged a risk tier (High = deep, Low = smoke). This stays a STATIC code-review pass (it only widens which screens the conditional ui-reviewer covers; it runs no CRUD/role flows). OSM is PRIMARY for the closure; fall back to disk and label it approximate when OSM is unreachable. For a file's CONTENT the reverse holds and it matters most here: this skill reviews a worktree or a diff, and OSM indexes a branch - so its copy cannot contain the change under review. Read the reviewed tree before asserting what any line says, and read a disagreement as the index lagging, never as a finding (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § Presence in the index is not currency with the tree under review).
-
-For each module with `needs_ui_review` (`true` or `candidate`), plus each dependent module the `render_check_set` flags:
-- **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
-- **Resolve an instance.** Resolve `instance_base_url` per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (the live shared server `mcp__plugin_odoo-ai-agents_odoo-local__lease_find` returns first, then the matching row `mcp__plugin_odoo-ai-agents_odoo-local__catalog_read` returns), and confirm a browser MCP is reachable.
-- **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0 and briefing `ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/` (the captured literal, not the placeholder) and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). `ARTIFACT_DIR` is only the review-REPORT destination; the SEPARATE `ISOLATE_DIR:` field passed alongside it is what the reviewer composes `<ISOLATE_DIR>/visual/screenshots/<slug>/` from for its own captured screenshots - the two never collapse into one field. These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
-- **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `status: DONE` with a `concerns:` entry for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
-
-**Principle (instance-optional completion).** `odoo-code-review`'s PRIMARY deliverable (static
-Python/XML/OWL review) is complete WITHOUT a live instance - only the rendered-UI dimension is
-instance-gated, so a missing instance downgrades that one dimension to a `concerns:` entry on an
-otherwise-`DONE` run + opt-in `next: odoo-acceptance` rather than blocking the whole review. This differs from a skill
-whose deliverable REQUIRES a live render (e.g. `odoo-ui-review`), which emits
-`NEEDS_NEXT: odoo-instance` instead. Full rule + more examples:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`.
-
-**Emit the acceptance hand-off (L2, opt-in).** Whenever the `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) OR the rendered-UI dimension is left flagged via `concerns:` (no instance), add a `next` entry to this skill's Continuation Contract (the same contract carrying `produced[]`):
-
-```
-next:
-  - skill: odoo-acceptance
-    reason: change touches a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster
-    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
-    confidence: 0.7
-```
-
-Opt-in: it surfaces the verdict + recommended acceptance pass for an L2 (human) gate - never auto-blocks the review, never auto-runs acceptance. `scope_hint` is advisory (odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set).
-
-### Phase B - Integration synthesis (sonnet)
-
-Dispatch ONE `odoo-code-reviewer` (`MODE=synthesis`) at **sonnet**, passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0, however many modules the set holds: it reads the per-module reports from disk, so the module count never changes the topology. Raise it to **opus** only per the opus row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (the changed domain is legal, accounting, regulatory or another deep specialist domain, or a sonnet pass failed with evidence). Scope = full **dependency closure** from OSM:
-- **Forward closure:** walk `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively.
-- **Reverse closure:** `impact_analysis(...)` on changed modules, walked transitively.
-
-It reviews only what per-module legs cannot: override-chain conflicts, inheritance/MRO across closure, inter-module field/API contract breaks, manifest `depends` and data load-order, ripple into dependents. It `Read`s every `<module>.md` AND every `ui-review-<module>.md` on disk; writes `_synthesis.md`.
-
-**`DESIGN_DOC` for synthesis:** In master-child mode, pass `DESIGN_DOC: null` to ALL synthesis passes (per-module §9 ACs verified in Phase A; synthesis checks §10 only via `MASTER_DESIGN_DOC`). In single mode, pass the flat TDD path as `DESIGN_DOC`.
-
-## Integration-branch review (tier decision - OWNED here)
-
-When `odoo-planning` places a review NODE over a repo's run-integration branch's aggregate diff and
-wires it to this skill, THIS skill owns the review-tier decision for that dispatch: apply
-`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Review Escalation in
-full (sonnet inline by default; opus only per the SSOT opus row). Read it at dispatch time - do not
-restate it here. This pass is SEPARATE from, and runs IN ADDITION TO, the per-module
-fan-out above (Phase A/B): the fan-out reviews each node/module's own diff at coding time; the
-integration-branch review is a later pass over the repo's aggregate landed diff (double-review, by
-design - neither replaces the other).
+The caller sends the fix diff to the SAME reviewers with `SendMessage` (`PRIOR_FINDINGS` = their
+earlier reports), never to a new launch; R1 verifies its own findings, R2 verifies its own and
+re-issues the verdict. Acceptance failures go to R2 as `ACCEPTANCE_EVIDENCE` for classification.
+Three rounds per change; a fourth stops with the remaining findings for the human.
 
 ## Artifacts
 
-All output under `<ISOLATE_DIR>/reviews/<slug>-<YYYY-MM-DD>/` (gitignored) - the SAME `<ISOLATE_DIR>` resolved ONCE against `review_root` in Phase 0 and threaded, as a captured literal, through every dispatch brief below (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, synthesis) writes ONLY into this directory, using the passed-in literal, never a fresh re-resolution:
-- `_scope.md` - scoper output (written by scoper agent)
-- `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per `odoo-code-reviewer`'s own output contract
-- `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE` with a `concerns:` entry for UI)
-- `_synthesis.md` - integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
-- `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
-
-Report is presented as an artifact in chat by default. Post to PR ONLY on explicit request (keyword
-`post`). Do NOT hand over a single review body. `git-toolkit:git-ops` is domain-agnostic: its
-inline-findings fan-out recipe (its GitHub specialist owns the create-pending -> per-finding ->
-submit fan-out internally) consumes a plain findings array and knows nothing about an Odoo "Issues
-table" or a "Suggested replacement" block. THIS skill - the owner of that Odoo-specific shape -
-CONVERTS it BEFORE invoking `git-toolkit:git-ops`:
-
-1. **Build `findings[]`** - one object per Issues-table row, across every report in scope. Post
-   EVERY severity CRITICAL through LOW so no finding is dropped. Per finding, emit exactly:
-   `{path, startLine, line, severity, body, suggestion}` where:
-   - `path` (diff-relative) - the row's `File` value, already repo-relative per the agent contract
-     - never the `review_root` worktree-absolute path.
-   - `startLine` - parsed from the row's `Line/Range`: a bare line `N` gives `startLine=N`; a range
-     `A-B` gives `startLine=A`.
-   - `line` - the LAST line of the range: `=startLine` for a single line, `=B` for range `A-B`.
-   - `severity` - the row's `Severity` value verbatim.
-   - `body` - the row's `Issue` cell (+ `Suggested fix` prose when no replacement block exists).
-   - `suggestion` (optional) - when the row has a matching `#### <File>:<Line/Range>` Suggested
-     replacement block, that block's fenced lines VERBATIM, with NO `suggestion` fence wrapper (the
-     poster adds the fence); omit the key entirely when the row has no replacement block.
-2. **Invoke `git-toolkit:git-ops`** (Skill tool) with `owner`/`repo` (from the scope's
-   `### PR metadata` `repo: <fullName>`, split on `/`), `pullNumber` (`number`), the `findings[]`
-   array just built, and the instruction: "open ONE pending review, post one inline comment per
-   `findings[]` entry, then submit the pending review with event REQUEST_CHANGES if any
-   CRITICAL/HIGH remains, else COMMENT." Pass the array - never a bare report path + prose;
-   `git-toolkit:git-ops` stays generic and never sees the words "Issues table" or "Suggested
-   replacement".
-
-Post the synthesis-level verdict/score as ONE separate top-level PR comment (flat) - the summary
-only, never a substitute for the per-finding inline comments. "Prefer inline" = this fan-out,
-always.
-
-Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
-
-## Agent invocation
-
-When composing the dispatch prompt for `odoo-code-reviewer`, fill the universal skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read by path) plus the Reviewer/auditor family delta.
-
-Full prompt templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`
-
-Key constraints for each dispatched agent:
-- Per-module: write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
-- Synthesis: cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
-- Every dispatched agent (scoper, per-module/synthesis reviewer, ui-reviewer) receives the `SHARE_DIR:`/`ISOLATE_DIR:` literals captured once in Phase 0 and MUST use them directly for every Tier-2 path - it does NOT re-resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` from its own cwd (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).
-- Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation; every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
-- Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
-- Comments: the diff's comments and docstrings are reviewed BOTH ways - surplus as hard as absence - per `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`. A missing docstring is not, on its own, a finding.
-
-After legs finish, main writes `index.md` summarizing the set.
+Under `<ISOLATE_DIR>/reviews/<slug>-<date>/`: `r1-findings.md`, `r3-findings.md` (when R3 ran),
+`ui-review-<module>.md` (when the UI reviewer ran), `review.md` (R2: findings, criteria table,
+verdict, score).
 
 ## Standalone-first fallback
 
-When OSM (the odoo-semantic-mcp server) is unreachable, each reviewer falls back to static analysis against internalized Odoo conventions. MCP-enriched findings are skipped; output notes "MCP unavailable - static analysis only". For synthesis, derive dependency closure from disk: read each changed module's descriptor `depends` - open whichever filename that module actually has (`__manifest__.py`, or `__openerp__.py` on the series `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6 names), the pair the scope block already discovers - (forward) and `grep -rl "_inherit\|depends.*<module>"` across addons path for approximate reverse; label "closure approximate from disk (OSM unavailable)". Fan-out/synthesis topology still applies; only grounding degrades. When OSM is reachable but a customer-local addon is not in the index (Tier-1 MISS), keep OSM for indexed entities and Read/Grep the local addon for the missed ones (grounded: osm + local-source hybrid, per `snippets/disk-fallback-protocol.md`).
+OSM unreachable: each mode grounds from the tree per
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` and the report says
+`grounded: local-source`; R1's existence checks use grep over the checkout.
 
 ## Agent-managed tools
 
-`odoo-code-reviewer` owns its own restricted tool list and execution detail.
-
-## Autonomous fix loop - drive it yourself (mandatory)
-
-You MUST use the Skill tool to drive the fix loop - do not write a report and stop. A passive `next: odoo-coding` advances nothing when no run-harness is active (a direct invocation or intake fast-path - the common case), so the loop would die. Therefore:
-
-1. **On a CRITICAL or HIGH finding that needs a code change, drive the fix yourself - attempt CHP Tier A first, fall back to Tier C.** Per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` Tier A, BOTH conditions must hold: plan.md records the id an earlier launch in THIS context returned for that module's coder, and a messaging tool is in your current toolset. Then take the **Tier-A path** - send the review findings + fix instructions (framed as shared team context / prior-phase findings, never as "secret") to that recorded id, then **collect the worker's result per CHP § Async park-and-be-resumed semantics - R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` decides whether you end your turn or wait inside it; never carry on reviewing before the result is in hand.** Either condition false - no id recorded, the id no longer resolves, or no messaging tool - take the **Tier-C fallback** (always correct): **IMMEDIATELY invoke `odoo-coding` via the Skill tool yourself**, passing it the review report path, the exact findings to fix, and the literal line **"AUTONOMOUS FIX (review-driven): skip your Phase 0 human gate, fix to these findings, then invoke odoo-code-review to verify"** (keep this sentinel text unchanged for the Tier-C path). On either path this skill reviews, it does not author: the fix is written by `odoo-coding`, never here. Either way this is autonomous - do NOT pause for a human (running the review IS the opt-in).
-2. The coder fixes, then the loop comes back to you to verify - on the Tier-A path the worker's result reaches you per R0 and you read it; on Tier-C the `odoo-coding` invocation returns to you inline. That round-trip - **review → code → review** - repeats until the review is clean (no CRITICAL/HIGH and the behavior is covered).
-3. **Bound it to 3 iterations.** If still not clean after 3, STOP and escalate to the human with what remains - bad work is worse than no work, never loop forever. Record each iteration in the worklog.
-
-The ONLY case where you emit a Continuation Contract `next` and let a driver advance instead of invoking directly: your brief shows you were dispatched **by an active run-harness** (a `run-<id>` is named) - then do not double-dispatch.
+`odoo-code-reviewer` (three modes) and, conditionally, `odoo-ui-reviewer`. The reviewer invokes
+the three audit skills inline for its own escalation and launches nothing.
 
 ## Continuation Contract
 
-Before finishing, APPEND your significant findings/decisions to the run worklog (`<ISOLATE_DIR>/worklog/<run-or-slug>/`) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`.
-
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the paths actually written; decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`).
-**The `next:` entries below are the audit record AND the run-harness path - NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** With NO run-harness active you have ALREADY invoked the target; `next:` advances nothing on its own, so **never stop at it**.
-- CRITICAL/HIGH findings needing a code fix → you invoked `odoo-coding` directly (§ Autonomous fix loop); under an active run-harness instead, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, report_path: <this report>, ...}` (the driver bounds the loop to 3 iterations, then escalates).
-- Behavior change with no protecting test → when the code is fine and only the test is missing, LAUNCH the `odoo-test-writer` agent directly (collected per R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`; it authors by invoking the `odoo-test-writing` skill inline and proves each test by a real break - `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`):
-
-  ```
-  # odoo-test-writer (coverage gate - the code is fine, only the test is missing)
-  MODE: coverage
-  MODULE SCOPE: <name(s)> @ <path(s)>
-  TARGET BEHAVIOR: <the uncovered behavior as a business rule, from the request / design AC - never from the code>
-  TEST TYPE: <python unit | Form | tour | HttpCase | JS hoot/QUnit>
-  SURVEY: <deep-survey synthesis path | none>
-  WORKTREE_PATH: <absolute worktree path under review>
-  INSTANCE_HANDLE: <when you hold one | omit>
-  SHARE_DIR: <the Phase 0 literal>
-  ISOLATE_DIR: <the Phase 0 literal>
-  RUN_ID: <the run id, when one exists | omit>
-  INPUTS: <this review's report path>
-  ```
-
-  With no handle it writes the tests and returns `NEEDS_NEXT: odoo-instance` naming the pending tests - invoke `odoo-instance`, then re-launch it with the handle and `PRIOR ATTEMPT` (what it wrote, what is still pending), and release the lease you obtained for it once it returns (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). When a code fix is also needed, drive both through `odoo-coding` (its `odoo-coder` coordinator writes the code first, then launches `odoo-test-writer` once for the node). Under an active run-harness, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, module: <module>, behavior: <behavior>, ...}`.
-- Clean review, behavior covered → no fix, no `next` (loop terminates).
-A CRITICAL bug in a behavior that also lacks a test drives BOTH the fix and its test through `odoo-coding` (code first, then the node's test leg) - under a run-harness: `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, ...}`. Additive output for the run-harness; it changes nothing produced above.
+Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
+report paths; `next` = `odoo-ui-review` when R2 requested it; `status: DONE` with the verdict.

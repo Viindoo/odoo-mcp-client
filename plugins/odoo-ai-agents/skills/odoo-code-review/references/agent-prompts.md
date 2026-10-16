@@ -1,115 +1,70 @@
-# odoo-code-review - Agent Dispatch Prompt Templates
+# odoo-code-review - dispatch briefs
 
-## Scope agent (odoo-review-scoper, haiku)
+Fill the universal skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal
+skeleton (read by path) plus the fields below. Inputs only; the reviewer's body owns every
+procedure.
 
-```
-TARGET: <local | worktree:<abs-path> | pr:<number-or-url>>
-review_root: <abs-path of the PR worktree - TARGET=pr only>
-pr_meta: <PR metadata from git-ops - TARGET=pr only>
-pr_changed_files: <PR changed-file list from git-ops - TARGET=pr only>
-BASE: <base-ref, default master>
-odoo_version: <concrete series, e.g. the pinned `<major>.0`>
-USER LANGUAGE: <e.g. Vietnamese>
-SHARE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
-ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
-
-Scope this review per your own I/O contract.
-Resolve the diff, detect modules (dirs with `__manifest__.py` or `__openerp__.py`), run test_coverage_audit per module,
-detect any design doc, determine fanout (single|multi), and write the compact scope file to
-<ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md using the SHARE_DIR/ISOLATE_DIR literals above
-DIRECTLY - do NOT re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
-Return the scope block exactly per Step 6 of your I/O contract.
-```
-
-## Per-module reviewer (sonnet)
+## R1 - mechanical pass (`odoo-code-reviewer`, model haiku)
 
 ```
-MODE=per-module. Review ONLY the changes in module `<module>` at `<path>` (read files at
-review_root=<abs-path> from scoper - do NOT read from master or cwd unless review_root matches).
-SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
-ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
-Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, artifacts dir) - do NOT
-re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
-IMPACT DEPTH: light - direct upstream + direct downstream only; the deep transitive closure is the
-synthesis leg's job, not yours.
-DESIGN_DOC: <per-module child TDD path from scope design_doc column | null> (in master-child mode:
-child TDD for this module; in single mode: the shared flat TDD; present only when
-odoo-solution-architect ran). When DESIGN_DOC is provided (non-null): MANDATORY - Read it, verify
-the code against "## 1. Intent & Business Value" and "## 9. Acceptance Criteria", and emit the
-"### TDD Conformance" block. Skipping TDD verify when DESIGN_DOC is present is a review defect.
-When absent (null/omitted): OMIT the TDD Conformance block and review intent from this brief alone.
-MASTER_DESIGN_DOC: <master TDD path from scope master_design_doc field | none> - When != none:
-MANDATORY - also Read the master TDD and check §10 cross-module contracts (ownership, dep-direction,
-integration-module rule); a violation of any master constraint is CRITICAL. When none: skip.
-Optional: COVERAGE_BASELINE: <test_coverage_audit result> (from scoper). Attach as context.
-UI_REVIEW: <delegated | absent> - pass `delegated` when scoper set needs_ui_review for this module:
-review NON-rendered concerns + the SOURCE correctness of the view layer only (XPath resolves, arch
-well-formed, no dead JS module import, SCSS compiles); the rendered-UI verdict (appearance/UX/a11y/
-runtime) is owned by the Phase A.5 odoo-ui-reviewer - do not duplicate it. When the module's
-needs_ui_review is `candidate`, also confirm view-binding via OSM and record `ui_review_required` in
-<module>.md. Omit this line when needs_ui_review=false.
-Artifacts dir: <ISOLATE_DIR>/reviews/<slug>-<date>/ (build from the ISOLATE_DIR literal above) -
-write your report to <module>.md there.
-Output contract (yours) - include VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 in your report.
-Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
-`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
-the PR-post path posts one inline comment per row.
-Return a 5-line summary (counts by severity + top finding + verdict + score) and the artifact path.
+DISPATCH MODEL: haiku
+MODE: R1
+TARGET: <abs path of the tree> <BASE>..<HEAD>
+CHANGED_SET: <repo-relative paths, one per line>
+ODOO VERSION: <version>   PROFILE: <profile | none>
+SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
+DOMAIN: <Domain line | none>
+RECON: <path | none>   IMPACT_MAP: <path | none>
+USER LANGUAGE: <lang | omit>
 ```
 
-## Synthesis reviewer (sonnet)
+## R2 - behaviour and verdict (`odoo-code-reviewer`, model sonnet)
 
 ```
-MODE=synthesis. Changed/added modules: [<m1>, <m2>, …]. review_root: <abs-path from scoper>.
-SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
-ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
-Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path - do NOT re-resolve them yourself
-(state-root-resolution.md §Cross-worktree dispatch).
-Read all files at review_root - do NOT read from master or cwd unless review_root matches.
-Compute the dependency closure -
-forward via module_inspect(name=<module>, method='dependencies', odoo_version='<version>') transitively, reverse via impact_analysis -
-and review CROSS-MODULE integration risk only (override conflicts, MRO, inter-module contracts,
-depends/load-order, ripple to dependents). Read the per-module reports already in
-<ISOLATE_DIR>/reviews/<slug>-<date>/ - each <module>.md AND each ui-review-<module>.md (rendered-UI
-findings from Phase A.5) so the integration verdict accounts for UI findings. Write _synthesis.md there.
-Output contract (yours) - include overall VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 aggregated across all modules.
-Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
-`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
-the PR-post path posts one inline comment per row.
-DESIGN_DOC: <null in master-child | flat TDD path in single>
-(master-child: pass null - per-module §9 ACs verified in Phase A; synthesis checks §10 only via MASTER_DESIGN_DOC. Single: pass the flat TDD path.)
-When non-null: MANDATORY - verify the closure satisfies the design's "## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block. Skipping TDD verify when DESIGN_DOC is non-null is a review defect. When null: OMIT the TDD Conformance block.
-MASTER_DESIGN_DOC: <master TDD path | none> - When != none: MANDATORY - verify the closure against
-§10 cross-module contracts from the master TDD (ownership, dep-direction, integration-module rule);
-a violation is CRITICAL; emit Master-AC rows in "### TDD Conformance". When none: skip.
-Optional: COVERAGE_BASELINE: <test_coverage_audit result at module level from scoper> - context only.
-Optional: COVERAGE_CHECK: <tests_covering results at model-edge level from main> - context only.
-Return a summary + path.
+DISPATCH MODEL: sonnet
+MODE: R2
+TARGET, CHANGED_SET, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
+R1_FINDINGS: <ISOLATE_DIR>/reviews/<slug>-<date>/r1-findings.md
+R3_FINDINGS: <path | none>
+SRS: <path | none>   DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>
+RECON: <path | none>   IMPACT_MAP: <path | none>
+UI_REVIEW: <ISOLATE_DIR>/reviews/<slug>-<date>/ui-review-<module>.md | none
+INSTANCE_HANDLE: <handle | none>
+USER LANGUAGE: <lang | omit>
 ```
 
-## UI reviewer (odoo-ui-reviewer, sonnet) - conditional, Phase A.5
-
-Dispatch once per module with `needs_ui_review` (`true` or `candidate`) when an instance is reachable.
+## R3 - specialist pass (`odoo-code-reviewer`, model opus; only when due)
 
 ```
-USER LANGUAGE: <e.g. Vietnamese>
-ODOO_VERSION: <concrete series, e.g. the pinned `<major>.0`>
-SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
-ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
-Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, baselines, screenshot
-staging) - do NOT re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
-Review the RENDERED UI for module `<module>` on these screens: <affected_screens - view/action/menu
-xmlids from scoper>. Resolve instance_base_url per snippets/instance-resolution.md (live shared
-server first, else the declared [[instance]] in $ODOO_AI_HOME/instances.toml); browser headless by
-default.
-Rate the six lenses (aesthetics, functional correctness, runtime stability, accessibility, performance,
-design-system/theme fidelity) per your own rubric.
-DESIGN_DOC: <path | absent> - when present (non-null): MANDATORY - verify the UI-observable acceptance
-criteria and emit the "### TDD Conformance" block. When absent: OMIT it.
-ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/ (build from the ISOLATE_DIR literal above)
-ARTIFACT_FILE: ui-review-<module>.md - write your six-lens verdict THERE (not your own default path) so
-Phase B synthesis can read it.
+DISPATCH MODEL: opus
+MODE: R3
+TARGET, CHANGED_SET, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
+R1_FINDINGS: <path>
+SRS: <path | none>   DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>
+RECON: <path>
+USER LANGUAGE: <lang | omit>
+```
+
+## A later round (SendMessage to the same reviewer)
+
+```
+ROUND: <n>
+PRIOR_FINDINGS: <that reviewer's earlier report path>
+FIX_DIFF: <BASE>..<HEAD> of the fix
+IMPACT_MAP: <updated path>
+ACCEPTANCE_EVIDENCE: <acceptance report path | none>   (R2 only)
+```
+
+## UI reviewer (`odoo-ui-reviewer`, model sonnet; when an instance exists and views changed)
+
+```
+DISPATCH MODEL: sonnet
+USER LANGUAGE: <lang>
+ODOO_VERSION: <version>
+SHARE_DIR: <abs>   ISOLATE_DIR: <abs>
+Review the RENDERED UI for module <module> on these screens: <view, action and menu xml_ids from
+CHANGED_SET>. INSTANCE_HANDLE: <handle>; browser headless by default.
+SRS: <path | none> - when present, verify the UI-observable acceptance criteria.
+ARTIFACT_FILE: <ISOLATE_DIR>/reviews/<slug>-<date>/ui-review-<module>.md
 Return a short summary (per-lens PASS/WARN/FAIL + top finding) and the artifact path.
 ```
-
-Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents. `odoo-code-reviewer` (the per-module and synthesis passes above are the same agent) MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation; every other agent above (scoper, ui-reviewer) still does NOT invoke Skill tool. Every template above carries `SHARE_DIR:`/`ISOLATE_DIR:` - the SAME literals the code-review skill captured once in its Phase 0 against `review_root`; every dispatched agent consumes them verbatim and never re-resolves (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).

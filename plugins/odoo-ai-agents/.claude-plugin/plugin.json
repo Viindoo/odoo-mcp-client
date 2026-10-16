@@ -19,7 +19,6 @@
     "./agents/odoo-impact-recon.md",
     "./agents/odoo-planner.md",
     "./agents/odoo-code-reviewer.md",
-    "./agents/odoo-review-scoper.md",
     "./agents/odoo-ui-reviewer.md",
     "./agents/odoo-frontend-coder.md",
     "./agents/odoo-backend-debugger.md",

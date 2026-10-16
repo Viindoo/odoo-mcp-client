@@ -34,7 +34,7 @@ writes this file after the scout returns.
 
 **Header line (staleness anchor - written once, the FIRST line of the file, before any finding
 line; NOT one of the capped finding lines below - same field role as `_scope.md`'s `base_ref:`
-field in `odoo-review-scoper`):**
+field in `odoo-impact-recon`):**
 
 ```
 target_ref: <ref>

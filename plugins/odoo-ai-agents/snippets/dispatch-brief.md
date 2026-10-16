@@ -211,7 +211,7 @@ no format choice. Its brief is worktree-and-instance shaped:
 
 ### Survey / analyst
 
-`odoo-backend-debugger`, `odoo-ui-debugger`, `odoo-review-scoper`, `odoo-intent-extractor`,
+`odoo-backend-debugger`, `odoo-ui-debugger`, `odoo-impact-recon`, `odoo-intent-extractor`,
 `odoo-installable-prober`, `odoo-gap-analyzer`, `odoo-feature-cataloger`, `odoo-doc-scoper`:
 
 - The ask framed as an open QUESTION, not a scripted search-command sequence.
