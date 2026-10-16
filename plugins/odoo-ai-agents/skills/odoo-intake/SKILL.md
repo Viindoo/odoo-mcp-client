@@ -256,7 +256,8 @@ the skill drives itself.
 Project:        <repo / project root, or "non-Odoo workspace">
 Odoo version/edition: <e.g. 17.0 / EE | CE | custom | "n/a">
 Intent / Purpose / Expected outcomes: <what / why / what done looks like - from the Phase 0 gate>
-Domain:         <one of 9 persona buckets>
+Persona:        <one of 9 persona buckets - who is asking>
+Domain lines:   <per unit, from `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`: `Domain: <business_function>; Audience: <roles | n/a>; Outcome: <result>` - one line per node, bundle, cluster or module; "UNKNOWN" when the category is not in the taxonomy>
 Approach:       <skill name | workflow name | command>
 Chain:          <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
 Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>

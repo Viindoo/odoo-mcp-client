@@ -42,8 +42,10 @@ plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 engineering | sales | presales | marketing | strategy | qa | support | content | consultant
 ```
 
-Matches the 9 README persona buckets. Drives the `odoo-intake` tier-3 routing
-row so this workflow appears in the right routing group without separate registration.
+Matches the 9 README persona buckets: WHO the workflow serves. It drives the `odoo-intake`
+tier-3 routing row so this workflow appears in the right routing group without separate
+registration. It is not the business function of the work: that is the per-unit Domain line of
+`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`.
 
 ---
 
