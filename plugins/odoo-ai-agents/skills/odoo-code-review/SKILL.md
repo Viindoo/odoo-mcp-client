@@ -35,7 +35,9 @@ through the caller's fix round.
 1. **Resolve the tree.** `local` -> this cwd's toplevel; `worktree:` -> the path given; `pr:` ->
    invoke `git-toolkit:git-ops` to fetch the PR metadata and changed files and to check the PR
    branch out in a worktree at the path `project_dir` (axis `worktree`, `name` = `pr-<N>`)
-   returns. Capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir` against that tree.
+   returns - under the state root, never a temp dir and never the principal checkout
+   (git-safety-contract S9). Capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir`
+   against that tree.
 2. **Changed set.** A bounded `git-ops` read (`diff --name-only BASE..HEAD`, `BASE` default
    `master` or the PR base) gives `CHANGED_SET`; the modules it touches and their manifests give
    the Domain line when the brief carries none (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`).

@@ -26,7 +26,7 @@ Business rules locked in here (each test fails for exactly one of them):
   not user intent, and gets no hint at all.
 - The run-scoped advisories (the mid-run delegate nudge, the unfinished-run reminder) are about a
   run THIS session drives: one whose record this session wrote last (a tool call naming the record
-  ran while it was written - intake creates it, run-harness writes it, also when resuming it here).
+  ran while it was written - intake creates it, the plan runner writes it, also when resuming it here).
   A NEEDS_NEXT record another session left behind, live or dead, an old record, or one this session
   only read, triggers nothing; a run another session took over is no longer this session's; of
   several runs this session drives, the reminder names the one it wrote last. When ownership cannot
@@ -122,7 +122,7 @@ _ACT_SEQ = iter(range(1, 10**9))
 
 def _acted_on(run_file: Path, name: str = "Bash") -> list[str]:
     """A tool call of this session naming the run record, and its result, stamped now. Right after
-    the record is (re)written that is the call that wrote it (run-harness writes from a script);
+    the record is (re)written that is the call that wrote it (the plan runner writes from a script);
     on a record written long ago it is only a read."""
     tid = f"toolu_run_{next(_ACT_SEQ)}"
     inp = {"file_path": str(run_file)} if name == "Read" else {
@@ -284,7 +284,7 @@ def test_the_leaf_reminder_is_said_once_per_subagent_context(tmp_path):
     env = _env(tmp_path)
     session = _write(tmp_path / "session.jsonl", [])
     own = _write(tmp_path / "agent.jsonl", [_user("brief")])
-    leaf = {"agent_id": "a1", "agent_type": "odoo-backend-coder",
+    leaf = {"agent_id": "a1", "agent_type": "odoo-frontend-coder",
             "agent_transcript_path": str(own),
             "tool_input": {"command": "git commit -am x"}}
     payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": str(ROOT),
@@ -335,7 +335,7 @@ def test_the_unfinished_run_reminder_is_said_once_per_run_state(tmp_path):
     said = drove + [_context_attachment("Stop", first), _user("more")]
     _write(t, said)
     assert _drive(t, env) == "", "the same reminder was repeated at the next turn end"
-    _run_record(isolate, run_id="r1", cursor="n2")     # this session's run-harness advances it
+    _run_record(isolate, run_id="r1", cursor="n2")     # this session's the plan runner advances it
     _write(t, said + _acted_on(run, "Bash"))
     moved = _drive(t, env)
     assert "n2" in moved, f"a run that moved on must be reminded again: {moved!r}"
@@ -349,7 +349,7 @@ def test_the_unfinished_run_reminder_reaches_the_model_and_names_the_record(tmp_
     run = _run_record(isolate, run_id="r1")
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
     msg = _drive(_write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run)), env)
-    assert str(run) in msg and "run-harness" in msg, msg
+    assert str(run) in msg and "plan-mode-schema.md" in msg, msg
     assert "stay stopped" in msg, f"the model must keep the right to stop: {msg!r}"
 
 
@@ -452,8 +452,8 @@ def _age(path: Path, seconds: int) -> Path:
 
 
 def test_a_run_resumed_in_this_session_becomes_its_run(tmp_path):
-    """A run paused yesterday: reading its record here (intake's active-run check, run-harness
-    re-entering) does not adopt it; run-harness's first write here does."""
+    """A run paused yesterday: reading its record here (intake's active-run check, the plan runner
+    re-entering) does not adopt it; the plan runner's first write here does."""
     isolate = tmp_path / "isolate"
     run = _age(_run_record(isolate, run_id="paused"), 86400)
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
@@ -461,7 +461,7 @@ def test_a_run_resumed_in_this_session_becomes_its_run(tmp_path):
     t = _write(tmp_path / "t.jsonl", read)
     assert _drive(t, env) == "", "reading another session's record made it this session's run"
     assert _delegate("Edit", t, env) == ""
-    _run_record(isolate, run_id="paused", cursor="n2")  # run-harness persists RUNNING here
+    _run_record(isolate, run_id="paused", cursor="n2")  # the plan runner persists RUNNING here
     _write(t, read + _acted_on(run))
     assert "'paused'" in _drive(t, env), "a run resumed here was not treated as this session's"
     assert "mid-run" in _delegate("Edit", t, env)
@@ -520,7 +520,7 @@ def test_of_two_runs_this_session_drives_the_one_written_last_is_named(tmp_path)
 
 
 def test_a_run_written_through_a_composed_path_is_adopted(tmp_path):
-    """run-harness often composes the record's path from the run id in a script
+    """the plan runner often composes the record's path from the run id in a script
     (`p = f"{iso}/run-{rid}.json"`), so the call names the run id, never the file name. That write
     makes the run this session's all the same."""
     isolate = tmp_path / "isolate"

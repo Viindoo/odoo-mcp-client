@@ -33,7 +33,7 @@ series, never from another series.
 
 ## JavaScript unit tests
 
-Hoot is the runner for new tests; the QUnit runner is deprecated. Hoot test files live under `static/tests/` and end in `.test.js`; the Python side runs them with `browser_js('/web/tests?headless&preset=desktop...', success_signal='[HOOT] Test suite succeeded')`. Confirm the asset bundle name with `find_test_examples(query='hoot unit test bundle', odoo_version='19.0')` before writing the manifest entry. A QUnit test ported from an older series is rewritten as a Hoot test, never copied as is.
+Hoot is the runner for new tests; the QUnit runner is deprecated. Hoot test files live under `static/tests/` and end in `.test.js`; the Python side runs them with `browser_js('/web/tests?headless&preset=desktop...', success_signal='[HOOT] Test suite succeeded')` - that marker is a verdict for its own logger scope only; another scope of the same log can still fail. Confirm the asset bundle name with `find_test_examples(query='hoot unit test bundle', odoo_version='19.0')` before writing the manifest entry. A QUnit test ported from an older series is rewritten as a Hoot test, never copied as is.
 
 ## Demo data
 

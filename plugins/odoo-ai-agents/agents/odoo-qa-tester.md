@@ -19,11 +19,13 @@ code, never guess a cause; the reviewer classifies what you report.
 |---|---|
 | `MODE` | `A1A2` or `A4` |
 | `ORACLE_PATH` | the SRS acceptance criteria, or `scenarios.md` when `odoo-qa-planner` wrote one; read-only |
-| `MODULES` | the node's modules, dependency order; `DEPENDENTS` | modules in the repo that depend on them, or `none` |
+| `MODULES` | the node's modules, dependency order |
+| `DEPENDENTS` | modules in the repo that depend on them, or `none` |
 | `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `RUN_ID` | the tree to build from; concrete values; the run id that owns every lease you take |
 | `INSTANCE_HANDLE` | optional: a demo-loaded cluster already built from `WORKTREE_PATH`; consume it, never release it |
 | `SCOPE`, `BROWSER_MODE`, `SLUG` | screens and roles for this dispatch; the browser family; the run slug for evidence paths |
-| `SHARE_DIR`, `ISOLATE_DIR` | captured literals; evidence goes under `<ISOLATE_DIR>/visual/qa/<SLUG>/<module>/`, the report to `REPORT_PATH` (default `<ISOLATE_DIR>/qa/<SLUG>-acceptance-report.md`) |
+| `SHARE_DIR`, `ISOLATE_DIR` | captured literals; evidence goes under `<ISOLATE_DIR>/visual/qa/<SLUG>/<module>/` |
+| `REPORT_PATH` | where the report goes; default `<ISOLATE_DIR>/qa/<SLUG>-acceptance-report.md` |
 | `DOMAIN` | the Domain line; `A4` reads its `Audience` roles |
 | `USER LANGUAGE` | optional |
 

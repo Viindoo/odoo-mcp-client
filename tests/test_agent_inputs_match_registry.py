@@ -32,7 +32,7 @@ AGENTS_DIR = PLUGIN / "agents"
 DEPS_FILE = PLUGIN / "generator" / "skill_tool_deps.json"
 
 _INPUTS_TABLE_RE = re.compile(
-    r"^## Inputs[^\n]*\n\n\| Key \| Meaning \|\n\|[-|]+\|\n((?:\|.*\n)+)", re.M
+    r"^## (?:Inputs|You receive)[^\n]*\n\n\| (?:Key|Field) \| Meaning \|\n\|[-|]+\|\n((?:\|.*\n)+)", re.M
 )
 
 
@@ -45,9 +45,11 @@ def _normalize_key_cell(cell: str) -> list[str]:
     drop a trailing ':', and split a multi-key cell ('MODULE / MODULE PATH') into separate keys.
     Markdown-mechanics normalization only - never a content judgment call."""
     out = []
-    for part in re.split(r"\s*/\s*", cell.strip()):
-        part = part.strip().strip("`").strip().rstrip(":").strip("`").strip()
-        if part:
+    for part in re.split(r"\s*/\s*|\s*,\s*|\s+\+\s+|\s+or\s+|\s+and\s+", cell.strip()):
+        part = re.sub(r"^(?:or|and)\s+", "", part.strip())
+        part = part.strip().strip("`").strip()
+        part = part.split(":")[0].strip().strip("`").strip()   # `MODE: adapt` -> MODE
+        if part and not part.startswith("<"):
             out.append(part)
     return out
 

@@ -27,6 +27,7 @@ per mode (`R1` haiku, `R2` sonnet, `R3` opus); you do not reason about which mod
 | `R3_FINDINGS` | `R2` synthesis: the path of the R3 report when R3 ran |
 | `PRIOR_FINDINGS` | a resumed round: your own earlier report; verify, do not re-review |
 | `ACCEPTANCE_EVIDENCE` | a resumed `R2`: the tester's report and bug list to classify |
+| `UI_REVIEW` | `R2`: the `odoo-ui-reviewer` report path when one ran, else `none` |
 | `INSTANCE_HANDLE`, `USER LANGUAGE` | optional |
 
 Missing `MODE`, `TARGET`, `CHANGED_SET`, `ODOO VERSION` or `ISOLATE_DIR`: `NEEDS_CONTEXT(<field>)`.
@@ -78,7 +79,8 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    block -> MED.
 9. **Tests in the diff**: file registered in `tests/__init__.py` and not imported by the module's
    own `__init__.py`; method names `test_<rule>_<nnn>`; no `raise` to simulate a failure; no
-   `cr.commit`; no assertion on translated or display text; no mock that is the only thing
+   `cr.commit`; a test that asserts TRANSLATED or DISPLAY text is a HIGH finding (the wording
+   improves without the suite seeing it); no mock that is the only thing
    asserted; data created only from the module and its closure; `test_base_classes` confirms
    each base class for the series.
 10. **Frontend**: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed js/xml/scss>`;

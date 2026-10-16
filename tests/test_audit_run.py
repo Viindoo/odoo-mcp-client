@@ -1,7 +1,7 @@
 """Tests for `scripts/audit-run.py` - the run-topology auditor.
 
 Business contract being protected (the four properties users complained were violated in real
-run-harness runs; schema SSOT: `plugins/odoo-ai-agents/docs/reference/workflow-harness.md` 8.3):
+plan runs; schema SSOT: `plugins/odoo-ai-agents/skills/odoo-intake/references/plan-mode-schema.md` § Run file):
 
   1. ONE PR per REPOSITORY, detected by the ACT and cross-checked against the DECLARATION. A node
      that recorded a pull-request URL in `produced` OPENED a PR whatever `approach_kind` it

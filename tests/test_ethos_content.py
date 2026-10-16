@@ -82,10 +82,6 @@ _DASH_SKIP_DIRS = frozenset(
 # payload, not prose that violates the rule. Nothing else goes in this dict: every other hit in
 # the tree is a genuine violation and must be fixed, not allowlisted.
 _DASH_ALLOWLIST: dict[str, str] = {
-    "tests/test_dispatch_brief.py": (
-        "declares `_BANNED_UNICODE_DASH = re.compile(r\"[...]\")` to detect banned dashes inside "
-        "a dispatch brief under test - the four glyphs are the detector's own pattern, not prose"
-    ),
     "tests/test_ethos_content.py": (
         "this guard - the detector pattern above and the RED-proof sample below have to spell "
         "the four banned glyphs in order to test for them"

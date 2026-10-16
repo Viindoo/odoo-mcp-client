@@ -29,10 +29,9 @@ def _valid_targets():
     # spawner skill fans out (e.g. `odoo-code-review` runs `odoo-code-reviewer`).
     # Validate them as real referents too so a typo'd agent name still fails.
     agents = {p.stem for p in (PLUGIN / "agents").glob("*.md")}
-    # The between-wave integration is owned by `run-harness` itself; intake no longer names any
-    # separate git-executor skill. `odoo-intake`/`workflow-chaining`/`run-harness` are real skill
-    # dirs - kept here only as belt-and-suspenders for the router's self-references.
-    extra = {"odoo-intake", "workflow-chaining", "run-harness"}
+    # `odoo-intake`/`workflow-chaining` are real skill dirs - kept here only as
+    # belt-and-suspenders for the router's self-references.
+    extra = {"odoo-intake", "workflow-chaining"}
     return skills | workflows | command_slugs | agents | extra
 
 
@@ -43,8 +42,7 @@ def _valid_targets():
 # hyphenated general pattern would not catch, so without it a stray `` `wave` `` reference
 # (a dead skill token) would go unseen. It is intentionally NOT in `_valid_targets()`, so any
 # such reference FAILS - guarding against intake routing users to a non-existent wave skill
-# (the separate git-executor skill was folded into run-harness itself; run-harness owns the
-# between-wave integration.)
+# (the separate git-executor skill was folded into the plan runner's integration loop.)
 TARGET_RE = re.compile(r"`/?([a-z][a-z0-9]*(?:-[a-z0-9]+)+|odoo-intake|wave)`")
 KNOWN_NON_TARGETS = {
     # backticked tokens that look slug-ish but are not routing targets
@@ -75,7 +73,6 @@ def test_odoo_intake_targets_exist():
         if tok in KNOWN_NON_TARGETS:
             continue
         if tok.startswith("odoo-") or tok in {"odoo-intake", "wave", "workflow-chaining",
-                                              "run-harness",
                                               "support-triage", "video-produce",
                                               "content-production", "discovery-quick",
                                               "bid-respond", "feature-positioning",

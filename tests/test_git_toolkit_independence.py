@@ -33,7 +33,7 @@ FP-avoidance choices (do NOT loosen these without an accompanying test update):
    git-toolkit performs; only the ``odoo-``-prefixed compound ``odoo-forward-port``
    is forbidden.
 
-4. UNPREFIXED CONSUMER NAMES (``run-harness``, ``workflow-chaining``) are
+4. UNPREFIXED CONSUMER NAMES (`the plan runner`, ``workflow-chaining``) are
    included from the skills glob (dirs starting with neither ``odoo-`` nor ``_``).
 
 5. SELF + BINARY skipped. This test file lives outside the scan root by

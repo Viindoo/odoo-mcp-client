@@ -24,14 +24,12 @@ GT3b - **no scratch destination outside the state root.** `/tmp` is wiped on reb
   `tmpdir_hits_in_tree` from here instead of re-deriving the scan, so the prose criterion and
   the source fact are asserted against ONE mechanism.
 
-GT4 - **the PR-review worktree is created beside the checkout, and is gitignored.** A git
-  worktree under `/tmp` loses its checkout on a `/tmp` wipe while its `.git/worktrees/<name>`
-  registration survives, and because the ISOLATE state key hashes the worktree's own
-  top-level path, every review under a fresh `/tmp` path also minted a state tree nothing
-  could ever reclaim. The replacement (`<repo-root>/.pr-worktrees/pr-<N>`) is stable per PR -
-  but only safe if `.gitignore` covers it, because otherwise a review in progress makes
-  `git status --porcelain` dirty, which `make gen-check` judges the whole tree by. That half
-  is asserted BEHAVIOURALLY through `git check-ignore`, so the rule's spelling stays free.
+GT4 - **the PR-review worktree lives under the state root, keyed per PR.** A git worktree under
+  `/tmp` loses its checkout on a `/tmp` wipe while its `.git/worktrees/<name>` registration
+  survives, and because the ISOLATE state key hashes the worktree's own top-level path, every
+  review under a fresh `/tmp` path also minted a state tree nothing could ever reclaim. The path
+  therefore comes from `project_dir` (axis `worktree`, `name` = `pr-<N>`) - stable per PR,
+  outside every checkout, never the main checkout (S9).
 
 Every text-matching helper below is a PURE FUNCTION of the text it is given, and each is
 exercised against a MUST-CATCH / MUST-NOT-CATCH probe corpus in this same file. The probes are
@@ -483,45 +481,42 @@ _BLOCK_BOUNDARY = re.compile(r"^(?:\*\*|#{1,6}\s)")
 
 
 def pr_target_blocks(text: str) -> list[str]:
-    """Every block of `text` whose opening line mentions a `TARGET=pr:` resolution.
+    """Every block of `text` whose opening line resolves the `pr:` target.
 
-    A block runs from its opening line to the next bold-paragraph or heading line, so the
-    numbered steps that belong to a `**Pre-resolution ...**` paragraph travel with it. Located
-    by CONTENT, never by line number, so the step may move within the file.
+    A block runs from its opening line to the next bold-paragraph, heading or numbered step, so
+    the lines that belong to the `pr:` resolution travel with it. Located by CONTENT, never by
+    line number, so the step may move within the file.
     """
     lines = text.splitlines()
     blocks = []
     for idx, line in enumerate(lines):
-        if "TARGET=pr:" not in line:
+        if "`pr:`" not in line and "TARGET=pr:" not in line:
             continue
         end = idx + 1
-        while end < len(lines) and not _BLOCK_BOUNDARY.match(lines[end]):
+        while end < len(lines) and not _BLOCK_BOUNDARY.match(lines[end]) and not re.match(r"^\d+\. ", lines[end]):
             end += 1
         blocks.append("\n".join(lines[idx:end]))
     return blocks
 
 
 def pr_worktree_blocks(text: str) -> list[str]:
-    """The `TARGET=pr:` blocks that actually resolve a worktree (the ones GT4 is about)."""
+    """The `pr:` blocks that actually resolve a worktree (the ones GT4 is about)."""
     return [b for b in pr_target_blocks(text) if "worktree" in b.lower()]
 
 
-def test_pr_review_resolves_a_worktree_beside_the_checkout_not_in_tmp():
-    """GT4(1) - the `pr:` pre-resolution names a `.pr-worktrees/pr-<N>` path, never a temp one.
-
-    `.pr-worktrees/` sits beside the checkout, so it survives a reboot and hashes to a STABLE
-    ISOLATE key per PR (a fresh temp path minted a new, unreclaimable state tree per review).
-    """
+def test_pr_review_resolves_a_worktree_under_the_state_root_not_in_tmp():
+    """GT4(1) - the `pr:` resolution takes its worktree path from `project_dir` (axis `worktree`),
+    keyed per PR under the state root, never a temp path and never the main checkout."""
     text = CODE_REVIEW_SKILL.read_text(encoding="utf-8")
     blocks = pr_worktree_blocks(text)
     assert blocks, (
-        "odoo-code-review/SKILL.md must resolve TARGET=pr:<N> to an isolated WORKTREE - no "
-        "TARGET=pr: step mentioning a worktree was found at all"
+        "odoo-code-review/SKILL.md must resolve pr:<N> to an isolated WORKTREE - no pr: step "
+        "mentioning a worktree was found at all"
     )
     joined = "\n".join(blocks)
-    assert re.search(r"\.pr-worktrees/pr-", joined), (
-        "the PR-review worktree must live at <repo-root>/.pr-worktrees/pr-<N> - a path keyed "
-        f"per PR beside the checkout. Block(s) found:\n{joined}"
+    assert "project_dir" in joined and "axis `worktree`" in joined, (
+        "the PR-review worktree path must come from project_dir (axis worktree), keyed per PR "
+        f"under the state root. Block(s) found:\n{joined}"
     )
     assert unsanctioned_tmp_in_text(joined, "<pr-preresolution-block>") == [], (
         "the PR-review worktree must not be placed under /tmp or /var/tmp (Rule 2 above is "
@@ -538,31 +533,12 @@ def test_pr_review_keeps_the_never_the_main_checkout_invariant():
     text = CODE_REVIEW_SKILL.read_text(encoding="utf-8")
     joined = "\n".join(pr_worktree_blocks(text))
     assert "S9" in joined, (
-        "the pr: worktree step must still cite S9 (git-delegation.md's never-the-main-checkout "
+        "the pr: worktree step must still cite S9 (git-safety-contract's never-the-main-checkout "
         f"invariant). Block(s) found:\n{joined}"
     )
     assert _MAIN_CHECKOUT_CRITERION.search(joined), (
         "the pr: worktree step must still state the S9 CRITERION (never the main checkout), "
-        f"not merely cite the label. Block(s) found:\n{joined}"
-    )
-
-
-@pytest.mark.skipif(which("git") is None, reason="git not available")
-def test_pr_worktrees_directory_is_gitignored():
-    """GT4(2) - asserted through git itself, so `.gitignore`'s exact spelling stays free.
-
-    This is the silent half: a `.pr-worktrees/` checkout that git does NOT ignore turns every
-    PR review into a dirty `git status --porcelain`, which `make gen-check` (and CI) judges the
-    whole tree by - so the relocation would pass review and then break every later PR.
-    """
-    res = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "check-ignore", "-q", ".pr-worktrees/pr-1"],
-        capture_output=True,
-        text=True,
-    )
-    assert res.returncode == 0, (
-        "git does not ignore .pr-worktrees/pr-1 - add a rule covering .pr-worktrees/ to "
-        f".gitignore (check-ignore exit {res.returncode}: {res.stderr.strip()})"
+        f"not just the label. Block(s) found:\n{joined}"
     )
 
 
@@ -571,12 +547,10 @@ def test_pr_worktrees_directory_is_gitignored():
 # ---------------------------------------------------------------------------
 
 _PR_BLOCK_TEMPLATE = (
-    "**Pre-resolution for `TARGET=pr:<N>`** - resolve the PR to an isolated worktree:\n"
-    "1. Invoke `git-toolkit:git-ops` to fetch PR metadata.\n"
-    "2. Invoke `git-toolkit:git-ops` to create an isolated worktree ({path}, S9 - never the "
-    "main checkout) with the PR branch checked out; receive `review_root`.\n"
-    "\n"
-    "**Resolve the review's state dirs ONCE** against `review_root`.\n"
+    "1. **Resolve the tree.** `local` -> this cwd's toplevel; `worktree:` -> the path given; `pr:` ->\n"
+    "   invoke `git-toolkit:git-ops` to fetch the PR metadata and to check the PR branch out in a\n"
+    "   worktree at {path} - never the principal checkout (git-safety-contract S9).\n"
+    "2. **Changed set.** A bounded `git-ops` read gives `CHANGED_SET`.\n"
 )
 
 PR_PATH_MUST_CATCH = [
@@ -584,12 +558,12 @@ PR_PATH_MUST_CATCH = [
     ("moved to var/tmp", "`/var/tmp/pr-review-<N>`"),
     ("tmpdir env", "`$TMPDIR/pr-review-<N>`"),
     ("main checkout via show-toplevel", "`$(git rev-parse --show-toplevel)`"),
+    ("beside the checkout", "`<repo-root>/.pr-worktrees/pr-<N>`"),
 ]
 
 PR_PATH_MUST_NOT_CATCH = [
-    ("relative", "`.pr-worktrees/pr-<N>`"),
-    ("absolute repo-root form", "`<repo-root>/.pr-worktrees/pr-<N>`"),
-    ("shell-resolved repo root", "`${REPO_ROOT}/.pr-worktrees/pr-<N>`"),
+    ("tool form", "the path `project_dir` (axis `worktree`, `name` = `pr-<N>`) returns"),
+    ("tool form, returned first", "the path returned by `project_dir` (axis `worktree`) for `pr-<N>`"),
 ]
 
 
@@ -600,7 +574,7 @@ def _pr_path_verdict(path: str) -> bool:
         return False
     joined = "\n".join(blocks)
     return bool(
-        re.search(r"\.pr-worktrees/pr-", joined)
+        "project_dir" in joined and "axis `worktree`" in joined
         and unsanctioned_tmp_in_text(joined, "<probe>") == []
         and "show-toplevel" not in joined
     )
@@ -620,7 +594,7 @@ def test_gt4_rejects_every_relocation_shape(shape, path):
 def test_gt4_accepts_every_compliant_spelling(shape, path):
     assert _pr_path_verdict(path), (
         f"GT4 rejected a compliant {shape} PR-worktree path ({path}) - the guard must key on "
-        f"the .pr-worktrees/pr-<N> location, not on one way of writing the repo root"
+        f"project_dir (axis worktree), not on one way of phrasing it"
     )
 
 

@@ -32,8 +32,7 @@ GATE = PLUGIN / "scripts" / "lib" / "doc_refs_check.py"
 VENV_SSOT = PLUGIN / "snippets" / "venv-resolution.md"
 
 GATE_RUNNERS = [
-    PLUGIN / "agents" / "odoo-user-doc-writer.md",
-    PLUGIN / "agents" / "odoo-marketing-writer.md",
+    PLUGIN / "agents" / "odoo-doc-writer.md",
     PLUGIN / "skills" / "odoo-doc-illustration" / "SKILL.md",
 ]
 

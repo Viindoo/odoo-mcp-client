@@ -75,8 +75,9 @@ is forwarded and never rebuilt.
       `LANGUAGES`, `RUN_ID`, `WORKTREE_PATH: <doc_root>` for the first delta; keep the returned
       block verbatim as `INSTANCE_HANDLE` and its `addons_path` as `ADDONS_PATH`.
    2. For each module `M` of the path, leaf first. `doc:false`: install only (step 5.5).
-      Otherwise run the reference gate of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
-      on `M` with no file arguments and keep its findings as the baseline, then launch
+      Otherwise run the gate of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+      § Reference gate (`--series` = M's resolved series) on `M` with no file arguments and keep
+      its findings as the baseline, then launch
       `odoo-doc-writer` (`model: sonnet`, brief in `references/writer-brief.md`) with `MODE: full`
       when the layer includes `userguide`, else `MODE: landing`.
    3. Layer `both`: when the `full` round returns, send the same writer `MODE: landing` with

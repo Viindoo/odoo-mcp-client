@@ -63,10 +63,9 @@ def test_no_bare_odoo_semantic_in_trigger_or_fallback_prose(doc):
 # convention", docs/authoring-skills-and-agents.md section 5.
 # ===========================================================================
 
-# The ONLY unprefixed (domain-agnostic) names allowed. The between-wave integration is owned
-# directly by `run-harness` (the run-driver sequencer), the domain-agnostic name in this set.
-# Keep in lockstep with the three prose statements above.
-_NAMING_ALLOWLIST = {"workflow-chaining", "run-harness"}
+# The ONLY unprefixed (domain-agnostic) name allowed. Keep in lockstep with the three prose
+# statements above.
+_NAMING_ALLOWLIST = {"workflow-chaining"}
 
 # Agentive (actor) derivational suffixes. Matched against the LAST hyphen
 # segment with `search(... $)` so it is a suffix of that single token, NOT a
@@ -88,7 +87,7 @@ _SKILL_CAPABILITY_NOUN_EXCEPTIONS = {"checklist"}
 # Sourced from the current valid agent tree: odoo-instance-ops ("ops"),
 # odoo-solution-architect ("architect"). A naive "must end in -er/-or/-ist"
 # rule would false-positive on these, so they are explicitly allowed.
-_AGENT_ACTOR_EXCEPTIONS = {"ops", "architect"}
+_AGENT_ACTOR_EXCEPTIONS = {"ops", "architect", "recon"}
 
 
 def _last_segment(name):
@@ -144,20 +143,19 @@ def test_enumeration_is_non_empty():
     """Guard: a broken glob must not make the morphology tests vacuously pass."""
     assert _SKILL_NAMES and "odoo-coding" in _SKILL_NAMES
     assert _AGENT_NAMES and "odoo-coder" in _AGENT_NAMES
-    # The coder-coordinator restructure adds odoo-backend-coder alongside odoo-frontend-coder.
-    assert "odoo-backend-coder" in _AGENT_NAMES and "odoo-frontend-coder" in _AGENT_NAMES
+    assert "odoo-frontend-coder" in _AGENT_NAMES
     assert _COMMAND_NAMES and "odoo-run-brl" in _COMMAND_NAMES
 
 
 def test_coder_lead_and_worker_agents_are_actor_nouns_and_distinct_from_skill():
     """The coding layer is a skill (capability noun) dispatching actor-noun agents; skill != agent.
 
-    odoo-coding (skill, `-ing` capability noun) launches the odoo-coder LEAD and the
-    odoo-backend-coder / odoo-frontend-coder workers (all actor nouns ending in `-er`). The skill and
-    each agent must be DISTINCT names (capability vs actor), per CLAUDE.md 'Three layers'.
+    odoo-coding (skill, `-ing` capability noun) launches the odoo-coder node owner, which may
+    launch odoo-frontend-coder (both actor nouns ending in `-er`). The skill and each agent must be
+    DISTINCT names (capability vs actor), per CLAUDE.md 'Three layers'.
     """
     assert "odoo-coding" in _SKILL_NAMES and not _skill_uses_actor_morphology("odoo-coding")
-    for agent in ("odoo-coder", "odoo-backend-coder", "odoo-frontend-coder"):
+    for agent in ("odoo-coder", "odoo-frontend-coder"):
         assert agent in _AGENT_NAMES, f"{agent} must be a registered agent"
         assert _agent_is_actor_noun(agent), f"{agent} must be an actor noun (last segment 'coder')"
         assert agent not in _SKILL_NAMES, f"{agent} must not collide with a skill name"
@@ -168,7 +166,7 @@ def test_name_is_prefixed_or_allowlisted(name):
     """Rule 1: every skill/agent/command is `odoo-`-prefixed unless allowlisted.
 
     Catches the run-driver class of offender: an unprefixed name that is not in
-    the {workflow-chaining, run-harness} domain-agnostic allowlist.
+    the {workflow-chaining} domain-agnostic allowlist.
     """
     assert _is_prefixed_or_allowlisted(name), (
         f"name '{name}' is not `odoo-`-prefixed and not in the unprefixed "
@@ -240,8 +238,8 @@ def test_naming_classifier_self_check():
     assert not _skill_uses_actor_morphology("odoo-planning")
     assert _agent_is_actor_noun("odoo-planner")
     assert not _skill_uses_actor_morphology("odoo-deploy-checklist")  # ends "ist"
-    assert _is_prefixed_or_allowlisted("run-harness")
-    assert not _skill_uses_actor_morphology("run-harness")            # "harness"
+    assert _is_prefixed_or_allowlisted("workflow-chaining")
+    assert not _skill_uses_actor_morphology("workflow-chaining")      # "chaining"
     assert _agent_is_actor_noun("odoo-solution-architect")            # "architect"
     assert _agent_is_actor_noun("odoo-instance-ops")                  # "ops"
 
@@ -250,7 +248,7 @@ def test_naming_classifier_self_check():
 # Residue guard: the retired per-wave git-executor skill (`odoo-wave`) and its
 # dead slash commands (`/odoo-run-wave`, `/wave-run`) must never reappear in
 # odoo-ai-agents runtime prose or the plugin manifests. That responsibility is
-# now owned by `run-harness`'s between-wave integration; a re-introduced literal
+# now owned by the plan runner's integration loop; a re-introduced literal
 # is dead-skill residue an executing agent would misread as a live component.
 # Only the LITERAL `odoo-wave` token + the two dead slash commands are scanned -
 # the bare word "wave" is legitimate DAG-batching vocabulary and is NOT banned.
@@ -273,8 +271,8 @@ def test_no_odoo_wave_residue():
     `/odoo-run-wave` / `/wave-run` slash commands must not appear anywhere under
     `plugins/odoo-ai-agents/**/*.md` or in the three plugin manifests.
 
-    The per-wave git-executor was folded into `run-harness`'s between-wave
-    integration; a stray literal would make an executing agent treat a dead skill
+    The per-wave git-executor was folded into the plan runner's integration
+    loop; a stray literal would make an executing agent treat a dead skill
     as a live component. The legitimate wave-batching CONCEPT (a wave of modules,
     between-wave integration, per-wave loop) uses the bare word "wave" and is
     intentionally NOT scanned here - banning it mechanically would false-positive
@@ -289,6 +287,6 @@ def test_no_odoo_wave_residue():
                 offenders.append(f"{f.relative_to(REPO_ROOT)}:{n}: {line.strip()[:120]}")
     assert not offenders, (
         "Retired `odoo-wave` / `/odoo-run-wave` / `/wave-run` residue reappeared. The per-wave "
-        "git-executor was folded into run-harness's between-wave integration - name run-harness or "
+        "git-executor was folded into the plan runner's integration loop - name the runner or "
         "the concept, never the dead skill/command:\n" + "\n".join(offenders)
     )

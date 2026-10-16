@@ -12,8 +12,8 @@ declared budget, and a file becomes subject to the rule through EITHER of two do
 Door (b) is a basename-keyed HEURISTIC for hotness; door (a) states the same fact outright, which
 is the only way to cap a hot contract the heuristic structurally cannot see - a top-level
 `skills/<name>/SKILL.md` runtime contract shares the basename `SKILL.md` with every skill, so no
-basename citer count can single it out. `run-harness/SKILL.md` (the drive-to-done loop re-entered
-on every RUN-DAG node and every resume) is capped through door (a) for exactly that reason.
+basename citer count can single it out. `workflow-chaining/SKILL.md` (re-entered on every
+workflow phase) is capped through door (a) for exactly that reason.
 
 The rule fires only on (a) a listed file that GREW past its recorded budget, or (b) a NEW file
 entering the >=3-citer set above the default cap - never on a file merely existing above 4,096 B
@@ -158,17 +158,16 @@ def test_declared_paths_are_all_measured_wherever_they_live():
     )
 
 
-def test_run_harness_runtime_contract_carries_a_budget():
-    """`run-harness/SKILL.md` is the plugin's drive-to-done runtime contract: it is re-read on
-    every RUN-DAG node dispatch and on every resume, so its size is a per-node cost - exactly what
-    [card-budget] exists to ratchet. Door (b) cannot reach it (basename `SKILL.md` is shared by
-    every skill), so it must be DECLARED. Drop the entry and this goes RED; grow the file past the
-    recorded cap and the parametrized case above goes RED."""
-    relpath = "skills/run-harness/SKILL.md"
+def test_workflow_chaining_runtime_contract_carries_a_budget():
+    """`workflow-chaining/SKILL.md` is a runtime contract re-read on every workflow phase, so its
+    size is a per-phase cost - exactly what [card-budget] exists to ratchet. Door (b) cannot reach
+    it (basename `SKILL.md` is shared by every skill), so it must be DECLARED. Drop the entry and
+    this goes RED; grow the file past the recorded cap and the parametrized case above goes RED."""
+    relpath = "skills/workflow-chaining/SKILL.md"
     budgets = _grandfather()["budgets"]
     assert relpath in budgets, (
-        f"{relpath} must carry an explicit [card-budget] entry - it is the most re-entered runtime "
-        f"contract in the plugin and the citer heuristic structurally cannot cap it"
+        f"{relpath} must carry an explicit [card-budget] entry - a top-level runtime contract the "
+        f"citer heuristic structurally cannot cap"
     )
     assert (PLUGIN / relpath).stat().st_size <= budgets[relpath]
 
@@ -209,7 +208,7 @@ def test_synthetic_oversize_file_is_flagged(tmp_path, monkeypatch):
 def test_synthetic_declared_file_outside_the_corpus_is_flagged(tmp_path, monkeypatch):
     """Door (a) red-before-green: a file OUTSIDE the snippets/ + skills/_shared/ corpus, cited by
     NOBODY (0 citers - so door (b) can never reach it), carrying a declared budget it exceeds,
-    must be flagged. This is the exact shape of `skills/run-harness/SKILL.md`; without the
+    must be flagged. This is the shape of a top-level `skills/<name>/SKILL.md`; without the
     declared-path union in `_card_budget_candidates` the file is never even measured and the
     checker prints clean forever."""
     fake_root = tmp_path / "odoo-ai-agents"

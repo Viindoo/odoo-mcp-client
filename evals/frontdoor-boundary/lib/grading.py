@@ -12,7 +12,7 @@ instead of dispatching the reconcile pass. Prose alone has already failed once h
 correction needs a mechanism behind it. This module is that mechanism's grading half.
 
 WHICH HALF COVERS WHICH GAP - the two halves are complementary, neither is redundant:
-  - `plugins/odoo-ai-agents/hooks/block-coordinator-code-write.sh` (PREVENTIVE, runtime) refuses a
+  - `plugins/odoo-ai-agents/hooks/block-spawner-code-write.sh` (PREVENTIVE, runtime) refuses a
     write when the CALLER is a dispatched AGENT whose declared role forbids authoring. It needs a
     populated `agent_type` to resolve a role, so it can only ever act on a dispatched subagent.
   - THIS GRADER (DETECTIVE, post-hoc) covers the gap that hook structurally cannot reach: a
@@ -27,7 +27,7 @@ turns are all `true`, but a subagent COORDINATOR's forbidden call is itself a si
 sidechain filter misses exactly the case that matters. This grader keys on the turn's AGENT
 IDENTITY resolved through `agents.<name>.role` in `plugins/odoo-ai-agents/generator/
 skill_tool_deps.json` - the same agent-role SSOT lookup already live at
-`hooks/remind-delegate.sh` (leaf advisory) and `hooks/block-coordinator-code-write.sh` (role gate),
+`hooks/remind-delegate.sh` (leaf advisory) and `hooks/block-spawner-code-write.sh` (role gate),
 with the same `${AGENT_TYPE##*:}` bare-name normalization, so adding an agent to the SSOT arms this
 grader for it with no edit here.
 
@@ -37,7 +37,7 @@ grader for it with no edit here.
     identity present, role unknown  -> UNKNOWN ACTOR                -> out of scope (see residuals)
 
 The identity field spellings are OBSERVED, not guessed. A real subagent transcript line carries
-`attributionAgent` (e.g. `"odoo-ai-agents:odoo-backend-coder"`, `"git-toolkit:github-operator"`)
+`attributionAgent` (e.g. `"odoo-ai-agents:odoo-frontend-coder"`, `"git-toolkit:github-operator"`)
 alongside `agentId` and `isSidechain:true`; a real MAIN-context transcript line carries
 `attributionSkill` (e.g. `"odoo-ai-agents:odoo-forward-port"`) and NEVER `attributionAgent`. The
 hook-shaped spellings (`agent_type`/`agentType`/`subagent_type`) are accepted too so a transcript
@@ -69,7 +69,7 @@ worse than one that names its limit:
       and picking a winner in its own head - is invisible here unless the decision is written out.
   R2. An actor whose name resolves to no `agents.<name>.role` entry (`general-purpose`, `Explore`, a
       third-party plugin agent) is treated as delegated and never flagged. This is deliberate and
-      mirrors `block-coordinator-code-write.sh`: the gate acts on a POSITIVE role claim only, so an
+      mirrors `block-spawner-code-write.sh`: the gate acts on a POSITIVE role claim only, so an
       actor this repo declares nothing about is never accused. It is also load-bearing - the
       corrected `odoo-forward-port` P6 dispatches `Explore` to do exactly the grounding calls that
       would be a violation if the orchestrator issued them.
@@ -107,7 +107,7 @@ ORCHESTRATING_ROLES = frozenset({"coordinator", "spawner"})
 # transcript captured from a hook stream grades the same way.
 _AGENT_NAME_KEYS = ("attributionAgent", "agent_type", "agentType", "subagent_type", "subagentType")
 # Presence of an opaque id alone still proves "this turn ran inside a subagent" even when no name
-# is carried - same signal block-coordinator-code-write.sh condition (a) uses.
+# is carried - same signal block-spawner-code-write.sh condition (a) uses.
 _AGENT_ID_KEYS = ("agent_id", "agentId")
 # Envelope keys that name the ACTIVE SKILL. Real main-context transcripts carry `attributionSkill`.
 _SKILL_NAME_KEYS = ("attributionSkill", "skill_name", "skillName")

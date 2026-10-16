@@ -432,12 +432,10 @@ def _report_from_spec(spec: Path, marker: str) -> str:
 
 @pytest.mark.parametrize("spec, marker", [
     ("agents/odoo-gap-analyzer.md", "odoo-gap-analyzer result"),
-    ("agents/odoo-feature-cataloger.md", "odoo-feature-cataloger result"),
     ("agents/odoo-diff-comparator.md", "mode: rebase\n"),
     ("agents/odoo-diff-comparator.md", "mode: rebase-verify"),
     ("agents/odoo-diff-comparator.md", "mode: upgrade"),
     ("agents/odoo-intent-extractor.md", "intent_one_liner: <"),
-    ("agents/odoo-doc-planner.md", "## Doc plan:"),
     ("skills/odoo-modules-upgrade/references/upg-phase-detail.md",
      "OUTPUT: transitive-symbol-survey.md"),
     ("agents/odoo-backend-debugger.md", "## Debug: <symptom>"),
@@ -468,7 +466,6 @@ def test_a_false_claim_in_a_summary_list_is_blocked(tmp_path, report):
 
 
 @pytest.mark.parametrize("spec, needle", [
-    ("agents/odoo-doc-scenarist.md", "- `grounded`: `osm | hybrid | local-source`"),
     ("agents/odoo-qa-planner.md", "`grounded: osm | local-source`"),
 ])
 def test_summary_returns_name_the_label_the_gate_reads(spec, needle):

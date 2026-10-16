@@ -1,7 +1,7 @@
-"""Behavioral guard for hooks/block-coordinator-code-write.sh (PreToolUse hard DENY).
+"""Behavioral guard for hooks/block-spawner-code-write.sh (PreToolUse hard DENY).
 
 The incident this exists to prevent, observed in a live session: `odoo-coder` (declared
-`role: coordinator`) had a teammate dispatch refused, the refusal's live rung told it to "do the
+`role: spawner`) had a teammate dispatch refused, the refusal's live rung told it to "do the
 work inline", and it edited a module's `__manifest__.py` itself - silently degrading a specialist
 pipeline into one generalist writing code. Nothing in the runtime could stop it: there was no
 PreToolUse hook on the write tools at all, and the only prohibition the agent nominally had lived
@@ -12,10 +12,10 @@ Business rules protected, NOT the implementation:
 
   - **DENY iff all three hold**: the caller is a subagent; the agent-role SSOT
     (`generator/skill_tool_deps.json` `.agents.<name>.role`) POSITIVELY resolves it to
-    `coordinator` or `spawner`; and the call writes production source.
+    `spawner`; and the call writes production source.
   - **Data-driven subject set.** Every role is read from the live SSOT here, never hardcoded, so
-    adding a coordinator arms the gate for it with no edit in either the hook or this file.
-  - **A leaf is NEVER touched.** `odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`
+    adding a spawner arms the gate for it with no edit in either the hook or this file.
+  - **A leaf is NEVER touched.** `odoo-frontend-coder`, `odoo-test-writer`
     and every other `role: leaf` writer must sail through the identical call. This is the
     red-before-green half: a gate that over-applies bricks the coding pipeline outright, which is
     strictly worse than the breach it prevents.
@@ -57,7 +57,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
-HOOK = PLUGIN_ROOT / "hooks" / "block-coordinator-code-write.sh"
+HOOK = PLUGIN_ROOT / "hooks" / "block-spawner-code-write.sh"
 HOOKS_JSON = PLUGIN_ROOT / "hooks" / "hooks.json"
 DEPS_FILE = PLUGIN_ROOT / "generator" / "skill_tool_deps.json"
 
@@ -78,7 +78,7 @@ def _by_role() -> dict[str, list[str]]:
 
 
 _BY_ROLE = _by_role()
-NON_AUTHORS = sorted(_BY_ROLE.get("coordinator", []) + _BY_ROLE.get("spawner", []))
+NON_AUTHORS = sorted(_BY_ROLE.get("spawner", []))
 LEAVES = sorted(_BY_ROLE.get("leaf", []))
 
 # A module source path in each of the file classes an Odoo change actually touches.
@@ -90,7 +90,7 @@ SOURCE_PATHS = [
     "/w/addons/sale_x/static/src/js/widget.js",
     "/w/addons/sale_x/static/src/scss/style.scss",
 ]
-# Artifacts a coordinator legitimately writes.
+# Artifacts a spawner legitimately writes.
 NON_SOURCE_PATHS = [
     "/w/.odoo-ai/worklogs/run-1/odoo-coder.md",
     "/w/.odoo-ai/findings/gap.json",
@@ -100,7 +100,7 @@ NON_SOURCE_PATHS = [
 ]
 
 
-def _run(tool, tool_input, *, agent_type="odoo-coder", agent_id="a1", env_overrides=None, raw=None):
+def _run(tool, tool_input, *, agent_type="odoo-solution-architect", agent_id="a1", env_overrides=None, raw=None):
     payload = {"hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": tool_input}
     if agent_id is not None:
         payload["agent_id"] = agent_id
@@ -146,11 +146,11 @@ def _passed(proc):
 # subject set sanity - the guard must not be able to pass vacuously
 # --------------------------------------------------------------------------- #
 def test_the_ssot_declares_both_subject_sets():
-    """Both halves below are data-driven. An empty coordinator/spawner set would make every DENY
+    """Both halves below are data-driven. An empty spawner set would make every DENY
     case vanish and the file would look green while testing nothing; an empty leaf set would do the
     same to the over-application half."""
     assert NON_AUTHORS, (
-        "no agent declares role coordinator|spawner in the SSOT - the deny half would be vacuous"
+        "no agent declares role spawner in the SSOT - the deny half would be vacuous"
     )
     assert LEAVES, "no agent declares role leaf in the SSOT - the pass half would be vacuous"
 
@@ -162,7 +162,7 @@ def test_the_ssot_declares_both_subject_sets():
 @pytest.mark.parametrize("path", SOURCE_PATHS)
 @pytest.mark.parametrize("tool", ["Edit", "Write", "MultiEdit"])
 def test_a_non_authoring_role_cannot_write_module_source_with_an_edit_tool(agent, path, tool):
-    """The literal shape of the observed incident: `Edit` on `__manifest__.py` from a coordinator."""
+    """The literal shape of the observed incident: `Edit` on `__manifest__.py` from a spawner."""
     _denied(_run(tool, {"file_path": path}, agent_type=agent))
 
 
@@ -186,7 +186,7 @@ def test_notebook_edit_is_covered_by_its_own_path_key():
 def test_the_deny_reason_routes_to_needs_next_and_never_to_writing_it_anyway():
     """A refusal with no move is a refusal the agent works around. It must name the rung
     (NEEDS_NEXT), say a refused dispatch is reported upward, and say plainly which artifacts are
-    unaffected - otherwise a coordinator concludes it may not write its own worklog either."""
+    unaffected - otherwise a spawner concludes it may not write its own worklog either."""
     reason = _denied(_run("Edit", {"file_path": SOURCE_PATHS[0]}))
     low = reason.lower()
     assert "needs_next" in low, f"the rung must be named: {reason!r}"
@@ -213,7 +213,7 @@ def test_every_leaf_writer_is_untouched(agent):
 
 @pytest.mark.parametrize("path", NON_SOURCE_PATHS)
 def test_a_non_authoring_role_still_writes_its_own_artifacts(path):
-    """A coordinator's worklog, findings, plan and design notes are its job. Denying them would
+    """A spawner's worklog, findings, plan and design notes are its job. Denying them would
     make the gate unusable and invite an exemption that reopens the real hole."""
     _passed(_run("Write", {"file_path": path}))
 
@@ -243,7 +243,7 @@ def test_a_worktree_path_is_not_mistaken_for_a_scratch_tree():
     "/tmp/claude-1000/-proj/sess-1/scratchpad/live2/repo",    # ... or under a session scratchpad
 ])
 def test_module_source_under_the_system_temp_dir_is_still_module_source(root):
-    """Observed live: a coordinator edited `x_cap_order.py` in a worktree under the system temp
+    """Observed live: a spawner edited `x_cap_order.py` in a worktree under the system temp
     dir and was not refused, because every temp path was treated as scratch. The temp dir is wiped
     on reboot, so no durable work - and no scratch this plugin writes - belongs there; a source file
     there is module source like any other, by the Edit tools and by a Bash write alike."""
@@ -256,7 +256,7 @@ def test_module_source_under_the_system_temp_dir_is_still_module_source(root):
 
 def test_the_state_root_and_the_callers_state_dirs_stay_scratch(tmp_path):
     """The exemption is keyed on where this plugin keeps state - the state root and the caller's
-    SHARE / ISOLATE dirs, wherever they were relocated to - so a coordinator's own scratch script
+    SHARE / ISOLATE dirs, wherever they were relocated to - so a spawner's own scratch script
     there is never refused, even when the relocation is under the system temp dir."""
     home, share, isolate = tmp_path / "ai-home", tmp_path / "share", tmp_path / "iso"
     env = {
@@ -329,18 +329,18 @@ BASH_READS = [
     # token", and because its three greps are independent that made every `2>&1` on any command
     # naming a `.py` path read as a write. The gate therefore refused `allocator.py --help` and a
     # plain pytest run depending only on whether the caller had appended a redirect - which is why
-    # it looked non-deterministic between two coordinator nodes that had simply typed it
+    # it looked non-deterministic between two spawner nodes that had simply typed it
     # differently. Shell redirection is W1's job; W1 alone carries the `[^0-9&>]` stream guard.
     ("allocator-stderr", "python3 scripts/lib/allocator.py acquire --series 18.0 2>&1"),
     ("allocator-help-stderr", "python3 scripts/lib/allocator.py --help 2>&1"),
     ("allocator-devnull", "python3 scripts/lib/allocator.py release tok-1 2>/dev/null"),
     ("pytest-stderr", "python -m pytest tests/test_sale.py -q 2>&1"),
     ("pytest-to-scratch", "python -m pytest tests/test_sale.py -q > /tmp/out.txt"),
-    # Read-only interpreter work, reported by a peer session whose coordinator was refused while
+    # Read-only interpreter work, reported by a peer session whose spawner was refused while
     # VERIFYING its workers' output. `open(` alone was treated as a write, so every read an
-    # interpreter performs was denied. Blocking a coordinator's reads defeats the coordinator/
-    # worker split rather than protecting it: the coordinator exists to be the independent check
-    # on what its workers claim, and a coordinator that cannot read is left accepting their
+    # interpreter performs was denied. Blocking a spawner's reads defeats the spawner/
+    # worker split rather than protecting it: the spawner exists to be the independent check
+    # on what its workers claim, and a spawner that cannot read is left accepting their
     # self-reports as evidence.
     ("py-compile", "python -m py_compile /w/addons/x/models/sale.py"),
     ("py-compile-stderr", "python -m py_compile /w/addons/x/models/sale.py 2>&1"),
@@ -354,7 +354,7 @@ BASH_READS = [
 
 @pytest.mark.parametrize("label,command", BASH_READS, ids=[c[0] for c in BASH_READS])
 def test_bash_reads_and_runs_are_never_denied(label, command):
-    """Scope discipline, and the other half of red-before-green. A coordinator must still be able
+    """Scope discipline, and the other half of red-before-green. A spawner must still be able
     to read source, run the integrated test, drive the allocator, and redirect output to scratch. A
     detector that fired on any command merely MENTIONING a `.py` path would deny all of these and
     be switched off within a day."""
@@ -459,9 +459,9 @@ def test_hooks_json_registers_the_gate_and_its_matcher_reaches_every_write_tool(
     groups = [
         g
         for g in _pretooluse_groups()
-        if any("block-coordinator-code-write.sh" in h.get("command", "") for h in g.get("hooks", []))
+        if any("block-spawner-code-write.sh" in h.get("command", "") for h in g.get("hooks", []))
     ]
-    assert groups, "hooks.json must register block-coordinator-code-write.sh under PreToolUse"
+    assert groups, "hooks.json must register block-spawner-code-write.sh under PreToolUse"
     for g in groups:
         matcher = g.get("matcher")
         assert matcher, "the gate must be matcher-scoped, not run on every tool call"

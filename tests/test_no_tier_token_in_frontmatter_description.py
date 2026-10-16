@@ -18,7 +18,7 @@ re-check what `tests/test_status_vocabulary.py` owns (SSOT-vs-rendering agreemen
 
 Scope - and the scoping matters more than the breadth. The tier values are LOAD-BEARING internally:
 `agents/*.md` and `skills/*/SKILL.md` declare `model: opus` in frontmatter, `odoo-coding` carries the
-tier-selection table, `run-harness` resolves `L0/L1/L2` in its driver loop, and
+tier-selection table, the plan runner resolves `L0/L1/L2` in its driver loop, and
 `generator/skill_tool_deps.json` + `generator/check_orchestration.py` declare the enums. A guard
 that flagged any of those would be flagging the machinery, and the next maintainer would delete it -
 after which it protects nothing. So the corpus is exactly ONE field: the frontmatter `description`
@@ -216,14 +216,14 @@ def test_frontmatter_model_key_is_out_of_scope():
 
 
 def test_file_bodies_carrying_tier_tokens_are_out_of_scope():
-    """`odoo-coding`'s tier table and `run-harness`'s driver loop are the legitimate internal uses.
+    """`odoo-coding`'s tier table and `odoo-instance`'s gate prose are the legitimate internal uses.
 
     Premise first: both bodies really do carry the tokens. Then: neither file yields a finding,
     because only its frontmatter `description` is read.
     """
     coding = PLUGIN / "skills" / "odoo-coding" / "SKILL.md"
-    harness = PLUGIN / "skills" / "run-harness" / "SKILL.md"
-    for f, pattern in ((coding, VENDOR_MODEL_RE), (harness, GATE_TIER_RE)):
+    instance = PLUGIN / "skills" / "odoo-instance" / "SKILL.md"
+    for f, pattern in ((coding, VENDOR_MODEL_RE), (instance, GATE_TIER_RE)):
         assert f.is_file(), f"premise: {f} must exist"
         text = f.read_text(encoding="utf-8")
         body = text.split("\n---\n", 2)[-1]

@@ -409,7 +409,7 @@ def _agent_transcript(tmp_path: Path, launched: list[str], name: str = "agent-p.
     for i, aid in enumerate(launched):
         lines.append(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
             {"type": "tool_use", "id": f"L{i}", "name": "Agent",
-             "input": {"subagent_type": "odoo-ai-agents:odoo-backend-coder", "prompt": "WI-1",
+             "input": {"subagent_type": "odoo-ai-agents:odoo-frontend-coder", "prompt": "node-1",
                        "run_in_background": True}}]}}))
         lines.append(json.dumps({"type": "user", "message": {"role": "user", "content": [
             {"type": "tool_result", "tool_use_id": f"L{i}",

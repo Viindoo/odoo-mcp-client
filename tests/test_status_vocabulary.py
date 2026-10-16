@@ -172,7 +172,7 @@ def test_mechanical_consumers_cover_the_enum():
         "hooks/run-ownership.sh no longer selects NEEDS_NEXT run records - the unfinished-run "
         "reminder would never fire"
     )
-    # HARD CONTRACT: the reminder must never block the main agent (workflow-harness.md §8.1
+    # HARD CONTRACT: the reminder must never block the main agent (the plan runner's loop
     # depends on this). Guard the contract, not just the value.
     drive = (hooks_dir / "drive-continuation.sh").read_text(encoding="utf-8")
     emitted = re.findall(r"jq -cn[^\n]*'(\{[^']*\})'", drive)
@@ -209,7 +209,7 @@ def test_gate_reply_sets():
     )
 
     # No live gate prompt anywhere may still offer `yes` as a reply option. This is the direct
-    # regression guard for the 6-site migration (run-harness, odoo-solution-design, odoo-planning,
+    # regression guard for the gate-prompt migration (odoo-solution-design, odoo-planning,
     # odoo-coding, odoo-debug, odoo-draft-followup).
     yes_gate_re = re.compile(r"\(\s*`?yes`?\s*/\s*(?:refine|iterate)", re.IGNORECASE)
     hits = []

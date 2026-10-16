@@ -137,19 +137,6 @@ The demo-recording video is a FILENAME (owned by odoo-demo-recording, same colli
 mechanism) and `visual/adhoc/<slug>/` has no owner, so neither counts among the FOUR. Classify by
 the FULL subpath, never by the top-level directory name alone - `visual/` itself is not a Tier.
 
-## Codemod guards
-
-- **Workflow YAML `output_dir:` lines stay UNCHANGED** - relative `.odoo-ai/<name>` literals
-  `workflow-chaining` resolves against the runtime-resolved ISOLATE dir at execution time. Only
-  PROSE mentions of those 13 names in skill/agent/command Markdown get rewritten to the
-  resolve-capture-substitute protocol.
-- Several ISOLATE names are BOTH an explicit row above and a workflow `output_dir` (`qa/`, `debug/`,
-  `support/`) - consistent, no conflict; both point at the same ISOLATE tree.
-- `brl/` is SHARE and is NOT one of the 13 workflow `output_dir`s - no collision.
-- The Tier-1 allowlist (top of this doc) is a hard override: a Tier-1 subpath is NEVER rewritten
-  to a SHARE/ISOLATE literal even inside an otherwise Tier-2-only skill/agent - it stays exactly
-  `$ODOO_AI_HOME/<subpath>`.
-
 ## Advisory-glob exception (read-only, never-block hooks)
 
 The general rule above (never a project-relative `./.odoo-ai/`) has exactly ONE sanctioned
