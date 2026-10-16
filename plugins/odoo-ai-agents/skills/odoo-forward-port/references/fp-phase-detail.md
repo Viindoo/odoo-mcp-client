@@ -518,8 +518,7 @@ dump lets the test leg find each hunk by its text.
 
 **8b - adapt the module** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
 FP-ENRICHED brief - it owns the node's coder (`odoo-coder`),
-model, synthesis and the node's test leg (never dispatch raw `odoo-coder`, `odoo-backend-coder` or
-`odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one coder per module across the WHOLE
+model, synthesis and the node's test leg (never dispatch raw `odoo-coder` or `odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one coder per module across the WHOLE
 run: launch it once, record the id, resume it - an id your own launch returned.** On the module's FIRST
 invocation omit the field and record the coder's agent id `odoo-coding` reports in `plan.md`; on every LATER
 one carry it as `WORKER_AGENT_ID: <id>` - never a string anyone invented; `odoo-coding` resumes that id

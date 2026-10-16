@@ -592,8 +592,7 @@ to create the intent file before proceeding to the coder.
 Read the stopped commit's P4 outcome first. Outcome (a) or (d): invoke git-ops to skip the commit
 (`--skip`) and dispatch nothing else - a bucket-(a)/(d) commit is never sent to `odoo-coding`.
 Outcome (b)/(c): dispatch Explore first if context is needed, then the `odoo-coding` skill via the
-Skill tool (mirroring P9b - do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
-`odoo-frontend-coder` agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its
+Skill tool (mirroring P9b - do NOT dispatch raw `odoo-coder` or `odoo-frontend-coder` agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its
 `odoo-coder`), and synthesis):
 
 ```
@@ -751,8 +750,7 @@ before proceeding to P9. This gate is the same as forward-port P7 collection gat
 
 For each module whose behavior changed - and for every module listed in `rebase-log.md`
 § P8-resolved modules, whose test leg P8 deferred here - invoke the `odoo-coding` skill (via the Skill
-tool) ONCE with the adapt fields below (never raw `odoo-coder`, `odoo-backend-coder` or
-`odoo-frontend-coder`). Inside the node the code is adapted to the new-base idiom first; the node's test
+tool) ONCE with the adapt fields below (never raw `odoo-coder` or `odoo-frontend-coder`). Inside the node the code is adapted to the new-base idiom first; the node's test
 leg then adapts the branch's own tests and proves each by breaking its rule, reporting briefly per test
 what it broke and how it failed (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). Record
 that report in `rebase-log.md` § Test-leg reports, one `<module>: <report>` per module. Adapt brief:

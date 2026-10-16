@@ -552,7 +552,7 @@ is written regardless of tier.
   `BUCKET` line so the absorption check can take that code out of play.
 - **8b adapt the module: ONE `odoo-coding` invocation per module** (via the Skill tool) - `odoo-coding`
   owns the node's coder (`odoo-coder`), its model, synthesis and the
-  node's test leg (never dispatch raw `odoo-coder`, `odoo-backend-coder` or `odoo-frontend-coder`).
+  node's test leg (never dispatch raw `odoo-coder` or `odoo-frontend-coder`).
   Inside the node the code is adapted FIRST, then the test leg forwards and adapts the module's source
   tests and proves each FP-delta test by breaking its rule
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). The forwarded source test IS the

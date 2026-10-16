@@ -55,7 +55,7 @@ and a grounding count.
             {"kind": "button", "label": "Submit", "feature_id": "booking-01"}]},
    {"role_id": "R2", "kind": "manager", "groups": ["fleet_booking.group_booking_manager"],
     "ui_name": "Fleet Booking / Manager", "implies": ["R1"],
-    "business_role": "Fleet Coordinator", "business_role_source": "inferred",
+    "business_role": "Fleet Supervisor", "business_role_source": "inferred",
     "job": "approves requests and assigns vehicles",
     "can": [{"kind": "button", "label": "Approve", "feature_id": "booking-01"}]}],
  "process": [

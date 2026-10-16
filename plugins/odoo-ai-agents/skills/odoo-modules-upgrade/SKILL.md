@@ -74,7 +74,7 @@ agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 **Sequence invariant (non-negotiable order).** Pipeline order is
 `recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`.
-NO `odoo-coding` / `odoo-coder` / `odoo-backend-coder` / `odoo-frontend-coder` dispatch may happen
+NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder` dispatch may happen
 before the Plan Mode gate. When a design trigger fires for a commit/module,
 `odoo-solution-design` MUST complete and its design doc MUST be approved BEFORE the gate for that
 commit/module. A tiny/mechanical change (design-trigger skip rows) bypasses design but STILL
@@ -234,8 +234,7 @@ the modules touch disjoint files, which is the deviation this prescription keeps
 before deciding otherwise at `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`
 § Child worktree per module. `odoo-coding` owns the backend/frontend split, coder fan-out
 (its `odoo-coder`, the node owner), and model, and grounds any ported OWL/QWeb/SCSS against
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder`,
-`odoo-backend-coder`, or `odoo-frontend-coder`).
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder` or `odoo-frontend-coder`).
 For DELETE-absorbed and OBSOLETE modules: invoke `odoo-coding` to run the dangling-reference
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
 invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the directory removal, staging, and commit in the child worktree
