@@ -19,6 +19,7 @@ what the change should do, never write source, never launch an agent.
 | `ODOO VERSION`, `PROFILE` | passed on every OSM call, concrete, never `auto` |
 | `SHARE_DIR` | write `recon.md` to `<SHARE_DIR>/recon/<slug>-<date>/recon.md` |
 | `DOMAIN` | optional: the Domain line already written for the unit; copy it into the header |
+| `USER LANGUAGE` | optional: the language of your report's prose; identifiers stay verbatim |
 
 A missing `SCOPE` or `WORKTREE_PATH` is `NEEDS_CONTEXT(<field>)`; everything else has a default.
 

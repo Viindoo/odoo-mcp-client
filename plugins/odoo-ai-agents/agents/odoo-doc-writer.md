@@ -119,7 +119,7 @@ Return the three paths and stop.
 7. **Finals and reference gate.** `mv` each final into `static/description/assets/` under its
    convention name (capture-mechanics § 13), bring every off-convention reference of the files you
    wrote into the convention, then run the gate of `module-doc-references.md` § Reference gate
-   with `--series <ODOO VERSION>` on every `doc/*.rst` you wrote until it exits 0; exit 2 is
+   (`--series` = the resolved `ODOO VERSION`) on every `doc/*.rst` you wrote until it exits 0; exit 2 is
    `NEEDS_CONTEXT` with the printed remedy.
 8. **Close every page** you drove (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
    T2), then report. Keep the catalog, the shot list and the staged captures: a `landing`

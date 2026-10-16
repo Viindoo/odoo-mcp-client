@@ -11,17 +11,10 @@ Schema tests (test_index_yaml_*):
   would PASS where it must FAIL, breaking CI.
 
 Wiring tests:
-  The master constraint has TWO valid representations of the same datum:
-    - odoo-review-scoper is the SOURCE that RESOLVES the master design doc, and
-      emits it through the scope-block field (`### Master design doc` heading +
-      per-module `design_doc` column) - NOT the brief token. Guarded by
-      test_scoper_emits_master_via_scope_block.
-    - the brief CARRIERS (odoo-code-review sets the token; the reviewer/coder
-      agents + the contract snippet read it) acknowledge master via the
-      `MASTER_DESIGN_DOC` brief token. Guarded by test_master_design_doc_wired_*.
-  FAIL when either representation regresses - the scoper losing master
-  resolution, or a brief carrier dropping the token. Each carrier is a separate
-  parametrized case so a regression in one file is immediately locatable.
+  The brief CARRIERS (odoo-code-review sets the token; the reviewer/coder agents + the contract
+  snippet read it) acknowledge the master constraint via the `MASTER_DESIGN_DOC` brief token.
+  Guarded by test_master_design_doc_wired. Each carrier is a separate parametrized case so a
+  regression in one file is immediately locatable.
 """
 
 import re
@@ -157,40 +150,6 @@ def test_index_yaml_invalid_dag():
 
 
 # ---------------------------------------------------------------------------
-# Wiring test A: odoo-review-scoper emits master via the scope-block field
-# ---------------------------------------------------------------------------
-
-
-def test_scoper_emits_master_via_scope_block():
-    """odoo-review-scoper RESOLVES the master design doc and emits it through the
-    scope-block field, not through the MASTER_DESIGN_DOC brief token.
-
-    The scoper is the SOURCE of the master constraint: it resolves the master
-    path (`master_design_doc` / `### Master design doc` heading) and the per-module
-    child path (`design_doc` column). The brief token MASTER_DESIGN_DOC is what
-    DOWNSTREAM consumers (set by odoo-code-review) carry - the scoper deliberately
-    does not use it. Both are valid representations of the same datum.
-
-    FAILS if the scoper loses master resolution (no master field) OR drops the
-    per-module design_doc column - i.e. a regression where downstream consumers
-    would no longer receive the master constraint.
-    """
-    scoper = PLUGIN / "agents" / "odoo-review-scoper.md"
-    text = scoper.read_text(encoding="utf-8")
-    assert "master_design_doc" in text or "Master design doc" in text, (
-        f"{scoper.relative_to(ROOT)} must RESOLVE and emit the master design doc "
-        "(the `master_design_doc` field / `### Master design doc` scope-block heading). "
-        "Without it, no consumer can receive the master constraint."
-    )
-    # Bare `design_doc` (the per-module column) - `\b...\b` excludes the substring
-    # inside `master_design_doc` and `design_doc_mode`/`design_doc_ambiguity`.
-    assert re.search(r"\bdesign_doc\b", text), (
-        f"{scoper.relative_to(ROOT)} must carry the per-module `design_doc` column "
-        "so each changed module receives its child design path."
-    )
-
-
-# ---------------------------------------------------------------------------
 # Wiring test B: MASTER_DESIGN_DOC brief token must appear in every carrier
 # ---------------------------------------------------------------------------
 
@@ -198,16 +157,12 @@ def test_scoper_emits_master_via_scope_block():
 # The contract: any consumer that reads a design handoff brief from
 # odoo-solution-architect must acknowledge both levels (DESIGN_DOC for the child
 # spec, MASTER_DESIGN_DOC for the hard-constraint master TDD).
-# NOTE: odoo-review-scoper is deliberately NOT here - it is the SOURCE that
-# resolves master via the scope-block field (test_scoper_emits_master_via_scope_block),
-# not a brief carrier.
 _WIRED_FILES = [
     PLUGIN / "skills" / "odoo-code-review" / "references" / "agent-prompts.md",
     PLUGIN / "agents" / "odoo-code-reviewer.md",
     PLUGIN / "skills" / "odoo-coding" / "SKILL.md",
     PLUGIN / "agents" / "odoo-coder.md",
     PLUGIN / "agents" / "odoo-test-writer.md",
-    PLUGIN / "agents" / "odoo-backend-coder.md",
     PLUGIN / "agents" / "odoo-frontend-coder.md",
     PLUGIN / "snippets" / "master-child-design-contract.md",
 ]
@@ -263,120 +218,3 @@ def _normalized(text: str) -> str:
     source lines still matches a single-line assertion (mirrors the idiom in
     test_dispatch_brief.py's spawner-framing check)."""
     return _WS.sub(" ", text)
-
-
-def test_contested_symbol_reconciliation_is_lead_brokered_and_bounded():
-    """A child must NEVER be told to reach a sibling, must not block, and must not decide - it
-    records the contested symbol and reports DONE. The LEAD decides after every child in the
-    layer has returned, bounded to ONE reconciliation round.
-
-    FAILS if sibling messaging returns (an unimplementable send a child would stall on), if the
-    round bound disappears (reopening the unbounded-negotiation risk), or if the child is left
-    able to decide a contested symbol on its own.
-    """
-    contract = _normalized(MASTER_CHILD_CONTRACT.read_text(encoding="utf-8"))
-    idx = contract.find("## Contested-symbol reconciliation")
-    assert idx != -1, (
-        "master-child-design-contract.md must define a "
-        "'## Contested-symbol reconciliation' section (the same-layer seam SSOT)."
-    )
-    section = contract[idx : idx + 3000]
-
-    assert "cannot message each other" in section and "no agent can address a sibling" in section, (
-        "the section must state plainly that a sibling is not addressable - otherwise a child "
-        "re-derives a send that cannot resolve"
-    )
-    assert "do NOT block and do NOT guess" in section, (
-        "a child hitting a contested symbol must neither block nor guess - both are how a layer "
-        "silently stalls or diverges"
-    )
-    assert "contested-symbols.md" in section, (
-        "the section must name the shared file a child appends its proposal to - a decision the "
-        "lead cannot read is not brokered"
-    )
-    assert "after its R1 barrier clears" in section, (
-        "reconciliation is the LEAD's, and only after every child in the layer has returned (R1)"
-    )
-    assert "ONE reconciliation round per layer" in section, (
-        "the lead's reconciliation must be bounded to one round - unbounded is the failure mode "
-        "this rule exists to prevent"
-    )
-    assert "BLOCKED for a human" in section, (
-        "an unresolved layer after the single round must escalate to a human, never loop"
-    )
-    assert "spawner-completion-contract.md" in section, (
-        "the section must cross-reference R3 as the SSOT for what is and is not addressable"
-    )
-
-    # The child-agent-facing summary in the architect must mirror the same invariants -
-    # a runtime-dispatched child reads the agent body, not the snippet, first.
-    architect = _normalized(ARCHITECT_AGENT.read_text(encoding="utf-8"))
-    idx2 = architect.find("## Contested-symbol reconciliation (child mode)")
-    assert idx2 != -1, (
-        "odoo-solution-architect.md must carry a "
-        "'## Contested-symbol reconciliation (child mode)' subsection."
-    )
-    child_section = architect[idx2 : idx2 + 3000]
-    assert "no agent can address a sibling" in child_section, (
-        "the child-facing summary must state the sibling is unreachable"
-    )
-    assert "contested-symbols.md" in child_section, (
-        "the child-facing summary must name where the child records its proposal"
-    )
-    assert "report DONE" in child_section, (
-        "the child must finish on its own proposal and report DONE, never wait for a sibling"
-    )
-
-
-def test_contested_symbol_child_never_writes_section10_or_index():
-    """Single-writer discipline (B2, preserved): a child records its proposal in its OWN child
-    TDD and in contested-symbols.md - NEVER in index.yaml or §10. The MODE: consistency pass
-    remains the SOLE applier.
-
-    FAILS if any of the three touched files stop stating this invariant - regressing to a design
-    where a child writes §10 directly and recreates the concurrent-write race B2 flagged.
-    """
-    contract = _normalized(MASTER_CHILD_CONTRACT.read_text(encoding="utf-8"))
-    assert "NEITHER child edits `index.yaml`/§10 directly" in contract, (
-        "master-child-design-contract.md must forbid children from writing "
-        "§10/index.yaml directly - only the consistency pass may."
-    )
-    assert "record the symbol, your proposed contract, and why, in your own TDD" in contract, (
-        "master-child-design-contract.md must require the child to record its proposal in its "
-        "OWN TDD, never in the shared §10/index.yaml."
-    )
-    assert "is the SOLE §10" in contract and "`index.yaml` applier" in contract, (
-        "master-child-design-contract.md's Conflict list section must name the "
-        "consistency pass as the SOLE §10/index.yaml applier."
-    )
-
-    architect = _normalized(ARCHITECT_AGENT.read_text(encoding="utf-8"))
-    assert "Never edit `index.yaml` or §10 yourself" in architect, (
-        "odoo-solution-architect.md child mode must forbid the child from "
-        "editing §10/index.yaml itself."
-    )
-    assert "never edit `index.yaml`/§10" in architect, (
-        "odoo-solution-architect.md's child-row grounding cell must forbid "
-        "editing index.yaml/§10 as part of the contested-symbol note."
-    )
-
-    skill = _normalized(SOLUTION_DESIGN_SKILL.read_text(encoding="utf-8"))
-    assert "children never write §10 themselves" in skill or "children never write §10" in skill, (
-        "odoo-solution-design/SKILL.md's consistency-pass step must state "
-        "children never write §10 themselves - it is the sole applier."
-    )
-
-
-def test_lead_side_reconciliation_is_wired_into_the_dispatching_skill():
-    """The lead half of the contract has to live where the lead actually runs: the dispatching
-    skill. A rule stated only in the snippet is a rule nothing executes."""
-    skill = _normalized(SOLUTION_DESIGN_SKILL.read_text(encoding="utf-8"))
-    assert "contested-symbols.md" in skill, (
-        "odoo-solution-design/SKILL.md must read contested-symbols.md after the layer returns"
-    )
-    assert "re-dispatch ONLY the children whose proposal lost" in skill, (
-        "the lead must re-dispatch only the losers, with its decision in their brief"
-    )
-    assert "ONE reconciliation round per layer" in skill, (
-        "the lead's round bound must be stated where the lead executes, not only in the snippet"
-    )

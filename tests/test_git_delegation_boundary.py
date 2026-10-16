@@ -564,9 +564,9 @@ def test_remind_delegate_never_allows_risky_git_mutation():
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
         "tool_input": {"command": "git commit -am 'do the thing'"},
-        # role=leaf per generator/skill_tool_deps.json "agents"."odoo-backend-coder".role
+        # role=leaf per generator/skill_tool_deps.json "agents"."odoo-frontend-coder".role
         "agent_id": "agent-under-test",
-        "agent_type": "odoo-backend-coder",
+        "agent_type": "odoo-frontend-coder",
         "cwd": str(REPO_ROOT),
     }
 

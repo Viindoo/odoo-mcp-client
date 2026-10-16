@@ -1773,7 +1773,7 @@
     }
   },
   "vocabulary": {
-    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by tests/test_status_vocabulary.py; rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses).",
+    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by tests/test_status_vocabulary.py; rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses). reserved_tokens lists the ODOO-AI-ETHOS #10 completion token: it is NOT a continuation_status or node_status value here, and the teardown gate treats a turn ending on it as ended (hooks/enforce-teardown.sh).",
     "continuation_status": [
       "DONE",
       "NEEDS_NEXT",
@@ -1802,6 +1802,8 @@
         "cancel"
       ]
     },
-    "reserved_tokens": []
+    "reserved_tokens": [
+      "DONE_WITH_CONCERNS"
+    ]
   }
 }

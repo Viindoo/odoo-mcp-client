@@ -4,7 +4,7 @@
 `scripts/setup-steps/32-permissions-state-root.sh` - the ONE machine-level bit that
 cannot ship in the repo: it idempotently self-applies the narrow state-root
 Bash/Read/Edit permission rules to the user's settings.json so the planning
-pipeline (odoo-planner / odoo-doc-planner / intake Phase P) runs without a per-call
+pipeline (odoo-planner / intake Phase P) runs without a per-call
 approval prompt. Modeled on tests/test_ensure_browser_permissions.py (its sibling hook
 for the browser-MCP permission surface) and reuses tests/test_state_root_permissions.py's
 throwaway-settings/throwaway-state-root fixture pattern for the step script it delegates to.

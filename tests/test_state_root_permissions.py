@@ -1,7 +1,7 @@
 """Behavioral + contract tests for `scripts/setup-steps/32-permissions-state-root.sh`.
 
 This is the L2 setup step that auto-allows the narrow set of Bash/Read/Edit
-permission rules the planning pipeline (odoo-planner / odoo-doc-planner / intake
+permission rules the planning pipeline (odoo-planner / intake
 Phase P) needs to resolve and write under the machine-global state root
 (`$ODOO_AI_HOME`) without a per-call approval prompt.
 

@@ -1,204 +1,47 @@
-#!/usr/bin/env python3
 """
 check_orchestration.py - lint the Declarative Capability & Contract Layer.
 
 Validates that orchestration metadata (generator/skill_tool_deps.json -> "orchestration")
-is complete and that skills thread the shared contracts they are required to:
+is complete and that skills thread the shared contracts they are required to. Every rule
+reads a closed value (a registry field, a file's existence, a size, a regex over a closed
+token set, or a diff); none judges the meaning of prose.
 
-  1. Coverage     - every skills/<dir> has an orchestration entry, and vice versa.
-  2. OSM-first    - skills that spawn/fan-out workers writing Odoo (workflow-chaining,
-                    odoo-brl) reference snippets/osm-first-contract.md.
-  3. Design-sys   - skills with stack in {frontend, fullstack} reference
-                    skills/_shared/odoo-frontend-fidelity.md.
-  4. Instance     - skills with instance_touching=true reference cli_help / the lifecycle
-                    docs (so they ground the CLI per target version instead of assuming).
-  5. Spawn truth  - spawn_class is consistent with the SKILL.md body: neither a 'leaf' nor
-                    an 'orchestrator-nl' (chains skills via NL dispatch, no subagent spawn)
-                    may show active named-agent dispatch/launch language; a 'spawner-agent'
-                    is unconstrained here (the orchestration SSOT is authoritative for it).
-  6. CHP          - a skill declaring handoff in {send-message, fork} documents the Tier-C
-                    (fresh spawn) fallback in its body.
+  1. Coverage        - every skills/<dir> has an orchestration entry, and vice versa; enum
+                       validity of spawn_class / stack / output_mode / default_gate_tier /
+                       handoff; the shared contract files the rules reference exist on disk
+                       ([ref-target]); default_gate_tier equals its derivation ([gate-tier] -
+                       an `instance_scope: ephemeral` skill leases and releases its own
+                       database, so it is no human gate).
+  2. OSM-first       - skills that spawn/fan-out workers writing Odoo (workflow-chaining,
+                       odoo-brl) reference snippets/osm-first-contract.md.
+  3. Design-sys      - skills with stack in {frontend, fullstack} reach
+                       skills/_shared/odoo-frontend-fidelity.md (themselves or via an agent
+                       they launch).
+  4. Instance        - skills with instance_touching=true reference cli_help / the lifecycle
+                       docs (so they ground the CLI per target version instead of assuming).
   7. No hardcode / no leak - self-referential CSS custom properties, machine-specific
-                    absolute paths, and hardcoded hex inside skill SCSS code fences.
-  8. Agent role   - LIVE and enforcing (all agents now carry a `role` in the SSOT). Two checks:
-                    (i) coverage - every agents/<name>.md on disk must have a `role` entry in
-                    skill_tool_deps.json "agents"."<name>"."role" (a wholly-unregistered agent
-                    is a finding, mirroring rule 1's skill-side coverage); (ii) for a `role: leaf`
-                    agent, its body must carry the never-SPAWN clause and show neither positive
-                    spawn language nor a positive git-mutation instruction. (Historically this
-                    pass shipped INERT while `role` was unpopulated; it now bites - roles landed.)
-  9. wait-scope   - WARN-ONLY (see below). Ground truth (see R0, spawner-completion-contract.md):
-                    the launcher's own launch tool decides how a result is collected. Holding a
-                    `run_in_background` parameter (move 2), it launches with it false and the
-                    result returns inside its turn - a subagent that ends its turn there is never
-                    woken. Without that parameter (move 3) every launch is asynchronous and a
-                    launcher at ANY depth is woken with its child's result once it has ended its
-                    turn. A park/wait instruction
-                    (end turn / park / hold until / wait to be resumed / await) near turn/child/
-                    worker/agent vocabulary, anywhere under skills/*/SKILL.md, agents/*.md,
-                    snippets/*.md, is a finding when EITHER of two real hazards is present: (a) its
-                    section names no R0 branch (no R0/move-N/NEEDS_NEXT/nesting-cap/
-                    spawner-completion-contract.md citation) - an unattributed park instruction
-                    leaves a reader unable to tell which R0 move it is exercising; (b) its section
-                    shows file-writing language (write/author/edit) but
-                    states no commit/checkpoint safeguard - the non-interactive-surface hazard R0
-                    itself names: never end a turn with uncommitted work.
- 10. wait-mechanism - WARN-ONLY (see below). Two real hazards, neither ever correct under any R0
-                    branch: (a) an instruction to POLL or SLEEP while waiting for a child that does
-                    not attribute it to R0 - the one sanctioned in-turn wait is R0 move 2's async-
-                    receipt rule, so a poll/sleep near child vocabulary must cite R0 (a periodic
-                    task-list status check is a DIFFERENT, sanctioned pattern - tracking status,
-                    not busy-waiting - and is excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
-                    the Agent tool) with no nearby capability-handling language (own toolset /
-                    Agent tool absent / nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires
-                    checking your own toolset FIRST, so a dispatch claim with no cap-check nearby
-                    reads as though the Agent tool is always assumed present.
- 11. role-scope   - LIVE and enforcing. Data-driven from `agents.<name>.role` (never a hardcoded
-                    name list). Two halves: (a) a `role: leaf` agent body may not cite any member
-                    of the spawner-tier set (`spawner-completion-contract.md`,
-                    `concurrency-guard.md`) - a leaf launches nothing, so those
-                    contracts do not bind it (see `snippets/spawner-completion-contract.md`'s own
-                    "vacuously compliant" sentence); (b) a `role: spawner|coordinator` agent body
-                    MUST cite `spawner-completion-contract.md`; (c) the SAME body MUST also state,
-                    in prose the running agent can read, that it does not author the source it
-                    dispatches - the frontmatter `description` is the LAUNCHER's listing and never
-                    reaches the agent, so a prohibition that lives only there is a prohibition the
-                    agent was never given. Half (b)'s subject set (agents with
-                    role in {spawner, coordinator}) is asserted NON-EMPTY before the check runs -
-                    an empty subject set would let half (b) pass vacuously (zero agents checked,
-                    zero findings), so an empty set is itself a finding unless the registry sets
-                    the explicit top-level flag `_role_scope_no_spawners_expected: true`.
- 12. brief-fields - WARN-ONLY, PERMANENTLY (not a migration window - see docstring below). For
-                    every dispatch edge, report any key in `agents.<agent>.brief.required` that
-                    never appears inside the DISPATCHER's own dispatch fences (fenced ``` code
-                    blocks) - the literal brief template that dispatcher hands the agent. Two edge
-                    tiers, because a brief is written by whoever actually fills it: skill->agent
-                    from `orchestration.<skill>.spawns_agents`, MINUS any agent that a coordinator
-                    in that same list dispatches (that field is a REACHABILITY set feeding the
-                    generated ORCHESTRATION-MAP, so a leaf under a coordinator appears there
-                    without the skill ever writing its brief - charging the skill for it yields a
-                    finding no edit to the skill can clear); and agent->agent from
-                    `agents.<dispatcher>.spawns_agents`, the tier where a coordinator's own leaf
-                    briefs live. Measured reality this rule exists to surface, not hide: 39 real
-                    dispatch briefs across 133 ad-hoc key names, none carrying all four ALWAYS-tier
-                    fields - see M7 in `12-design-final.md`. Full corpus normalization is
-                    explicitly out of scope; this rule reports the diff and blocks nothing.
- 13. card-budget    - LIVE and enforcing (M9, 12-design-final.md). Data-driven, and a file
-                    qualifies through EITHER of two doors. Door (a) DECLARED: it carries an entry
-                    in `tests/fixtures/card_budget_grandfather.json` (checked-in data, generated
-                    ONCE at the start of the M9 wave from files that already exceeded the cap and
-                    sit OUTSIDE that wave's 13 inverted files); the entry is both the qualification
-                    and the budget, and it is measured wherever the file lives. Door (b)
-                    DISCOVERED: it is a `snippets/*.md` or `skills/_shared/*.md` file cited by >=3
-                    distinct skills+agents (a "hot" shared contract), and its budget is the default
-                    cap (4,096 B). Door (b) is a heuristic for hotness that door (a) states
-                    outright - which is how a hot contract door (b) cannot see gets capped: a
-                    top-level `skills/<name>/SKILL.md` runtime contract (e.g. `odoo-intake`, the
-                    front door re-entered on every request) shares the
-                    basename `SKILL.md` with every skill, so no basename-keyed citer count can
-                    single it out. A wave-13 file earns its own permanent budget entry the moment
-                    it is trimmed and committed - that entry is its post-trim actual size, so the
-                    rule fires only on (a) a listed file that GROWS past its recorded budget, or
-                    (b) a NEW file (no grandfather entry) entering the >=3-citer set above the
-                    default cap.
- 14. ref-scope      - (M9, 12-design-final.md). Two independent halves, DIFFERENT gate status:
-                    (a) WARN-ONLY FOR ONE RELEASE - a `skills/*/SKILL.md` or `agents/*.md` body
-                    may not cite another file (a real relative path, not a bare filename - avoids
-                    colliding every skill's own `SKILL.md`) larger than 20,480 B without a
-                    `§ <anchor>` within 150 chars of the citation; a real measured backlog (81
-                    findings, dominated by two non-wave-7 files) means this ships loud-but-inert
-                    like rules 9-10, not silently declared - see
-                    check_ref_scope_citation_anchor's docstring. (b) LIVE and enforcing - NO file
-                    under `skills/`, `agents/`, or `snippets/` may contain the substring
-                    `snippets/references/` - the read-both hazard closure: an executing agent must
-                    never be handed a pointer to the reference sibling it could follow instead of
-                    the (now-inverted) decidable rule file. `docs/` is exempt from (b) - the
-                    reference tree is discoverable from `docs/authoring-skills-and-agents.md` and
-                    from this lint, by design.
- 15. no-provenance  - LIVE and enforcing (M10, X-50, 12-design-final.md). Agent-facing prose
-                    carries no PLUGIN-SELF changelog / issue-tracking provenance: the internal
-                    `(V-NN...)` / `(Problem N)` tags, the changelog vocabulary a rewrite leaves
-                    behind (`Replaces `, `formerly`, `renamed from`, `was previously`,
-                    `as of version`, `since 4.x`, `new in 4.x`, `deprecated in favour of`,
-                    `legacy `, `no longer exists`, `moved here from`, `originally lived in`,
-                    `consolidated from`), and issue/PR references (`see PR`, `tracked in`,
-                    a qualified `PR #123` / `issue #7`). Scanned over the WHOLE agent-facing
-                    corpus (`agent_facing_files()` - skills/, agents/, snippets/, commands/,
-                    workflows/, plus the docs/ files agent-facing prose actually points an agent
-                    at), not just the first three trees. The discriminator: RESIDUE narrates what
-                    THIS PLUGIN used to do (free to delete - git has it); OPERATIVE text tells the
-                    agent what to DO about something that still exists (deleting it breaks a live
-                    consumer). Guards, all window-scoped: (1/1b/1c/1d) the match names a domain
-                    OUTSIDE this plugin - an Odoo version anchor or role-named series
-                    (`<src-series>`), an Odoo framework-era idiom (`web.Widget`, `oe_*`), the
-                    PROSPECT's incumbent system ("legacy POS", "legacy accounting software"), or
-                    the codebase under work evolving (Odoo core absorbed it, the rebase base
-                    superseded it); (1e) the file itself DEFINES a legacy era in a heading with an
-                    Odoo version anchor (`## Legacy v8-v14 workflow`), so a later bare `legacy` is
-                    anaphoric to that defined term; (2) the match sits inside a double-quoted span
-                    (a quoted user utterance / routing trigger, e.g. `"review PR #123"`, is not the
-                    file asserting its own history); (3) OPERATIVE BACK-COMPAT - the window carries
-                    handling vocabulary ("back-compat", "read only as a fallback", "is still read",
-                    "treats ... as"), which only ever accompanies a live instruction about a shape
-                    still in the wild. Guard 3 is offered ONLY to alternatives that can name such a
-                    shape (`legacy`, `no longer exists`, `formerly`, ...), never to a pure
-                    provenance tag like `(V-34)` or `see PR #12`.
- 16. instance-truth - the `instance_touching` field checked against the SKILL.md body instead of
-                    against its own derivation. Two halves, DIFFERENT gate status.
-                    (a) LIVE and enforcing - `instance_touching: true` with NO instance evidence
-                    anywhere in the skill's own body is a finding. Every other lint rule reads this
-                    field as an input; `_derive_gate_tier` turns it straight into `L2`, an ALWAYS-
-                    human gate the autonomy dial can never lower. So a `true` nothing in the skill
-                    supports does not merely mislabel - it stops an otherwise-automatic run and
-                    asks a human to authorize an irreversible act the skill never performs.
-                    Evidence is read from the body with the GENERATED `## MCP tools` region cut
-                    out: that region is emitted from the tool surface and mentions `odoo-bin` in a
-                    `cli_help` blurb for skills that never touch an instance, which is exactly how
-                    a bare grep would certify a false declaration.
-                    (b) WARN-ONLY, and it says why below - `instance_touching: false` while the
-                    body shows STRONG evidence (a lease/instance call, or an active dispatch of
-                    the instance front door) is printed with that evidence but never gates. It
-                    cannot gate yet because `_derive_gate_tier` still maps ANY `true` to `L2`,
-                    while the runtime sheets deliberately hold two such skills at `L1` on the
-                    ground that their instances are EPHEMERAL and self-released - so correcting
-                    those rows today would ADD human gates the tree elsewhere says must not exist.
-                    Half (b) makes that contradiction visible on every run; it flips to strict in
-                    the change that stops tier policy keying `L2` off the bare fact.
- 17. gen-prose     - LIVE and enforcing. Runs the shared Odoo-version trigger over the
-                    GENERATOR'S RENDERED OUTPUT (every `gen_*` entry point's return value), never
-                    over its Python source: no content rule in this file globs `.py`, and a
-                    hardcoded version claim inside `gen_surface.py` reaches an agent only through
-                    the artifact it emits. Scanning the artifact catches the same literal wherever
-                    a future helper moves it and needs no per-function registration. Exemptions 2
-                    and 4 only - a generated map is not a place to resolve a version at runtime,
-                    so an OSM call shape beside a literal there is still a frozen claim.
- 18. version-claim - DIFF-SCOPED, and ADVISORY (never strict-fail) when no merge base resolves.
-                    Fires on an Odoo version VALUE that THIS change writes into agent-facing prose.
-                    Measured: tree-wide the same trigger leaves 871 residual hits across 159 files
-                    against ~11 real defects, which trains an author to ignore it; scoped to added
-                    lines it is roughly one per commit. That residual is a BASELINE, not a
-                    backlog - nothing ratchets it, the diff gate only stops it growing. Five
-                    unit-scoped exemptions: an OSM call shape in the same unit, a boundary-SSOT
-                    pointer (covering only the citation span, so a restatement standing beside
-                    one still fires), a `workflows/` routing phrase, the boundary SSOT files
-                    themselves, and a value that illustrates a shape - a caller-filled
-                    `<e.g. 17.0>` slot or an `odoo_version='17.0'` argument literal. A version
-                    RANGE is never exempt, whatever its span. Both 17 and 18 scan WHITESPACE-NORMALIZED
-                    prose units, never raw lines: the claim this catches most often is one a
-                    formatter wrapped across two.
+                       absolute paths, and hardcoded hex inside skill SCSS code fences.
+  8. Agent role      - every agents/<name>.md has a `role` in the SSOT, and it is one of
+                       VALID_AGENT_ROLE. What a role may do is enforced by the hooks.
+ 12. brief-fields    - WARN-ONLY, permanently: a dispatcher's brief fences carry every key the
+                       dispatched agent's registry `brief.required` lists.
+ 13. card-budget     - a hot shared contract (cited by >= 3 skills/agents, or listed in
+                       tests/fixtures/card_budget_grandfather.json) stays within its byte
+                       budget; growth is a deliberate budget bump in that file.
+ 14. ref-scope       - (a) WARN-ONLY: a citation of a large file carries a section anchor;
+                       (b) STRICT: no consumer file points at snippets/references/.
+ 15. no-provenance   - agent-facing prose carries no plugin-self changelog or tracker
+                       provenance (closed token list).
+ 16. instance-truth  - instance_touching is checked against what the skill body does.
+ 17. gen-prose       - hand-written prose does not restate what the generator renders.
+ 18. version-claim   - DIFF-SCOPED: a version value written into agent-facing prose by THIS
+                       change (vs the merge base) is a finding unless it names the resolving
+                       tool or points at the boundary SSOT; advisory when no merge base
+                       resolves.
+ 20. definition-pointer - no runtime file points a reader at a SKILL.md or an agents/<name>.md
+                       path: a skill is invoked and an agent is launched, neither is read.
 
-WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, 15, 16a, 17 and
-18 - flip that on once all skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) and 14a
-(ref-scope's citation-anchor half) are additionally WARN-ONLY FOR ONE RELEASE BY DESIGN, independent of --strict/
-ORCH_STRICT: they are new and proximity/citation-based (not a full semantic read, and - for 14a -
-measured against a real backlog this wave did not have time to individually verify site-by-site),
-so a false positive or a hastily-placed meaningless anchor is a real risk - they print but never
-flip the exit code. Flip them into the strict gate (fold their list into `findings`) once the tree
-is clean, one release after they ship. Rule 12 ([brief-fields]) is warn-only PERMANENTLY, by
-design (see rule 12 above) - it is never scheduled to flip, unlike rules 9-10 and 14a.
-
-Run from the repo root or anywhere; paths are resolved relative to this file.
+Run: python3 generator/check_orchestration.py [--strict]   (ORCH_STRICT=1 also enforces)
 """
 
 import json
@@ -359,71 +202,10 @@ def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: st
         return "L1"
     return "L0"
 
-# High-precision ACTIVE dispatch signals in a SKILL.md/agents/*.md body. Deliberately narrow: a
-# generic "spawn subagents" phrase is NOT included because it appears in negated capability
-# statements ("this skill does not invoke other skills or spawn subagents") and is pure noise. We
-# only flag the dangerous drift - a skill/agent declared `leaf` (or `orchestrator-nl`) that
-# actively dispatches an agent. The orchestration/agent-role SSOT (skill_tool_deps.json) is the
-# authoritative classification. Backtick-tolerant: prose commonly names the target agent in
-# backticks ("launch the `odoo-test-writer` agent") - the bare-word-only form missed that.
-SPAWN_BODY_RE = re.compile(
-    r"(invoke the Agent tool|call the Agent tool"
-    r"|dispatch(?:es)? (?:to )?the `?[a-z][a-z-]+`? agent"
-    r"|launch(?:es|ing)? (?:the )?`?[a-z][a-z-]+`? agent)",
-    re.I,
-)
-# Negation tokens that suppress a spawn match. Note: "non-" is deliberately excluded - it
-# matches innocuous words like "non-blocking"/"non-trivial" and caused false negatives.
+
+# Lookback negation: a verb preceded by one of these within the window is a negated claim.
 NEGATION_RE = re.compile(r"(\bnot\b|\bnever\b|\bcannot\b|n't\b|\bno longer\b)", re.I)
 
-
-def _has_positive_spawn(body: str) -> bool:
-    """True if the body shows a real (non-negated) active agent-dispatch instruction."""
-    for m in SPAWN_BODY_RE.finditer(body):
-        preceding = body[max(0, m.start() - 45):m.start()]
-        if NEGATION_RE.search(preceding):
-            continue  # e.g. "do NOT invoke the Agent tool" / "does not dispatch the X agent"
-                      # / "cannot launch the X agent" - "cannot launch agents" (no named agent)
-                      # never matches the regex at all, so it needs no negation guard here
-        return True
-    return False
-
-
-# Agent-role pass (§7) detectors. GIT_MUTATION_RE mirrors the exact verb list from the V-01 spec
-# (`git (commit|add|push|rebase|merge|reset|cherry-pick|stash|tag|checkout|branch)`); reuses the
-# SAME NEGATION_RE lookback as _has_positive_spawn so "does NOT run git commit" is not a finding.
-GIT_MUTATION_RE = re.compile(
-    r"\bgit (commit|add|push|rebase|merge|reset|cherry-pick|stash|tag|checkout|branch)\b",
-    re.I,
-)
-
-
-def _has_positive_git_mutation(body: str) -> bool:
-    """True if the body shows a real (non-negated) git-mutation instruction - a `role: leaf`
-    agent must never carry one (see snippets/git-delegation.md: leaves never run git)."""
-    for m in GIT_MUTATION_RE.finditer(body):
-        preceding = body[max(0, m.start() - 45):m.start()]
-        if NEGATION_RE.search(preceding):
-            continue
-        return True
-    return False
-
-
-# Required-substring proxy for "the body carries the never-SPAWN clause" - the leaf/spawner
-# invariant this pass exists to protect (snippets/worker-brief.md's leaf clause is the prose SSOT
-# this mirrors: "cannot launch agents" / "HARD LEAF - never launches another agent"). Scoped to the
-# never-SPAWN family ONLY, on purpose: git-abstention is a SEPARATE, independent guarantee already
-# enforced repo-wide by tests/test_git_delegation_boundary.py, so folding git phrasings in here
-# would let unrelated git-delegation boilerplate stand in for the never-spawn promise - the exact
-# hole (17/26 leaves) that let a dropped never-spawn sentence pass strict. Several accepted spawn
-# phrasings on purpose - agents that self-declare do not all share one exact wording.
-NEVER_SPAWN_CLAUSE_RE = re.compile(
-    r"(hard[- ]leaf|never launch(?:es)? (?:another|an|no) agent|launch(?:es)? no (?:sub-?)?agent"
-    r"|does not (?:launch|spawn|invoke) (?:a |an |another )?(?:sub-?)?agent"
-    r"|never spawns?(?: (?:a|an|another) (?:sub-?)?agent)?|no sub-?agents?"
-    r"|cannot launch agents)",
-    re.I,
-)
 SELF_REF_RE = re.compile(r"--([a-z0-9-]+)\s*:\s*var\(\s*--\1\b", re.I)
 MACHINE_PATH_RE = re.compile(r"/(?:home|Users)/([A-Za-z0-9._-]+)/")
 # Usernames that are NOT a leak of this machine's real home: doc placeholders + standard
@@ -462,22 +244,12 @@ def agent_body(name: str) -> str | None:
 
 
 def check_agent_roles(findings: list[str]) -> None:
-    """8. Agent-role SSOT lint (V-01 mechanism) - LIVE and enforcing (roles are populated).
+    """8. Agent-role SSOT lint - coverage and enum only.
 
-    (c) Coverage: every agents/<name>.md on disk must declare a `role` in
-        skill_tool_deps.json "agents"."<name>"."role" (mirrors the skill-side coverage pass,
-        rule 1). A new agent file added without an SSOT role entry - or an entry with no `role`
-        key - is a finding, so a wholly-unregistered agent can no longer slip through role-less.
-
-    Then, reading `agents.<name>.role`: for `role == "leaf"`, asserts the agent body
-    (a) carries the never-SPAWN clause (NEVER_SPAWN_CLAUSE_RE - scoped to the never-launch-an-agent
-    family only; git-abstention is independently enforced by tests/test_git_delegation_boundary.py,
-    so unrelated git-delegation boilerplate can no longer stand in for the never-spawn promise),
-    (b) shows no positive spawn language (reuses `_has_positive_spawn` - the SAME detector rule 5
-    uses, so there is one SSOT regex for "does this body launch an agent", not two), and (c) shows
-    no positive git-mutation instruction.
-
-    (Historically this pass shipped INERT while `role` was unpopulated; it now bites.)
+    Every agents/<name>.md on disk must declare a `role` in skill_tool_deps.json
+    "agents"."<name>"."role" (mirrors the skill-side coverage pass, rule 1), and the value must be
+    one of VALID_AGENT_ROLE. What a role may do at runtime is enforced by the hooks
+    (hooks/block-spawner-code-write.sh, hooks/remind-delegate.sh), never by reading prose here.
     """
     agents = load_agents()
 
@@ -500,136 +272,6 @@ def check_agent_roles(findings: list[str]) -> None:
                 f"[agent-role] '{name}' has invalid role '{role}' (not in {sorted(VALID_AGENT_ROLE)})"
             )
             continue
-        if role != "leaf":
-            continue  # only `leaf` carries a never-spawn/never-git obligation here
-        body = agent_body(name)
-        if body is None:
-            findings.append(
-                f"[agent-role] '{name}' has role=leaf in the SSOT but agents/{name}.md does not exist"
-            )
-            continue
-        if not NEVER_SPAWN_CLAUSE_RE.search(body):
-            findings.append(
-                f"[agent-role] '{name}' has role=leaf but its body does not carry the "
-                f"never-spawn clause (HARD LEAF / never launches another agent)"
-            )
-        if _has_positive_spawn(body):
-            findings.append(
-                f"[agent-role] '{name}' has role=leaf but body actively dispatches an agent"
-            )
-        if _has_positive_git_mutation(body):
-            findings.append(
-                f"[agent-role] '{name}' has role=leaf but body instructs a git mutation"
-            )
-
-
-# Spawner-tier contract set (M6, 12-design-final.md): a `role: leaf` agent launches nothing, so
-# none of these bind it - see spawner-completion-contract.md's own "vacuously compliant" sentence.
-# Matched as a BARE FILENAME (not a full path) so it catches a citation regardless of which
-# relative prefix (snippets/, skills/_shared/) precedes it in a given body.
-SPAWNER_TIER_FILES = (
-    "spawner-completion-contract.md",
-    "concurrency-guard.md",
-)
-
-
-# Half (c): the prohibition a non-authoring dispatcher must carry IN ITS BODY. Matched
-# whitespace-normalized over the whole body (never line-adjacency, never one fixed phrasing): a
-# negation, an authoring verb within a few words, and the object it is being denied. The point is
-# the CLAIM, not the wording - reword freely and this still passes; delete the claim and it fails.
-NO_AUTHOR_CLAUSE_RE = re.compile(
-    # Both word orders: verb-then-object ("never author production source") and
-    # object-then-agent-noun ("NOT a code writer"). The second shape is the one the measured
-    # incident used, and a regex that only saw the first would have called that agent compliant.
-    r"(?:never|not|no|must not|does not|do not|don't)[^.]{0,45}?"
-    r"(?:"
-    r"\b(?:author|authors|authoring|write|writes|writing)\b[^.]{0,80}?"
-    r"\b(?:source|code|production)\b"
-    r"|"
-    r"\b(?:source|code|production)\b[^.]{0,20}?\b(?:writer|author)\b"
-    r")",
-    re.I,
-)
-
-def check_role_scope(findings: list[str]) -> None:
-    """11. [role-scope] - data-driven from `agents.<name>.role` (V-01 SSOT), never a hardcoded
-    name list. Three halves:
-
-    (a) a `role: leaf` agent body may not cite any member of SPAWNER_TIER_FILES - it launches
-        nothing, so the spawner-tier contracts do not bind it.
-    (b) a `role: spawner|coordinator` agent body MUST cite `spawner-completion-contract.md` - it
-        launches agents, so R3 (the completion-report addressing rule) binds it directly.
-    (c) the SAME body MUST also state that it does not author the source it dispatches. Root cause
-        this closes: a coordinator whose only "not a code writer" clause lived in its frontmatter
-        `description` - the LAUNCHER's routing listing, which is never part of the running agent's
-        system prompt - authored a module's `__manifest__.py` itself. It had not disobeyed a rule;
-        it had never been given one. The check reads the BODY only, for exactly that reason.
-
-    Half (b)'s subject set (agents with role in {spawner, coordinator}) is asserted NON-EMPTY
-    before the check runs, so the half can never pass vacuously (an empty subject set would
-    silently produce zero findings and look identical to "every spawner complies"). If a tree
-    genuinely has no spawner agent, set the top-level registry flag
-    `_role_scope_no_spawners_expected: true` to make that an explicit, reviewable choice instead
-    of a silent gap.
-
-    Known false negative, stated rather than hidden: (c) is a lexical claim check. A body that
-    states the prohibition in a phrasing this regex cannot see - or states it and then contradicts
-    it elsewhere - still passes. It proves the claim is PRESENT for the agent to read, never that
-    the agent obeys it; `hooks/block-spawner-code-write.sh` is the enforcing half."""
-    data = json.loads(DEPS_FILE.read_text(encoding="utf-8"))
-    agents = data.get("agents", {})
-    no_spawners_expected = bool(data.get("_role_scope_no_spawners_expected"))
-
-    leaves = sorted(n for n, e in agents.items() if e.get("role") == "leaf")
-    spawners = sorted(n for n, e in agents.items() if e.get("role") in ("spawner", "coordinator"))
-
-    # (a) leaves may not cite the spawner-tier set.
-    for name in leaves:
-        body = agent_body(name)
-        if body is None:
-            continue  # coverage gap already reported by check_agent_roles
-        for banned in SPAWNER_TIER_FILES:
-            if banned in body:
-                findings.append(
-                    f"[role-scope] '{name}' has role=leaf but its body cites '{banned}' "
-                    f"(spawner-tier contract) - a leaf launches nothing, so this does not bind it"
-                )
-
-    # (b) the spawner subject set must be non-empty, or the check is vacuous.
-    if not spawners:
-        if not no_spawners_expected:
-            findings.append(
-                "[role-scope] subject set for the spawner-completion-contract.md citation check "
-                "(agents with role in {spawner, coordinator}) is EMPTY - this would let half (b) "
-                "of the rule pass vacyously. If no spawner agent is genuinely expected, "
-                "set the top-level registry flag `_role_scope_no_spawners_expected: true` to make "
-                "that explicit; otherwise this is a real coverage gap."
-            )
-        return
-
-    for name in spawners:
-        body = agent_body(name)
-        if body is None:
-            findings.append(
-                f"[role-scope] '{name}' has role={agents[name].get('role')!r} in the SSOT but "
-                f"agents/{name}.md does not exist"
-            )
-            continue
-        if "spawner-completion-contract.md" not in body:
-            findings.append(
-                f"[role-scope] '{name}' has role={agents[name].get('role')!r} but its body never "
-                f"cites spawner-completion-contract.md - a spawner launches agents, so "
-                f"R3's completion-report addressing rule binds it directly"
-            )
-        # (c) the prohibition must be in the BODY, where the agent can read it.
-        flat = re.sub(r"\s+", " ", body)
-        if not NO_AUTHOR_CLAUSE_RE.search(flat):
-            findings.append(
-                f"[role-scope] '{name}' has role={agents[name].get('role')!r} but its BODY never "
-                f"states that it does not author the source it dispatches. The frontmatter "
-                f"`description` is the launcher's routing listing and never reaches the running "
-                f"agent, so a prohibition kept only there is one the agent was never given"
-            )
 
 
 # Fenced ``` code blocks - the literal dispatch-prompt template a skill hands its agent. Scoping
@@ -642,7 +284,7 @@ FENCE_BLOCK_RE = re.compile(r"```.*?```", re.S)
 def agent_spawn_edges() -> dict[str, list[str]]:
     """Declared agent->agent dispatch edges, from `agents.<name>.spawns_agents`.
 
-    A coordinator agent that re-briefs leaves of its own is the DISPATCHER of those leaves' briefs;
+    A node-owner agent that re-briefs leaves of its own is the DISPATCHER of those leaves' briefs;
     the skill above it never writes them. Without this axis the whole agent->agent tier is invisible
     to [brief-fields] - a required key travelling only that tier is checked by nothing at all."""
     return {
@@ -668,13 +310,13 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
 
     Two edge tiers, because a brief is written by whoever actually fills it:
 
-      skill -> agent   `orchestration.<skill>.spawns_agents`, MINUS every agent that a coordinator
+      skill -> agent   `orchestration.<skill>.spawns_agents`, MINUS every agent that a node owner
                        in that same list dispatches. That field is a REACHABILITY set (it feeds the
-                       generated ORCHESTRATION-MAP), so a leaf sitting under a coordinator appears
+                       generated ORCHESTRATION-MAP), so a leaf sitting under a node owner appears
                        there even though the skill never writes that leaf's brief. Charging the
                        skill for it produces a finding no edit to the skill can ever clear.
-      agent -> agent   `agents.<dispatcher>.spawns_agents` - the tier where a coordinator's own
-                       leaf briefs live, checked against the coordinator's body fences."""
+      agent -> agent   `agents.<dispatcher>.spawns_agents` - the tier where a node owner's own
+                       leaf briefs live, checked against the node owner's body fences."""
     orch = load_orch()
     agents = load_agents()
     edges = agent_spawn_edges()
@@ -687,7 +329,7 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
         fences = _dispatch_fences(skill_body(skill_name))
         for agent_name in spawns_agents:
             if agent_name in delegated:
-                continue  # a coordinator in this same list writes that brief - checked below
+                continue  # a node owner in this same list writes that brief - checked below
             for key in _brief_required(agents, agent_name):
                 if key not in fences:
                     warn_only_findings.append(
@@ -713,104 +355,6 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
                         f"dispatch fences never emit required key '{key}' "
                         f"(agents.{agent_name}.brief.required)"
                     )
-
-
-# --- [brief-knowhow] (rule 19) -----------------------------------------------------------------
-#
-# The NEGATIVE counterpart of rule 12. Rule 12 asks "did the caller emit every field the agent
-# needs"; this asks "did the caller also hand the agent its own trade back". SSOT for the boundary:
-# snippets/dispatch-brief.md § "A brief carries WHAT and WHY, never HOW"; the KEEP/MOVE/DELETE
-# procedure lives in docs/authoring-skills-and-agents.md.
-#
-# Why it exists: a skill that re-teaches its agent hands it a SECOND copy of a rule that is already
-# a lossy paraphrase of the agent's own. The agent then spends its turn deciding which governs, and
-# the two copies drift - measured on this tree, a skill's one-line summary had already outrun the
-# hedge its own cited SSOT carried.
-#
-# Scope: NAMED-agent dispatch edges only. A skill that fans out ANONYMOUS workers (no
-# agents/<name>.md exists to hold the method) is REQUIRED to paste the procedure into the brief,
-# because such a worker cannot resolve ${CLAUDE_PLUGIN_ROOT} to read it. `spawns_agents` is what
-# separates the two: empty means every worker on that edge is anonymous, so the skill is exempt.
-#
-# Two checks, deliberately different strictness:
-#   (a) procedural field VALUES - deterministic, so it gates. This generalizes
-#       tests/test_dispatch_brief.py::test_no_procedural_field_values_in_instance_brief, which
-#       proved the rule on odoo-instance alone, to every named-agent dispatcher.
-#   (b) a "Brief context"-family HEADING - structural and unambiguous, so it gates. That heading
-#       shape exists only to pre-digest the agent's domain for it.
-# Prose-similarity detection is deliberately NOT here: a fuzzy threshold over agent-facing prose
-# produces false positives, and a guard that cries wolf gets suppressed. What catches the rest is
-# the authoring procedure plus review.
-
-# A field VALUE that sends the worker off to do something instead of handing it a resolved value.
-# The verb may sit anywhere in the value, not only at its start: "MODULES: the list, per the DAG"
-# is the same defect as "MODULES: per the DAG". Keys may carry `/` and `_` (`MODEL/EFFORT`).
-_PROCEDURAL_BRIEF_VALUE = re.compile(
-    r"^(?P<key>[A-Z][A-Z0-9_/ ]*)\s*(?:\([^)]*\))?\s*:\s*(?P<value>.*)$",
-    re.MULTILINE,
-)
-# The defect is a value that sends the worker to RESOLVE SOMETHING THE CALLER SHOULD HAVE RESOLVED,
-# not any imperative: `TASK: Resolve the conflict in place` is an OBJECTIVE and must stay legal.
-# So the verb only counts when it points at a document/contract, or tells the worker to work the
-# value out for itself.
-_PROCEDURAL_VERB = re.compile(
-    r"\b(?:follow|consult|apply|per|call|read|see|use)\b[^.;|]{0,60}"
-    r"(?:\.md\b|\bsnippets/|\bcontract\b|\bprotocol\b|\bladder\b)"
-    r"|\b(?:resolve|derive|work) (?:it|them|this) (?:out )?yourself\b",
-    re.IGNORECASE,
-)
-
-# Heading families whose whole purpose is to pre-digest the agent's domain for it. Matched at any
-# heading level and case-insensitively - a guard keyed to one spelling goes green on every other.
-_KNOWHOW_HEADING = re.compile(
-    r"^#{1,6}\s+.*\b(brief context|pitfalls?|failure modes?|things? (?:the|your) agent"
-    r"|what the agent (?:checks|watches|looks))\b.*$",
-    re.IGNORECASE | re.MULTILINE,
-)
-
-# A sentence long enough to be a RULE rather than a field name or a pointer.
-_KNOWHOW_SENTENCE_MIN_WORDS = 14
-_SHINGLE = 9
-
-
-def _knowhow_sentences(text: str) -> dict[tuple[str, ...], str]:
-    """Normalized long sentences, keyed by their leading shingle.
-
-    Pointer lines are excluded: a caller SHOULD cite the agent's contract, and a citation shares
-    wording with the thing it cites. What this looks for is the caller RESTATING the rule."""
-    out: dict[tuple[str, ...], str] = {}
-    for raw in re.split(r"(?<=[.;])\s+|\n", text):
-        if "${CLAUDE_PLUGIN_ROOT}" in raw or "](" in raw:
-            continue
-        words = re.findall(r"[a-z0-9_]+", raw.lower())
-        if len(words) < _KNOWHOW_SENTENCE_MIN_WORDS:
-            continue
-        for i in range(len(words) - _SHINGLE + 1):
-            out.setdefault(tuple(words[i: i + _SHINGLE]), raw.strip())
-    return out
-
-
-def _brief_region(body: str) -> str:
-    """Everything a caller uses to compose a brief: the fences plus the prose around them.
-
-    Scoping this to fences alone was the original guard's blind spot - the dominant form of
-    re-teaching is prose bullets with no fence at all."""
-    return body
-
-
-def _skill_dispatch_surface(skill_name: str) -> list[tuple[str, str]]:
-    """(label, text) for the skill body AND the reference files it dispatches from. A template
-    parked in `references/` is still a brief this skill sends."""
-    out = []
-    body = skill_body(skill_name)
-    if body is not None:
-        out.append((f"skills/{skill_name}/SKILL.md", body))
-    refs = SKILLS_DIR / skill_name / "references"
-    if refs.is_dir():
-        for path in sorted(refs.glob("*.md")):
-            out.append((f"skills/{skill_name}/references/{path.name}",
-                        path.read_text(encoding="utf-8")))
-    return out
 
 
 # --- [definition-pointer] (rule 20) ------------------------------------------------------------
@@ -879,132 +423,7 @@ def check_definition_pointers(findings: list[str]) -> None:
             )
 
 
-def check_brief_knowhow(findings: list[str], warn_only_findings: list[str]) -> None:
-    """19. [brief-knowhow] - the negative counterpart of rule 12, over the SAME two edge tiers rule
-    12 walks (skill->agent and agent->agent): a dispatcher must not hand its agent the agent's own
-    trade back.
-
-    Two strictness levels, and the split is deliberate rather than a migration window:
-
-      STRICT (`findings`) - the DETERMINISTIC shapes. A field value that sends the worker off to do
-      something instead of handing it a resolved value, and a heading family whose whole purpose is
-      to pre-digest the agent's domain. Both are decidable, so both gate.
-
-      WARN-ONLY, permanently (`warn_only_findings`) - cross-edge prose duplication. This is what
-      catches the DOMINANT form of re-teaching, a rule restated as ordinary prose with no fence and
-      no telltale heading, which no structural check can see. It cannot gate, because the same
-      wording legitimately appears on both sides in two innocent cases this cannot distinguish from
-      a restatement: a sentence a contract REQUIRES both sides to carry verbatim (the state-root
-      placeholder ban, the descriptor-filename pair), and a caller correctly stating a routing fact
-      about its callee. Treat a hit as a question - does the AGENT own this? - not a verdict. What
-      actually enforces the fuzzy case is the authoring procedure plus review; claiming otherwise
-      would be a gate whose colour predicts nothing."""
-    orch = load_orch()
-    edges = agent_spawn_edges()
-
-    dispatchers: list[tuple[str, list[str], list[tuple[str, str]]]] = []
-    for skill_name in sorted(orch):
-        entry = orch[skill_name] or {}
-        spawns = entry.get("spawns_agents") or []
-        if not spawns:
-            continue  # anonymous-worker fan-out - the paste-the-procedure exemption
-        delegated = {leaf for a in spawns for leaf in edges.get(a, ())}
-        direct = [a for a in spawns if a not in delegated]
-        if direct:
-            dispatchers.append((skill_name, direct, _skill_dispatch_surface(skill_name)))
-    for dispatcher in sorted(edges):
-        body = agent_body(dispatcher)
-        if body is not None:
-            dispatchers.append((dispatcher, edges[dispatcher],
-                                [(f"agents/{dispatcher}.md", body)]))
-
-    for name, targets, surface in dispatchers:
-        for label, text in surface:
-            for match in _PROCEDURAL_BRIEF_VALUE.finditer(_dispatch_fences(text)):
-                verb = _PROCEDURAL_VERB.search(match.group("value"))
-                if verb:
-                    findings.append(
-                        f"[brief-knowhow] {label}: field '{match.group('key').strip()}' has a "
-                        f"value that tells the worker to '{verb.group(0).strip()}' - that is a "
-                        f"procedure it must run, not a value '{name}' already resolved "
-                        f"(snippets/dispatch-brief.md, rules 1 and 3)"
-                    )
-            for match in _KNOWHOW_HEADING.finditer(text):
-                findings.append(
-                    f"[brief-knowhow] {label}: the section '{match.group(0).strip()}' pre-digests "
-                    f"a dispatched agent's own domain for it. Move an orphan rule into the agent "
-                    f"body, delete what the agent already owns "
-                    f"(docs/authoring-skills-and-agents.md § Writing the brief a skill hands an "
-                    f"agent it dispatches)"
-                )
-
-            caller_sentences = _knowhow_sentences(_brief_region(text))
-            if not caller_sentences:
-                continue
-            for target in targets:
-                target_body = agent_body(target)
-                if not target_body:
-                    continue
-                shared = set(caller_sentences) & set(_knowhow_sentences(target_body))
-                for shingle in sorted(shared)[:1]:
-                    warn_only_findings.append(
-                        f"[brief-knowhow] {label} shares wording with "
-                        f"'agents/{target}.md': \"{' '.join(shingle)}...\" - if the AGENT owns "
-                        f"that rule, cite it instead of repeating it "
-                        f"(snippets/dispatch-brief.md rule 3). Innocent when a contract requires "
-                        f"both sides to carry the sentence verbatim, or when the caller is "
-                        f"stating a routing fact about its callee"
-                    )
-
-
-# --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
-#
-# Ground truth (R0, spawner-completion-contract.md): the launcher's own launch tool decides how a
-# child's result is collected. With a `run_in_background` parameter (move 2) the launcher passes it
-# false and the result returns inside its turn; it must never end its turn while a child runs, and
-# an async receipt it still gets is waited for IN the turn. Without that parameter (move 3) every
-# launch is asynchronous: "launch, then END YOUR TURN and be woken with the child's result", at
-# every depth. The hazards this pair detects are: an unattributed park instruction (a reader cannot
-# tell which R0 branch it exercises), uncommitted work surviving a turn boundary, a poll/sleep loop
-# not attributed to R0, and a dispatch claim made with no visible check that the launching
-# capability exists in the first place.
-#
-# [wait-scope] (rule 9) - a park/wait instruction (end turn / park / hold until / wait to be
-# resumed / await) near turn/child/worker/agent vocabulary, anywhere under skills/*/SKILL.md,
-# agents/*.md, snippets/*.md, is a finding when its enclosing section:
-#   (a) names no R0 branch - no R0/move-N/NEEDS_NEXT/nesting-cap/
-#       spawner-completion-contract.md citation - so a reader cannot tell which R0 move it
-#       exercises; or
-#   (b) shows file-writing language (write/author/edit) with no commit/checkpoint safeguard
-#       stated nearby - the non-interactive-surface bound R0 itself names: never end a turn with
-#       uncommitted work.
-#
-# [wait-mechanism] (rule 10) - two independent detectors:
-#   (a) an instruction to POLL or SLEEP while waiting for a child, with no R0 attribution in its
-#       window. The ONE sanctioned in-turn wait is R0 move 2's async-receipt rule, and prose that
-#       applies it cites R0; an unattributed poll/sleep reads as a busy-wait standing in for R0's
-#       collection move. A periodic task-list check is a DIFFERENT, sanctioned pattern (status
-#       tracking, not a busy-wait loop) and is excluded.
-#   (b) a claim that a dispatch happened (launch/dispatch/invoke the Agent tool) with no nearby
-#       capability-handling language (own toolset / Agent tool absent / nesting cap / R0 /
-#       NEEDS_NEXT) - R0 move 1 requires checking your own toolset FIRST, so an unattended dispatch
-#       claim reads as though the Agent tool is always assumed present.
-#
-# Both are proximity/citation-based (not a full semantic read), so a legitimate instruction worded
-# unusually can still false-positive - exactly why they ship WARN-FIRST for one release: findings
-# from these two rules are collected into a SEPARATE list and never flip the exit code, even under
-# --strict/ORCH_STRICT - only the 8 rules above (and the agent-role pass) gate the strict exit.
-# This mirrors the whole-script migration pattern this file already documents at its own top
-# (WARN-FIRST docstring, line ~31): ship loud-but-inert, then flip to enforcing once the tree is
-# clean. Flip these two to strict-gating in the release after this one lands.
-
-WAIT_VERB_RE = re.compile(
-    r"(END your turn|end the turn|\bpark\b|hold until|wait to be resumed|\bawait\b)",
-    re.I,
-)
-WAIT_SCOPE_CONTEXT_RE = re.compile(r"\b(turn|child|worker|agent)\b", re.I)
 H2_RE = re.compile(r"^##\s+(.*)$", re.M)
-LAUNCH_VERB_RE = re.compile(r"\b(launch|dispatch|spawn|Agent tool)\b", re.I)
 
 # R0-branch attribution: any citation proving the instruction states WHICH branch it belongs to
 # (move 1 no-capability / move 2 launch-tool parameter present / move 3 no parameter), or a pointer
@@ -1015,129 +434,10 @@ R0_BRANCH_CITE_RE = re.compile(
     r"spawner-completion-contract\.md",
     re.I,
 )
-# Uncommitted-work bound: a section that shows file-writing language must also show SOME
-# commit/checkpoint safeguard, per R0's own non-interactive-surface rule.
-WRITE_CONTEXT_RE = re.compile(r"\bwrit(?:e|es|ing|ten)\b|\bauthor(?:s|ed|ing)?\b|\bedit(?:s|ed|ing)?\b", re.I)
-COMMIT_SAFEGUARD_RE = re.compile(r"\bcommit(?:ted|s|ting)?\b|\bcheckpoint\b|uncommitted work", re.I)
 
-# [wait-mechanism] (a): poll/sleep paired with wait-for-a-child vocabulary, excluding the
-# sanctioned task-list status check (task-list polling is status tracking, not a
-# busy-wait loop standing in for the mechanical barrier).
-POLL_SLEEP_RE = re.compile(r"\bpoll(?:s|ing|ed)?\b|\bsleep\b", re.I)
-TASK_LIST_RE = re.compile(r"task list|task-list|checklist", re.I)
-# [wait-mechanism] (b): a dispatch claim with no nearby capability-handling language.
-DISPATCH_CLAIM_RE = re.compile(
-    r"(invoke the Agent tool|call the Agent tool"
-    r"|dispatch(?:es)? (?:to )?the `?[a-z][a-z-]+`? agent"
-    r"|launch(?:es|ing)? (?:the )?`?[a-z][a-z-]+`? agent)",
-    re.I,
-)
-CAP_HANDLING_RE = re.compile(
-    r"own toolset|Agent tool (?:is|is not|absent|has|exposes)|nesting cap|no Agent tool|"
-    r"capability (?:is )?absent|NEEDS_NEXT|\bR0\b",
-    re.I,
-)
-# Reuses the same lookback-negation convention as _has_positive_spawn/_has_positive_git_mutation
+# Reuses a lookback-negation convention
 # above (module-level NEGATION_RE) so "do not poll" / "never sleep" are never flagged as if they
 # were positive instructions to poll/sleep.
-
-
-def _enclosing_h2(text: str, pos: int) -> str:
-    """The H2 heading text whose section contains offset `pos` ('' if none precede it)."""
-    heading = ""
-    for m in H2_RE.finditer(text):
-        if m.start() > pos:
-            break
-        heading = m.group(1)
-    return heading
-
-
-def _wait_scope_scan_files() -> list[Path]:
-    files = sorted(SNIPPETS_DIR.glob("*.md")) if SNIPPETS_DIR.exists() else []
-    files += sorted(SKILLS_DIR.rglob("SKILL.md")) if SKILLS_DIR.exists() else []
-    files += sorted(AGENTS_DIR.glob("*.md")) if AGENTS_DIR.exists() else []
-    return files
-
-
-def _wait_instructions(text: str):
-    """Yield (match, heading, section_text) for each park-the-turn verb sitting near
-    turn/child/worker/agent vocabulary (a 200-char window on each side - a wait verb far from
-    that vocabulary is not a spawner-completion concern, e.g. 'await confirmation from the
-    user')."""
-    for m in WAIT_VERB_RE.finditer(text):
-        window = text[max(0, m.start() - 200): m.start() + 200]
-        if not WAIT_SCOPE_CONTEXT_RE.search(window):
-            continue
-        heading = _enclosing_h2(text, m.start())
-        section_start = text.rfind("\n## ", 0, m.start())
-        section_text = text[max(0, section_start):m.start()]
-        yield m, heading, section_text
-
-
-def check_wait_scope(warn_only_findings: list[str]) -> None:
-    """[wait-scope] (rule 9) - see module-level note above. A park/wait instruction is a finding
-    when its section names no R0 branch, OR shows file-writing language with no stated commit/
-    checkpoint safeguard (the two real hazards; a bare park instruction is not itself one)."""
-    for f in _wait_scope_scan_files():
-        text = f.read_text(encoding="utf-8")
-        rel = f.relative_to(PLUGIN_ROOT)
-        for m, heading, section_text in _wait_instructions(text):
-            if not R0_BRANCH_CITE_RE.search(section_text):
-                warn_only_findings.append(
-                    f"[wait-scope] {rel}: {m.group()!r} park/wait instruction names no R0 branch "
-                    f"(no R0/move-N/NEEDS_NEXT/nesting-cap/"
-                    f"spawner-completion-contract.md citation in its section, heading: {heading!r})"
-                )
-            if WRITE_CONTEXT_RE.search(section_text) and not COMMIT_SAFEGUARD_RE.search(section_text):
-                warn_only_findings.append(
-                    f"[wait-scope] {rel}: {m.group()!r} sits in a section with file-writing "
-                    f"language but no stated commit/checkpoint safeguard - risks ending a turn "
-                    f"with uncommitted work (heading: {heading!r})"
-                )
-
-
-def check_wait_mechanism(warn_only_findings: list[str]) -> None:
-    """[wait-mechanism] (rule 10) - see module-level note above. Two detectors: (a) poll/sleep
-    paired with wait-for-a-child vocabulary (excluding a sanctioned own-task-list check), and
-    (b) a dispatch claim with no nearby capability-handling language."""
-    for f in _wait_scope_scan_files():
-        text = f.read_text(encoding="utf-8")
-        lines = text.splitlines()
-        rel = f.relative_to(PLUGIN_ROOT)
-
-        # (a) poll/sleep while waiting for a child.
-        for i, line in enumerate(lines):
-            for m in POLL_SLEEP_RE.finditer(line):
-                preceding = line[max(0, m.start() - 45):m.start()]
-                if NEGATION_RE.search(preceding):
-                    continue  # "do not poll" / "never sleep" - a prohibition, not an instruction
-                window = "\n".join(lines[max(0, i - 3): i + 4])
-                if TASK_LIST_RE.search(window):
-                    continue  # sanctioned task-list status check, not a busy-wait loop
-                if R0_BRANCH_CITE_RE.search(window):
-                    continue  # attributed to R0 - move 2's in-turn wait on an async receipt
-                if WAIT_SCOPE_CONTEXT_RE.search(window):
-                    warn_only_findings.append(
-                        f"[wait-mechanism] {rel}:{i + 1}: {m.group()!r} instructs polling/"
-                        f"sleeping near wait-for-a-child vocabulary with no R0 attribution - the "
-                        f"only sanctioned in-turn wait is R0 move 2's async-receipt rule; cite it, "
-                        f"or collect the result by your R0 move"
-                    )
-
-        # (b) a dispatch claim with no nearby capability-handling language.
-        for m in DISPATCH_CLAIM_RE.finditer(text):
-            preceding = text[max(0, m.start() - 45):m.start()]
-            if NEGATION_RE.search(preceding):
-                continue  # "does not launch the X agent" - a self-declared leaf, not a claim
-            window = text[max(0, m.start() - 300): m.start() + 300]
-            if not CAP_HANDLING_RE.search(window):
-                line_no = text.count("\n", 0, m.start()) + 1
-                warn_only_findings.append(
-                    f"[wait-mechanism] {rel}:{line_no}: {m.group()!r} claims a dispatch with no "
-                    f"nearby capability-handling language (own toolset / Agent tool absent / "
-                    f"nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires checking your own "
-                    f"toolset before every launch"
-                )
 
 
 # --- [card-budget] (rule 13, M9) --------------------------------------------------------------
@@ -1242,10 +542,10 @@ def check_ref_scope_citation_anchor(warn_only_findings: list[str]) -> None:
     (worse than none - it would look precise without being precise) at sites this wave did not
     have time to individually verify. The three sites the design explicitly named (X-64:
     agents/odoo-coder.md citing skills/odoo-instance/SKILL.md and skills/odoo-forward-port/SKILL.md;
-    skills/odoo-coding/SKILL.md citing docs/reference/workflow-harness.md) are already anchored.
+    skills/odoo-coding/SKILL.md citing a snippet) are already anchored.
     Mirrors the exact precedent this file already sets for rules 9/10 (a new proximity-based rule
     with a real pre-existing backlog ships loud-but-inert, then flips to strict once the tree is
-    swept clean - see check_wait_scope/check_wait_mechanism above)."""
+    swept clean)."""
     consumer_files = list(SKILLS_DIR.rglob("SKILL.md"))
     if AGENTS_DIR.exists():
         consumer_files += list(AGENTS_DIR.glob("*.md"))
@@ -2098,7 +1398,9 @@ def main(argv: list[str]) -> int:
         if gate_tier not in VALID_GATE_TIER:
             findings.append(f"[enum] '{name}' has missing/invalid default_gate_tier '{gate_tier}' (not in {sorted(VALID_GATE_TIER)})")
         if output_mode in VALID_OUTPUT_MODE:
-            expected_tier = _derive_gate_tier(spawn_class, bool(e.get("instance_touching")), output_mode, bool(e.get("outward")))
+            # an ephemeral, self-released instance (instance_scope: ephemeral) is no human gate
+            touches_shared = bool(e.get("instance_touching")) and e.get("instance_scope") != "ephemeral"
+            expected_tier = _derive_gate_tier(spawn_class, touches_shared, output_mode, bool(e.get("outward")))
             if gate_tier != expected_tier:
                 findings.append(
                     f"[gate-tier] '{name}' default_gate_tier={gate_tier} but derivation says {expected_tier} "
@@ -2135,37 +1437,12 @@ def main(argv: list[str]) -> int:
                 f"{', '.join(INSTANCE_REFS)}"
             )
 
-        # 5. spawn_class vs body - flag only the dangerous drift: a declared `leaf` OR
-        #    `orchestrator-nl` that actively dispatches an agent (an orchestrator-nl skill
-        #    chains other SKILLS via NL dispatch - Skill tool - and must show no named-AGENT
-        #    launch language, same bar as a leaf). (Reverse direction is omitted as noisy; the
-        #    orchestration SSOT is authoritative for the spawner declaration.)
-        if spawn_class in ("leaf", "orchestrator-nl") and _has_positive_spawn(body):
-            findings.append(
-                f"[spawn-truth] '{name}' is spawn_class={spawn_class} but body actively dispatches an agent"
-            )
-
-        # 6. CHP (Context-Handoff Protocol) - handoff enum + Tier-C fallback documentation.
-        #    A skill declaring handoff=send-message or handoff=fork MUST document the Tier-C
-        #    fallback (fresh spawn) in its body so the protocol is never a hard dependency.
+        # 6. handoff enum validity (the handoff mode is read by the runner from the registry).
         handoff = e.get("handoff", "fresh")
         if handoff not in VALID_HANDOFF:
             findings.append(
                 f"[enum] '{name}' has invalid handoff '{handoff}' (not in {sorted(VALID_HANDOFF)})"
             )
-        if handoff in ("send-message", "fork"):
-            body_lower = body.lower()
-            has_tier_c_doc = (
-                "tier-c" in body_lower
-                or "fresh spawn" in body_lower
-                or "context-handoff-protocol.md" in body
-            )
-            if not has_tier_c_doc:
-                findings.append(
-                    f"[chp-tier-c-fallback] '{name}' declares handoff={handoff!r} but body does not "
-                    f"document the Tier-C fallback (fresh spawn). Add a fallback clause or reference "
-                    f"snippets/context-handoff-protocol.md."
-                )
 
     # 7. No-hardcode / no-leak across skills + snippets (reference docs exempt: they teach by example)
     scan_files = list(SKILLS_DIR.rglob("SKILL.md")) + list((PLUGIN_ROOT / "snippets").glob("*.md"))
@@ -2184,8 +1461,6 @@ def main(argv: list[str]) -> int:
     # 8. Agent role (see check_agent_roles docstring - LIVE: roles are populated for every agent)
     check_agent_roles(findings)
 
-    # 11. [role-scope] - LIVE and enforcing (part of `findings`, gates --strict like rules 1-8).
-    check_role_scope(findings)
 
     # 13, 14b, 15. [card-budget] / [ref-scope] half (b) / [no-provenance] (M9/M10,
     # 12-design-final.md) - LIVE and enforcing, part of `findings` like rules 1-8 and 11.
@@ -2209,13 +1484,6 @@ def main(argv: list[str]) -> int:
     version_claim_advisory_findings: list[str] = []
     check_version_claim(findings, version_claim_advisory_findings)
 
-    # 9/10. [wait-scope] / [wait-mechanism] (M1 guard) - WARN-FIRST for one release: collected
-    # into their OWN list, never gating the strict exit below, no matter how many fire (see the
-    # module-level note above check_wait_scope/check_wait_mechanism for why and the flip plan).
-    warn_only_findings: list[str] = []
-    check_wait_scope(warn_only_findings)
-    check_wait_mechanism(warn_only_findings)
-
     # 14a. [ref-scope] half (a) (M9) - WARN-FIRST for one release, SEPARATE list from 9/10 so the
     # print label stays accurate (see check_ref_scope_citation_anchor's own docstring).
     ref_scope_warn_only_findings: list[str] = []
@@ -2227,15 +1495,6 @@ def main(argv: list[str]) -> int:
     permanent_warn_only_findings: list[str] = []
     check_brief_fields(permanent_warn_only_findings)
 
-    # 19. [brief-knowhow] - its DETERMINISTIC half is LIVE and enforcing from the start: it ships
-    # in the same change that cleans every named-agent dispatcher, so there is no backlog to burn
-    # down and no reason for the warn-first window rules 9/10 needed. Its prose-duplication half is
-    # permanently warn-only (the function's docstring says why it cannot gate) and gets its OWN
-    # list: folding it into rule 12's would print 37 [brief-knowhow] findings under a
-    # "[brief-fields]" header, and a reader who trusts that header mis-attributes every one.
-    knowhow_warn_only_findings: list[str] = []
-    check_brief_knowhow(findings, knowhow_warn_only_findings)
-
     # 20. [definition-pointer] - LIVE. Ships with the sweep that clears it, same as rule 19.
     check_definition_pointers(findings)
 
@@ -2246,13 +1505,6 @@ def main(argv: list[str]) -> int:
             print(f"  - {fnd}")
         if not strict:
             print("  (warn-only mode - exit 0; pass --strict to enforce)")
-
-    if warn_only_findings:
-        print(f"check_orchestration: {len(warn_only_findings)} warn-only finding(s) "
-              f"([wait-scope]/[wait-mechanism], ships warn-first for one release - "
-              f"NEVER gates --strict):")
-        for fnd in warn_only_findings:
-            print(f"  - {fnd}")
 
     if ref_scope_warn_only_findings:
         print(f"check_orchestration: {len(ref_scope_warn_only_findings)} warn-only finding(s) "
@@ -2266,13 +1518,6 @@ def main(argv: list[str]) -> int:
               f"([brief-fields], warn-only PERMANENTLY by design - NEVER gates --strict, no "
               f"migration window):")
         for fnd in permanent_warn_only_findings:
-            print(f"  - {fnd}")
-
-    if knowhow_warn_only_findings:
-        print(f"check_orchestration: {len(knowhow_warn_only_findings)} warn-only finding(s) "
-              f"([brief-knowhow] prose duplication, warn-only PERMANENTLY - a shared sentence is "
-              f"sometimes required on both sides, so read each as a question, not a verdict):")
-        for fnd in knowhow_warn_only_findings:
             print(f"  - {fnd}")
 
     if version_claim_advisory_findings:
@@ -2293,8 +1538,8 @@ def main(argv: list[str]) -> int:
     if findings and strict:
         return 1
 
-    if (not findings and not warn_only_findings and not ref_scope_warn_only_findings
-            and not permanent_warn_only_findings and not knowhow_warn_only_findings
+    if (not findings and not ref_scope_warn_only_findings
+            and not permanent_warn_only_findings
             and not instance_truth_warn_only_findings
             and not version_claim_advisory_findings):
         print("check_orchestration: OK - all orchestration contracts satisfied.")

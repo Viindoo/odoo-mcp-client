@@ -9,7 +9,7 @@ owner.pid, no parked_at. The question it never asked was DID I ACQUIRE THIS.
 
 The agent's own definition already called it read-only and a HARD LEAF that "does not write, run, or
 adjudicate tests". That prohibition was PROSE with no gate under it - the same shape as the
-coordinator-authoring breach hooks/block-coordinator-code-write.sh was written for.
+spawner-authoring breach hooks/block-spawner-code-write.sh was written for.
 
 Business rules protected, NOT the implementation:
 

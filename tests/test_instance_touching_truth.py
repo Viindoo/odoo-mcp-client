@@ -199,7 +199,7 @@ def test_gate_tier_still_matches_the_derivation_for_every_skill() -> None:
             continue
         expected = checker._derive_gate_tier(
             e.get("spawn_class", ""),
-            bool(e.get("instance_touching")),
+            bool(e.get("instance_touching")) and e.get("instance_scope") != "ephemeral",
             output_mode,
             bool(e.get("outward")),
         )

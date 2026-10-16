@@ -69,7 +69,6 @@ BUDGETED_PLUGINS = [PLUGINS_DIR / name for name in PLUGIN_LISTING_BUDGETS]
 # must stay model-invocable.
 ORCHESTRATOR_SOURCES = (
     sorted((AGENTS_PLUGIN / "skills" / "odoo-intake").rglob("*.md"))
-    + sorted((AGENTS_PLUGIN / "skills" / "run-harness").rglob("*.md"))
     + sorted((AGENTS_PLUGIN / "skills" / "workflow-chaining").rglob("*.md"))
     + sorted((AGENTS_PLUGIN / "workflows").glob("*.yaml"))
 )

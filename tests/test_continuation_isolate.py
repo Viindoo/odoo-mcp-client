@@ -123,7 +123,7 @@ def _needs_next(run_id: str, cursor: str = "nodeA") -> dict:
 
 
 def _drove(*run_files: Path) -> list:
-    """Transcript lines of a session that acted on these run records - run-harness reads and writes
+    """Transcript lines of a session that acted on these run records - the plan runner reads and writes
     a record by its path - stamped after the records were written. drive-continuation reminds a
     session only of a run it drives (hooks/run-ownership.sh)."""
     now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")

@@ -1,14 +1,14 @@
 """Guard: no `L0`/`L1`/`L2` tier token in any EMITTED template.
 
 Business contract being protected: `L0`/`L1`/`L2` is the DRIVER's internal gate-tier control
-vocabulary. It belongs in `run-harness`'s resolution logic, in the registry's `default_gate_tier`,
+vocabulary. It belongs in the plan runner's resolution logic, in the registry's `default_gate_tier`,
 in a node's `gate_tier`, and in `generator/check_orchestration.py`'s `VALID_GATE_TIER` - all
 machinery a human never reads. It does NOT belong in anything the plugin RENDERS: a gate prompt the
 human answers, or a Continuation Contract a step emits. A tier token there leaks scheduler jargon
 into the surface people (and downstream readers) actually see.
 
 Scope - and why the scoping matters more than the breadth: a version of this test that also flagged
-`run-harness`'s driver-loop pseudocode or the registry's `default_gate_tier` would be flagging the
+the plan runner's driver-loop pseudocode or the registry's `default_gate_tier` would be flagging the
 legitimate internal use, and the next maintainer would delete it. So the corpus is narrowed
 mechanically to EMITTED TEMPLATE blocks - a fenced block that is one of:
 
@@ -47,7 +47,7 @@ FENCE_RE = re.compile(
     re.S | re.M,
 )
 # The two gate keyword sets, spelled the way snippets/planning-gate-contract.md declares them.
-# Case- and space-exact on purpose: `run-harness`'s driver-loop comment says "resume after
+# Case- and space-exact on purpose: the plan runner's driver-loop comment says "resume after
 # approve/skip/cancel" (no spaces) - a description of the mechanism, not a rendered prompt.
 GATE_KEYWORDS_RE = re.compile(r"approve / (?:refine|skip)")
 # A `next[]` entry - unique to a Continuation Contract template.
@@ -96,34 +96,6 @@ def test_no_emitted_gate_or_contract_template_carries_a_tier_token():
     assert not findings, (
         "L0/L1/L2 is the driver's INTERNAL gate-tier vocabulary - it must not appear in a gate "
         "prompt or an emitted Continuation Contract template:\n  " + "\n  ".join(findings)
-    )
-
-
-# ---------------------------------------------------------------------------
-# Scoping proofs - the legitimate internal uses must stay unflagged, and the
-# detector must be able to fail (red-before-green).
-# ---------------------------------------------------------------------------
-
-
-def test_run_harness_driver_loop_pseudocode_is_out_of_scope():
-    """`run-harness`'s gate-tier resolution is the legitimate internal use and must not be flagged.
-
-    Premise first (so this cannot pass vacuously): the driver-loop fence really does carry tier
-    tokens. Then: none of this file's findings point at it.
-    """
-    text = (PLUGIN / "skills" / "run-harness" / "SKILL.md").read_text(encoding="utf-8")
-    loop_fences = [
-        m.group("body") for m in FENCE_RE.finditer(text)
-        if TIER_TOKEN_RE.search(m.group("body")) and "pick_ready" in m.group("body")
-    ]
-    assert loop_fences, (
-        "premise: run-harness's driver-loop fence must carry tier tokens, otherwise this test "
-        "proves nothing about scoping"
-    )
-    findings = _tier_findings([PLUGIN / "skills" / "run-harness" / "SKILL.md"])
-    assert not findings, (
-        "run-harness's internal gate-tier control values must never be flagged - a test that "
-        f"flags them protects nothing because it will be deleted:\n  " + "\n  ".join(findings)
     )
 
 
