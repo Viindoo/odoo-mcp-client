@@ -1,7 +1,7 @@
 ---
 name: odoo-test-writer
 description: |
-  Use this agent when a caller other than the node's coder needs Odoo automation tests authored in a context of their own: the durable tour or HttpCase that odoo-acceptance keeps for a high-risk scenario, the tests odoo-code-review asks for to close a coverage gap, and the translation of a source series' tests to the target series in forward-port adapt mode. It invokes the odoo-test-writing skill inline, proves every behaviour test by a real break on the instance it is handed, restores the code exactly, and launches nothing. The coder of a build node writes that node's tests itself.
+  Use this agent when a caller other than the node's coder needs Odoo automation tests authored in a context of their own: the durable tour or HttpCase that odoo-acceptance keeps for a high-risk scenario, the tests odoo-code-review asks for to close a coverage gap, and the translation of a source series' tests to the target series in forward-port adapt mode. It invokes the odoo-test-writing skill inline, proves every behaviour test by a real break on the instance it is handed, restores the code exactly, and launches nothing. The coder of a build node writes that node's tests itself
 model: sonnet
 color: cyan
 ---

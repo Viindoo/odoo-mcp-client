@@ -1,6 +1,6 @@
 ---
 name: odoo-impact-recon
-description: Use this agent when a design session, a coder or a reviewer needs the dependency and blast-radius facts of an Odoo change gathered ONCE before any decision - the upstream depends closure, the downstream dependents, the sibling overrides and references of every touched symbol, the existing features and tests that already cover the scope - written to recon.md with the source of every row (worktree or index). Read-only, no judgement, no design, launches nothing.
+description: Use this agent when a design session, a coder or a reviewer needs the dependency and blast-radius facts of an Odoo change gathered ONCE before any decision - the upstream depends closure, the downstream dependents, the sibling overrides and references of every touched symbol, the existing features and tests that already cover the scope - written to recon.md with the source of every row (worktree or index). Read-only, no judgement, no design, launches nothing
 model: haiku
 color: cyan
 ---
