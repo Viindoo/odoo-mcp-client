@@ -10,10 +10,11 @@ one with judgment and say what you decided.
 
 ## Code first, then the test leg
 
-`odoo-backend-coder` / `odoo-frontend-coder` write production code only - they never author or edit
-a test - and return their file lists, a one-line behavior summary, and `OBSOLETE TESTS` (existing
-tests the REQUEST makes obsolete, or `none`). Then ONE `odoo-test-writer` per node writes the new
-tests or adjusts the existing ones, taking every expected value from the REQUEST / design AC, never
+`odoo-coder` writes its node's tests itself, through `odoo-test-writing`: before the code when an
+acceptance criterion carries a comparable expected value (the first red run proves the test can
+fail), after the code for a behaviour discovered while coding. `odoo-frontend-coder` writes
+production code only and returns `OBSOLETE TESTS` (existing tests the REQUEST makes obsolete, or
+`none`). Every expected value comes from the REQUEST / SRS acceptance criteria, never
 from the code. Nothing is committed between the coders and the test leg.
 
 While the test-writer works it breaks production code on purpose, so nobody else builds, edits or

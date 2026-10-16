@@ -14,7 +14,6 @@
   "agents": [
     "./agents/odoo-coder.md",
     "./agents/odoo-test-writer.md",
-    "./agents/odoo-backend-coder.md",
     "./agents/odoo-diff-comparator.md",
     "./agents/odoo-solution-architect.md",
     "./agents/odoo-impact-recon.md",

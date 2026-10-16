@@ -1,7 +1,7 @@
 <!-- SSOT snippet. Referenced (not copy-pasted) by every skill/agent that writes Odoo
      code or makes an Odoo capability claim, and injected verbatim into every spawned
-     worker brief (odoo-coder's WI workers - odoo-backend-coder / odoo-frontend-coder -,
-     workflow-chaining fan-out workers, conflict resolver).
+     worker brief (odoo-coder, odoo-frontend-coder, workflow-chaining fan-out workers, the
+     conflict resolver).
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md. -->
 
 # OSM-First Grounding Contract
@@ -145,7 +145,7 @@ artifact you write uses the same key and values. The label anywhere else - quote
 mid-sentence, in a table or JSON, in a code fence, describing another agent's output - is a
 mention, not a claim.
 
-For **spawned workers** (odoo-coder's WI workers, workflow-chaining fan-out, code/UI agents), a
+For **spawned workers** (odoo-coder, odoo-frontend-coder, workflow-chaining fan-out, code/UI agents), a
 `SubagentStop` hook (`hooks/enforce-grounding.sh`) reads the worker's own transcript and makes
 §1/§4 a checkable invariant: if your label line claims OSM but you made **zero**
 `mcp__odoo-semantic__*` calls, the stop is **blocked** and you are asked to either actually

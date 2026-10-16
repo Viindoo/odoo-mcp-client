@@ -24,9 +24,10 @@ test asserts a business contract, never a snapshot of the current implementation
 
 ## When to use
 
-Every mode runs AFTER the production code exists. In the `odoo-coding` loop this skill runs INLINE
-inside the `odoo-test-writer` agent, which the `odoo-coder` coordinator starts once per node after
-its coders finish (coders never author tests); standalone use works the same way.
+`odoo-coder` invokes this skill INLINE for its own node - before the code when an acceptance
+criterion carries a comparable expected value (the first red run is the proof the test can fail),
+after the code for a behaviour discovered while coding (proven by the break in step 5). The
+`odoo-test-writer` agent invokes it for every other caller; standalone use works the same way.
 
 - **`change`** - new or adjusted tests for the behavior the REQUEST changed.
 - **`coverage`** - backfill behavior tests for existing code (the `odoo-code-review` coverage gate).
@@ -84,6 +85,9 @@ writing (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
 ### 1. Pin the series, read the framework
 
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` (the series'
+test classes, the Form helper, tours, the JS runner, demo data in tests) and the guideline row of
+the language the test is written in; name each file and heading in `VERSION RULES APPLIED`.
 Resolve series, profile and module scope per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `set_active_version` - never default
 a series; a wrong one selects the wrong framework. Then read how the TARGET series' framework works

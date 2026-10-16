@@ -81,23 +81,24 @@ grounding workers only, too).
 - Which decisions need an ADR-style tradeoff vs are already-settled.
 - Non-negotiable interfaces other modules assume.
 - Whether a human gate precedes code.
-- `ACCEPTANCE` resolves to the design doc's S9 (skeleton field 6).
+- `ACCEPTANCE` resolves to the SRS acceptance criteria (skeleton field 6).
 
 ### Coder
 
-`odoo-coder` (coordinator/spawner - see the SPAWNER self-check variant below, not the leaf one),
-`odoo-backend-coder`, `odoo-frontend-coder`:
+`odoo-coder` (the node owner; the SPAWNER self-check variant below applies when it launches a
+part) and `odoo-frontend-coder` (a leaf):
 
-- No test field: the coders write code only and return `OBSOLETE TESTS`
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+- `MODULES` - the node's modules in dependency order, `name @ path` each; the coder writes in
+  every file of these modules and nowhere else.
+- `RECON`, `IMPACT_MAP`, `SRS`, `DOMAIN`, `BUILD_TIER` - paths and values from the design phase
+  (`none` when absent, never omitted silently).
 - `COMMIT` - `odoo-coder` only, optional: `self` (default) or `caller` (commit nothing, return the
   file list).
 - `CONSTRAINTS` - the caller's hard boundaries passed through unchanged (forward-port: C1-C3,
   LINT-ONLY, the `fp-merge-absorption.md` pointer); `odoo-coding` forwards it into every coder brief
-  as `CONSTRAINTS:`, where the backend coder reads it.
+  as `CONSTRAINTS:`, where the coder reads it.
 - `INTENT` - adapt mode: the intent record per source commit (same key from every caller).
-- `RUN_ID` - forwarded unchanged to the coordinator and every leaf (skeleton field 11).
-- The module/disjoint file-set boundary.
+- `RUN_ID` - forwarded unchanged to the coder and every leaf (skeleton field 11).
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`; with it, the caller's `SERVER_WIDE`
   (`{exclude, include}`) passes verbatim to every build on that database (`odoo-instance`).
 - `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only, never a field on
@@ -297,8 +298,8 @@ not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`.
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line before re-briefing your leaves.
 
-Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
-`odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
+Then RE-BRIEF each leaf you dispatch (`odoo-frontend-coder`, a second `odoo-coder`,
+`odoo-impact-recon`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
 leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
 passed through unchanged.
 ```

@@ -74,7 +74,7 @@ IN_SUBAGENT=false
 # `role: leaf` entry in the agent-role SSOT.
 if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
   DEPS_FILE="${CLAUDE_PLUGIN_ROOT:-}/generator/skill_tool_deps.json"
-  # Normalize a plugin-qualified type ("odoo-ai-agents:odoo-backend-coder") to the bare name -
+  # Normalize a plugin-qualified type ("odoo-ai-agents:odoo-frontend-coder") to the bare name -
   # the SSOT keys agents by bare name.
   AGENT_NAME="${AGENT_TYPE##*:}"
   IS_LEAF=false

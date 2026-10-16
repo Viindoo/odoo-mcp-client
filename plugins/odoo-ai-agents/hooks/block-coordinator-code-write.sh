@@ -16,9 +16,10 @@
 #       Same identity signal, same V-52 rule, as hooks/remind-delegate.sh. The ROOT is never
 #       denied.
 #   (b) `agents.<bare agent_type>.role` in the agent-role SSOT (generator/skill_tool_deps.json)
-#       resolves to `coordinator` or `spawner`. Data-driven: adding a coordinator to the SSOT arms
-#       this gate for it with no edit here, and a `role: leaf` writer (odoo-backend-coder,
-#       odoo-frontend-coder, odoo-test-writer, odoo-translator...) is NEVER touched. Both agent_type
+#       resolves to `coordinator` or `spawner`. Data-driven: adding a spawner to the SSOT arms
+#       this gate for it with no edit here; a `role: leaf` writer (odoo-frontend-coder,
+#       odoo-test-writer, odoo-translator...) and the `role: node-owner` odoo-coder, which writes
+#       its own node, are NEVER touched. Both agent_type
 #       spellings resolve - bare (`odoo-coder`) and plugin-qualified (`odoo-ai-agents:odoo-coder`) -
 #       via the same `${AGENT_TYPE##*:}` normalization remind-delegate.sh uses.
 #   (c) the call writes PRODUCTION SOURCE, resolved by extension and location (never a name list):
