@@ -282,7 +282,7 @@ leaf has returned and the last per-language reload is done, call
 `lease_park` when the user or a named next step still wants that database. An `INSTANCE_HANDLE`
 your caller forwarded DOWN to you is never yours to release or park - leave it to its owner.
 
-**P5 - Consistency audit + report [sonnet default; opus ONLY when the in-scope terminology is domain/legal/regulatory (e.g. accounting circulars) - never for module or language count alone; ADVISORY].** Audit terminology consistency across the
+**P5 - Consistency audit + report [sonnet; opus only when a module in scope has a `business_function` on the specialist list of `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md` - never for module or language count; ADVISORY].** Audit terminology consistency across the
 translated modules for EACH target language separately. This phase is **ADVISORY and NEVER
 blocking**: it surfaces inconsistencies for a human to decide on, but it does NOT auto-edit or
 auto-dedup. The independent-regime guard binds it (`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`
@@ -319,9 +319,11 @@ the reconcile would report phantom removals. Pass the model both as a
 `DISPATCH MODEL:` line in the brief and as the Agent `model` parameter:
 
 - **sonnet** (default) - translation must read context (is "Sun" the star or the day?), so it is never a haiku job.
-- **opus** when the scope carries domain / legal / regulatory terminology (e.g. accounting
-  circulars, statutory report labels) where a wrong term has compliance cost. State this WHY in
-  the brief: the glossary's project layer and the independent-regime guard become load-bearing.
+- **opus** when a module in the leaf's scope has a `business_function` on the specialist list of
+  `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md` (accounting, localization, payroll, tax,
+  legal-compliance), read from its manifest `category`: a wrong term there has compliance cost.
+  State the function in the brief; the glossary's project layer and the independent-regime guard
+  become load-bearing.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
 decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Its reconcile /

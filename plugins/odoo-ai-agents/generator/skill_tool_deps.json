@@ -835,36 +835,32 @@
       "role": "leaf",
       "brief": {
         "required": [
-          "MODE"
-        ],
-        "optional": [
-          "DESIGN_DOC",
-          "MASTER_DESIGN_DOC",
-          "UI_REVIEW",
-          "INSTANCE_HANDLE",
-          "USER LANGUAGE",
-          "CHANGED_SET",
-          "SCOPE_FILES"
-        ]
-      }
-    },
-    "odoo-review-scoper": {
-      "role": "leaf",
-      "brief": {
-        "required": [
+          "MODE",
           "TARGET",
-          "odoo_version",
-          "review_root",
-          "pr_meta",
-          "pr_changed_files",
-          "SHARE_DIR",
+          "CHANGED_SET",
+          "ODOO VERSION",
           "ISOLATE_DIR"
         ],
         "optional": [
-          "BASE",
+          "PROFILE",
+          "SHARE_DIR",
+          "RUN_ID",
+          "SRS",
+          "DESIGN_DOC",
+          "MASTER_DESIGN_DOC",
+          "RECON",
+          "IMPACT_MAP",
+          "DOMAIN",
+          "R1_FINDINGS",
+          "R3_FINDINGS",
+          "PRIOR_FINDINGS",
+          "ACCEPTANCE_EVIDENCE",
+          "UI_REVIEW",
+          "INSTANCE_HANDLE",
           "USER LANGUAGE"
         ]
-      }
+      },
+      "notes": "Static reviewer in three caller-set modes: R1 mechanical (haiku), R2 behaviour and verdict (sonnet), R3 specialist (opus, only for a specialist business function or a deep override chain). Resumed with SendMessage to verify fixes and to classify acceptance failures. Read-only on source; invokes the three audit skills inline; launches nothing."
     },
     "odoo-ui-reviewer": {
       "role": "leaf",
@@ -1047,7 +1043,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. OSM is STATIC - used only to keep the oracle well-formed, NEVER to infer the business expected (that comes from the requirement). min_server 0.6.0 for set_active_version.",
+      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. Launched by odoo-acceptance only for SRS criteria that lack a comparable expected value; criteria that carry one are executed as they stand. OSM is STATIC - used only to keep the oracle well-formed, never to infer the business expected.",
       "brief": {
         "required": [
           "REQUIREMENT",
@@ -1070,17 +1066,27 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version.",
+      "notes": "Live acceptance executor in two caller-set modes: A1A2 (haiku) builds the stand-alone and with-dependents databases through the odoo-instance skill, drives each scenario as its role, captures evidence and rules PASS/FAIL/UNVERIFIED by comparison; A4 (sonnet) walks the new screens as each audience role and reports what the role cannot understand. OSM is static structural grounding for modules outside the worktree; live values come from the instance and the browser. Never edits the oracle, never fixes code, launches nothing.",
       "brief": {
         "required": [
+          "MODE",
           "ORACLE_PATH",
-          "INSTANCE_HANDLE",
-          "SCOPE",
-          "BROWSER_MODE",
+          "MODULES",
+          "WORKTREE_PATH",
+          "ODOO VERSION",
           "ISOLATE_DIR"
         ],
         "optional": [
+          "DEPENDENTS",
+          "PROFILE",
+          "RUN_ID",
+          "INSTANCE_HANDLE",
+          "SCOPE",
+          "BROWSER_MODE",
+          "SLUG",
+          "SHARE_DIR",
           "REPORT_PATH",
+          "DOMAIN",
           "USER LANGUAGE"
         ]
       }
@@ -1170,7 +1176,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (5-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module.",
+      "notes": "Multi-module scope mapper: walks manifests under TARGET, enumerates modules, resolves languages (5-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
           "TARGET"
@@ -1293,7 +1299,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch; no subagent spawn of its own - a skill's own spawns cell may still list an anonymous review/resolver subagent) | spawner-agent (dispatches a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: a FACT about the skill, not a tier lever - true when the skill's OWN procedure drives a live instance (calls the allocator lease API, dispatches the odoo-instance skill / odoo-instance-ops agent, or emits odoo-bin), false when it only ROUTES an instance need away (a NEEDS_NEXT hand-off, an Out-of-Scope row). Declared true, it must ground CLI via OSM cli_help per target version. check_orchestration.py's [instance-truth] rule reads the skill's own SKILL.md body and contradicts this field when the evidence disagrees, so the value can no longer be whatever tier its author wanted. output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). the per-node tier is a total function of this registry default plus whether the node is dynamic and whether run-harness itself composed a fresh-database brief; there is no per-node override field. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: a launcher resumes a child it launched, by the id its own launch returned, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via a fresh agent launch + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch; no subagent spawn of its own - a skill's own spawns cell may still list an anonymous review/resolver subagent) | spawner-agent (dispatches a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: a FACT about the skill, not a tier lever - true when the skill's OWN procedure drives a live instance (calls the allocator lease API, dispatches the odoo-instance skill / odoo-instance-ops agent, or emits odoo-bin), false when it only ROUTES an instance need away (a NEEDS_NEXT hand-off, an Out-of-Scope row). Declared true, it must ground CLI via OSM cli_help per target version. check_orchestration.py's [instance-truth] rule reads the skill's own SKILL.md body and contradicts this field when the evidence disagrees, so the value can no longer be whatever tier its author wanted. output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). the per-node tier is a total function of this registry default plus whether the node is dynamic and whether run-harness itself composed a fresh-database brief; there is no per-node override field. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: a launcher resumes a child it launched, by the id its own launch returned, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via a fresh agent launch + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md. instance_scope: `ephemeral` when every instance the skill touches is a lease the run owns (a throwaway database the final release drops) - such a skill is L1, never L2; L2 is reserved for a SHARED instance or an outward git or third-party action.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -1377,11 +1383,9 @@
       "spawn_class": "spawner-agent",
       "handoff": "send-message",
       "spawns": [
-        "odoo-code-reviewer",
-        "odoo-review-scoper",
-        "odoo-ui-reviewer (conditional Phase A.5 - rendered-UI review when module.needs_ui_review is true or candidate and an instance is reachable)",
-        "odoo-test-writer (coverage gate - authors the missing/adapt-mode protecting test when a CRITICAL/HIGH behavior change ships uncovered; agent launched for context isolation, invokes the odoo-test-writing skill inline)",
-        "git-ops (PR worktree checkout + diff/branch read + inline-comment posting on the PR - via git-ops skill - git-toolkit)"
+        "odoo-code-reviewer (MODE R1 at haiku, then MODE R2 at sonnet and MODE R3 at opus when the unit is specialist or the override chain is deep; later rounds resume the same reviewers with SendMessage)",
+        "odoo-ui-reviewer (when an instance exists and views changed)",
+        "git-ops (PR worktree checkout, bounded diff reads, inline-comment posting on the keyword post - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -1389,9 +1393,7 @@
       "default_gate_tier": "L1",
       "spawns_agents": [
         "odoo-code-reviewer",
-        "odoo-review-scoper",
-        "odoo-ui-reviewer",
-        "odoo-test-writer"
+        "odoo-ui-reviewer"
       ]
     },
     "odoo-competitive-brief": {
@@ -1802,10 +1804,11 @@
       "stack": "backend",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2",
+      "default_gate_tier": "L1",
       "spawns_agents": [
         "odoo-translator"
-      ]
+      ],
+      "instance_scope": "ephemeral"
     },
     "odoo-instance": {
       "spawn_class": "spawner-agent",
@@ -1848,23 +1851,21 @@
     "odoo-acceptance": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-qa-planner (P1 independent-oracle author)",
-        "odoo-qa-tester (P2b live execute + adjudicate; browser-serial, one at a time)",
-        "odoo-ui-reviewer (optional per-screen quality verdict in the P2b serial slot)",
-        "odoo-test-writer (P2a durable tour/HttpCase authoring - agent launched for context isolation; invokes the odoo-test-writing skill inline)",
-        "odoo-instance (P2 provision the co-installed cluster + run durable tests, via Skill tool)",
-        "odoo-debug / odoo-coding (P3 fix-loop on FAIL, via Skill tool)"
+        "odoo-qa-tester (MODE A1A2 at haiku: the stand-alone and with-dependents databases, scenario execution, evidence, PASS/FAIL/UNVERIFIED; MODE A4 at sonnet: the audience walk-through when the node adds a user-facing screen)",
+        "odoo-qa-planner (only for SRS criteria without a comparable expected value)",
+        "odoo-test-writer (durable tour/HttpCase for High-tier PASS scenarios when the plan asks)",
+        "odoo-instance (the testers build their databases through the skill, on leases the run owns)"
       ],
       "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2",
+      "default_gate_tier": "L1",
       "spawns_agents": [
-        "odoo-qa-planner",
         "odoo-qa-tester",
-        "odoo-ui-reviewer",
+        "odoo-qa-planner",
         "odoo-test-writer"
-      ]
+      ],
+      "instance_scope": "ephemeral"
     },
     "odoo-icon-design": {
       "spawn_class": "spawner-agent",
