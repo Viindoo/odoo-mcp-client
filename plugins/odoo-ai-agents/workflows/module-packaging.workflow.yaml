@@ -66,31 +66,14 @@ phases:
     # twice = doc_root_kind: principal (scoped and planned read-only here; the docs worktree is
     # created only once the Phase 0.5 gate approves).
     # Then resolve target modules from the `modules` input (module name or absolute path; walk
-    # __manifest__.py files for multi-module repos), every abs_path under doc_root. Resolve
-    # per-module doc_layer, version, and has_demo by APPLYING the resolver contract defined in
-    # agent `odoo-doc-scoper` - that agent's I/O contract is the SSOT for doc_layer
-    # (appstore | userguide | both) detection, version inference, the has_demo flag, AND the two
-    # dependency-planning fields below. Resolve
-    # per-module LANGUAGES via the single language-resolution SSOT:
-    # skills/odoo-doc-illustration/SKILL.md § Language resolution (4-tier + disk-UNION,
-    # English-mandatory) - odoo-doc-scoper cross-refs the same SSOT rather than owning it. Do NOT
-    # reimplement either resolver here; this inline phase only adapts their output location to the
-    # packaging run dir.
-    # Two fields the doc-plan phase (0.5) consumes:
-    #   - depends_in_scope[]: per module, the subset of __manifest__['depends'] that is ALSO in
-    #     modules[] (the in-scope dependency edges). Empty = no in-scope dependency.
-    #   - has_ondisk_doc: true if <module>/static/description/index.html OR <module>/doc/index.rst
-    #     already exists (feeds cross-run dedup in the planner).
-    # `doc_layer` defaults to PER-MODULE AUTO-DETECTION from disk (odoo-doc-scoper Step 5: disk has
-    # static/description/ -> appstore capability, disk has doc/ -> userguide capability, both
-    # present -> both). An explicit `doc_layer` input OVERRIDES ALL modules uniformly with one
-    # value - this DEFEATS per-module detection, so pass it sparingly (only when every module in
-    # the run genuinely shares one doc_layer). `languages` defaults per the language-resolution
-    # SSOT above (English always added); collect either interactively only when genuinely
-    # unresolvable from the inputs above.
-    # Propose target_market per module whose doc_layer is appstore or both, from its descriptor,
-    # per skills/odoo-content-draft/references/buyer-profile.md § Target market (a value the brief
-    # carries is used as is); Phase 0.5's gate confirms it once.
+    # __manifest__.py files for multi-module repos), every abs_path under doc_root, and fill the
+    # scope block fields - version, languages, doc_layer, has_demo, depends_in_scope,
+    # has_ondisk_doc, target_market - per skills/_shared/doc-cluster-plan.md § Input (the SSOT
+    # for every field; languages per skills/odoo-doc-illustration/SKILL.md § Language resolution).
+    # Do NOT restate those rules here; this inline phase only adapts the output location to the
+    # packaging run dir. An explicit `doc_layer` input overrides every module's detected value;
+    # pass it only when every module in the run shares one layer. Phase 0.5's gate confirms each
+    # proposed target_market once.
     # For a principal doc_root, once the modules are resolved, run the bounded read
     # `git -C <doc_root> status --porcelain -- <each module abs_path>` and record what it lists as
     # uncommitted: the docs worktree starts at HEAD, so those changes would go undocumented.
@@ -100,15 +83,15 @@ phases:
 
   # ------------------------------------------------------------------
   # Phase 0.5 - Doc plan: dependency-aware, branch-aware schedule (inline) + SINGLE plan gate
-  # Browser-free. Reuses the `odoo-doc-planner` I/O contract inline (parity with how phase 0
-  # reuses the doc-scoper contract) and the algorithm SSOT skills/_shared/doc-cluster-plan.md.
+  # Browser-free. Computes the plan inline with the algorithm SSOT
+  # skills/_shared/doc-cluster-plan.md, the same way odoo-doc-illustration step 2 does.
   # ------------------------------------------------------------------
   - id: doc-plan
     inline: true
     model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
-    # Produce the doc-package plan by APPLYING the `odoo-doc-planner` contract with
-    # plan_source: scope (doc-only standalone path). Read the scope block at
+    # Produce the doc-package plan with plan_source: scope (doc-only standalone path). Read the
+    # scope block at
     # <OUT>/<run>/scope.yaml - modules[] with depends_in_scope[] and has_ondisk_doc.
     # Build the in-scope sub-graph and compute, per skills/_shared/doc-cluster-plan.md (the SSOT
     # algorithm - do NOT restate it here):
@@ -262,10 +245,10 @@ phases:
   # ------------------------------------------------------------------
   # Phase 5 - Provision + capture (delegated to skill odoo-doc-illustration)
   # The ONLY instance-touching + browser-bound phase. Delegates entirely to the
-  # odoo-doc-illustration skill, which is the branch-aware per-instance incremental loop SSOT
-  # (D14.2/D14.3): provision via odoo-instance, capture via the skill's two writers (one per
-  # audience, SEQUENTIAL on the same instance handle), verify, commit via git-ops, advance
-  # next-delta. The workflow does NOT restate the loop mechanics here.
+  # odoo-doc-illustration skill, which owns the branch-aware per-instance incremental loop:
+  # provision via odoo-instance, one odoo-doc-writer per module (MODE full, then MODE landing by
+  # SendMessage on the same instance handle), verify, commit via git-ops, advance next-delta. The
+  # workflow does NOT restate the loop mechanics here.
   # Phases 1, 2 and 4 pre-fetched the catalog, role map, walkthrough, buyer profile and copy; the
   # skill does NOT re-fetch them on this workflow path (they are forwarded directly).
   # SEQUENTIAL within a dependency-path; PARALLEL across independent instance-paths up to W.

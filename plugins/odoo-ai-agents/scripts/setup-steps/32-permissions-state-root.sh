@@ -23,7 +23,7 @@
 # (`Bash(...)`, `Read(...)`) are unaffected - this constraint is specific to the
 # path-matching file-permission layer.
 #
-# Root cause this fixes: `odoo-planner` / `odoo-doc-planner` / intake Phase P all
+# Root cause this fixes: `odoo-planner` / intake Phase P all
 # resolve and write under $ODOO_AI_HOME on every planning/run-DAG turn. Without
 # this permission pre-grant, a fresh install prompts for the SAME handful of
 # Bash/Read/Edit calls on every session - not a Plan-Mode problem (see

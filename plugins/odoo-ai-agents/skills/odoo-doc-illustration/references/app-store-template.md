@@ -489,9 +489,8 @@ even if the registry omits it.
 | `doc/index.rst` | English canonical - Documentation tab | No locale suffix. Tab appears on listing only when this file exists. |
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
-**Language resolver order.** SSOT: this skill's own Language resolution section (4-tier +
-disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
-is authoritative and this file cross-references it.
+**Language resolver order.** SSOT: `odoo-doc-illustration` § Language resolution - do not
+restate the tier order or the disk-union rule here.
 
 **Screenshot localization**: per-locale screenshots are captured separately; their location,
 their names and which one a localized page shows follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`

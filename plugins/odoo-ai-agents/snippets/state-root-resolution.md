@@ -78,7 +78,7 @@ lint finding.
 |---|---|
 | `coordination/` (`coordination/modules/`) | the module-coordination ledger's whole purpose is cross-worktree visibility |
 | `designs/`, `plans/`, `gap-analysis/` | reusable design/plan cache across worktrees |
-| `documentation/<slug>/<module>/`, `documentation/<slug>-<date>/` | doc-planner dedup wants repo-wide visibility |
+| `documentation/<slug>/<module>/`, `documentation/<slug>-<date>/` | doc dedup across runs wants repo-wide visibility |
 | `survey/<slug>-<date>/` | deep-survey findings later phases cite - reusable knowledge |
 | `brl/<job-id>/` (+ `chunkplan.json`, `input.jsonl`, `manifest.json`) | job-id-keyed deliverable cache |
 | `visual/baselines/`, `visual/doc/` | reusable cross-run visual-regression baselines / doc-illustration cache |

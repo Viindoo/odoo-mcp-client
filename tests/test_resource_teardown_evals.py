@@ -115,8 +115,7 @@ def _write_transcript(tmp_path, lines) -> Path:
 @pytest.mark.parametrize(
     "path",
     [
-        EVAL_A_DIR / "odoo-user-doc-writer.evals.json",
-        EVAL_A_DIR / "odoo-marketing-writer.evals.json",
+        EVAL_A_DIR / "odoo-doc-writer.evals.json",
         EVAL_B_DIR / "odoo-visual-regression.evals.json",
     ],
 )
@@ -132,10 +131,10 @@ def test_evals_json_exists_and_has_required_fields(path):
 
 def test_eval_a_briefs_carry_a_forwarded_handle_and_the_hard_lease_ban():
     """The eval prompt itself must reproduce the collision, not dodge it."""
-    for path in (EVAL_A_DIR / "odoo-user-doc-writer.evals.json", EVAL_A_DIR / "odoo-marketing-writer.evals.json"):
-        prompt = json.loads(path.read_text(encoding="utf-8"))["evals"][0]["prompt"]
+    for item in json.loads((EVAL_A_DIR / "odoo-doc-writer.evals.json").read_text(encoding="utf-8"))["evals"]:
+        prompt = item["prompt"]
         assert "INSTANCE_HANDLE" in prompt
-        assert "Do NOT drop or release the lease" in prompt
+        assert "never release" in prompt.lower(), "the brief must carry the hard lease ban"
         assert "clos" in prompt.lower(), "the brief must also carry the CLOSE-the-pages instruction"
 
 
