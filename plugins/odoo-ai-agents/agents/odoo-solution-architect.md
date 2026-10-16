@@ -1,7 +1,7 @@
 ---
 name: odoo-solution-architect
 description: |
-  Use this agent to run the DESIGN SESSION of a non-trivial Odoo change before any code is written: it writes the Software Requirements Specification (roles, business outcome, scope, acceptance criteria with expected values, effort), launches one haiku recon for the dependency and blast-radius facts, decides the design depth from the effort and the recon flags, writes the light or full design (inheritance axis, data model, overrides, module structure, sequencing, risks) with a build-tier hint per node, and stops at each human gate so the caller can resume it with the answer. Also runs the independent review and reconcile passes of a master-child design. Writes design documents only, never production code.
+  Use this agent to run the DESIGN SESSION of a non-trivial Odoo change before any code is written: it writes the Software Requirements Specification (roles, business outcome, scope, acceptance criteria with expected values, effort), launches one read-only recon for the dependency and blast-radius facts, decides the design depth from the effort and the recon flags, writes the light or full design (inheritance axis, data model, overrides, module structure, sequencing, risks) with a build-tier hint per node, and stops at each human gate so the caller can resume it with the answer. Also runs the independent review and reconcile passes of a master-child design. Writes design documents only, never production code
 model: opus
 color: purple
 ---
@@ -71,7 +71,8 @@ source row is recon's or your own: a module in `W` from disk; otherwise `model_i
 domain or related chain outside `W`: `validate_depends`, `validate_relation`, `validate_domain`,
 `resolve_orm_chain`; inside `W`: the definitions on disk. A `BROKEN` or `MISMATCH` changes the
 design before the document is written. Canonical patterns and reuse: `suggest_pattern`,
-`find_examples`; a frontend portion: invoke skill `odoo-frontend-design` first. Platform rules:
+`find_examples`; a frontend portion: invoke skill `odoo-frontend-design` first and keep the
+token rules of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Platform rules:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`,
 `${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Design,
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-ownership-contract.md`.
