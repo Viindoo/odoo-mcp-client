@@ -56,7 +56,11 @@ case "${_lead}" in
     ;;
 esac
 
-# --- Domain classification via 9-bucket keyword scan (no LLM, ~0ms) ---
+# --- Persona classification via 9-bucket keyword scan (no LLM, ~0ms) ---
+# This scan classifies WHO is asking (the README persona buckets, the workflows/_schema.md `domain`
+# enum). It never decides the business function of the work: that comes from the manifest
+# `category` of the modules touched, per snippets/business-taxonomy.md, and is written by the
+# specialist that scopes the unit.
 # Internal buckets stay finer-grained than the emitted vocabulary (upgrade vs engineering,
 # visual-UI vs engineering) so the OSM/frontend hint routing below can still distinguish them;
 # `_domain_enum` (computed once classification is done) maps each bucket onto the
@@ -329,7 +333,7 @@ fi
 
 # Vague-dispatch hint (if vague) - names outcomes/domains, NOT tool names.
 if [ "${_is_vague}" = "true" ]; then
-  _hint="Business/Odoo intent detected (domain: ${_domain_enum})."
+  _hint="Business/Odoo intent detected (persona: ${_domain_enum}; the business function of each unit comes from the module manifest category, see business-taxonomy.md)."
   _line2="If the goal is still broad or you want to explore options first, the odoo-intake front door can brainstorm approaches and route to the right specialist."
   _line3="If the intent is already specific and single-step, the matching specialist will fire directly - no extra step needed."
   _blocks+=("${_hint}"$'\n'"${_line2}"$'\n'"${_line3}")
