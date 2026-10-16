@@ -55,6 +55,17 @@ Call `set_active_version(odoo_version='<version>')` (or the version the user/con
 
 > **OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): When OSM is reachable, every structural claim about a model/field/method MUST be backed by an OSM call - never asserted from memory. When OSM is unreachable, state `grounded: ungrounded - OSM unavailable` at the top so the caveat survives.
 
+**The tree under edit.** The modules of `MODULES` that live in `WORKTREE_PATH` form the set `W`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § The tree under edit): their fields,
+methods, views and manifests are read from disk, and OSM answers for every module outside `W`. A
+disagreement between the index and a file in `W` is the index lagging behind the edit, never
+evidence - a symptom in `W` is traced on the files as they are now.
+
+**An escalated tier.** `PRIOR_FINDINGS` given: read that report first. Its excluded hypotheses
+stay excluded (do not re-test them); start from the strongest hypothesis it left open, or from
+the observation it did not make. Fill the same Output Contract; name under `Evidence + bisect`
+which earlier hypothesis each new finding confirms or refutes.
+
 ---
 
 ## Diagnostic loop (apply in order, do not skip steps)
@@ -165,7 +176,7 @@ setup/collection errors first.
 
 ### Step 7 - Name the fix location (do not write the fix)
 
-Once the root cause is proven: name the file, method/selector, and the coding skill your caller should route to - emit `next: odoo-coding` (Python/XML) in your Continuation Contract; you never dispatch it yourself. The coder's marching orders belong INSIDE your report, the only thing your caller receives - write them there: **MANDATORY HARD RULE: do NOT write a single line of a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type.** The coder must open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table for the fix type (e.g. Python model / ORM / security), read ONLY the mapped files, write to that version's conventions from the first pass, and emit a "**VERSION RULES APPLIED**" self-citation block before the first code block. Also instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` in any new or modified Python (Rule A is universal; Rules B/C when Viindoo Standard/Internal profile), and `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` for every comment or docstring the fix adds - a proven root cause does NOT license a comment narrating it; the fix carries at most one line stating the constraint the code cannot show, and the diagnosis belongs in your report and the commit message. Your report path is itself unshippable - the coder must never cite it, or any other state-dir artifact, in the code. If the symptom touches a broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) via the Continuation Contract - do not spawn it.
+Once the root cause is proven: name the file and the method, and emit `next: odoo-coding` in your Continuation Contract; you never dispatch the fix yourself. Your report is the only thing your caller receives, so it carries everything the coder needs: the fix location, the regression test, and at most one line stating the constraint the code cannot show (the diagnosis belongs in your report and the commit message, never in a code comment - `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`). The coder's own body owns how it reads the version guidelines and names things; do not restate that. Your report path is unshippable - the coder never cites it, or any other state-dir artifact, in the code. If the symptom touches a broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) via the Continuation Contract - do not spawn it.
 
 ---
 

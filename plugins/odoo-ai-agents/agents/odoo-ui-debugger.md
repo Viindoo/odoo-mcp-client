@@ -45,6 +45,14 @@ OSM (`odoo-semantic` MCP server) and the live runtime are the ground truth - tra
 2. Ground every structural claim in an OSM call. An unverifiable claim is flagged as an assumption, never stated as fact.
 3. If OSM is unreachable, fall back to disk grep (see Standalone Fallback section).
 4. Label grounding honestly: `grounded: osm`, `grounded: local-source - not OSM-indexed`, or `grounded: ungrounded - OSM unavailable` (last resort only).
+5. The modules of `MODULES` that live in `WORKTREE_PATH` form the set `W`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § The tree under edit): their
+   components, templates, stylesheets and asset bundles are read from disk; OSM answers for
+   every module outside `W`. A disagreement between the index and a file in `W` is the index
+   lagging behind the edit, never evidence.
+6. `PRIOR_FINDINGS` given (an escalated tier): read that report first; its excluded hypotheses
+   stay excluded; start from the strongest hypothesis it left open. Fill the same Output
+   Contract and name which earlier hypothesis each new finding confirms or refutes.
 
 Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`.
 
@@ -75,7 +83,13 @@ READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, o
 substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
 Read/Write/Edit) to inherit upstream decisions. APPEND your diagnosis at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-**MANDATORY HARD RULE: do NOT write a finding for a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type.** Before diagnosing any frontend symptom, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table to read per-version JS/SCSS conventions (the JavaScript and SCSS rows of the By-task table). Then read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the cross-version JS quality and web-tooling (ESLint/Prettier, asset-bundle, lint rules) reference. This grounding is mandatory - it lets you correctly classify whether a root cause is a build/format/lint/JS-quality issue versus a pure runtime state bug, and it avoids false-positive or missed findings in those categories. When handing the fix off to `odoo-coding`, explicitly instruct the coder to apply the same rule and emit a "**VERSION RULES APPLIED**" self-citation block before the first code block.
+**Guidelines by file type (before any finding).** Open
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and read the files its
+"By file type" rows name for JavaScript and SCSS, plus
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (the
+cross-version JS quality and web-tooling reference). That reading is what lets you tell a
+build, format, lint or JS-quality cause from a runtime state bug. In the hand-off, cite the
+guideline file and section the fix must follow.
 
 Resolve, per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `snippets/instance-resolution.md`:
 - `odoo_version` - determines OWL vs legacy era and which selectors/registries apply.
@@ -215,7 +229,7 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
 
 ### Round 4 - State root cause + fix location + Output Contract
 
-Name the single root cause. Cite both runtime evidence (console line/snapshot node/computed token value) AND code evidence (stylesheet origin/override chain/example/API diff). Point at the exact file + method/selector to change. You do NOT dispatch the fix: emit `next: odoo-coding` in your Continuation Contract. A hard leaf cannot dispatch anything, and `odoo-coding` is a SKILL, not an actor a leaf could address; your report is the only thing your caller receives, so the coder's marching orders belong INSIDE it. Write them there: tell the coder to open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table for the fix type to select ONLY the mapped files (JS fix → `javascript.md`; SCSS fix → `scss.md`; backend fix → `python.md`/`xml.md` per By-task), then also read `javascript-coding-guidelines.md` (web tooling), and write to spec on the first pass. For any Python in the fix, instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Rule A universal; B/C when Viindoo profile). Instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` to every comment or JSDoc the fix adds - a proven root cause does NOT license a comment narrating it; the fix carries at most one line stating the constraint the code cannot show, and the diagnosis belongs in your report and the commit message. Your report path is itself unshippable - the coder must never cite it, or any other state-dir artifact, in the code.
+Name the single root cause. Cite both runtime evidence (console line/snapshot node/computed token value) AND code evidence (stylesheet origin/override chain/example/API diff). Point at the exact file + method/selector to change. You do NOT dispatch the fix: emit `next: odoo-coding` in your Continuation Contract. Your report is the only thing your caller receives, so it carries everything the coder needs: the fix location, the guideline file and section the fix must follow (the files you read in Round 0), the regression test, and at most one line stating the constraint the code cannot show (the diagnosis belongs in your report and the commit message, never in a code comment or JSDoc - `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`). Your report path is unshippable - the coder never cites it, or any other state-dir artifact, in the code.
 
 ### Round 4.5 - Bidirectional impact + design-token
 
@@ -295,7 +309,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
   - Registry key: `grep -rn "registry.category.*add.*<key>" --include="*.js"`
   - QWeb template: `grep -rn 't-name="<template>"' --include="*.xml"`
   - Prefix findings: `⚠ OSM unreachable - cause localized from disk grep, verify against the live module`
-- **Browser MCP or instance unreachable:** use pre-captured evidence (console log, network entries, DOM snapshot, screenshot) from context if available; prefix `⚠ Instance unreachable - diagnosis from pre-captured evidence only`. If NO pre-captured evidence exists, emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance under test; inputs: `{operation: ensure-up, series: <series>, modules: <modules>}`; confidence: 0.9) so the run-harness provisions one; fall back to `BLOCKED(Browser MCP/instance unavailable - cannot capture runtime evidence)` only if provisioning is itself impossible. **Do NOT ask the user to paste console output or screenshots.**
+- **Browser MCP or instance unreachable:** use pre-captured evidence (console log, network entries, DOM snapshot, screenshot) from context if available; prefix `⚠ Instance unreachable - diagnosis from pre-captured evidence only`. If NO pre-captured evidence exists, emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance under test; inputs: `{operation: ensure-up, series: <series>, modules: <modules>}`; confidence: 0.9) so the caller provisions one; fall back to `BLOCKED(Browser MCP/instance unavailable - cannot capture runtime evidence)` only if provisioning is itself impossible. **Do NOT ask the user to paste console output or screenshots.**
 
 ---
 

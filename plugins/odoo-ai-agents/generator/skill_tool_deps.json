@@ -524,7 +524,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. test_base_classes checks for cr.commit() misuse in test context; tests_covering locates existing tests covering the failing model. Writes run notes to <ISOLATE_DIR>/debug/ (gitignored). min_server 0.15.0 for test tools."
+      "notes": "Front door: triages the symptom inline (layer, reproduction, modules in the worktree under edit), launches ONE debugger per incident (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive) at sonnet, escalates the same incident with PRIOR_FINDINGS to opus and, with a human trade-off confirmation, to fable, then hands the proven cause to odoo-coding. test_base_classes checks for cr.commit() misuse in test context; tests_covering locates existing tests covering the failing model. Writes run notes to <ISOLATE_DIR>/debug/ (gitignored). min_server 0.15.0 for test tools."
     },
     "odoo-forward-port": {
       "mcp_tools": [
@@ -909,7 +909,13 @@
         "optional": [
           "REPRODUCTION",
           "SUSPECTED_LAYER",
-          "USER LANGUAGE"
+          "USER LANGUAGE",
+          "PRIOR_FINDINGS",
+          "MODULES",
+          "WORKTREE_PATH",
+          "PROFILE",
+          "SHARE_DIR",
+          "RUN_ID"
         ]
       }
     },
@@ -925,7 +931,14 @@
         "optional": [
           "REPRODUCTION",
           "USER LANGUAGE",
-          "BROWSER MODE"
+          "BROWSER MODE",
+          "PRIOR_FINDINGS",
+          "MODULES",
+          "WORKTREE_PATH",
+          "PROFILE",
+          "SHARE_DIR",
+          "RUN_ID",
+          "INSTANCE_HANDLE"
         ]
       }
     },
@@ -1632,8 +1645,10 @@
     "odoo-debug": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-backend-debugger",
-        "odoo-ui-debugger"
+        "odoo-backend-debugger (one per incident; resumed at a higher tier with PRIOR_FINDINGS)",
+        "odoo-ui-debugger (browser-exclusive; one per incident)",
+        "odoo-perf-audit / odoo-security-audit (Skill tool, inline, reactive mode)",
+        "odoo-coding (Skill tool, inline, standalone fix hand-off)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
