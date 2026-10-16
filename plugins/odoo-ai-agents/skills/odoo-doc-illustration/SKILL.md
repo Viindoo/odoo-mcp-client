@@ -7,466 +7,119 @@ description: >-
 
 ## Role
 
-Documentation-run orchestrator for Odoo modules and the SOLE orchestrator of THIS capture/write
-run: scope and plan the modules, gate the plan once, provision the live instance(s), then per
-module launch two INTERNAL browser-driving writer agents that capture fully-rendered screenshots
-and embed them into durable module documentation - `odoo-user-doc-writer` (the role-based user
-guide `doc/index.rst`) and `odoo-marketing-writer` (App-Store `static/description/index.html`). "Sole"
-scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
-SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
-code+doc product-lifecycle plan.
-Finished images are moved into the module tree - `static/description/assets/`, or
-`static/description/` itself for the cover (`references/capture-mechanics.md` § Place finals
-where the target doc resolves them) - so they survive across sessions and git commits.
-NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
-to EMBED into docs.
+Front door for documenting Odoo modules with live screenshots. It settles the tree the docs land
+in, plans the instances a multi-module package needs, provisions each instance, launches ONE
+`odoo-doc-writer` per module (`MODE: full` for the user guide, resumed with `MODE: landing` for
+the App Store page), verifies the references, commits per module and releases what it leased.
+The writer owns the documents; this skill owns the tree, the instances and the order.
 
 ## Out of Scope
 
-- **Record a video/GIF walkthrough** -> `odoo-demo-recording`
+- **Record a video or GIF walkthrough** -> `odoo-demo-recording`
 - **Rate or audit a rendered screen** (aesthetics, a11y, Lighthouse) -> `odoo-ui-review`
-- **Pure text draft** (blog post, marketing copy, no screenshot capture needed) -> `odoo-content-draft`
-- **Spec or outline before any code/doc exists** (define what to build) -> `odoo-solution-design` or `odoo-content-draft`
+- **Pure text draft** (blog post, marketing copy, no capture) -> `odoo-content-draft`
+- **Spec or outline before any code or doc exists** -> `odoo-solution-design`
 - **Compare two builds for visual drift** -> `odoo-visual-regression`
-- **Write or fix frontend source code** -> `odoo-coding`
-- **Module not yet installed/deployed on a live instance** -> install first via `odoo-instance`, then invoke this skill
+- **Write or fix frontend source** -> `odoo-coding`
+- **The catalog, role map or walkthrough alone, no browser** -> `odoo-doc-feature-map` /
+  `odoo-doc-walkthrough`
 
-## Sole orchestrator (scoper -> planner -> ONE gate -> per-instance loop)
+## Inputs
 
-This skill owns the ENTIRE run: scoping, planning, the plan gate, instance-provisioning authority,
-the per-instance loop, verify, per-module commit, and writer model selection. The two writer agents
-are INTERNAL leaf executors - only this skill launches them; no consumer reaches past the skill into
-a writer. The writers NEVER spawn, call the Skill tool, call `odoo-content-draft`/`-scoper`/
-`-planner`, or run a loop - ALL orchestration lives here.
+`TARGET`: one module (name or path), or `local`, `worktree:<abs-path>`, `repo:<abs-path>` for a
+multi-module package. Optional axes, per module or for the run: `DOC LAYER` (`userguide`,
+`appstore`, `both`; default `both`, else what the module already ships on disk), `DOC SCOPE`
+(`screenshot-doc` default, `full-guide`), `CAPTURE MODE` (`screens` default, `scenarios`),
+`BROWSER MODE` (`headless` default), `LANGUAGES`, `TARGET MARKET`, `REDOC`. A caller may supply
+per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`, `MARKETING COPY`, `BUYER PROFILE`; each
+is forwarded and never rebuilt.
 
-**State dir resolution (once per run, before the first write to the module tree and before any
-writer dispatch).** First settle `doc_root`, the tree this run writes and commits in: the worktree
-a caller passes (`WORKTREE_PATH`, `TARGET: worktree:<path>`, or the `doc_root` of a scope it
-supplies), else the scope's `doc_root` on the multi-module path, else the top level of the repo
-holding the module. Before the plan gate (step 3) on the multi-module path, before provisioning on
-the single-module path, tell the kinds of checkout apart with one bounded read
-(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read allowlist):
-`git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`.
-- Two different paths: `doc_root` is a linked worktree (`run-harness` or the caller made it). Use
-  it as is and create nothing.
-- The same path twice: `doc_root` is a principal checkout, which never takes a write. Then run the
-  bounded read `git -C <doc_root> status --porcelain -- <each module path>`, listing also each
-  dependency the instance loads from this same repo (one in another repo is not checked): a
-  worktree starts at HEAD, so uncommitted changes there would go undocumented. When it lists any,
-  ask the user ONCE - commit them first (the user commits; then continue), or document HEAD without
-  them - and never proceed silently; on the multi-module path that question is part of the ONE plan
-  gate. Once the plan gate approves (a cancelled plan leaves nothing behind), or on the
-  single-module path before provisioning, invoke `git-toolkit:git-ops` (Skill tool) to create a new
-  worktree and docs branch starting at that checkout's HEAD commit, named explicitly
-  (`git rev-parse HEAD`).
-  That worktree becomes `doc_root`; re-root every module path into it (same path relative to the
-  repo top level). The run summary names the worktree path and branch; this skill never merges or
-  pushes it.
-- The read fails (not under git): use `doc_root` as is; there is nothing to commit.
+## Steps
 
-Then, as the cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - resolve
-`<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE, with cwd set to that final `doc_root`, and CAPTURE both
-absolute paths for the rest of the run: call
-`mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice with `cwd` = `<doc_root>`, once with
-`axis` `share` and once with `axis` `isolate`.
-Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY writer dispatch brief
-(§Writer dispatch briefs below) and reuse the SAME captured `ISOLATE_DIR` value - never a fresh
-resolve call - at the end-of-run staging cleanup step below, so the writers' staging path and the
-cleanup's `rm -rf` target are guaranteed identical. `doc_root` is ALSO this run's `WORKTREE_PATH`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 - each writer is a separate agent context
-and does not inherit this skill's cwd) - pass it verbatim as `WORKTREE_PATH:` in every writer brief
-alongside `SHARE_DIR:`/`ISOLATE_DIR:`; never let a writer re-derive its module root from its own cwd.
+1. **The tree.** `doc_root` = the worktree the caller names (`WORKTREE_PATH`, `worktree:`), else
+   the top level of the repo holding the module. One bounded read tells the kinds apart
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read allowlist):
+   `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`. Two paths: a
+   linked worktree, used as is. The same path twice: a principal checkout, which never takes a
+   write - run `git -C <doc_root> status --porcelain -- <each module path and its in-repo
+   dependencies>`; when it lists anything, ask once (commit first, or document HEAD without it)
+   as part of the gate of step 3; then invoke `git-toolkit:git-ops` to create a docs worktree and
+   branch at HEAD under `worktree_root` = `project_dir` (axis `worktree`, `name` = `docs-<slug>`),
+   and re-root every module path into it. Not under git: use it as is, nothing to commit. Then
+   capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir` (`cwd` = `doc_root`, axes
+   `share` and `isolate`) and pass the same literals to every launch and to step 7.
+2. **Scope and plan (inline, no launch).** Per module: `abs_path`, `version`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), `languages` (§ Language
+   resolution), `doc_layer`, `has_demo`, `depends_in_scope`, `has_ondisk_doc`, `target_market`
+   proposed from the descriptor (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md`
+   § Target market) - field rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`
+   § Input. One module: one instance, one step. Several: compute `doc-plan.yaml` per that file's
+   algorithm (clusters, branch-aware instances, leaf-first order, dedup, `W`) and write it to
+   `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`.
+3. **One gate.** Present the whole plan - modules, instances and order, `doc:false` modules with
+   their reason, `W`, one `TARGET MARKET` row per appstore module, the uncommitted-changes
+   question of step 1 - for one `approve / refine: [feedback] / cancel`. `refine` recomputes the
+   plan; `cancel` leaves nothing behind. A single module with every input resolved skips the gate
+   except the target-market and uncommitted-changes questions, asked once.
+4. **Orphan sweep**, before any launch: remove abandoned staging of earlier runs -
 
-**Orphan sweep (crash backstop, do this every run, BEFORE any writer dispatch above and BEFORE
-this run's own `<run_id>` exists below).** The end-of-run staging cleanup below only fires on a
-clean finish - a run that crashed, was killed, or was abandoned mid-loop leaks its
-`visual/<run_id>/` dir forever unless a later run reaps it. `visual/` itself is NOT a `<run_id>/`
-directory - it is the shared parent of `baselines/`, `doc/` (SHARE, reusable - NEVER sweep) and
-`current/`, `qa/`, `debug/`, `screenshots/`, `videos/`, `adhoc/` (other owners' sibling ISOLATE trees -
-NEVER sweep, they are not `<run_id>/` dirs and this skill does not own them), so the sweep MUST
-exclude all eight by name rather than blindly sweeping every `visual/` child:
+   ```
+   find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos ! -name adhoc -mmin +1440 -exec rm -rf {} +
+   ```
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3; the eight
+   named children are other owners' trees).
+5. **Per instance path** (sequential within a path; paths in parallel up to `W`, each on its own
+   browser family and instance - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+   § Browser exclusivity):
+   1. Invoke `Skill(odoo-instance)` inline with `CONTEXT: doc`, `MODE_HINT: path-incremental`,
+      `LANGUAGES`, `RUN_ID`, `WORKTREE_PATH: <doc_root>` for the first delta; keep the returned
+      block verbatim as `INSTANCE_HANDLE` and its `addons_path` as `ADDONS_PATH`.
+   2. For each module `M` of the path, leaf first. `doc:false`: install only (step 5.5).
+      Otherwise run the reference gate of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+      on `M` with no file arguments and keep its findings as the baseline, then launch
+      `odoo-doc-writer` (`model: sonnet`, brief in `references/writer-brief.md`) with `MODE: full`
+      when the layer includes `userguide`, else `MODE: landing`.
+   3. Layer `both`: when the `full` round returns, send the same writer `MODE: landing` with
+      `SendMessage` - never a second launch; it holds the catalog and the captures.
+   4. **Verify.** Every reported file exists. Run the reference gate on `M` with no file
+      arguments; exit 2 stops the run `NEEDS_CONTEXT`. Compare each exit-1 finding with the
+      baseline (same file, rule and reference): `IMG_ORPHAN` -> delete the file yourself and
+      include it in the commit; a finding not in the baseline, or a baseline finding in a file of
+      this run's layer -> send it to the writer as `FINDINGS` and re-run the gate; a baseline
+      finding in a file left untouched -> `concerns`, not a block. Then commit `M`'s docs in
+      `doc_root` through `git-toolkit:git-ops`, one commit per module.
+   5. Advance: `Skill(odoo-instance)` inline with the held `lease_token` for the next delta
+      (init-delta on the same database), then ensure-up; a convergence fill reuses the branch
+      instance per `doc-plan.yaml`. One lease per path; never a second.
+6. **Release** every lease this run took (`odoo-instance` step E, or
+   `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`), then
+   delete this run's staging only: `rm -rf <ISOLATE_DIR>/visual/<run_id>/` (never a bare
+   `visual/`).
+7. **Return.** `doc-run-<run_id>/index.jsonl` listing every output path; the worktree and branch
+   when step 1 created them (this skill never merges or pushes); the `concerns` collected.
 
-`find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos ! -name adhoc -mmin +1440 -exec rm -rf {} +`
+## Language resolution
 
-(any remaining child - by construction only a `<run_id>/` dir - untouched for over 24h is
-presumed abandoned; a healthy doc run finishes well inside that window). Full rule + bound
-rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
-Enforcer: whoever executes `odoo-doc-illustration` next, unconditionally, every run.
+The locale list passed as `LANGUAGES` to every launch, first tier that yields a value: the
+brief's `LANGUAGES`; `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` `default_languages`; the module's
+`i18n/*.po` locales; `res.lang` active languages on the live instance. All four empty:
+`NEEDS_CONTEXT(documentation language)` - no built-in default, the same rule as `odoo-i18n`.
+Then union with the locales already documented on disk (`index_<locale>.html`,
+`doc/index_<locale>.rst`) so no translation is dropped, and add `en_US`, the canonical suffix-less
+file.
 
-**Target market (appstore layer only, confirmed once).** The buyer profile behind every landing
-needs each appstore module's `TARGET MARKET`. A brief or plan that carries one is used as is.
-Otherwise propose one per module from its descriptor, per
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md` § Target market, and
-have the user confirm it ONCE: on the multi-module path as one row per appstore module in the
-whole-plan gate (step 3 below); on the single-module path as one question before provisioning.
-Never guess it silently.
+## Standalone-first fallback
 
-**Single module.** A single module dir/name takes the single-module path with no
-scoper/planner hop: confirm the target market when an appstore layer runs and the brief carries
-none (§ Target market above), settle `doc_root` and the state dirs (§ State dir resolution),
-provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE against that module.
+OSM unreachable: the writer grounds labels from the module tree and prefixes its report
+`WARNING: OSM unreachable - labels from disk source`. No browser or no instance: the writer
+writes the structure with `[Image: <slug>]` placeholders and returns `NEEDS_NEXT` ->
+`odoo-instance`; `BLOCKED` only when even the structure cannot be written.
 
-**Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
-1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
-   `{abs_path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
-   **Resume: read `_scope.md` back, do not re-scope.** The scoper writes `_scope.md` under
-   `<SHARE_DIR>/documentation/<slug>-<date>/`. Glob that dir for this slug first; a match is READ
-   and used verbatim - skip the dispatch. The
-   per-instance loop reads any scope field it needs from that file, never from a re-dispatch.
-   Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1.
-2. **Plan** - dispatch `odoo-doc-planner` (`plan_source: scope`) to emit `doc-plan.yaml` -
-   dependency clusters + branch-aware instance allocation + per-instance topological
-   `install_doc_sequence` + dedup + parallelism schedule. Algorithm SSOT:
-   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md` - do not re-derive it here.
-3. **Gate (ONE whole-plan).** Present the ENTIRE plan (clusters + instance allocation + install/doc
-   order + dedup, with the already-documented choice of `skills/_shared/doc-cluster-plan.md` § 5 +
-   schedule + one proposed `TARGET MARKET` row per appstore module + the uncommitted-changes
-   question when § State dir resolution's status read lists any) for a SINGLE
-   `approve / refine: [feedback] / cancel` - NOT a gate per cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
-   provisioned.
-4. **Loop** - create the docs worktree when `doc_root` is principal and resolve the state dirs
-   (§ State dir resolution), then run the
-   per-instance incremental loop below over `doc-plan.yaml`.
+## Agent-managed tools
 
-**Per-instance incremental loop (the loop body).** Per instance-path (SEQUENTIAL within a path;
-PARALLEL across independent instance-paths up to
-`W = min(#paths, browser-family pool, ephemeral-instance cap ~3)` - browser-family pool size is per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, the SSOT for
-`W`; HARD GUARD: never run two paths on the same browser family or the same instance):
-
-1. **Provision once at the leaf.** Invoke `Skill(odoo-instance)` INLINE in your own context
-   (NEVER dispatch the `odoo-instance-ops` agent, for this step or any later one - this skill must
-   hold the lease across the whole path, and the `odoo-instance` skill's path-incremental branch
-   defines steps A-E), with `CONTEXT: doc` (demo on + skip-auto-install), `MODE_HINT: path-incremental`,
-   `LANGUAGES: <csv>`, this run's `RUN_ID`, and `WORKTREE_PATH: <doc_root>` (`none` only when
-   `doc_root` is not under git) so the instance loads the tree being documented. Lease mode, ports and
-   flags are the executor's (`odoo-instance`); never name them here. THIS SKILL (not instance-ops)
-   reads back the returned `instance-ops` block VERBATIM as `INSTANCE_HANDLE` (the full descriptor
-   per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`, `lease_token` and `run_id`
-   included - never a `<db>:<port>` shorthand) and forwards
-   `addons_path` as `ADDONS_PATH:` to every writer (§Writer dispatch briefs) so each can run the
-   Addons coverage assertion against `WORKTREE_PATH` instead of trusting an unverified handle.
-2. **Walk `install_doc_sequence[]`** (each module M, leaf-dependency-first). For `M.doc == true`:
-   1. **Catalog + role map (every DOC LAYER).** GUARANTEE M's `feature-catalog.jsonl` and
-      `role-map.json` exist - use the ones the caller or plan supplies, else invoke
-      `odoo-doc-feature-map` (which runs `odoo-feature-cataloger` and writes both). Every pre-fetch
-      and writer below reads these two files.
-   2. **Buyer profile + marketing copy pre-fetch (TONE: marketing only).** If copy is not already
-      supplied (the `module-packaging` workflow Phase 4 supplies it; a standalone run does not):
-      invoke `odoo-content-draft` (landing-page-copy channel) with the step 2.1 catalog and role
-      map, M's module descriptor and M's confirmed `TARGET MARKET`. Save the `## Buyer profile`
-      block it returns as `<catalog dir>/buyer-profile.md` and pass the rest as `MARKETING COPY`.
-      Copy a caller supplies travels with its buyer profile when the caller has one (none -> no
-      `BUYER PROFILE:` line). The writers NEVER call
-      content-draft; the skill owns this pre-fetch. `marketing` is the DOC LAYER `appstore` default
-      (§ Documentation axes), so a bare appstore dispatch triggers this pre-fetch automatically.
-   3. **Walkthrough pre-fetch (CAPTURE MODE: scenarios only).** If a `WALKTHROUGH:` path is not
-      already supplied (a caller may pass one; a standalone `CAPTURE MODE: scenarios` run does
-      not): invoke `odoo-doc-walkthrough` (which fans out `odoo-doc-scenarist`) with the step 2.1
-      files as `CATALOG_PATH` / `ROLE_MAP_PATH` to produce `walkthrough.jsonl` for this module, then
-      pass its path as `WALKTHROUGH:` to the writer(s) below. Conditional on
-      `CAPTURE MODE: scenarios` only - the default `screens` mode does not need this pre-fetch
-      (narrow blast radius). The writers NEVER call `odoo-doc-walkthrough`
-      themselves; the skill owns this pre-fetch, mirroring the marketing-copy pre-fetch above.
-   4. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive PER FAMILY,
-      per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - NEVER two writers
-      concurrent on ONE instance OR the SAME browser MCP family; distinct families/instances may run
-      in parallel). Read `M.doc_layer` from THIS module's `install_doc_sequence`
-      entry (SSOT: `skills/_shared/doc-cluster-plan.md` § schema); when `M.doc_layer` is absent (a
-      `plan_source: design-dag` entry with no scoper pass), use the run-level DOC LAYER axis default
-      (§ Documentation axes below) for that module only - never the other way round. Resolved value:
-      `userguide` -> `odoo-user-doc-writer`; `appstore` -> `odoo-marketing-writer`; `both` -> BOTH, one
-      after the other on the same `INSTANCE_HANDLE` (two audience-pure capture passes - the marketing
-      cover and task shots and the userguide per-step shots are DIFFERENT sets). Fan-out is free
-      across MODULES/INSTANCES (each on its own family/instance), never within one instance.
-      **Baseline first.** Before the first writer for M, run the doc reference gate on M exactly as
-      step 5 does and keep its findings as M's baseline - what the module carried before this run.
-      **Model selection (skill-owned).** The skill picks EACH writer's model at dispatch - default
-      `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
-      Agent-launch param > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > the calling context's model). The writer frontmatter carries only the default;
-      no consumer sets a writer's model - model authority stays with this orchestrator.
-   5. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
-      completion block (files exist at the reported paths), then run the doc reference gate on M
-      with no file arguments, so it checks every doc file, the module descriptor and orphan images
-      (`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate; `--series` = M's
-      resolved series). Exit 2 stops the run `NEEDS_CONTEXT`. Compare each exit-1 finding with M's
-      baseline (step 4; a match is the same file, rule and reference - lines may shift) and route
-      it:
-      - `IMG_ORPHAN` -> delete the file yourself (a file deletion, not a git command), include the
-        deletion in M's commit, and list every deleted file in the run summary;
-      - a finding not in the baseline -> back to the writer that ran, whatever file it is in (with
-        both writers: a `doc/` file to `odoo-user-doc-writer`, any other to
-        `odoo-marketing-writer`), then re-run the gate;
-      - a baseline finding in a file of this run's DOC LAYER for M (`doc/*.rst` for `userguide`;
-        `static/description/index*.html` and the descriptor for `appstore`) -> back to the writer
-        of that layer, which owns every reference in the files it writes;
-      - a baseline finding in any other file (left untouched) -> report it under `concerns:`; it
-        does not block the commit.
-      Once a gate run reports nothing but that last kind, COMMIT M's docs in `doc_root` via
-      git-toolkit `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
-   For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
-3. **Advance.** Invoke `Skill(odoo-instance)` INLINE again with the HELD `lease_token` for the next
-   delta (step B, init-delta on the SAME DB) then ensure-up (step C), and repeat step 2 for M+1.
-   Convergence reuse+fill (step D) per `doc-plan.yaml`. THIS SKILL decides WHEN to advance and WHEN
-   to release; each step only executes and returns its block. Never acquire a second lease for the
-   path. The lease stays protected for the whole session across advances; nothing needs refreshing
-   between them. Paths running in parallel that meet on ONE database (a convergence fill) follow
-   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
-
-Order per module: **install -> catalog + role map -> pre-fetch buyer profile + copy (marketing) ->
-pre-fetch walkthrough (scenarios) -> baseline gate -> capture + assemble (writer(s), serial) ->
-verify -> commit -> next-delta.**
-
-**End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
-BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
-`<run_id>` ONLY. `visual/` is Tier-2 ISOLATE; reuse the SAME `<ISOLATE_DIR>` captured ONCE at
-§State dir resolution above (the identical literal every writer this run staged under, per the
-`SHARE_DIR:`/`ISOLATE_DIR:` fields in §Writer dispatch briefs) - do NOT re-resolve here, then:
-```
-rm -rf <ISOLATE_DIR>/visual/<run_id>/
-```
-HARD RULE: never `rm` another run's subtree (no bare `<ISOLATE_DIR>/visual/`); every final was
-already `mv`d out of staging into its module, so removing the run-scoped staging loses nothing.
-
-**Files vs teardown (distinct steps - do all three, in order).** The staging `rm -rf` above handles
-FILES only - it is NOT resource teardown; see
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3 for pages and the lease. Before
-emitting the aggregate index, also: (a) RELEASE EVERY path-incremental lease this run provisioned (one per
-instance-path, so one per independent branch) via `odoo-instance` step E (or
-`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with each handle's `lease_token` and this
-run's run_id) - never leave any path's last instance leased (If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md); (b) tear down every browser page this run drove, per
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 (end of dispatch, by family).
-
-Then emit one aggregate index per run (`doc-run-<run_id>/index.jsonl`) listing every output path.
-
-## Writer dispatch briefs
-
-**Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-user-doc-writer`,
-`odoo-marketing-writer`, or any other specialist agent dispatched below, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
-agent's Doc-writer family delta; never inline that file verbatim into a hard-leaf brief.
-
-The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
-- the writer resolves the absolute path under `WORKTREE_PATH` (never its own cwd - a dispatched
-agent does not inherit this skill's cwd, per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
-field 5 § Universal skeleton) using `ADDONS_PATH` (resolved per
-`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) before falling back to a disk scan. Omitting an axis field
-preserves today's behavior (see Documentation axes). Shared
-browser-capture mechanics (staging, framing, finals placement, headless/headed, on-theme check per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a screen with an empty or
-self-referential token resolves off-theme and must be skipped, never embedded in shipped docs -
-per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanics.md`; the skill
-does not restate them.
-
-Both briefs carry `RUN_ID: <run-or-slug>` - REUSE the run's worklog run-or-slug (the id used for
-`doc-run-<run_id>/index.jsonl`); do NOT mint a new id. Both briefs ALSO carry `WORKTREE_PATH:` /
-`SHARE_DIR:` / `ISOLATE_DIR:` - the SAME absolute paths captured ONCE at §State dir resolution
-above; writers use them literally per `references/capture-mechanics.md` section 3, never
-re-resolving. The writers
-stage captures under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/...` (using the passed
-`ISOLATE_DIR` literal), so two modules or concurrent runs never clobber each other, and the
-end-of-run cleanup (which reuses the same literal) always finds the real staging tree.
-
-**`odoo-user-doc-writer`** (DOC LAYER `userguide`, or the userguide half of `both`):
-```
-MODULE PATH: <abs path to module dir | module name>
-RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
-WORKTREE_PATH: <abs-path captured at State dir resolution (doc_root)>
-SHARE_DIR: <abs-path captured at State dir resolution>
-ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
-INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>   # absent = writer self-checks install
-ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
-WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios - skill pre-fetches via odoo-doc-walkthrough (§ per-instance loop step 2.3) when not already supplied
-FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # guaranteed by step 2.1; feeds the guide Overview
-ROLE MAP: <abs path to role-map.json>                                  # guaranteed by step 2.1; drives the Overview process + per-role chapters
-LANGUAGES: <resolved locale list, English-first>
-DOC SCOPE: screenshot-doc | full-guide
-CAPTURE MODE: screens | scenarios
-extends_in_scope: [<base_module>, ...]
-BROWSER MODE: headless | headed
-```
-
-**`odoo-marketing-writer`** (DOC LAYER `appstore`, or the appstore half of `both`):
-```
-MODULE PATH: <abs path to module dir | module name>
-RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
-WORKTREE_PATH: <abs-path captured at State dir resolution (doc_root)>
-SHARE_DIR: <abs-path captured at State dir resolution>
-ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
-INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>
-ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
-MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
-BUYER PROFILE: <abs path to buyer-profile.md saved at step 2.2>                # target market, segment, buying committee the copy addresses
-FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED (guaranteed by step 2.1) - absent -> writer BLOCKS
-LANGUAGES: <resolved locale list, English-first>
-CAPTURE MODE: screens | scenarios
-extends_in_scope: [<base_module>, ...]
-BROWSER MODE: headless | headed
-```
-
-## Documentation axes
-
-**Axis defaults.** DOC LAYER `appstore` (writes `static/description/index.html`); TONE
-`marketing` when DOC LAYER resolves to `appstore` (an App-Store `index.html` is inherently
-buyer-facing, so this default also makes the copy pre-fetch in step 2.2 FIRE by default,
-supplying `odoo-marketing-writer`'s REQUIRED `MARKETING COPY`; step 2.1 supplies its
-`FEATURE CATALOG` - see § TONE); the `userguide` layer is unaffected by TONE (TONE governs only
-the appstore `index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens`. A bare dispatch
-that omits every axis field produces a marketing-toned App-Store landing page by default: pass
-`TONE: technical` explicitly to keep the plain-technical `index.html` (this leaves the copy
-pre-fetch un-fired and could BLOCK `odoo-marketing-writer` on its REQUIRED `MARKETING COPY`).
-
-**DOC LAYER precedence (multi-module runs).** A per-module `doc_layer` on the `doc-plan.yaml`
-`install_doc_sequence` entry (§ per-instance loop step 2 above) ALWAYS wins for that module; this
-run-level DOC LAYER axis is the default applied only when a module's plan entry carries no
-`doc_layer`. The single-module path (no scoper/planner hop) has no plan entry, so the
-run-level axis is authoritative there.
-
-**DOC LAYER** - which output files are produced and which writer runs:
-- `appstore` -> `odoo-marketing-writer` writes `static/description/index.html` (App Store listing).
-- `userguide` -> `odoo-user-doc-writer` writes `doc/index.rst` (user guide / RST documentation).
-- `both` -> the skill launches BOTH writers serially on the same instance; each captures the shots
-  it needs and writes its own file. No single agent writes both.
-
-**Tab roles (App Store).** `static/description/index.html` = the **Description** tab (marketing /
-overview); `doc/index.rst` = the **Documentation** tab (the user guide for the business roles that
-use the module). Keep marketing out of the RST and step-by-step tasks out of the HTML - do not
-duplicate content across the two.
-
-**TONE (appstore index.html tone).** `marketing` (default when DOC LAYER resolves to `appstore`) =
-`odoo-marketing-writer` assembles a brand-aware **App-Store landing page** per
-`references/app-store-template.md` (sanitizer rules + brand-token/palette resolution are owned
-there - do not restate them here). The skill pre-fetches the buyer profile and the copy from
-`odoo-content-draft`; the writer resolves `[Image: <slug>]` markers after capture and sources the
-Key Features grid from the feature catalog. `technical` (opt-in via `TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
-OSM-grounded prose, screenshots). `odoo-marketing-writer` is the sole `appstore` writer regardless
-of TONE, and its `MARKETING COPY`/`FEATURE CATALOG` inputs are UNCONDITIONALLY REQUIRED (hard
-BLOCK if absent, per its own § Required inputs) - the copy pre-fetch above is
-gated on `TONE: marketing`, so an explicit `TONE: technical` dispatch does NOT trigger it and the
-caller must supply `MARKETING COPY` some other way or the writer BLOCKs. Prefer the `marketing`
-default unless a caller has its own copy-supply path for `technical`.
-
-**DOC SCOPE (userguide depth).** Both scopes write the same role-based guide structure, which
-`odoo-user-doc-writer` owns. `screenshot-doc` (default) = one screenshot per task with short steps.
-`full-guide` = full step-by-step tasks plus troubleshooting and FAQ.
-
-**CAPTURE MODE (how screenshots are taken).** `screens` (default) = navigate to each screen and
-snapshot. `scenarios` = consume the walkthrough `steps[]` (`{action: navigate|fill|click|select|wait,
-target, value}`) and, for EACH step, perform the action then shoot it, with an optional state-assert via the live Odoo MCP
-between steps. Requires a live, seeded instance and a `WALKTHROUGH:` path. Both writers honour it via
-`references/capture-mechanics.md`.
-
-**Image anchor markers.** `[Image: <slug>]` (slug only, no spaces - NOT `[[IMG:]]`) is the
-placeholder `odoo-content-draft` EMITS in the marketing copy; `odoo-marketing-writer` RESOLVES each
-to a captured file after capture. `odoo-user-doc-writer` writes RST directly (no markers, no
-content-draft). A marker surviving into a shipped artifact means the capture was degraded (see
-Degraded paths).
-
-## Provisioning, parallel cap, degraded paths
-
-**Precondition provisioning (route to `odoo-instance`).** Before any capture the instance must be
-provisioned cleanly: module installed with demo data (sample data for scenarios), every resolved
-locale loaded (per-locale UI), and auto-install side modules skipped (docs show only the target
-module's surface). Resolve the exact flags via OSM `cli_help` at runtime (version-aware - never
-hardcode flag names). The skill VERIFIES this precondition; if not met, it routes to `odoo-instance`
-(provision) and emits a WARNING rather than documenting a polluted UI.
-
-**Parallel capture (cap W + server-family isolation).** Browser-free phases (scoper, feature-map,
-walkthrough, icon, copy) fan out wide. The browser-bound group is bounded: each writer uses ONE
-browser MCP server family (`chrome-devtools` (default) / `playwright` (opt-in), plus headed families
-when `DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two writers to the
-same server family (shared server = race). `W = min(#(module x locale) browser-bound units,
-browser-family pool, ~3 ephemeral instances)` - browser-family pool size is per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, the SSOT for
-`W`; work beyond W batches serially. State-mutating (CRUD-heavy) scenario captures cap at <=2
-simultaneous.
-
-**Degraded paths (never hard-block the whole run).** Per-locale: if a locale fails to load/switch,
-the writer reuses the English screenshots for that locale's doc (the fallback
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images allows) with an
-`[Image: <slug>]` note and reports `status: DONE` with `concerns: [locale <x>: English screenshots used]` - other locales proceed.
-Global: with no instance/browser, the writer still assembles the structure + supplied copy with
-`[Image: <slug>]` placeholders and routes to `odoo-instance` to fill captures later, instead of
-`BLOCKED`.
-
-**Headless/headed.** The skill defaults `BROWSER MODE: headless` - the only safe choice on a
-no-display / CI host. Pass `headed` only when the user explicitly asks to watch, and only after
-confirming a display is plausibly available; warn rather than dispatch headed on a headless host.
-
-## Language resolution (4-tier + disk-UNION, no default)
-
-**SSOT.** This section is the single source of truth for the 4-tier language resolver (+
-disk-UNION). Any other file that describes this resolution order (e.g. `app-store-template.md`,
-`doc-scoper.md`) or cites it (`user-doc-writer.md`, `marketing-writer.md`) MUST cross-reference this
-section rather than restate the tiers - do not fork a second copy of this order elsewhere.
-
-Resolve the documentation language list the skill passes as each writer's `LANGUAGES:` in this order
-- first tier that yields a value wins (the same four tiers as `odoo-i18n`'s own P0):
-1. Explicit `LANGUAGES:` value already in the run / plan
-2. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
-3. Module `i18n/*.po` locales already present
-4. `res.lang` active languages on the live instance
-
-**No tier 5 - no built-in default, same policy as `odoo-i18n`'s own P0.** When ALL FOUR
-tiers above resolve empty, do not guess or silently generate documentation in an unrequested
-locale: return `status: NEEDS_CONTEXT` naming the missing field (`documentation language`). This
-mirrors odoo-i18n's own no-default rule exactly - the two do not diverge on what happens when every
-tier comes up empty.
-
-**UNION with existing on-disk doc locales (mandatory, after tier resolution).** Scan
-`static/description/` for `index.html` / `index_<locale>.html`; also scan `doc/` for `index.rst` /
-`index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect as `disk_doc_locales`. Final
-list = `tier_resolved_list` ∪ `disk_doc_locales`. On-disk doc locales are ALWAYS included - never
-pass a `LANGUAGES:` field that omits a locale already documented on disk (prevents silently dropping
-translations). Tiers 1-4 here map one-to-one onto odoo-i18n P0 tiers 1-4 - one resolution order for
-both stacks, no extra tier on either side.
-
-**English-mandatory canonical (marketing / full-guide branch).** When TONE is `marketing` or DOC
-SCOPE is `full-guide`, the final set = `{en_US}` ∪ resolved-set. English is the canonical,
-suffix-less doc (`index.html`, `doc/index.rst`), force-included even if the registry omits it; every
-other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. Applied on top of the shared
-resolver - it does NOT change the resolver's no-default behavior above (there is no hard fallback
-locale) used by the screenshot-doc/technical path.
-
-**Per-locale capture (CAPTURE MODE: scenarios).** Read-only screens stay language-neutral (capture
-once, shared). A driven scenario MUTATES state so it cannot be re-rendered with `?lang=`; the writer
-re-drives each scenario from its precondition per locale (outer = locale, middle = scenario, inner =
-step; English first and in full) - see `references/capture-mechanics.md`.
-
-## INSTANCE_HANDLE + cross-reference
-
-**INSTANCE_HANDLE (path-incremental).** In the per-instance loop the skill provisions once, reads
-back the instance-ops block verbatim as `INSTANCE_HANDLE`, plus its `addons_path`, and passes both
-(the latter as `ADDONS_PATH:`) to each writer. A writer with `INSTANCE_HANDLE` uses that DB/port
-directly and does NOT self-provision; after its
-writes it emits a path-incremental completion block so the skill can verify, commit, and advance to
-the next module delta on the same live DB. A writer with NO `INSTANCE_HANDLE` (standalone dispatch)
-self-checks that the module is installed and behaves as today.
-
-**extends_in_scope (cross-reference hint).** An optional list of in-scope base module names (from the
-planner/scoper `depends_in_scope ∩ doc:true` set). When non-empty, the writer inserts one
-cross-reference per base - "Extends `<base>` - see its documentation", linked per
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module - into
-`doc/index.rst` (`odoo-user-doc-writer`, any DOC SCOPE) and/or
-`static/description/index.html` (`odoo-marketing-writer`, after the hero). Absent/empty -> nothing
-added; default behavior preserved.
-
-## Standalone fallback
-
-- **OSM unreachable:** the writers skip source-grounding and grep the repo on disk for module views
-  and menu ids to confirm which screens exist, prefixing output with
-  `WARNING: OSM unreachable - screen list inferred from disk grep, verify against live instance`.
-- **Browser MCP or instance unreachable:** for TONE `marketing` or DOC SCOPE `full-guide`, the writer
-  does the **degraded assembly** first (structure + supplied copy with `[Image: <slug>]`
-  placeholders) then emits `status: NEEDS_NEXT` routing to `odoo-instance` (`operation: ensure-up`)
-  so the run-harness provisions one and a later pass fills the captures - screen captures are the
-  instance-REQUIRED part of this deliverable (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`).
-  Fall back to
-  `BLOCKED(Browser MCP unavailable - cannot capture screenshots)` only when even the degraded
-  structure cannot be written.
+`odoo-doc-writer` (modes `full`, `landing`); `odoo-instance` inline for every lease.
 
 ## Continuation Contract
 
-Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-harness output, changes nothing above.
+Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
+index path and every doc file; `status: DONE` with `concerns`.

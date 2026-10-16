@@ -1,15 +1,13 @@
 # Capture Mechanics Reference
 
-Shared browser-capture mechanics for the two documentation writer agents -
-`odoo-user-doc-writer` (role-based user guide) and `odoo-marketing-writer` (App-Store landing).
-Both agents drive a live Odoo instance to shoot screenshots, then hand the images to their
-own assembly step. This file is the SSOT for HOW to capture; each writer body stays short and
-owns only its AUDIENCE and its assembly. It is also the SSOT that `docs/odoo-ui-knowledge.md`
+Browser-capture mechanics for `odoo-doc-writer`, which drives a live Odoo instance to shoot the
+screenshots of the user guide (`MODE: full`) and of the App Store landing (`MODE: landing`),
+then embeds them in its own assembly step. This file is the SSOT for HOW to capture; the writer
+body owns the audience and the assembly. It is also the SSOT that `docs/odoo-ui-knowledge.md`
 points at for the browser write mechanism.
 
-Each writer is a leaf executor: it captures ONLY the shots it needs and NEVER spawns a subagent,
-invokes the Skill tool, or runs an orchestration loop. The dispatching skill owns provisioning,
-copy pre-fetch, the per-instance loop, verify, and commit.
+The writer captures only the shots its shot list names and launches nothing. The dispatching
+skill owns provisioning, the per-instance loop, verify and commit.
 
 ---
 
@@ -99,8 +97,8 @@ started, and installed the module (as a cumulative delta) on that instance and o
   owns provisioning. Never drop or release the lease. (This ban is about the INSTANCE lease only -
   it is orthogonal to browser pages. You MUST still CLOSE every browser page you drove, opened or
   reused; closing a page never touches the lease. See resource-teardown-contract.md T2 vs T3.)
-- After all writes, emit the path-incremental completion block so the skill can verify + commit and
-  install the next module delta. Never install the next module yourself.
+- After all writes, report every file path so the skill can verify, commit and install the next
+  module delta. Never install the next module yourself.
 
 When `INSTANCE_HANDLE` is absent (standalone dispatch), confirm the module is installed first:
 `search_records` on `ir.module.module` with `[['name','=','<module>'],['state','=','installed']]`;
@@ -229,7 +227,7 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
 
 - **`screens` (default):** navigate + snapshot per screen. Read-only, so a screen is language-neutral
   UI-chrome-wise - but text on screen IS locale-dependent, so honour the per-locale loop (section 10).
-- **`scenarios`:** the brief supplies a `WALKTHROUGH:` walkthrough.jsonl (from `odoo-doc-scenarist`);
+- **`scenarios`:** the walkthrough (`walkthrough.jsonl`, the brief's or the one you wrote this round);
   each scenario carries `steps[]` of `{action: navigate|fill|click|select|wait, target, value, note}`.
   For each step, in order:
   1. Resolve `target` (menu path / field label / button label / state badge) to a selector or URL via

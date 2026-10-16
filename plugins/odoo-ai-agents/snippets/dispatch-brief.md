@@ -72,10 +72,10 @@ pointer back to this file - never the full skeleton table.
 
 ### Designer / planner
 
-`odoo-solution-architect`, `odoo-planner`, `odoo-doc-planner`:
+`odoo-solution-architect`, `odoo-planner`:
 
-All three take the LEAF self-check variant (`odoo-solution-architect`, a spawner of anonymous
-grounding workers only, too).
+Both take the LEAF self-check variant (`odoo-solution-architect`, which launches only
+`odoo-impact-recon`, too).
 
 - Pointer to the CURRENT architecture/constraint snapshot to fit inside.
 - Which decisions need an ADR-style tradeoff vs are already-settled.
@@ -162,13 +162,14 @@ part) and `odoo-frontend-coder` (a leaf):
 
 ### Doc-writer
 
-`odoo-user-doc-writer`, `odoo-marketing-writer`, `odoo-doc-scenarist`:
+`odoo-doc-writer`:
 
-- The audience source, optional: `ROLE MAP` (`odoo-user-doc-writer`), `ROLE_MAP_PATH`
-  (`odoo-doc-scenarist`), `BUYER PROFILE` (`odoo-marketing-writer`); absent, the agent states the
-  audience it assumed.
+- `MODE` (`full`, `landing`, `catalog-only`).
+- The audience source: `DOMAIN` or `SRS` for the guide, `BUYER PROFILE` or `TARGET MARKET` for
+  the landing; absent, the agent states the audience it assumed.
 - Locale/language list.
-- Grounding source (feature catalog / walkthrough) - never invent claims.
+- Grounding source (feature catalog, role map, walkthrough) when already written - never
+  invent claims.
 - Output format (`rst`/`html`/video-plan/`po`/`svg`).
 
 ### Translator
@@ -212,7 +213,7 @@ no format choice. Its brief is worktree-and-instance shaped:
 ### Survey / analyst
 
 `odoo-backend-debugger`, `odoo-ui-debugger`, `odoo-impact-recon`, `odoo-intent-extractor`,
-`odoo-installable-prober`, `odoo-gap-analyzer`, `odoo-feature-cataloger`, `odoo-doc-scoper`:
+`odoo-installable-prober`, `odoo-gap-analyzer`:
 
 - The ask framed as an open QUESTION, not a scripted search-command sequence.
 - Structured findings FILE vs inline chat answer.

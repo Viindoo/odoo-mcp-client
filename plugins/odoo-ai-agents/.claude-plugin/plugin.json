@@ -31,12 +31,7 @@
     "./agents/odoo-qa-planner.md",
     "./agents/odoo-qa-tester.md",
     "./agents/odoo-icon-designer.md",
-    "./agents/odoo-feature-cataloger.md",
-    "./agents/odoo-doc-scenarist.md",
-    "./agents/odoo-doc-scoper.md",
-    "./agents/odoo-doc-planner.md",
-    "./agents/odoo-user-doc-writer.md",
-    "./agents/odoo-marketing-writer.md"
+    "./agents/odoo-doc-writer.md"
   ],
   "commands": [
     "./commands/odoo-respond-bid.md",

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ensure-state-root-permissions.sh - SessionStart self-apply of the narrow
 # state-root Bash/Read/Edit permission rules into ~/.claude/settings.json
-# so the planning pipeline (odoo-planner / odoo-doc-planner / intake Phase P)
+# so the planning pipeline (odoo-planner / intake Phase P)
 # runs without a per-call approval prompt for its routine $ODOO_AI_HOME reads
 # and writes.
 #

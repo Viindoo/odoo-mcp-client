@@ -575,7 +575,7 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-user-doc-writer (userguide RST) and odoo-marketing-writer (App-Store landing HTML) per DOC LAYER; pre-fetches the buyer profile + copy from odoo-content-draft on the marketing path (target market confirmed once per run); scoped via odoo-doc-scoper; scheduled via odoo-doc-planner. Demo and capture locales are instance_build arguments; cli_help resolves --skip-auto-install at runtime for the pre-capture provisioning precondition this skill verifies."
+      "notes": "Launcher: settles the docs tree, plans the instances of a multi-module package inline (skills/_shared/doc-cluster-plan.md), provisions each instance through odoo-instance, launches odoo-doc-writer per module (MODE full, then MODE landing by SendMessage), verifies the doc references and commits per module through git-ops. Demo and capture locales are instance_build arguments; cli_help resolves --skip-auto-install at runtime."
     },
     "odoo-instance": {
       "mcp_tools": [
@@ -642,7 +642,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-feature-cataloger to enumerate all features/capabilities a module ships for documentation purposes. Standalone-first; browser-free. OSM for module capability enumeration (describe_module + module_inspect + model_inspect). min_server 0.13.1 for describe_module."
+      "notes": "Launcher: launches odoo-doc-writer in MODE catalog-only for the three shared documentation files (feature catalog, role map, walkthrough). Standalone-first; browser-free. OSM for module capability enumeration (describe_module + module_inspect + model_inspect). min_server 0.13.1 for describe_module."
     },
     "odoo-doc-walkthrough": {
       "mcp_tools": [
@@ -653,7 +653,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-doc-scenarist to author happy-path usage scenarios for module documentation. Standalone-first; browser-free (scenarios authored without a live instance). OSM for grounding scenario steps in real UI labels/views. min_server 0.6.0 for set_active_version."
+      "notes": "Launcher: launches odoo-doc-writer in MODE catalog-only, forwarding a catalog and role map the caller holds, for the happy-path usage walkthrough. Standalone-first; browser-free. OSM for grounding scenario steps in real UI labels/views. min_server 0.6.0 for set_active_version."
     }
   },
   "agents": {
@@ -792,8 +792,7 @@
     "odoo-solution-architect": {
       "role": "spawner",
       "spawns_agents": [
-        "odoo-impact-recon",
-        "odoo-gap-analyzer"
+        "odoo-impact-recon"
       ],
       "notes": "Design-session owner: writes the SRS, launches ONE odoo-impact-recon (haiku) for the dependency and blast-radius facts, decides the design depth, writes the light or full design with a build_tier_hint per node, and stops at the srs and design gates for the caller to resume it with SendMessage. May invoke a grounding skill (odoo-feature-check, odoo-gap-analysis, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory) or launch a read-only research worker for a fact recon did not give; launches odoo-gap-analyzer directly only when the Skill tool is absent. Never launches a coder, reviewer or executor; never writes production source.",
       "brief": {
@@ -1113,7 +1112,7 @@
         ]
       }
     },
-    "odoo-feature-cataloger": {
+    "odoo-doc-writer": {
       "role": "leaf",
       "mcp_tools": [
         "set_active_version",
@@ -1125,158 +1124,36 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect + entity_lookup for button visibility); disk for menus, ACL, record rules, groups and groups= attributes OSM does not index. Produces feature-catalog.jsonl + feature-catalog.md + role-map.json (business roles, their access rights and the process they pass records along). min_server 0.13.1 for describe_module.",
+      "notes": "The one documentation writer: MODE catalog-only writes feature-catalog.jsonl, role-map.json and walkthrough.jsonl from the module tree and OSM (no browser); MODE full captures the screens on the provisioned instance and writes the role-based doc/index.rst per locale; MODE landing, resumed in the same context after full or launched with the catalog in hand, writes static/description/index.html from the catalog and the copy and wires the manifest images. Writes doc files, images and the three shared files only; launches nothing. min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
+          "MODE",
           "MODULE",
-          "ODOO_VERSION",
-          "OUTPUT_DIR"
+          "WORKTREE_PATH",
+          "ODOO VERSION",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
         ],
         "optional": [
           "MODULE_PATH",
           "PROFILE",
-          "SHARE_DIR",
-          "ISOLATE_DIR"
-        ]
-      }
-    },
-    "odoo-doc-scenarist": {
-      "role": "leaf",
-      "mcp_tools": [
-        "set_active_version",
-        "describe_module",
-        "module_inspect",
-        "model_inspect"
-      ],
-      "min_server_version": "0.6.0",
-      "deprecated_tools_used": [],
-      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation - each business role's tasks in process order plus the administrator's setup, from role-map.json when supplied. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0.",
-      "brief": {
-        "required": [
-          "MODULE",
-          "ODOO_VERSION",
-          "SLUG"
-        ],
-        "optional": [
-          "MODULE_PATH",
-          "CATALOG_PATH",
-          "ROLE_MAP_PATH",
-          "OUTPUT_DIR",
-          "USER LANGUAGE"
-        ]
-      }
-    },
-    "odoo-doc-scoper": {
-      "role": "leaf",
-      "mcp_tools": [
-        "set_active_version",
-        "check_module_exists",
-        "describe_module",
-        "module_inspect"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Multi-module scope mapper: walks manifests under TARGET, enumerates modules, resolves languages (5-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module.",
-      "brief": {
-        "required": [
-          "TARGET"
-        ],
-        "optional": [
-          "BASE",
-          "LANGUAGES",
-          "doc_layer",
-          "version"
-        ]
-      }
-    },
-    "odoo-doc-planner": {
-      "role": "leaf",
-      "mcp_tools": [
-        "set_active_version",
-        "module_inspect",
-        "describe_module",
-        "check_module_exists"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml",
-      "brief": {
-        "required": [
-          "plan_source"
-        ],
-        "optional": [
-          "MAX_CLUSTER_MODULES",
-          "REDOC",
-          "purity",
-          "USER LANGUAGE"
-        ]
-      }
-    },
-    "odoo-user-doc-writer": {
-      "role": "leaf",
-      "mcp_tools": [
-        "check_module_exists",
-        "model_inspect",
-        "module_inspect",
-        "set_active_version"
-      ],
-      "min_server_version": "0.7.0",
-      "deprecated_tools_used": [],
-      "notes": "User guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants) as a user guide for the module's business roles (Overview + process, administrator Setup, one chapter per role) from role-map.json; task-guidance tone; never spawns. OSM grounds UI labels via model_inspect.",
-      "brief": {
-        "required": [
-          "MODULE",
-          "MODULE PATH",
-          "WORKTREE_PATH",
-          "ADDONS_PATH",
-          "WALKTHROUGH",
-          "extends_in_scope"
-        ],
-        "optional": [
           "RUN_ID",
-          "SHARE_DIR",
-          "ISOLATE_DIR",
           "INSTANCE_HANDLE",
+          "ADDONS_PATH",
+          "LANGUAGES",
+          "DOMAIN",
+          "SRS",
           "FEATURE CATALOG",
           "ROLE MAP",
-          "LANGUAGES",
+          "WALKTHROUGH",
+          "MARKETING COPY",
+          "BUYER PROFILE",
+          "TARGET MARKET",
           "DOC SCOPE",
           "CAPTURE MODE",
-          "BROWSER MODE"
-        ]
-      }
-    },
-    "odoo-marketing-writer": {
-      "role": "leaf",
-      "mcp_tools": [
-        "check_module_exists",
-        "describe_module",
-        "model_inspect",
-        "module_inspect",
-        "set_active_version"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "App-Store landing writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures the cover + task screenshots + assembles static/description/index.html (and per-locale variants) in the app-store-template.md Section Map order from supplied marketing copy + buyer profile + feature-catalog.jsonl; wires manifest images + store-keys audit; never spawns. describe_module for manifest summary. min_server 0.13.1.",
-      "brief": {
-        "required": [
-          "MODULE",
-          "MODULE PATH",
-          "WORKTREE_PATH",
-          "ADDONS_PATH",
-          "MARKETING COPY",
-          "FEATURE CATALOG",
-          "extends_in_scope"
-        ],
-        "optional": [
-          "RUN_ID",
-          "SHARE_DIR",
-          "ISOLATE_DIR",
-          "INSTANCE_HANDLE",
-          "BUYER PROFILE",
-          "LANGUAGES",
-          "CAPTURE MODE",
-          "BROWSER MODE"
+          "BROWSER MODE",
+          "extends_in_scope",
+          "USER LANGUAGE"
         ]
       }
     },
@@ -1568,7 +1445,6 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-planner",
-        "odoo-doc-planner",
         "(dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh)"
       ],
       "stack": "none",
@@ -1576,8 +1452,7 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
       "spawns_agents": [
-        "odoo-planner",
-        "odoo-doc-planner"
+        "odoo-planner"
       ]
     },
     "odoo-pr-monitoring": {
@@ -1623,21 +1498,16 @@
     "odoo-doc-illustration": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-scoper (pre-flight multi-module scope mapper; dispatched first on multi-module TARGET)",
-        "odoo-doc-planner (dependency-aware doc scheduler; dispatched after scoper; emits doc-plan.yaml; one whole-plan gate; branch-aware per-instance incremental loop)",
-        "odoo-user-doc-writer (browser-exclusive leaf; role-based user guide doc/index.rst; dispatched per module per DOC LAYER userguide|both)",
-        "odoo-marketing-writer (browser-exclusive leaf; App-Store landing static/description/index.html; dispatched per module per DOC LAYER appstore|both)",
-        "odoo-content-draft (Skill tool - buyer profile + marketing copy pre-fetch on marketing path when copy not supplied)"
+        "odoo-doc-writer (MODE full per module, resumed with MODE landing for the App Store page; sonnet)",
+        "odoo-instance (Skill tool, inline - one lease per instance path)",
+        "git-toolkit:git-ops (Skill tool - the docs worktree and one commit per module)"
       ],
       "stack": "frontend",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
       "spawns_agents": [
-        "odoo-doc-scoper",
-        "odoo-doc-planner",
-        "odoo-user-doc-writer",
-        "odoo-marketing-writer"
+        "odoo-doc-writer"
       ]
     },
     "odoo-ui-review": {
@@ -1883,27 +1753,27 @@
     "odoo-doc-feature-map": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-feature-cataloger"
+        "odoo-doc-writer (MODE catalog-only)"
       ],
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
       "spawns_agents": [
-        "odoo-feature-cataloger"
+        "odoo-doc-writer"
       ]
     },
     "odoo-doc-walkthrough": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-scenarist"
+        "odoo-doc-writer (MODE catalog-only; the walkthrough is one of its three files)"
       ],
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
       "spawns_agents": [
-        "odoo-doc-scenarist"
+        "odoo-doc-writer"
       ]
     }
   },

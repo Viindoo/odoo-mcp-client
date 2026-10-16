@@ -17,38 +17,26 @@ source. Correct order:
 
 ```
 gap/brl  ->  odoo-solution-design (TDD + index.yaml)  ->  HUMAN approves design
-   ->  odoo-planning -> {odoo-planner (code plan) + odoo-doc-planner (doc plan)}
+   ->  odoo-planning -> odoo-planner (the plan: build nodes + the lifecycle tail)
    ->  ONE lifecycle plan gate  ->  ExitPlanMode
    ->  intake Phase P serializes run-<id>.json  ->  run-harness drives the node plan
-   ->  doc stage (user-doc + marketing-doc) executes after code/review/QA
+   ->  the doc node (odoo-doc-writer) runs after code/review/QA when its `when:` holds
 ```
 
-This skill does NOT compute either plan itself and does NOT write code - it dispatches TWO
-planners (`odoo-planner` for code, `odoo-doc-planner` for doc) and owns the approve /
-ExitPlanMode handoff. `odoo-solution-design` decides HOW to build; `odoo-planning` decides HOW TO
-SHIP (node build order, landing sequence, doc cluster schedule, full lifecycle).
-
-Note: `odoo-doc-planner` also runs STANDALONE via `odoo-doc-illustration` / `module-packaging`
-for doc-only work on existing modules - `odoo-planning` is NOT the only path to it.
+This skill does NOT compute the plan itself and does NOT write code - it launches `odoo-planner`
+and owns the approve / ExitPlanMode handoff. `odoo-solution-design` decides HOW to build;
+`odoo-planning` decides HOW TO SHIP (node build order, landing sequence, full lifecycle).
 
 ## Role
 
 Odoo delivery planner. Turns an approved technical design into ONE lifecycle plan covering the
-full product journey - code-build AND doc. Dispatches TWO leaf planners in sequence:
-
-1. `odoo-planner` (code-build plan): a dependency-ordered node graph, each node wired to a SKILL,
-   driven end to end by `run-harness`'s single node loop. Pure code-build planner - no doc-logic.
-2. `odoo-doc-planner` (doc-package plan): dependency clusters, branch-aware instance allocation,
-   per-instance incremental install-doc-verify-commit order, dedup, parallelism schedule; covers
-   user-guide (`doc/index.rst`) AND marketing landing (`static/description/index.html`).
-   Runs with `plan_source: design-dag` - reuses the approved design DAG; does NOT re-derive it.
-
-Execution order: the code plan executes first - `run-harness` walks it in the Terminal stage order
-constant it owns, never an order chosen here; the doc plan's stage sits inside that same constant,
-after acceptance (screenshots need the built module on a live instance).
-Both plans are authored UPFRONT in one gate and executed sequentially code then doc.
-Pairs with `odoo-solution-design` (consumes its design DAG, passed to both planners) and
-`run-harness` (drives the node plan; the doc stage follows as a subsequent lifecycle stage).
+full product journey - the build nodes and the lifecycle tail, documentation included. Launches
+ONE leaf planner, `odoo-planner`: a dependency-ordered node graph, each node wired to a skill,
+driven end to end by `run-harness`'s single node loop. The documentation of the change is a node
+of that tail (`odoo-doc-writer`, one per module, after acceptance - screenshots need the built
+module on a live instance); when it covers several modules, the main agent computes their
+instance plan inline at that node per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`.
+Pairs with `odoo-solution-design` (consumes its design DAG) and `run-harness` (drives the plan).
 
 ## Input port - read the upstream artifacts BY POINTER (before dispatch)
 
@@ -76,7 +64,7 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
   session. Additional
   hotspot/impact grounding for node authoring and effort estimates - never a required gate. State
   `none` explicitly to `odoo-planner` when absent rather than omitting the field, and thread it
-  onward the same way (§ P1a below); the mandatory-recon analog is `odoo-intake`'s Phase P
+  onward the same way (§ P1 below); the mandatory-recon analog is `odoo-intake`'s Phase P
   `inputs.recon_findings`, which this deliberately does NOT copy verbatim (it is safe to OMIT when
   absent since recon is cheap/mandatory-tier - Survey is opt-in/expensive, so its absence must be
   stated, not dropped).
@@ -87,7 +75,7 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule). A design is
 OPTIONAL at EVERY complexity level - non-trivial included - and is never a precondition to planning.
 Whatever the Input port resolved, proceed to § Agent invocation: an unresolved DESIGN DAG pointer is
-carried as `none` in the P1a brief and the development work itself is what gets planned. This skill
+carried as `none` in the P1 brief and the development work itself is what gets planned. This skill
 evaluates NO design predicate and owns NO refusal branch.
 
 **The ONE surviving rule is directional: a design may never be produced AFTER this plan.** The plan
@@ -113,7 +101,7 @@ not here:
   node classes).
 - **actor** - the plan author, `odoo-planner`, wires no node it writes to that skill or agent.
 
-## No scope-preview gate - go straight to the planners
+## No scope-preview gate - go straight to the planner
 
 Do NOT ask the human to approve a scope preview before dispatching. Whoever sent the work here
 already gated that same decision: the front door (`odoo-intake`) approved scope, approach and
@@ -121,32 +109,32 @@ expected output with the human before dispatching this skill, and a `return_to` 
 scope itself. Asking again is friction, not safety.
 
 Ask only the genuine open questions the Input port could not resolve (an ambiguous module set, an
-unresolved target series) - in ONE short message - then dispatch both planners. **A MISSING design
+unresolved target series) - in ONE short message - then launch the planner. **A MISSING design
 artifact is NOT one of those questions:** a design is not a precondition to planning at any
 complexity level (§ Design precedes planning above), so an absent one is carried as `DESIGN_INDEX:
 none` and the plan is authored from the development work itself - never turned into a question, a
 block, or a wait. The single
-approval checkpoint this skill owns is the § Plan-approval gate below, after both planners return.
+approval checkpoint this skill owns is the § Plan-approval gate below, after the planner returns.
 Same shape as the sibling self-driving front doors (`odoo-forward-port` P4, `odoo-git-rebase` P6,
 `odoo-modules-upgrade` P3): one plan, one gate.
 
-The planners write ONLY the plan under the `$ODOO_AI_HOME` state root (SHARE tier - see
+The planner writes ONLY the plan under the `$ODOO_AI_HOME` state root (SHARE tier - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); no source file is touched before the
 plan is approved.
 
-## Agent invocation - prompt templates (P1: code + doc)
+## Agent invocation - prompt template
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief. The brief carries no
-reply address: each planner hands its report back once, and you collect it as R0
+reply address: the planner hands its report back once, and you collect it as R0
 assigns to the agent-launch tool you hold
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0, R3).
 
-When intent is confirmed, dispatch BOTH planners sequentially. Their outputs compose into one
-lifecycle plan presented at a single gate.
+When intent is confirmed, launch the planner. Its output is the one lifecycle plan presented at a
+single gate.
 
-### P1a - Code plan (odoo-planner)
+### P1 - The plan (odoo-planner)
 
 Launch `odoo-planner` as a subagent (default: ONE planner). For a very large scope (many
 independent module clusters) you MAY fan out one planner per cluster following **Mode B**
@@ -176,44 +164,6 @@ RETURN_TO: [omit when absent; set to the caller skill name when return routing i
 (Method - reading inputs, OSM grounding, schema conformance, node/skill wiring, the estimate-only
 constraint, and its own leaf/no-write boundaries - is `odoo-planner`'s own Rounds 0-3;
 not restated here.)
-
-### P1b - Doc plan (odoo-doc-planner)
-
-**Fast-path `doc: none`.** When the change is internal-only with no user-guide or marketing goal
-(no Apps-Store listing, no end-user docs), SKIP the P1b dispatch (or dispatch so the doc planner
-returns an empty plan) and record "doc plan: none (internal-only)" at the plan gate. Default stays:
-dispatch the doc planner whenever there is any store/doc intent - the human still confirms scope at
-the plan-approval gate.
-
-After P1a returns, launch `odoo-doc-planner` as a SEPARATE subagent with `plan_source: design-dag`
-(its Round 0 reuses the design DAG from DESIGN_INDEX itself - never re-derived here).
-Model: **haiku** (the doc planner's frontmatter default - scheduling a design DAG that is already
-computed is well-specified work, per the haiku row of the § Model-tier selection SSOT named in P1a).
-
-```
-DISPATCH MODEL: haiku
-You are the odoo-doc-planner agent. Produce the DOC-PACKAGE PLAN for:
-
-REQUEST: [same change as P1a]
-DESIGN_INDEX: [same path as P1a]
-plan_source: design-dag
-LANGUAGES: [the resolved list, English always included]
-SHARE_DIR: [the captured absolute SHARE path - same literal P1a got]
-ISOLATE_DIR: [the captured absolute ISOLATE path - same literal P1a got]
-RUN_ID: [the run's id, or the literal `none` when no run owns this planning pass]
-```
-
-Resolve `LANGUAGES` BEFORE dispatching, and send the same `SHARE_DIR`/`ISOLATE_DIR` literals you
-gave P1a: the doc planner derives its own output path from them, so a brief that omits them leaves
-it with nowhere to write (`snippets/dispatch-brief.md` § Universal skeleton, rule 1 - every field
-carries a resolved value).
-
-(Method - the doc-cluster scheduling algorithm, `doc-plan.yaml`'s path/schema, and the
-never-provision / never-spawn boundaries - is `odoo-doc-planner`'s own Rounds 0-2; not
-restated here.)
-
-After both return, stitch their summaries into the combined plan-approval gate (see below).
-Note: the doc plan's EXECUTION is deferred - it runs after the code plan's nodes land.
 
 ## MCP tools
 
@@ -247,10 +197,10 @@ Note: the doc plan's EXECUTION is deferred - it runs after the code plan's nodes
 This skill is part of an agent+skill bundle; `odoo-planner` itself owns the read-only execution
 detail and output contract.
 
-### Plan Mode guard (enter HERE, after both planners return, before the approval gate)
+### Plan Mode guard (enter HERE, after the planner returns, before the approval gate)
 
-Enter Plan Mode HERE, AFTER both planners have returned and BEFORE presenting the "Plan ready"
-gate - the planners write ONLY under the `$ODOO_AI_HOME` state root (SHARE tier), and Plan Mode
+Enter Plan Mode HERE, AFTER the planner has returned and BEFORE presenting the "Plan ready"
+gate - the planner writes ONLY under the `$ODOO_AI_HOME` state root (SHARE tier), and Plan Mode
 gates git-TRACKED writes, not state-root writes (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit, the amended
 WHEN clause). This skill runs in the MAIN context, so it CAN call `EnterPlanMode`.
@@ -271,23 +221,19 @@ no-enter branch, unchanged) follow immediately after.
 
 ## Plan-approval gate (who approves: the human)
 
-The ENTER already happened above (§ Plan Mode guard, after both planners returned). This section
+The ENTER already happened above (§ Plan Mode guard, after the planner returned). This section
 covers what happens next: present the plan, gate on human approval, then `ExitPlanMode`.
 
-When BOTH planners return, **do NOT auto-chain to execution.** Present a tight combined summary,
-then gate. Quote each plan path from the planner that RETURNED it - `odoo-doc-planner` picks its
-own path per dispatch path (`odoo-doc-planner`'s own Round 2), so a path restated here is a
-path that goes stale without anything failing. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,
-module names, model identifiers, and skill names verbatim):
+When the planner returns, **do NOT auto-chain to execution.** Present a tight summary, then gate.
+Quote the plan path the planner RETURNED. Write the gate in the USER'S LANGUAGE (translate labels
+and prose; keep file paths, module names, model identifiers, and skill names verbatim):
 
 ```
 Plan ready:
-  Code plan:  <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
-  Doc plan:   <the doc-plan.yaml path odoo-doc-planner returned>
+  Plan:       <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
 Build order: <node-1> -> <node-2> -> ...   (topological order; landing: <one line>)
-Doc clusters: <n clusters> · <n instances> · <n modules doc'd>   (allocation: <one line>)
 Lifecycle:   <the Terminal stage order constant run-harness owns, rendered in full>
-             (doc executes AFTER code/review/QA; both plans gate here in ONE approval)
+             (the doc node runs AFTER code/review/QA when its `when:` holds)
 Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY / du kien - the runtime skill
              decides the actual count + model; the plan binds only WHICH skill)
 Approve plan? (approve / refine: [feedback] / cancel)
@@ -379,12 +325,10 @@ When the bundle finishes, append a Continuation Contract block per
 is **gated on the human plan-approval above**. Both branches carry a plan pointer, because this
 skill always authors a plan - there is no design branch and no no-plan branch to check first:
 
-- **`return_to` SET:** emit `next: <return_to>` with `inputs: {plan: <path>, doc_plan: <path>}`;
-  hand control back.
-- **`return_to` UNSET (default):** emit `next: odoo-intake` with
-  `inputs: {plan: <path>, doc_plan: <path>}` - intake's **Phase P** ingests the approved 3-block
-  code plan by pointer, serializes it into `run-<id>.json`, and THEN dispatches `run-harness` to
-  drive it to done. The doc plan (`doc-plan.yaml`) is consumed by the doc stage after code lands.
+- **`return_to` SET:** emit `next: <return_to>` with `inputs: {plan: <path>}`; hand control back.
+- **`return_to` UNSET (default):** emit `next: odoo-intake` with `inputs: {plan: <path>}` -
+  intake's **Phase P** ingests the approved 3-block plan by pointer, serializes it into
+  `run-<id>.json`, and THEN dispatches `run-harness` to drive it to done.
   **This is the SSOT rationale for "why `next: odoo-intake`, not `next: run-harness`"** (other sites
   - `odoo-planner`, `skills/odoo-intake/references/phase-p-run-dag.md` - point here, do
   not restate it): Do NOT emit `next: run-harness` here: `run-harness` walks an EXISTING

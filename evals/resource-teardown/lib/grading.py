@@ -16,7 +16,7 @@ once, instead of either (a) over-applying the ban and leaving pages open out of 
 running the agent and grading its TRANSCRIPT - which is what this module does.
 
 Two graders, one per eval:
-- grade_eval_a(): verb collision (odoo-user-doc-writer / odoo-marketing-writer, a forwarded
+- grade_eval_a(): verb collision (odoo-doc-writer, a forwarded
   INSTANCE_HANDLE + the hard lease-ban).
 - grade_eval_b(): visual-regression matrix close (odoo-visual-regression Round 4, L1.7's gate).
 
@@ -84,7 +84,7 @@ def _assistant_blocks(transcript_path) -> Iterable[dict]:
 
 
 # --------------------------------------------------------------------------------------------- #
-# Eval A - verb collision (odoo-user-doc-writer / odoo-marketing-writer)
+# Eval A - verb collision (odoo-doc-writer)
 # --------------------------------------------------------------------------------------------- #
 
 # Family-correct CLOSE calls, suffix-matched on the tool name - mirrors

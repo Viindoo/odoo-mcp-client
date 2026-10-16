@@ -9,8 +9,10 @@ CLUSTERS, instance allocation by DAG SHAPE, incremental leaf-first install order
 dedup, and an inter-instance parallelism schedule.
 
 **Consumers (reference this file, do not restate it):**
-- `odoo-doc-planner` agent - the leaf that computes and writes `doc-plan.yaml`.
-- `module-packaging.workflow.yaml` `doc-plan` phase - reuses this contract inline.
+- `odoo-doc-illustration` step 2 - computes the plan inline for a multi-module target.
+- `module-packaging.workflow.yaml` `doc-plan` phase - computes it inline the same way.
+- A plan node of kind documentation that covers several modules - the main agent computes it
+  inline before launching the writers.
 
 **Reuse, do not re-derive.** The module-DAG primitive lives in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` (OSM
@@ -25,12 +27,29 @@ Y; Y is the deeper leaf-dependency and is installed FIRST. Leaf-dependency-first
 
 ---
 
+## Input - the scope block
+
+One row per in-scope module, resolved by the consumer before the algorithm runs, every value
+read from the module tree, never guessed:
+
+| Field | Source |
+|---|---|
+| `name`, `abs_path` | the module directory under `doc_root` (`__manifest__.py`, or `__openerp__.py` on the series that has it) |
+| `version` | `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; never a manifest `version` prefix |
+| `languages` | `odoo-doc-illustration` § Language resolution |
+| `doc_layer` | an explicit per-module value; else `static/description/` present -> `appstore`, `doc/` present -> `userguide`, both or neither -> `both` |
+| `has_demo` | the descriptor's `demo` list is non-empty |
+| `depends_in_scope` | the descriptor's `depends` restricted to the in-scope set |
+| `has_ondisk_doc` | `static/description/index.html` or `doc/index.rst` exists |
+| `target_market` | the brief's value, else proposed from the descriptor per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md` § Target market and confirmed at the plan gate |
+
+A run-level `doc_layer` input overrides every module's detected value; pass it only when every
+module shares one layer. A single module needs no plan: one instance, one step.
+
 ## Algorithm
 
-Input = the in-scope module set with per-module `depends_in_scope` (the subset of
-the descriptor `depends` in scope) and `has_ondisk_doc`, either from the
-`odoo-doc-scoper` scope block (doc-only standalone path) or from an approved design DAG
-(full-lifecycle path). Output = `doc-plan.yaml`.
+Input = the scope block above (a doc-only run) or the approved design DAG's module set with the
+same fields (a plan node after a build). Output = `doc-plan.yaml`.
 
 ### 1. Build the in-scope sub-graph
 
@@ -72,7 +91,7 @@ Allocate instances by the SHAPE of the sub-graph. Three rules compose (default
 
 Deeper trees / diamonds recurse: one instance per independent leaf-path, converge inner joins by
 reuse+fill bottom-up. `MAX_CLUSTER_MODULES` (knob, default ~6) bounds how large a component may grow
-before the planner splits a shared low-level dep for extra parallelism (triggering dedup, step 5).
+before the plan splits a shared low-level dep for extra parallelism (triggering dedup, step 5).
 An optional `purity: fresh-per-module` override allocates one throwaway instance per module for the
 paranoid case.
 
@@ -103,7 +122,7 @@ on top = most pure); ties break to the earliest instance in the schedule. Three 
   `concurrency-guard.md` SSOT - reference it, do not restate the numbers. Full exclusivity rule +
   rationale (why same-family is serial, why distinct families may run concurrently):
   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - reference it, do not restate
-  it. When W=1, all paths serialize; the planner records that so the runner reports
+  it. When W=1, all paths serialize; the plan records that and the run reports
   `status: DONE` with `concerns: [W=1: serialized]`.
 
 ### 7. Build inputs per install step
@@ -134,13 +153,9 @@ Instances live UNDER a cluster (a branching cluster has multiple instances), not
 `install_step` = position in the CUMULATIVE `-i` set on that instance (step k = {deltas with
 install_step <= k}). `doc:true|false` is the dedup switch. `extends_in_scope` (= `depends_in_scope`
 ∩ the `doc:true` set) drives the cross-reference hint ("Extends `<base>` - see its documentation")
-the assembler adds to an extension's doc. `doc_layer` (`userguide|appstore|both`) is the PER-MODULE
-documentation-layer selector - carried straight from the `odoo-doc-scoper` scope block's per-module
-`doc_layer` (SSOT: `odoo-doc-scoper`'s own Step 5, default `both`) when `plan_source: scope`;
-a `plan_source: design-dag` entry MAY omit it (the design DAG carries no doc-layer signal). The
-writer-launch step (`odoo-doc-illustration`'s own per-instance loop) reads THIS field per
-module; when an entry has no `doc_layer`, the run-level DOC LAYER axis default (`odoo-doc-illustration`'s
-own Documentation axes) applies to that module only.
+the writer adds to an extension's doc. `doc_layer` (`userguide|appstore|both`) is the per-module
+layer from the scope block; a `plan_source: design-dag` entry may omit it, and the run-level
+`DOC LAYER` input (default `both`) then applies to that module only.
 
 ```yaml
 run: doc-run-<timestamp>

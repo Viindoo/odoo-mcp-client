@@ -7,22 +7,20 @@ description: >-
 
 ## Role
 
-Documentation analyst: enumerates every user-visible capability a module ships - menus, views,
-models, actions, and key fields - plus the business roles in a company that do the work the module
-solves (each with the access right to assign and what it can do) and the business process those
-roles hand records along, and packages the result as reusable machine-readable files. They are the
-shared SSOT consumed by the landing Key Features grid, the role-based user guide, and the
-walkthrough scenario author. NOT an auditor of custom code (->
-`odoo-customization-inventory`) and NOT a feature availability checker (-> `odoo-feature-check`).
+Front door for the three shared documentation files of one module: the feature catalog (every
+user-visible capability with the access right that reaches it), the role map (the business roles
+of a company that work with the module and the process they hand records along) and the role
+walkthrough. It launches `odoo-doc-writer` in `MODE: catalog-only` and returns the paths. No
+browser, no instance. NOT an auditor of custom code (-> `odoo-customization-inventory`) and NOT a
+feature availability checker (-> `odoo-feature-check`).
 
 ## Out of Scope
 
 - **Single feature yes/no** (does module X have Y?) -> `odoo-feature-check`
 - **Marketing highlights for a version release** (what is new in v18?) -> `odoo-feature-highlights`
 - **Executive audit of CUSTOM code in a client instance** -> `odoo-customization-inventory`
-- **Writing the user guide or landing copy** -> `odoo-doc-illustration` / `odoo-content-draft`
-- **Live instance required** - this skill is read-only and browser-free; for live record queries use
-  a live Odoo MCP server
+- **The user guide or the App Store page** -> `odoo-doc-illustration`; **landing copy** -> `odoo-content-draft`
+- **Live record queries** -> a live Odoo MCP server; this skill reads source only
 
 ## MCP tools
 
@@ -46,62 +44,30 @@ walkthrough scenario author. NOT an auditor of custom code (->
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 <!-- END GENERATED TOOLS -->
 
-## Context
+## Steps
 
-The feature catalog (`feature-catalog.jsonl`) and the role map (`role-map.json`, joined to the
-catalog by the group xmlids in each entry's `roles`) are MODULE-DRIVEN artifacts: they enumerate
-what the module SOURCE defines, not what a client's running instance has enabled. They are the
-canonical input for:
-
-1. The landing **Key Features grid** (`value` field per catalog entry feeds the grid copy)
-2. The **user guide**: its Overview (the business process, who uses the module and the access
-   right each role needs) and one chapter per business role, fed by `role-map.json`; the catalog
-   feeds the Overview's feature summary
-3. The **walkthrough scenario author** (`odoo-doc-scenarist`): the role map's roles and process
-   order the scenarios; catalog entry points, states, and key fields drive the authored
-   happy-path step lists
-
-## Agent invocation
-
-**Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Survey/analyst family
-delta; never inline that file verbatim into a hard-leaf brief.
-
-Dispatch `odoo-feature-cataloger` with the following brief (resolve `<SHARE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before filling `PROFILE`/`OUTPUT_DIR`
-below; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/`
-into a Read/Write/Edit):
-
-```
-MODULE: <module technical name>
-MODULE_PATH: <absolute path to the module dir on disk, if resolvable>
-ODOO_VERSION: <the resolved concrete series, e.g. 17.0>
-PROFILE: <the resolved profile name, or omit when no rung resolved one>
-OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
-```
-
-`OUTPUT_DIR` is the per-module subdir (`<slug>` = run id, `<module>` = module technical name) so a
-multi-module run never collides on a flat `feature-catalog.jsonl` / `role-map.json`. Producer and
-consumer agree on this path: the walkthrough/illustration phases read both files from the same
-`<slug>/<module>/`.
-
-`MODULE_PATH` is optional but speeds up disk fallback. Resolve `ODOO_VERSION` and `PROFILE` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - never from a manifest `version`
-prefix, which carries no series on a stock checkout.
+1. Resolve `MODULE`, `MODULE_PATH`, `ODOO VERSION` and `PROFILE`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; never a series from a manifest
+   `version` prefix); capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir`. An
+   unresolved module or series is `NEEDS_CONTEXT(<field>)`.
+2. Launch `odoo-doc-writer` (`model: sonnet`, `MODE: catalog-only`) with the brief in
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/writer-brief.md`
+   § `catalog-only`, forwarding any of the three files the caller already holds. The files land
+   in `<SHARE_DIR>/documentation/<RUN_ID>/<MODULE>/`, the path every later doc step reads
+   (schemas: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/doc-artifacts.md`).
+3. Return the three paths and the grounding (`osm`, `hybrid`, `local-source`).
 
 ## Standalone-first fallback
 
-OSM unreachable -> agent drops to disk-only grounding (`local-source`) with its own warning text;
-full descriptor/`views`/`models`/`security` fallback chain owned by `odoo-feature-cataloger`'s own
-Step 0 and Steps 2-3 - not restated here.
+OSM unreachable: the writer grounds from the module tree, labels the files `local-source` and
+says so in its report. No browser and no instance are ever needed here.
 
-No browser, no live Odoo instance, no screenshot capture. Route a screenshot / live-UI need to
-`odoo-doc-illustration` after the catalog is produced.
+## Agent-managed tools
+
+`odoo-doc-writer` (`MODE: catalog-only`).
 
 ## Continuation Contract
 
-After the agent completes, emit the Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Typical next steps:
-- `status: NEEDS_NEXT` with `next: odoo-doc-walkthrough` when the caller needs usage scenarios
-  grounded in the catalog
-- `status: DONE` when the catalog alone was requested
+Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
+three paths; `next: odoo-doc-walkthrough` is never needed (the walkthrough is one of the three);
+`next: odoo-doc-illustration` when the caller wants screenshots.

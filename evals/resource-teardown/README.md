@@ -11,7 +11,7 @@ things at runtime. That is what the two evals here are for:
 - **Eval A - verb collision** (`eval-a-verb-collision/`): proves the CLOSE(browser)-vs-
   RELEASE(instance) verb split (T2 vs T3) holds even when an agent's brief carries a FORWARDED
   instance lease plus a hard "never release it" ban right next to a "close every page you
-  opened" instruction. Targets `odoo-user-doc-writer` and `odoo-marketing-writer`.
+  opened" instruction. Targets `odoo-doc-writer` in both of its browser rounds.
 - **Eval B - visual-regression matrix** (`eval-b-visual-regression-matrix/`): proves the
   visual-regression matrix-close (T0/T2) ends a 5-screen x 4-breakpoint x 2-state sweep with one
   page left, navigated to `about:blank` (chrome-devtools refuses to close its last page; a page

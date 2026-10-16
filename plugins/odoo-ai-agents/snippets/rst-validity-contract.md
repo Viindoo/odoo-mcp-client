@@ -1,6 +1,6 @@
 <!-- SSOT snippet. RST-validity contract for every third-party `doc/*.rst` an agent writes
-     (currently `odoo-user-doc-writer`). Referenced (not copy-pasted) by any writer
-     of Odoo module end-user documentation. Edit here only; consumers point at
+     (`odoo-doc-writer`). Referenced (not copy-pasted) by any writer of Odoo module end-user
+     documentation. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/rst-validity-contract.md. -->
 
 # RST-Validity Contract
@@ -9,9 +9,8 @@ Every `doc/*.rst` file you write is rendered by a PLAIN docutils reader - there 
 build step anywhere in this pipeline. A file that only renders under Sphinx-specific roles or
 directives is BROKEN here, even if it looks correct in an editor that assumes a Sphinx project.
 Follow every rule below when you author or edit a `doc/*.rst` file. This contract is enforced
-mechanically - see `odoo-user-doc-writer` Step 4.5 (the mandatory docutils
-self-verify gate): a doc that violates any rule below fails that gate and blocks the agent's
-return until it is fixed.
+mechanically by the writer's RST gate (`odoo-doc-writer` MODE full step 6): a doc that violates
+any rule below fails that gate and blocks the agent's return until it is fixed.
 
 ## 1. No Sphinx-only roles
 
@@ -100,10 +99,9 @@ file, never the third-party deliverable you write.
 ## 9. Why this is a hard gate, not a lint nitpick
 
 A `doc/*.rst` that violates any rule above is not a style preference - it is a file a real
-RST renderer refuses to render cleanly, shipping a visibly broken page to an end user.
-`odoo-user-doc-writer` Step 4.5 enforces this contract mechanically: it renders
-every `doc/*.rst` it writes through docutils `publish_programmatically` (standalone reader,
-`restructuredtext` parser, `pseudoxml` writer, `report_level=1`, `halt_level=5`) and requires
-`document.findall(nodes.system_message)` to be empty before the agent may return. Any
-non-empty result means the file broke one of rules 1-7 above (rule 8 is a tone rule docutils
-cannot check; verify it by inspection).
+RST renderer refuses to render cleanly, shipping a visibly broken page to an end user. The
+writer's RST gate renders every `doc/*.rst` it writes through docutils `publish_doctree`
+(standalone reader, `restructuredtext` parser, `report_level=1`, `halt_level=5`) and requires
+`document.findall(nodes.system_message)` to be empty before the agent may return. Any non-empty
+result means the file broke one of rules 1-7 above (rule 8 is a tone rule docutils cannot check;
+verify it by inspection).
