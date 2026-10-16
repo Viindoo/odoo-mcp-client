@@ -23,8 +23,8 @@ these two sets verbatim and points here rather than restating them - see
 
 Planning is enforced at ADMISSION: the FRONT DOOR (`odoo-intake`, `odoo-brl`, or the
 `odoo-implement-feature` workflow) MUST establish an **approved plan artifact in scope** before it
-dispatches any executor (`odoo-coding`, its `odoo-coder` node coordinator - and that coordinator's
-`odoo-backend-coder`/`odoo-frontend-coder` hard-leaf workers) for any code-writing work (trivial
+dispatches any executor (`odoo-coding`, its `odoo-coder` node owner and the leaves that coder
+launches) for any code-writing work (trivial
 included - see the bullet below; only DESIGN, via `odoo-solution-design`, may be skipped -
 RECOMMENDED for non-trivial work, never required, and nothing downstream refuses a plan whose design
 was skipped). Checked ONCE, at the door. "Approved plan artifact in scope" is TRUE when ANY of the

@@ -24,7 +24,7 @@ true. Decide it locally, per child, per turn - there is no run-wide probe and no
 Your own depth is NOT a condition. A resume send has no synchronous return: collect its result by
 the R0 move your own agent-launch tool selects (§ Async park-and-be-resumed semantics).
 
-Send the new instructions to that id. Record the id per work-item in the skill's plan artifact
+Send the new instructions to that id. Record the id per node in the skill's plan artifact
 (plan.md / plan.json) as you capture it, so the plan is the id registry. The resumed child keeps its
 full prior context - it is the mind that wrote the code, not a cold reader. Send semantics:
 § Async park-and-be-resumed semantics below.
@@ -89,12 +89,12 @@ child by that id. A skill whose frontmatter declares a forked/background subagen
 launched as a real subagent instead; it still holds no address for its launcher - only the ids its
 own launches return.
 
-## Sanctioned nested spawner - the `odoo-coder` node coordinator
+## Sanctioned nested spawner - `odoo-coder`, the node owner
 
-Being a subagent never bars you from launching your own subagents. `odoo-coder` (the node
-COORDINATOR launched by `odoo-coding` once per work node) is the sanctioned nested spawner: although it
-is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own three workers
-(`odoo-test-writer`, `odoo-backend-coder`, `odoo-frontend-coder`). This is legal because it sits
+Being a subagent never bars you from launching your own subagents. `odoo-coder` (the node owner
+launched by `odoo-coding` once per node) is the sanctioned nested spawner: although it is itself a
+subagent of `odoo-coding`, it MAY launch `odoo-impact-recon`, `odoo-frontend-coder` or a second
+`odoo-coder` for the reasons its body names. This is legal because it sits
 within the nesting cap (`main -> odoo-coding -> odoo-coder -> worker`: the inline `odoo-coding` skill
 adds no depth, so `odoo-coder` is depth 1 and its workers depth 2; how depth is counted: R0 move 1,
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`). It

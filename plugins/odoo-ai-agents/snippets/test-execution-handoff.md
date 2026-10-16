@@ -2,10 +2,9 @@
      inline vs delegate, INSTANCE_HANDLE precedence, the NEEDS_NEXT escalation, and the
      output-volume rule that keeps the caller's context clean. Referenced (not copy-pasted) by
      odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-code-reviewer, and the coding agents:
-     the odoo-coder node coordinator owns the INTEGRATED whole-node instance test;
-     odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate only -
-     ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a delegated
-     odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail); odoo-test-writer
+     odoo-coder owns the stand-alone and whole-node instance runs of its node through the
+     odoo-instance skill; odoo-frontend-coder is instance-free (static verify-frontend.sh gate
+     only); the lint-class gate runs once at the plan's pre-PR lint gate; odoo-test-writer
      runs only its own break-check runs, inline, on the forwarded handle. Canonical NEEDS_NEXT
      example lives in odoo-test-writing § Standalone-first fallback.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->

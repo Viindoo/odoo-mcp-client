@@ -28,10 +28,9 @@ These two steps are easy to confuse. Only the first is required:
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Without it, every `odoo-*` skill still resolves the Odoo series/profile/scope from the checkout the first time you invoke it in a new repo.
 
 > **Version gate - Claude Code >= 2.1.172.** The coding workflow uses NESTED subagent dispatch:
-> `odoo-coding` launches an `odoo-coder` coordinator per NODE (every node, not just full-stack),
-> which itself launches its teammates - `odoo-backend-coder`
-> and/or `odoo-frontend-coder` first, then one `odoo-test-writer` for the node after the code (one agent level deeper). Nested dispatch requires
-> Claude Code 2.1.172+. `odoo-coder` runs at depth 1 and its teammates at depth 2, inside the platform
+> `odoo-coding` launches one `odoo-coder` per NODE, which may itself launch `odoo-impact-recon`,
+> `odoo-frontend-coder` or a second `odoo-coder` (one agent level deeper). Nested dispatch requires
+> Claude Code 2.1.172+. `odoo-coder` runs at depth 1 and its leaves at depth 2, inside the platform
 > nesting cap (the cap and how depth is counted: `snippets/spawner-completion-contract.md` §R0 move 1). The `/odoo-ai-agents:odoo-setup` prereq check
 > (`05-prereq-check.sh`) probes `claude --version` and prints this gate.
 

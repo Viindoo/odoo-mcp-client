@@ -101,19 +101,19 @@ Enumerating candidates and fetching are both routed through `git-toolkit:git-ops
 the bounded-read allowlist above; only the tip comparison (`git rev-parse`) is a bounded inline
 read once the candidate name is known. No actor resolves a stale `base` by fetching inline.
 
-## No LEAF-worker git - the orchestrator (or a spawner coordinator) commits via git-ops
+## No LEAF-worker git - the orchestrator (or the node owner) commits via git-ops
 
-A dispatched HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`, or
+A dispatched HARD-LEAF worker (`odoo-frontend-coder`, `odoo-test-writer`, `odoo-impact-recon`, or
 ANY leaf domain subagent) does NOT run git - not even git add / git commit / git stash in its own
 worktree. Leaf workers do not own the project's git/commit conventions, so git is never their job. A
 leaf finishing work in a `WORKTREE_PATH` WRITES its files there and RETURNS the list of files it
 touched; it never stages, commits, or stashes.
 
-The actor that COMMITS is the orchestrator OR a SPAWNER coordinator that owns the worktree, by
-INVOKING `git-toolkit:git-ops`. In particular the `odoo-coder` node COORDINATOR (a spawner -
-it can launch agents and launches the leaf coders, so it is NOT a leaf) COMMITS its node by
-invoking `git-toolkit:git-ops` via the Skill tool once its integrated test is green, and returns the
-SHA to `odoo-coding` (which collects it, no longer re-committing). The coordinator only REQUESTS the
+The actor that COMMITS is the orchestrator OR the node owner that owns the worktree, by
+INVOKING `git-toolkit:git-ops`. In particular `odoo-coder` (`role: node-owner` - it writes the
+node and may launch a leaf, so it is NOT a leaf) COMMITS its node by invoking
+`git-toolkit:git-ops` via the Skill tool once its whole-node test is green, and returns the
+range to `odoo-coding` (which collects it, never re-committing). The coder only REQUESTS the
 commit (files + business outcome); it never runs raw git and never dispatches a git leaf agent
 itself. Every git verb - `add`,
 `commit`, `stash`, `branch`, `checkout`, `switch`, `cherry-pick`, `merge`, `rebase`, `reset`, `tag`,
@@ -178,16 +178,16 @@ cannot launch anything further - it holds no agent-launch capability. This does 
 agent-launched leaf (see below), which never invokes git-ops itself. (Ref: git-toolkit
 `git-nesting-protocol` N1.)
 
-A HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`,
+A HARD-LEAF worker (`odoo-frontend-coder`, `odoo-test-writer`, `odoo-impact-recon`,
 `odoo-icon-designer`, ANY leaf domain subagent) NEVER invokes git-ops, not even via the Skill tool:
-it cannot launch agents and returns files for its orchestrator/coordinator to commit (SSOT:
-`worker-brief.md`). A SPAWNER coordinator that can launch agents - notably the `odoo-coder`
-node coordinator, and any SKILL/orchestrator context (main, a workflow phase, `run-harness`'s
-node loop) - MAY invoke git-ops via the Skill tool, which runs INLINE in its
+it cannot launch agents and returns files for its orchestrator or node owner to commit (SSOT:
+`worker-brief.md`). A node owner or spawner that can launch agents - notably `odoo-coder`, and
+any SKILL/orchestrator context (main running a plan, a workflow phase) - MAY invoke git-ops via
+the Skill tool, which runs INLINE in its
 own context; git-ops then cold-spawns exactly ONE git leaf below it, and that leaf cannot launch
 anything further either. The discriminator is agent-launch capability, not "was I launched by an agent":
-`odoo-coder` was launched by an agent yet is itself a spawner, so it commits. Two-line test: "Can
-launch agents (orchestrator / spawner coordinator incl. `odoo-coder`) -> may invoke git-ops inline.
+`odoo-coder` was launched by an agent yet can launch one itself, so it commits. Two-line test: "Can
+launch agents (orchestrator / node owner incl. `odoo-coder`) -> may invoke git-ops inline.
 Hard leaf (cannot launch agents) -> return files, never git."
 
 ## Human-confirm pass-through

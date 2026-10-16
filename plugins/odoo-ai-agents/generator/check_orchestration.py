@@ -331,7 +331,7 @@ OSM_REQUIRED = {"workflow-chaining", "odoo-brl"}
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
 # agents.<name>.role enum (V-01 SSOT - now populated for every agent; see the agent-role pass below).
-VALID_AGENT_ROLE = {"leaf", "spawner", "coordinator"}
+VALID_AGENT_ROLE = {"leaf", "spawner", "coordinator", "node-owner"}
 # output_mode drives the Plan-Mode decision; default_gate_tier drives the run-harness gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
 # per-skill from the SKILL.md Output field (a backend-stack skill can be read-only/chat-only,

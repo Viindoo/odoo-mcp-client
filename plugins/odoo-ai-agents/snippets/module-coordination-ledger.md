@@ -1,14 +1,13 @@
 <!-- SSOT snippet. Authoring-owned by odoo-planning; WRITTEN at runtime only by odoo-coding.
      On-disk claim/status registry so concurrent runs/worktrees see which NEW modules are being
      built where, letting `BLOCKED: manifest dependency <D> unresolved` be classified instead of
-     guessed. WRITTEN ONLY by odoo-coding; the hard-leaf odoo-backend-coder/odoo-frontend-coder
-     workers (and the odoo-coder lead relaying a raw BLOCKED) stay ledger-unaware. Referenced
-     (not copy-pasted) by odoo-coding and run-harness. Edit here only; consumers point at
+     guessed. WRITTEN ONLY by odoo-coding; odoo-coder (which emits the raw BLOCKED) stays
+     ledger-unaware. Referenced (not copy-pasted) by odoo-coding and the plan-running rules. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md. -->
 
 # Module Coordination Ledger (cross-run / worktree)
 
-The per-run dependency pre-flight (`odoo-backend-coder` § Dependency pre-flight) already
+The per-run dependency pre-flight (`odoo-coder` step 6) already
 converts every unresolved `depends` into a graceful `BLOCKED: manifest dependency <D>
 unresolved on addons-path`. This ledger adds the one thing a single run cannot see: whether `<D>`
 is being built right now by a different run/worktree, was already built elsewhere, or is
@@ -75,10 +74,9 @@ so it is the only actor that knows when a module transitions state.
 - **WRITE - `odoo-coding` alone.** No other actor writes an entry or status.
 - **READ for coordination decisions - `odoo-coding` alone.** It reads its own ledger to run
   § Decision table and drive the bounded N-barrier WAIT internally (§ N-barrier WAIT ownership).
-- **The hard-leaf `odoo-backend-coder`/`odoo-frontend-coder` workers stay LEDGER-UNAWARE** (as
-  does the `odoo-coder` coordinator) - they never read or write `$LEDGER_ROOT`; only
-  `odoo-backend-coder` runs § Dependency pre-flight and emits a RAW `BLOCKED: manifest dependency
-  <D> unresolved on addons-path` (the coordinator relays it up unchanged).
+- **`odoo-coder` stays LEDGER-UNAWARE** - it never reads or writes `$LEDGER_ROOT`; it runs the
+  dependency pre-flight and emits a RAW `BLOCKED: manifest dependency <D> unresolved on
+  addons-path`, which `odoo-coding` classifies.
 - **`run-harness` neither writes the ledger nor drives any ledger decision.** It receives
   `odoo-coding`'s already-classified BLOCKED and runs its saga path; it may read the ledger
   read-only for its own execution log, but never runs the WAIT or decision table.

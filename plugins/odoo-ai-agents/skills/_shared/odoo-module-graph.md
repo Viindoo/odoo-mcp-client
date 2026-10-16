@@ -10,37 +10,29 @@ see below) use the SAME algorithm - OSM `module_inspect` dependency lookup plus 
 sort - over the SAME kind of node set: the MODULES in scope. The shared algorithm lives here
 once, referenced by every consumer instead of restated.
 
-## Two-tier decomposition axis (the SSOT statement)
+## The node is the unit of work (the SSOT statement)
 
-The decomposition has exactly TWO tiers; the work-item (WI) lives on ONLY the inner one:
-
-- **OUTER tier = the NODE.** The unit of planning and of a RUN is the plan node
-  (`run-<id>.json` `nodes[]`), never the module. `odoo-planner` authors nodes with `depends_on`
-  edges; `odoo-coding` dispatches ONE `odoo-coder` per node, whatever module(s) it touches - one,
-  part of one, or several. NO layer at or above `odoo-coding` (planning, `odoo-planner`,
-  plan-mode-schema, Phase P, `run-harness`) knows the term "work-item" - the outer unit
-  is always the node.
-- **INNER tier = the WORK-ITEM (WI), owned by `odoo-coder`, INTERNAL to one node.** For its ONE
-  node, `odoo-coder` splits the changes into 1..N WIs by DISJOINT file sets, schedules INDEPENDENT
-  WIs in PARALLEL and DEPENDENT WIs SEQUENTIALLY (a frontend WI binding a backend WI runs after
-  it), and assigns each to the right worker (backend files -> `odoo-backend-coder`, frontend
-  files -> `odoo-frontend-coder`). A WI MAY span modules within the node; WI file sets across the
-  node MUST still be disjoint. When two WIs touch modules with a dependency edge between them,
-  the WI on the DEPENDED-ON module runs FIRST. One node -> 1..N WIs.
+- **The NODE** is the unit of planning, of dispatch, of commit and of integration
+  (`run-<id>.json` `nodes[]`), never the module and never a file type. `odoo-planner` authors
+  nodes with `depends_on` edges; `odoo-coding` launches ONE `odoo-coder` per node, whatever
+  module(s) it touches - one, part of one, or several - and that coder writes every file the node
+  needs in every module the node names.
+- **A node is divided only for two reasons**, both the coder's call: a part whose output exceeds
+  one agent's budget (a second `odoo-coder` on a disjoint file set), or a frontend part with new
+  JS or OWL files that shares no file with the backend part (`odoo-frontend-coder`, launched after
+  the backend symbols it binds exist). A node is never divided by module or by file type.
 
 **What keeps the outer DAG conflict-free is the DISJOINT FILE SCOPE, not the module boundary.**
-Two nodes never write the same file because `files-in-scope` sets are disjoint by schema and
-`run-harness` re-verifies it before any worktree is created; two RUNS never build the same module
-concurrently because the coordination ledger's claim key is the module technical name. Within one
-node, work-items are disjoint by file set, so two coders never write the same file even when the
-node spans modules. The module is not a tier of decomposition: it is a PROPERTY of a node (which
-modules it touches) and an Odoo fact (install unit, test-selection unit, dependency node). The WI
-is `odoo-coder`'s PRIVATE unit and MUST NOT surface to planning / `run-harness`. **Invariant:** the
-PLAN is the shared computed result - `odoo-planning` is the canonical PRODUCER of the node DAG;
-`odoo-coding` (and `run-harness`, ordering cherry-picks) CONSUME it and call the algorithm here
-DIRECTLY only when running STANDALONE (no plan provided), each computing independently. Skipping
-module-dependency ordering is the root of ordering conflicts: work-items that ignore module
-boundaries get dispatched before the module they build on exists.
+Two nodes dispatched together never write the same file because their `files_in_scope` sets are
+disjoint by schema (the main agent verifies it before any worktree is created) and never touch
+the same module at the same time; two RUNS never build the same module concurrently because the
+coordination ledger's claim key is the module technical name. The module is a PROPERTY of a node
+(which modules it touches) and an Odoo fact (install unit, test-selection unit, dependency node),
+not a unit of dispatch. **Invariant:** the PLAN is the shared computed result - `odoo-planning`
+is the canonical PRODUCER of the node DAG; `odoo-coding` (and the main agent, ordering
+cherry-picks) CONSUME it and call the algorithm here DIRECTLY only when running STANDALONE (no
+plan provided). Skipping module-dependency ordering is the root of ordering conflicts: a node
+dispatched before the module it builds on exists.
 
 ## Compute the graph (OSM is ground truth)
 
@@ -58,7 +50,7 @@ For a target set of modules `M`:
 4. **Fallback (OSM unreachable or too thin):** the graph's owning orchestrator (`odoo-planning`
    as producer, or `odoo-coding` self-deriving) dispatches a read-only **haiku** subagent to read
    each descriptor's `depends` (glob BOTH names) and scan for `static/src`, labeling the result
-   `graph from disk (OSM unavailable)`. A leaf WI worker
+   `graph from disk (OSM unavailable)`. A leaf worker
    must NEVER hit this fallback by spawning - the graph is computed before any worker exists; a
    leaf needing it reads the descriptors itself, never spawning.
 5. **New module (resolves to NEITHER OSM NOR disk) - the third case.** A target module `m` in `M`
@@ -86,26 +78,25 @@ A node's `depends_on` edges derive from this graph: if a node's modules depend, 
 transitively, on another node's modules, that is an edge FROM the dependent node ONTO the
 depended-on node. Independent nodes dispatch together (bounded by the rolling-window budget,
 `concurrency-guard.md`); a dependent node's coder starts only after every node it `depends_on` is
-DONE. Which work-item inside a node runs first is `odoo-coder`'s private concern (INNER tier
-above), never this algorithm's.
+DONE. How `odoo-coder` orders the files inside its node is its own concern, never this
+algorithm's.
 
-## How `run-harness` orders cherry-picks
+## How the main agent orders cherry-picks
 
-`run-harness` is consume-only: it does NOT auto-infer the dependency graph. The auto-inference
-below is done ONCE by the PRODUCER (`odoo-planning`); `run-harness` consumes the result as its
-cherry-pick order. The same algorithm runs standalone only inside `odoo-coding` (no plan provided).
+The main agent running a plan is consume-only: it does NOT auto-infer the dependency graph. The
+auto-inference below is done ONCE by the PRODUCER (`odoo-planning`); the main agent consumes the
+result as its cherry-pick order. The same algorithm runs standalone only inside `odoo-coding` (no
+plan provided).
 
-1. Nodes here are keyed by the MODULES each touches - no WI-to-module mapping step, since the
-   outer unit is already the node (two-tier axis above).
+1. Nodes here are keyed by the MODULES each touches; the node is the unit (above).
 2. **Auto-infer `depends_on` (producer side):** if node Y touches a module that `depends` (directly
    or transitively) on a module X touches, and X's module is in the plan's set, then Y
    `depends_on` X - even undeclared. These edges fix the node topology so cherry-pick order =
-   node-DAG topological order; `run-harness` reads them verbatim from the plan, never
+   node-DAG topological order; the main agent reads them verbatim from the plan, never
    recomputing them.
-3. **Disjoint file-scope safety audit (`run-harness`, before any worktree is created):**
-   trust-but-verify no source file is claimed by two nodes' `files-in-scope`; STOP BLOCKED on
-   an overlap even though the plan supplied the map. (The intra-node split into disjoint-file-set
-   WIs is `odoo-coder`'s PRIVATE concern - two-tier axis above - never surfacing here.)
+3. **Disjoint file-scope safety audit (the main agent, before any worktree is created):**
+   trust-but-verify no source file is claimed by two nodes dispatched together; STOP BLOCKED on
+   an overlap even though the plan supplied the map.
 
 Record the computed graph + any auto-inferred `depends_on` in the worklog (`worklog-contract.md`) so
 later phases can see why the ordering is what it is.

@@ -5,8 +5,8 @@
 
 # Worker Brief (OSM grounding + worktree isolation)
 
-A HARD-LEAF subagent dispatched into an isolated worktree carries this brief - the coding workers
-`odoo-backend-coder` and `odoo-frontend-coder`, plus the other leaf specialists. It keeps two rails:
+A HARD-LEAF subagent dispatched into an isolated worktree carries this brief - `odoo-frontend-coder`,
+`odoo-test-writer`, `odoo-impact-recon` and the other leaf specialists. It keeps two rails:
 the work is done directly by the specialist, and ALL git stays out of the worker's hands -
 the worker writes files and returns them; the orchestrator commits via git-ops (see below). A hard
 leaf launches NO sub-agent and invokes NO spawner skill.
@@ -17,19 +17,17 @@ worker-side behavior once dispatched, not how the caller composed your brief.
 
 **Who this brief does NOT bind: any agent the registry declares `role: spawner|coordinator`**
 (`generator/skill_tool_deps.json` -> `agents.<name>.role` is the SSOT - read the role, do not
-infer it from a name list here). Today that is `odoo-coder` and `odoo-solution-architect`; a
-third promoted tomorrow is covered by the same sentence. Such an agent launches its own
+infer it from a name list here) **or `role: node-owner`** (`odoo-coder`). Today that is
+`odoo-coder` and `odoo-solution-architect`; a third promoted tomorrow is covered by the same
+sentence. Such an agent launches its own
 children under `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` and the
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` cap, and takes its worker-side
 rails from its OWN agent body instead of the leaf rails above. `odoo-solution-architect` is
 the read-only case: it launches grounding workers only, writes no source, and runs no git.
 
-`odoo-coder` is the WRITING case, and the rest of this section is its detail. It is a sanctioned
-nested spawner (one agent level below `odoo-coding`, launched once per work node) that
-launches its hard-leaf teammates - `odoo-backend-coder` and/or `odoo-frontend-coder` (the code)
-first, then ONE `odoo-test-writer` per node
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg) -
-per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`), tests the integrated node
+`odoo-coder` is the WRITING case: it writes its node's code and tests itself, and launches a
+leaf only for a frontend part with new JS or OWL files, a second part past its output budget, or
+the recon it was not handed - per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`); it tests the whole node
 via `Skill(odoo-instance)` inline, and - once the integrated test is green - COMMITS its node by
 invoking `git-toolkit:git-ops` via the Skill tool and returns the node's commit range to
 `odoo-coding`, which never re-commits (under `COMMIT: caller` it commits nothing and returns the
@@ -68,12 +66,10 @@ file list). It NEVER authors the node's source itself: every source file is writ
   carries `SELF_PROVISION: worktree-addons`
   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Because
   you are a declared HARD LEAF, `odoo-instance` runs INLINE for you (never launches
-  `odoo-instance-ops`) - this is a MUST, not a judgment call. `odoo-backend-coder` and
-  `odoo-frontend-coder` are BOTH INSTANCE-FREE - neither self-provisions; each runs only its own
-  static gate (ORM-validation for the backend leg, `verify-frontend.sh` for the frontend leg), and
-  any live check is owned by the `odoo-coder` coordinator's integrated test or a delegated
-  `odoo-instance` run - the lint-class gate runs ONCE at
-  `run-harness`'s pre-PR tail, never inside either leaf. `odoo-test-writer` never self-provisions:
+  `odoo-instance-ops`) - this is a MUST, not a judgment call. `odoo-frontend-coder` is
+  INSTANCE-FREE - it never self-provisions and runs only its static `verify-frontend.sh` gate; every
+  live check is owned by `odoo-coder`'s whole-node test, and the lint-class gate runs ONCE at the
+  plan's pre-PR lint gate, never inside a leaf. `odoo-test-writer` never self-provisions:
   it runs its break-checks through `odoo-instance` inline on the forwarded handle
   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle).
   **Self-provisioning carries teardown:** what you acquire under this carve-out you

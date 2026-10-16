@@ -58,9 +58,9 @@ _node_major() {
     node --version 2>/dev/null | sed -E 's/^v?([0-9]+).*/\1/'
 }
 
-# Minimum Claude Code version for nested subagent dispatch (the odoo-coder per-node coordinator,
-# launched for EVERY work node, launches odoo-backend-coder and/or odoo-frontend-coder one agent level
-# below itself). Only the version is checked here; the platform nesting cap and how depth is counted
+# Minimum Claude Code version for nested subagent dispatch (odoo-coder, launched once per node,
+# may launch odoo-impact-recon, odoo-frontend-coder or a second odoo-coder one agent level below
+# itself). Only the version is checked here; the platform nesting cap and how depth is counted
 # are stated once, in snippets/spawner-completion-contract.md R0 move 1.
 CC_MIN_VERSION="2.1.172"
 
@@ -367,10 +367,10 @@ cmd_apply() {
     echo "============================================================"
     echo
     echo "AUTO-DETECTED:"
-    # Claude Code version gate - required for the coder coordinator's nested subagent dispatch.
+    # Claude Code version gate - required for odoo-coder's nested subagent dispatch.
     # Informational (never blocks `check`); an older CLI still runs everything else.
     if _cc_version_ok; then printf '  [ok ]'; else printf '  [ -- ]'; fi
-    echo " Claude Code >= $CC_MIN_VERSION (nested subagent dispatch for the coder coordinator)  found: ${ccv:-none}"
+    echo " Claude Code >= $CC_MIN_VERSION (nested subagent dispatch for odoo-coder)  found: ${ccv:-none}"
     echo "         fix: update Claude Code to >= $CC_MIN_VERSION (do NOT set any experimental agent-teams flag)"
     if _needs_browser; then
         if [[ -n "$nm" && "$nm" -ge 20 ]]; then printf '  [ok ]'; else printf '  [ -- ]'; fi
