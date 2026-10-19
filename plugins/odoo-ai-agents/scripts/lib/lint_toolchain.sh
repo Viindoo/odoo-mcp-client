@@ -22,10 +22,14 @@
 #     they skip (quietly, correctly) when it is absent.
 #   - A `test_pylint`-style module resolves WHICH repo to lint from
 #     `repo_to_check_quality`. Unset, it skips with "No repo to check". The
-#     value is a DIRECTORY BASENAME, not a path: the test matches it with
-#     `adp.endswith(f"/{repo}")` against each `odoo.addons.__path__` entry, so
-#     passing an absolute path silently matches nothing and the gate keeps
-#     skipping.
+#     value is a TRAILING PATH SUFFIX, never an absolute path: the test matches
+#     it with `adp.endswith(f"/{repo}")` against EVERY `odoo.addons.__path__`
+#     entry (the addons_path, plus the core `<core package>/addons` Odoo adds
+#     itself), so an absolute path matches nothing and the gate keeps skipping,
+#     while a bare basename two entries share (two worktrees `a/src` and
+#     `b/src`) lints both trees. The value exported is therefore the SHORTEST
+#     suffix of the owning entry that no other entry ends with on a component
+#     boundary - the bare basename when it is unique, `a/src` when it is not.
 #
 #     WHERE that value is read from is NOT uniform across series, and this is
 #     the trap to know about: newer variants resolve it from the config file,
@@ -40,14 +44,15 @@
 #     claim we cannot make from here).
 #
 #     If a run still skips with "No repo to check" while LINT_TOOLCHAIN_REPO= is
-#     in the log, that variant is config-file-only. Set the key in THAT
-#     INSTANCE's own generated odoo.conf - the one 50-instance-spinup.sh writes
-#     under the state root - and NOT in the shared `~/.odoorc`. Per-instance
-#     conf is deliberate isolation ("never the user's default odoo.conf; no
-#     project files are mutated"); putting a per-run lint target in the shared
-#     default would apply it to every other instance on the host. That is also
-#     why this file only ever touches the ENVIRONMENT of one launch subshell and
-#     writes no config file of its own.
+#     in the log, that variant is config-file-only. Pass the key for THAT build
+#     through instance_build `conf_options` (55-instance-ops.sh --conf-option),
+#     which writes it into the build's own generated odoo.conf under the state
+#     root - and NOT into the shared `~/.odoorc`. Per-instance conf is deliberate
+#     isolation ("never the user's default odoo.conf; no project files are
+#     mutated"); putting a per-run lint target in the shared default would apply
+#     it to every other instance on the host. That is also why this file only
+#     ever touches the ENVIRONMENT of one launch subshell and writes no config
+#     file of its own.
 #
 # So a repo can pin a correct, modern eslint in its own package.json and STILL
 # be linted by the 2019 OS binary, because nothing ever put the repo-local
@@ -73,12 +78,15 @@
 #       -> prints the colon-joined PATH prefix (venv bin + every repo-local
 #          node_modules/.bin found), or nothing when there is none to add.
 #          Pure: prints, exports nothing.
-#   lint_toolchain_repo_to_check <addons-csv> <modules-csv>
-#       -> prints the DIRECTORY BASENAME to hand REPO_TO_CHECK_QUALITY, only
-#          when exactly ONE addons entry owns the named modules. Ambiguous or
-#          unresolvable -> prints nothing (caller leaves the var unset, and the
-#          lint test keeps its current honest skip).
-#   lint_toolchain_export <python-bin> <addons-csv> <modules-csv>
+#   lint_toolchain_repo_to_check <addons-csv> <modules-csv> [<extra-paths-csv>]
+#       -> prints the value to hand REPO_TO_CHECK_QUALITY, only when exactly ONE
+#          addons entry (by full path) owns the named modules: its shortest
+#          trailing path suffix that no other addons entry - nor any of
+#          <extra-paths-csv>, the directories Odoo adds to odoo.addons.__path__
+#          itself - ends with (never absolute; the basename when unique).
+#          Ambiguous or unresolvable -> prints nothing (caller leaves the var
+#          unset, and the lint test keeps its current honest skip).
+#   lint_toolchain_export <python-bin> <addons-csv> <modules-csv> [<extra-paths-csv>]
 #       -> the one call a launch site makes: applies both of the above to the
 #          CURRENT shell. Intended to be called INSIDE the launch subshell so
 #          it never leaks past that one invocation.
@@ -179,11 +187,14 @@ lint_toolchain_repo_to_check() {
 
     # Same here-doc discipline as above: no pipeline for the accumulator, no
     # scratch file anywhere.
+    _extra="${3:-}"
+    # Owners by FULL path: two worktrees sharing a basename are two owners only
+    # when both hold a named module.
     _owners="$(_lt_split_csv "$_addons" | while IFS= read -r _entry; do
         [ -d "$_entry" ] || continue
         _inner="$(_lt_split_csv "$_modules")"
         for _m in $_inner; do
-            if [ -f "$_entry/$_m/__manifest__.py" ]; then basename "$_entry"; break; fi
+            if [ -f "$_entry/$_m/__manifest__.py" ]; then printf '%s\n' "${_entry%/}"; break; fi
         done
     done)"
 
@@ -191,23 +202,53 @@ lint_toolchain_repo_to_check() {
     _n=0
     while IFS= read -r _o; do
         [ -n "$_o" ] || continue
-        case " $_uniq " in *" $_o "*) continue ;; esac
-        _uniq="${_uniq}${_uniq:+ }$_o"
+        [ "$_o" = "$_uniq" ] && continue
+        _uniq="$_o"
         _n=$((_n + 1))
     done <<_LT_EOF
-$_owners
+$(printf '%s\n' "$_owners" | sort -u)
 _LT_EOF
 
-    # EXACTLY one owning repo, or nothing. Two repos both owning a named module
-    # is genuine ambiguity: guessing one would lint the wrong tree, and
-    # REPO_TO_CHECK_QUALITY takes a single basename with no way to say "both".
+    # EXACTLY one owning entry, or nothing. Two entries both owning a named
+    # module is genuine ambiguity: guessing one would lint the wrong tree, and
+    # REPO_TO_CHECK_QUALITY takes a single value with no way to say "both".
     # Staying unset keeps the lint test's own honest skip.
-    [ "$_n" = "1" ] && printf '%s' "$_uniq"
+    [ "$_n" = "1" ] || return 0
+    _lt_unique_suffix "$_uniq" "$_addons${_extra:+,$_extra}"
     return 0
 }
 
+# _lt_unique_suffix <path> <paths-csv> - the shortest trailing suffix of <path>
+# (its last 1, 2, ... components, joined by `/`) that no OTHER entry of
+# <paths-csv> ends with on a component boundary (equal to it, or ending in
+# `/<suffix>`) - what a lint module matching `adp.endswith("/" + value)` against
+# every odoo.addons.__path__ entry selects as <path> alone. The bare basename
+# when it is unique; never absolute (the whole path without its leading `/`
+# when every shorter suffix collides). Bash 3.2 safe.
+_lt_unique_suffix() {
+    _us_path="${1%/}"
+    _us_others="${2:-}"
+    _us_rest="${_us_path#/}"
+    _us_suf=""
+    _us_left="$_us_rest"
+    while [ -n "$_us_left" ]; do
+        _us_part="${_us_left##*/}"
+        if [ -z "$_us_suf" ]; then _us_suf="$_us_part"; else _us_suf="$_us_part/$_us_suf"; fi
+        _us_clash="$(_lt_split_csv "$_us_others" | while IFS= read -r _us_o; do
+            _us_o="${_us_o%/}"
+            [ "$_us_o" = "$_us_path" ] && continue
+            case "$_us_o" in
+                "$_us_suf"|*/"$_us_suf") echo y; break ;;
+            esac
+        done)"
+        if [ -z "$_us_clash" ]; then printf '%s' "$_us_suf"; return 0; fi
+        case "$_us_left" in */*) _us_left="${_us_left%/*}" ;; *) _us_left="" ;; esac
+    done
+    printf '%s' "$_us_rest"
+}
+
 lint_toolchain_export() {
-    _py="${1:-}"; _addons="${2:-}"; _modules="${3:-}"
+    _py="${1:-}"; _addons="${2:-}"; _modules="${3:-}"; _lt_extra="${4:-}"
 
     _pfx="$(lint_toolchain_path_prefix "$_py" "$_addons")"
     if [ -n "$_pfx" ]; then
@@ -217,18 +258,18 @@ lint_toolchain_export() {
 
     # Never override a value the operator set deliberately.
     if [ -z "${REPO_TO_CHECK_QUALITY:-}" ]; then
-        _repo="$(lint_toolchain_repo_to_check "$_addons" "$_modules")"
+        _repo="$(lint_toolchain_repo_to_check "$_addons" "$_modules" "$_lt_extra")"
         if [ -n "$_repo" ]; then
             REPO_TO_CHECK_QUALITY="$_repo"
             export REPO_TO_CHECK_QUALITY
             # State the FACT (what we exported), never the conclusion (that the
             # gate is configured) - a config-file-only lint variant ignores it.
-            # The remedy named here is the INSTANCE's own generated conf, never
-            # the shared default: 50-instance-spinup.sh writes a per-instance
-            # odoo.conf under the state root precisely so instances cannot
-            # collide, and sending someone to edit ~/.odoorc would undo that by
-            # leaking one run's setting into every other instance on the host.
-            printf 'allocator: LINT_TOOLCHAIN_REPO=%s (exported; a lint module that reads its config file only will ignore this - set repo_to_check_quality in THIS instance own generated odoo.conf, never in the shared ~/.odoorc)\n' "$_repo"
+            # The remedy named here is the BUILD's own generated conf (written
+            # from instance_build conf_options), never the shared default: each
+            # build gets its own odoo.conf under the state root precisely so
+            # instances cannot collide, and sending someone to edit ~/.odoorc
+            # would leak one run's setting into every other instance on the host.
+            printf 'allocator: LINT_TOOLCHAIN_REPO=%s (exported; a lint module that reads its config file only will ignore this - pass repo_to_check_quality through instance_build conf_options, which writes it into THIS build own generated odoo.conf, never in the shared ~/.odoorc)\n' "$_repo"
         fi
     fi
 }

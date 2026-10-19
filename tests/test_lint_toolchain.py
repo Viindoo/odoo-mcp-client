@@ -209,11 +209,47 @@ def test_repo_to_check_resolves_only_when_unambiguous(tree, modules, expected):
     assert out == expected
 
 
-def test_repo_to_check_returns_a_basename_not_a_path(tree):
+def test_repo_to_check_is_never_absolute_and_is_the_basename_when_unique(tree):
     """The lint test matches with `adp.endswith(f"/{repo}")`. An absolute path matches nothing and
     the gate keeps skipping - so a path here would look configured and change nothing."""
     out = _sh(f'lint_toolchain_repo_to_check "{tree["csv"]}" "modx"').strip()
-    assert out == "repoA" and "/" not in out
+    assert out == "repoA" and not out.startswith("/")
+
+
+def _addons_dir(base, module):
+    (base / module).mkdir(parents=True)
+    (base / module / "__manifest__.py").write_text("{}")
+    return base
+
+
+def test_two_worktrees_sharing_a_basename_export_the_shortest_unique_suffix(tmp_path):
+    """Worktrees a/src and b/src: the bare `src` would match both through endswith("/src") and lint
+    the other worktree too; `a/src` matches the owner alone."""
+    a = _addons_dir(tmp_path / "wt" / "a" / "src", "modx")
+    b = _addons_dir(tmp_path / "wt" / "b" / "src", "mody")
+    out = _sh(f'lint_toolchain_repo_to_check "{a},{b}" "modx"').strip()
+    assert out == "a/src"
+    assert str(a).endswith("/" + out) and not str(b).endswith("/" + out)
+
+
+def test_two_owners_sharing_a_basename_are_still_ambiguous(tmp_path):
+    a = _addons_dir(tmp_path / "wt" / "a" / "src", "modx")
+    b = _addons_dir(tmp_path / "wt" / "b" / "src", "mody")
+    assert _sh(f'lint_toolchain_repo_to_check "{a},{b}" "modx,mody"').strip() == ""
+
+
+def test_the_core_addons_dir_odoo_adds_itself_counts_as_a_collision(tmp_path):
+    """Odoo adds `<core package>/addons` to odoo.addons.__path__ itself: an owner named `addons`
+    would match that core dir too, so the export must reach past it."""
+    owner = _addons_dir(tmp_path / "custom" / "addons", "modx")
+    core = tmp_path / "odoo" / "odoo" / "addons"
+    core.mkdir(parents=True)
+    assert _sh(f'lint_toolchain_repo_to_check "{owner}" "modx"').strip() == "addons"
+    out = _sh(f'lint_toolchain_repo_to_check "{owner}" "modx" "{core}"').strip()
+    assert out == "custom/addons" and not str(core).endswith("/" + out)
+    exported = _sh(f'lint_toolchain_export "" "{owner}" "modx" "{core}" >/dev/null\n'
+                   'echo "REPO=$REPO_TO_CHECK_QUALITY"', env={"REPO_TO_CHECK_QUALITY": ""})
+    assert "REPO=custom/addons" in exported
 
 
 # --------------------------------------------------------------------------- #

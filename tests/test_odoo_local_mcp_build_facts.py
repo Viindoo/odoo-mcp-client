@@ -873,3 +873,52 @@ def test_job_wait_warns_nothing_when_the_venv_has_every_optional_test_import(cli
                                     test_tags="/my_mod"))["job_id"])
     assert done["summary"]["TEST_DEPS_MISSING"] == ""
     assert not [w for w in done["warnings"] if "test framework" in w]
+
+
+# --------------------------------------------------------------------------- #
+# conf_options: extra [options] keys of the build's own generated conf
+# --------------------------------------------------------------------------- #
+def test_conf_options_land_in_the_generated_conf_of_that_build(client, world):
+    lease = _lease(client, world)
+    job = _ok(_build(client, world, lease["token"],
+                     conf_options={"lint_scope_repo": "a/src", "lint_strict": True, "lint_level": 2}))
+    assert job["conf_options"] == {"lint_level": "2", "lint_scope_repo": "a/src",
+                                   "lint_strict": "True"}
+    done = _wait(client, job["job_id"])
+    assert done["result"] == "success", done
+    ((_conf, lines),) = _run_confs(world)
+    assert lines[0] == "[options]"
+    assert [ln for ln in lines if ln.startswith("lint_")] == [
+        "lint_level = 2", "lint_scope_repo = a/src", "lint_strict = True"]
+    (argv,) = _odoo_calls(world)
+    assert not [a for a in argv if "lint_" in a], "the keys go into the conf only"
+    assert done["summary"]["BUILD_CONF_KEYS"] == "lint_level,lint_scope_repo,lint_strict"
+
+
+# The checkout's own dest for --database (a fixture config.py may name it anything): refused
+# because the option is one the tool owns, whatever its dest spells.
+CHECKOUT_DB_DEST = "fixture_database_dest"
+
+
+@pytest.mark.parametrize("key", ["db_name", "addons_path", "server_wide_modules", "log_level",
+                                 "http_port", "admin_passwd", CHECKOUT_DB_DEST])
+def test_a_conf_option_the_tool_owns_is_refused_naming_it(client, world, key):
+    config = world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
+    text = config.read_text(encoding="utf-8")
+    assert '"--database", dest="database"' in text
+    config.write_text(text.replace('"--database", dest="database"',
+                                   '"--database", dest="%s"' % CHECKOUT_DB_DEST), encoding="utf-8")
+    lease = _lease(client, world)
+    err = _err(_build(client, world, lease["token"], conf_options={key: "x"}))
+    assert err["code"] == "INVALID_ARGUMENTS", err
+    assert "arguments.conf_options.%s" % key in err["message"]
+    assert _jobs(world) == [] and _odoo_calls(world) == [], "nothing may start"
+
+
+@pytest.mark.parametrize("options", [{"Bad-Key": "x"}, {"lint_scope": "two\nlines"},
+                                     {"lint_scope": ["a", "b"]}])
+def test_a_malformed_conf_option_is_refused_before_anything_starts(client, world, options):
+    lease = _lease(client, world)
+    res = _build(client, world, lease["token"], conf_options=options)
+    assert res["isError"] is True
+    assert _jobs(world) == [] and _odoo_calls(world) == []
