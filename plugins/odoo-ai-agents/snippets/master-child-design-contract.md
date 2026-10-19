@@ -40,19 +40,19 @@ slug: fleet-billing
 created: 2026-06-28
 master: _master-2026-06-28.md
 modules:
-  - name: viin_fleet_billing
-    child_path: viin_fleet_billing-2026-06-28.md
+  - name: fleet_billing
+    child_path: fleet_billing-2026-06-28.md
     depends_on: []
     dag_layer: 0            # 0 = no intra-design dep; higher = depends on lower-layer modules
     status: pending         # pending | designed | approved | skipped
-  - name: viin_fleet_billing_account
-    child_path: viin_fleet_billing_account-2026-06-28.md
-    depends_on: [viin_fleet_billing]
+  - name: fleet_billing_account
+    child_path: fleet_billing_account-2026-06-28.md
+    depends_on: [fleet_billing]
     dag_layer: 1
     status: pending
 dag_layers:
-  - [viin_fleet_billing]
-  - [viin_fleet_billing_account]
+  - [fleet_billing]
+  - [fleet_billing_account]
 ```
 
 `dag_layers` and each entry's `depends_on` + `dag_layer` must be kept in sync - they are the
@@ -93,8 +93,8 @@ resolve them to absolute paths (join the index directory + the relative value) B
 files or inserting paths into `DESIGN_DOC` / `MASTER_DESIGN_DOC` fields.
 
 Example: `index.yaml` at `<SHARE_DIR>/designs/fleet-billing/index.yaml` with
-`child_path: viin_fleet_billing-2026-06-28.md` resolves to
-`<SHARE_DIR>/designs/fleet-billing/viin_fleet_billing-2026-06-28.md` (absolute, under the
+`child_path: fleet_billing-2026-06-28.md` resolves to
+`<SHARE_DIR>/designs/fleet-billing/fleet_billing-2026-06-28.md` (absolute, under the
 resolved SHARE dir).
 
 ## §10 Cross-module contracts - shared-symbol ownership registry (in master TDD)

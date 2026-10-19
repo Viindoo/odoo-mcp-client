@@ -153,7 +153,7 @@ code.
   you know exists there is this staging bug, not a code defect.
 - **Comments** follow `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`: the method name
   already states the rule, so never repeat it; no attribution, no break narration. Test locals follow
-  `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Rule A everywhere).
+  `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`.
 
 Static check before running: imports resolve, `@api.depends` paths used in `Form` interactions pass
 `validate_depends`, field names match `model_inspect`. The lint gate runs once at the plan's

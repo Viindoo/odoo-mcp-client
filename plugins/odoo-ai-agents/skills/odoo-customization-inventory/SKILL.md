@@ -44,7 +44,7 @@ CEO / CTO / Project Manager
 
 Executives need the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output in business language, not technical jargon.
 
-Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). On v8/v9 the module descriptor is `__openerp__.py` rather than `__manifest__.py` - note the OpenERP-era origin when a module carries it.
+Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (owned by the active OSM profile, usually under a shared name prefix), True custom (client IT / system integrator). A module whose descriptor is `__openerp__.py` rather than `__manifest__.py` is OpenERP-era - note that origin.
 
 **Data priority:** MCP tool results are ground truth for module classification over training knowledge.
 

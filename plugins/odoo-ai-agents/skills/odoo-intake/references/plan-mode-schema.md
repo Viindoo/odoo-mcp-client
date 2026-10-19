@@ -11,7 +11,7 @@ could have stated. `nodes` and `edges` are the ONLY ordering statement a plan ma
 header, annotation or grouping construct batches nodes together.
 
 **Run header** (above Block 1): `odoo_version: <concrete series>`; optional
-`viindoo_profile: <name|none>`, `grounded: osm | hybrid | local-source | ungrounded`. Resolve
+`osm_profile: <name|none>`, `grounded: osm | hybrid | local-source | ungrounded`. Resolve
 `odoo_version` by the rungs of `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`,
 never a silent default.
 
@@ -63,15 +63,15 @@ Template:
 
 ```text
   [billing-core] [repo: fleet-addons] [agent: odoo-coder @ sonnet]
-      modules: viin_fleet_billing (NEW)
+      modules: fleet_billing (NEW)
       depends-on: (none)
 
   [billing-accounting-bridge] [repo: fleet-addons] [agent: odoo-coder @ haiku]
-      modules: viin_fleet_billing_account (NEW), viin_fleet_billing (NEW)
+      modules: fleet_billing_account (NEW), fleet_billing (NEW)
       depends-on: billing-core
 
   [verify] [repo: fleet-addons] [skill: odoo-instance]
-      modules: viin_fleet_billing, viin_fleet_billing_account
+      modules: fleet_billing, fleet_billing_account
       depends-on: billing-accounting-bridge
 
   [review-r1] [repo: fleet-addons] [agent: odoo-code-reviewer R1 @ haiku]

@@ -28,7 +28,7 @@ next:                                       # [] when nothing to add; REQUIRED (
                                              # § Running the plan, step 4) reads next[] regardless of your own status
   - skill: <skill-or-workflow-name>
     reason: <why this is the next step>
-    inputs: {<key>: <value>}                 # odoo_version, viindoo_profile are RESERVED - see Rules
+    inputs: {<key>: <value>}                 # odoo_version, osm_profile are RESERVED - see Rules
     confidence: 0.0..1.0                     # <0.5 ⇒ driver surfaces it as a suggestion, not auto-run
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
@@ -90,6 +90,6 @@ Rules:
   fails the copy-paste check, or with no `continuation` block at all, is a protocol violation.
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
-  `viindoo_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
+  `osm_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
   `odoo-code-review`, `odoo-test-writing`) MUST carry `odoo_version` in `inputs` so
   the version survives the handoff structurally, not by the next skill re-deriving it.

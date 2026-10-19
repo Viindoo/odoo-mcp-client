@@ -53,9 +53,9 @@ One file lives at the root of `coding_guidelines/` and is shared across all vers
 ## Mechanical gate (safety net, not a substitute)
 
 A subset of these rules that can be checked mechanically is enforced by two gates against changed
-files. The backend gate is Odoo's own lint test module plus, on a Viindoo profile, Viindoo's -
-append the set resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md to `--test-tags` in the instance test run - same gate as Runbot (deprecated
-decorators, `cr.commit()`, ORM misuse, sql-injection, translation rules). See
+files. The backend gate is the set of lint-class modules resolved per
+${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md, appended to `--test-tags` in the instance test
+run - same gate as Runbot (deprecated decorators, `cr.commit()`, ORM misuse, sql-injection, translation rules). See
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. `scripts/verify-frontend.sh` runs a
 three-tier check over changed `.js`/`.xml`/`.scss` files: JS lint/format via repo-pinned
 `eslint -c _eslintrc.json` (Tier 1 - the same oracle Runbot uses), static OWL/SCSS pattern scan
@@ -80,11 +80,10 @@ map to load only the snippets that apply to your task.
 | `access-groups-conventions.md` | Adding/editing `res.groups` for an application (category_id derivation, implied_ids ladder) | CORE - all distributions |
 | `field-presence-resolution.md` | Writing or reviewing any field/method access | CORE - all distributions |
 | `xml-view-conventions.md` | Writing/reviewing XML views in v18+ (always-invisible comment, `<chatter/>`) | CORE - all distributions |
-| `odoo-version-pivots.md` | Any cross-version migration, or code touching a version-sensitive API | CORE + Viindoo addendum |
-| `upg-conventions.md` | Renaming a module technical name/directory | VIINDOO-gated (Standard/Internal) |
-| `upg-conventions.md` | Upgrading a Viindoo module to a new Odoo series | VIINDOO-gated (Standard/Internal) |
-| `new-module-manifest.md` | Creating a new module `__manifest__.py` | CORE + Viindoo short-form note |
+| `odoo-version-pivots.md` | Any cross-version migration, or code touching a version-sensitive API | CORE - all distributions |
+| `upg-conventions.md` | Upgrading a module to a new Odoo series | CORE - all distributions |
+| `new-module-manifest.md` | Creating a new module `__manifest__.py` | CORE - all distributions |
 | `orm-performance.md` | Stored compute aggregating a relation on a high-volume model | CORE - all distributions |
 | `stored-write-survival.md` | Writing a stored/computed core field | CORE - all distributions |
-| `python-naming-conventions.md` | Naming Python variables (l/O/i ban; meaningful names; for-r-in-self) | CORE Rule A; Viindoo-gated Rules B/C |
+| `python-naming-conventions.md` | Naming Python variables (l/O/i ban) | CORE - all distributions |
 | `code-comment-contract.md` | Writing ANY comment or docstring, in any language - read it on every code-writing task, not only when a file-type row names it | CORE - all distributions; GOVERNS over the upstream "document your code" line in `<version>/python.md` |

@@ -90,7 +90,7 @@ view). Output a **Cross-cutting** subsection.
 
 Before the downstream agent writes anything, tell it what already solves this so it ADAPTS, not reinvents:
 
-- `find_examples` - existing implementations of this pattern in core / Viindoo / custom code.
+- `find_examples` - existing implementations of this pattern in core / distribution / custom code.
 - `suggest_pattern` - the recommended approach for this kind of change.
 - `entity_lookup` - resolve an arbitrary symbol (class / method / field signature) when
   `model_inspect` is not enough.

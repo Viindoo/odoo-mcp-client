@@ -1,38 +1,13 @@
-# Viindoo Upgrade Conventions
+# Upgrade conventions
 
-> **CONVENTION 2 IS VIINDOO-DISTRIBUTION-SPECIFIC - GATING REQUIRED**
->
-> Convention 2 below is Viindoo-distribution-specific. Apply Convention 2 ONLY when BOTH
-> conditions hold:
->
-> 1. OSM (`odoo-semantic`) is reachable (probe with `list_available_profiles` or `set_active_version`).
-> 2. The active profile resolves to a Viindoo Standard or Viindoo Internal distribution -
->    semantically, profiles of the form `standard_viindoo_<series>` or
->    `viindoo_internal_<series>`. Determine the active profile at rung 2 of
->    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (`INST_PROFILE`, the exact
->    declared name), or via OSM `profile_inspect` / `list_available_profiles` / the currently
->    active profile.
->
-> If OSM is unavailable, OR the active profile is not a Viindoo Standard/Internal
-> distribution (e.g. Odoo CE/EE upstream or any other non-Viindoo distribution) -
-> DO NOT apply Convention 2.
-
-> Conv-0, Conv-1, Conv-3 and Conv-4 are CORE Odoo rules (not Viindoo-specific); the gate above
-> does NOT apply to them - apply all four on EVERY profile/distribution, OSM-reachable or not.
-> Conv-0 and Conv-1 have no standalone file; both are reached at the point of obedience: every
-> `odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail.md` § odoo-coding dispatch
-> brief) cites this file unconditionally (no profile check on the citation), firing
-> `odoo-coder` / `odoo-frontend-coder`'s "Modules-upgrade adapt" disposition (also
-> unconditional on profile) and sending the coder to § Convention 0 and § Convention 1 below - on
-> ANY profile, Viindoo or not. Conv-3/Conv-4's rule text lives in dedicated CORE files reachable
-> via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` § Snippets catalog
-> (`xml-view-conventions.md`, `odoo-version-pivots.md` - both tagged CORE, all distributions).
+Apply every convention below on every profile and distribution, OSM-reachable or not. Conv-0 and
+Conv-1 are reached through the `odoo-modules-upgrade` P4 adapt dispatch brief
+(`upg-phase-detail.md` § odoo-coding dispatch brief), which cites this file; Conv-3 and Conv-4 point
+at the file that owns their rule text.
 
 ---
 
 ## Convention 1 - No version bump on code-level upgrade
-
-CORE rule - applies to all distributions.
 
 When upgrading a module to a new Odoo series with ONLY code-level changes (no data migration, no
 behavior contract change visible to end users), do **not** bump `version` in `__manifest__.py`
@@ -49,39 +24,18 @@ and do **not** add the series prefix.
 
 ---
 
-## Convention 2 - Module rename via `old_technical_name` (no migration script)
+## Convention 3 - Always-invisible field carries an XML comment
 
-When a Viindoo module with `installable: False` (or no user data) is renamed, add to the renamed
-module's `__manifest__.py`:
-
-    'old_technical_name': '<previous technical name>',
-
-- Viindoo metadata key only - the core loader ignores it (not in `_DEFAULT_MANIFEST`). NOT a core Odoo
-  convention.
-- Viindoo tooling reads it to map old->new technical name (upgrade scaffolding, dep resolution, registry).
-- Additive - the standard Odoo rename path (OpenUpgrade `apriori.renamed_modules` +
-  `openupgrade.update_module_names`) still handles the DB-level rename independently.
-- Do NOT write a pre-migration SQL script for a no-data rename.
-
-> **C2 note:** This convention is about not writing NEW migration scripts. It does NOT exempt an
-> existing forwarded `migrations/` dir from the C2 retarget - see `[[fp-merge-absorption]]`.
-<!-- Future rules (data-file migration notes, ir.module.module record handling, alias wiring) append here. -->
-
----
-
-## Convention 3 - Always-invisible field requires XML comment (from v18)
-
-CORE rule - applies to all distributions. Full rule, definition, code example, and test name:
-`${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`
-
-Upgrade context: a missing comment fails the `base` view-arch check in the full CI suite triggered
-when a module flips `installable: False -> True` (P5 gate), on the series that ship it.
+Full rule, definition and enforcing test, per series:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/xml.md` § Always-invisible field carries a comment.
+A missing comment fails the full CI suite triggered when a module flips `installable: False -> True`
+(P5 gate) on a series that enforces it.
 
 ---
 
 ## Convention 4 - `hr.employee` fields absent from `hr.employee.public` need `groups=` (from v16)
 
-CORE rule - applies to all distributions. Full rule and code example:
+Full rule and code example:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` section "Core test-enforced authoring rules".
 
 The rule is stated by Odoo itself, in the `hr.employee` model docstring - read it there for the
@@ -93,7 +47,7 @@ gate), on the series that ship it.
 
 ## Convention 0 - A major-series module upgrade is a CODE upgrade
 
-CORE rule - applies to all distributions. Governs every P4 adapt of `odoo-modules-upgrade`.
+Governs every P4 adapt of `odoo-modules-upgrade`.
 
 **(a) No old-series compatibility, no migration script, no version bump.** Treat the module at the
 target series as NEW feature development. Do NOT preserve backward compatibility with the previous

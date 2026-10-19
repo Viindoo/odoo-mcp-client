@@ -753,10 +753,10 @@ def test_odoo_instance_is_repo_bound_and_a_repo_null_verification_node_is_flagge
                 "depends_on": [],
                 "gate_tier": "L1",
                 "status": "DONE",
-                "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+                "produced": ["fleet_billing/models/fleet_vehicle.py"],
                 "contract": {
                     "status": "DONE",
-                    "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+                    "produced": ["fleet_billing/models/fleet_vehicle.py"],
                     "next": [],
                 },
             },

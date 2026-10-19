@@ -1,8 +1,7 @@
 # XML View Conventions - CORE (all distributions)
 
-CORE Odoo rules for XML view authoring, version-tagged. Applies to ALL distributions (CE, EE,
-Viindoo). Cross-ref F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views`
-for the full pivot table - do NOT restate rows here.
+CORE Odoo rules for XML view authoring, version-tagged. Applies to ALL distributions.
+Cross-ref F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` for the full pivot table - do NOT restate rows here.
 
 ---
 

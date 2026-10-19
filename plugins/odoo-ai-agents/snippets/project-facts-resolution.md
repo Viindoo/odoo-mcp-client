@@ -10,7 +10,7 @@ answers one; an unanswered fact keeps descending, answered ones stay authoritati
 ## Rung 1 - THE BRIEF
 
 Match brief fields by STEM, any case or separator: series (`VERSION`, `ODOO_VERSION`, `SERIES`,
-`odoo_version`), profile (`PROFILE`, `viindoo_profile`), `ADDONS_PATH`, `INSTANCE_HANDLE`,
+`odoo_version`), profile (`PROFILE`, `osm_profile`), `ADDONS_PATH`, `INSTANCE_HANDLE`,
 `SHARE_DIR`, `ISOLATE_DIR`. Use the caller's literal verbatim - a stem the brief answers is
 RESOLVED. Re-resolving from your own cwd finds the wrong root across worktrees
 (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton).

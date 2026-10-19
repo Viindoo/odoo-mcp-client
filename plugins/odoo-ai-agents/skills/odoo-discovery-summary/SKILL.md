@@ -32,8 +32,8 @@ or requests "double-check with Odoo" / "kiem tra Odoo co chua"._
 - `find_examples` - When the customer wants proof-of-concept evidence during or after
   discovery ("can you show me how Odoo does X?"), use to surface real indexed code
   snippets or UI evidence. Only call if user explicitly requests it.
-- `profile_inspect` - When several Confidence-Low fit rows turn on "does the Viindoo profile
-  cover this vertical" (e.g. is there a `viin_mrp_*` family?), call
+- `profile_inspect` - When several Confidence-Low fit rows turn on "does the distribution profile
+  cover this vertical" (e.g. is there a family of manufacturing modules?), call
   `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` once to list the
   profile-owned modules - this resolves several fit rows in a single call instead of one
   `check_module_exists` per module.

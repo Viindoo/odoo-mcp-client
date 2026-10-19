@@ -1,45 +1,50 @@
 <!-- SSOT snippet. The single home for WHICH modules make up the backend lint-class gate, how to
-     select them for a series, and the stale-index false-green trap. Consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md - never restate the module set elsewhere.
-     The series boundary itself lives in odoo-version-pivots.md; do not copy it here. -->
+     select and scope them, and the stale-index false-green trap. Consumers point at
+     ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md - never restate the module set elsewhere. -->
 
 # Backend lint-class gate - module selection
 
-The backend code-quality gate is Odoo's own lint test module plus, on a Viindoo profile, Viindoo's
-lint module. This snippet decides WHICH modules the gate is made of. WHETHER the gate runs on a
-given dispatch is a separate decision owned by `GATE_ROLE` (`odoo-instance-ops` § Lint modules).
+This snippet decides WHICH modules make up the backend code-quality gate and how a run of them is
+read. WHETHER the gate runs on a dispatch is owned by `GATE_ROLE` (`odoo-instance-ops` § Lint modules).
 
 ## Candidate set
 
-`test_lint`, `test_pylint`, `test_viin_pylint`.
-
-`test_lint` is Odoo core and keeps its name across every indexed series. The two Viindoo names are
-ONE gate that changed name at a series boundary - that boundary, and which name belongs to which
-series, are in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Backend lint-class gate.
+Odoo core `test_lint` (its series presence: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
+§ Backend lint-class gate), plus every lint-class module the resolved addons path SHIPS: a module
+whose technical name starts with `test_` and whose tests run flake8 or pylint. Find them by reading
+the resolved addons path, never from memory.
 
 ## Selection - run every step, in order
 
-1. Read the pivots section above and resolve the ONE Viindoo lint module name for the target series.
-   Carry only that name forward; the other name is not a fallback.
-2. Probe `check_module_exists(name='<module>', odoo_version='<series>', profile_name='<pinned profile>')`
-   for `test_lint` and for that ONE Viindoo name. Pass `profile_name=` explicitly on every call -
-   never rely on an ambient profile pin.
-3. For every module that comes back Indexed = Yes, union it into BOTH the `-i`/`-u` install list AND
-   `--test-tags` (`/test_lint`, `/<resolved Viindoo name>`), from that SAME probe. Never tag a module
-   you did not also install.
+1. List the candidates above for the target series and addons path.
+2. Confirm each with `check_module_exists(name='<module>', odoo_version='<series>',
+   profile_name='<pinned profile>')`; pass `profile_name=` explicitly on every call.
+3. Union each confirmed module into BOTH the `-i`/`-u` install list AND `--test-tags`
+   (`/<module>`). Never tag a module you did not also install.
+
+## Scope the gate to the PR's modules
+
+Pass the lint module's own scoping options as the build's `conf_options`; read the option names from
+that module's source, never assume them. A lint module whose source names none runs unscoped - say
+so in `notes`. A finding about code outside the PR's modules is repo state, listed in `notes`, never
+in the verdict; a lint test that failed ONLY on such findings is `tests-inconclusive`, never green
+and never this PR's `tests-failed`. An out-of-scope failing TEST is still governed by
+`test-scope-contract.md` § Reporting.
+
+## Companion loaded server-wide
+
+When the lint module's source names a companion that must be loaded server-wide, that is a
+deployment fact: the catalog row's `server_wide_modules` (set through `/odoo-ai-agents:odoo-setup`
+step `46-server-wide`), or the dispatch's `SERVER_WIDE` `include` for one run. A companion that is
+not loaded makes the gate `tests-inconclusive`.
 
 ## A probe is not proof - the index can be stale (HARD RULE)
 
-`check_module_exists` answers from the revision it indexed, so it can still report Indexed = Yes for
-a module name the series has already renamed away. That name installs nothing, its tag matches
-nothing, and the run reports a clean pass anyway - a FALSE GREEN on the one gate whose job is to
-catch what review missed.
+`check_module_exists` answers from the revision it indexed, so it can report Indexed = Yes for a
+module the addons path no longer ships. That name installs nothing, its tag matches nothing, and the
+run reports a clean pass anyway - a FALSE GREEN on the gate whose job is to catch what review missed.
 
-On the dispatch that runs this gate:
-
-- NEVER union both Viindoo names because both probed Indexed = Yes. Step 1 decides the name; the
-  probe only confirms the pinned profile carries it. Two lint modules from the same distribution in
-  one build is a defect, not belt-and-braces.
-- After the run, confirm from the build log that every tagged lint module actually INSTALLED and its
-  tests LOADED. A module that was tagged but whose tests never loaded makes the gate
-  `tests-inconclusive`, never a pass - report it as a finding and name the module.
+- The addons path decides the module; the probe only confirms the pinned profile carries it.
+- After the run, confirm from the build log that every tagged lint module INSTALLED and its tests
+  LOADED. A tagged module whose tests never loaded makes the gate `tests-inconclusive`, never a
+  pass - report it as a finding and name the module.
