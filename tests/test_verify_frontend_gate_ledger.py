@@ -185,3 +185,43 @@ def test_the_ledger_is_printed_even_when_the_run_passes(tree):
         assert "Tier 1 JS (eslint oracle) : n/a" in out, (
             f"a tier with nothing in scope must say so rather than stay silent. Output:\n{out}"
         )
+
+
+def _out(res):
+    return res.stdout + res.stderr
+
+
+def test_the_ledger_names_the_import_and_xpath_checks(tree):
+    """Behaviour: the reference checks have their own ledger row, so a run that never executed
+    them cannot be mistaken for one that found nothing.
+
+    Fails if the row is missing, or claims a run when only a Python file was in scope.
+    """
+    git_base, repo = tree
+    out = _out(_run(repo, git_base, repo / "my_module" / "static" / "src" / "widget.js"))
+    row = [ln for ln in out.splitlines() if "Tier 2 import/xpath refs  :" in ln]
+    assert row and "RAN" in row[0], f"JS in scope must run the reference checks. Output:\n{out}"
+
+    out = _out(_run(repo, git_base, repo / "my_module" / "models.py"))
+    row = [ln for ln in out.splitlines() if "Tier 2 import/xpath refs  :" in ln]
+    assert row and "n/a" in row[0], (
+        f"no JS/XML in scope must read n/a, not RAN. Output:\n{out}"
+    )
+
+
+def test_a_new_import_that_does_not_resolve_fails_the_whole_run(tree):
+    """Behaviour: a new `@module/path` import whose file is missing is a BLOCK, so the run
+    exits FAIL (1) - outranking the CANNOT-VERIFY the unresolved series would give alone.
+
+    Fails if a dangling import only produces a note.
+    """
+    git_base, repo = tree
+    bad = repo / "my_module" / "static" / "src" / "broken.js"
+    bad.write_text(
+        '/** @odoo-module **/\nimport { x } from "@my_module/not_there";\n', encoding="utf-8"
+    )
+    res = _run(repo, git_base, bad)
+    out = _out(res)
+
+    assert res.returncode == 1, f"a dangling import must FAIL the run. Output:\n{out}"
+    assert "@my_module/not_there does not resolve" in out, f"Output:\n{out}"

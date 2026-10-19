@@ -10,8 +10,8 @@
 
 ## Backend lint - Odoo's lint test module (SSOT: ODOO-TESTING.md)
 
-The backend lint gate is Odoo's own `test_lint` module plus, on a Viindoo profile, Viindoo's own
-lint module. **Which modules, and how to resolve the right one for a series:
+The backend lint gate is Odoo's own `test_lint` module plus every lint-class module the addons path
+ships. **Which modules, and how to select and scope them:
 `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`. Invocation command:
 `docs/reference/ODOO-TESTING.md` § "Quality gate / lint tests".**
 
@@ -20,7 +20,7 @@ invocation. Requires a running instance + DB. **Tagging alone is not enough** - 
 must also be INSTALLED in the target DB or the tag silently selects nothing (false-clean pass); see
 `ODOO-TESTING.md` § "Install the lint modules (not just tag them)".
 
-> A plain `odoo-bin --test-enable --test-tags '/<module>'` run includes **neither** lint module.
+> A plain `odoo-bin --test-enable --test-tags '/<module>'` run includes **no** lint module.
 > OSM's `lint_check` (V0.5 hybrid matcher) does not reproduce the full Odoo AST checker set: it
 > fires deterministically on security-rule patterns like sql-injection (labeled `[pattern]`) but
 > is a hint, not the full gate.
@@ -51,15 +51,15 @@ mismatch, a series whose checkout ships no JS gate - and an **unresolved target 
 toolchain is fine and nothing needs installing.
 
 **Target series resolution.** The `_eslintrc.json` is series-specific, so the gate must know which
-series the sources are written against. It resolves that from `ODOO_SERIES` or from
-`scripts/lib/odoo_series.py`, the repo's series-derivation SSOT, which resolves only from evidence
+series the sources are written against. It resolves that from the `--series <X.Y>` argument,
+else `ODOO_SERIES`, else from `scripts/lib/odoo_series.py`, the repo's series-derivation SSOT, which resolves only from evidence
 that IS the series (the core's own `release.py`; a series-named branch). An addon's
 `__manifest__.py` `version` deliberately resolves **nothing**: it is the addon's own version, so
 `0.3.1` is not series `0.3`, and even a series-prefixed value survives a code-level upgrade
 unbumped. When nothing declares a series, the remedy the gate prints is the whole fix -
-`ODOO_SERIES=<series> verify-frontend.sh ...`.
+`verify-frontend.sh --series <X.Y> ...` or `ODOO_SERIES=<series> verify-frontend.sh ...`.
 
-**On a run-integration or feature branch, `ODOO_SERIES` is REQUIRED, not optional.** This is the
+**On a run-integration or feature branch, `ODOO_SERIES` (or `--series`) is REQUIRED, not optional.** This is the
 one branch class where every detection step is designed to miss, so the gate returns
 CANNOT-VERIFY on every invocation until a caller supplies the series - which is exactly a gate
 that never runs. Measured on a real run-integration worktree: no core `release.py` (an addons-only
