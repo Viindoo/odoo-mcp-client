@@ -22,7 +22,9 @@ The contract, stated as behavior - for rows written by THIS allocator:
     `built`) survive every verb master runs on it, and a row master wrote
     without them reads here as "nothing declared, nothing recorded" (the last
     section: master's CURRENT allocator whatever it is, plus the pinned 7.1.0
-    release for the row written without the keys).
+    release for the row written without the keys);
+  - a parked row the older release wrote is matched to the caller's tree by its `addons_path`
+    alone - parked tree identity adds no row key.
 
 The pre-anchor allocator is taken from git (`git show <PRE_ANCHOR_RELEASE>:<path>`) into a
 temp dir at test time - a pinned commit, never `master`, which moves past every release and now
@@ -502,6 +504,43 @@ def test_a_row_an_allocator_without_build_facts_wrote_reads_as_no_build_facts_he
     p = world.run(env, "record-build", token, "--demo", "off")
     assert p.returncode == 0, p.stderr
     assert world.lease(token)["built"] == {"demo": False, "languages": []}
+
+
+def test_a_parked_row_an_older_allocator_wrote_is_matched_by_its_addons_path(
+        world, pre_build_facts_lib):
+    """Tree identity reads only the long-standing `addons_path` row key: a parked row the older
+    release acquired and parked is offered to the caller of its tree and named as a mismatch to
+    another - and the query adds no key to the row."""
+    _databases_exist(world)
+    env = world.env(world.session("sess-A"))
+    trees = {}
+    for name in ("theirs", "mine"):
+        trees[name] = world.tmp / name
+        trees[name].mkdir()
+    server = _server()  # that release parks only a lease with a server to stop
+    try:
+        p = _released(world, pre_build_facts_lib, env, "acquire", "--series", "17.0", "--mode",
+                      "ephemeral", "--no-create", "--run-id", "run-A", "--pid", str(server.pid),
+                      "--addons-path-override", str(trees["theirs"]))
+        assert p.returncode == 0, p.stderr
+        token = _kv(p.stdout)["ALLOC_TOKEN"]
+        p = _released(world, pre_build_facts_lib, env, "park", token, "--run-id", "run-A")
+        assert p.returncode == 0, p.stderr
+    finally:
+        _stop(server)
+    keys_before = set(world.lease(token))
+
+    def query(tree):
+        p = world.run(env, "query", "--series", "17.0", "--state", "parked", "--format", "json",
+                      "--addons-path-override", str(tree))
+        return p, json.loads(p.stdout)
+
+    p, out = query(trees["theirs"])
+    assert p.returncode == 0 and out["fields"]["ALLOC_TOKEN"] == token, p.stderr
+    p, out = query(trees["mine"])
+    assert p.returncode == 1, p.stderr
+    assert [m["token"] for m in out["fields"]["addons_mismatch"]] == [token]
+    assert set(world.lease(token)) == keys_before, "tree identity must not need a new row key"
 
 
 def _declare_server_wide_once(world):

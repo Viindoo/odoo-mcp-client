@@ -36,6 +36,11 @@ guarded like the token: disclosing it to a foreign session is half of a release.
   NOT_OWNER       never names the owner run (message or diagnostics).
   lease_adopt     echoes the token the caller already passed.
 
+Tree identity: a parked lease belongs to the tree it was built from. lease_find(parked) returns
+only a lease of the caller's tree (addons_path, else the cwd's worktree) and lists the others in
+addons_mismatch, token redacted; lease_adopt refuses a parked lease of another tree
+(LEASE_ADDONS_MISMATCH). The allocator decides both (`query` / `adopt` --addons-path-override).
+
 Served facts: every lease object carries served (a server process is bound to the lease, alive on
 this host and not parked), http_port and url (non-null only when served; http_port is the lease's
 first reserved port, the port 50-instance-spinup.sh binds for it).
@@ -516,6 +521,27 @@ CWD_OPT_PROP = {"type": "string", "minLength": 1,
                 "description": "Absolute path of your working tree. Decides which project-local "
                                "catalog is the fallback when no machine-global catalog declares an "
                                "instance. Omit to use the server's working directory."}
+TREE_ADDONS_PROP = {"type": ["string", "array"], "items": {"type": "string"},
+                    "description": "The tree you will build and serve (absolute addons directories, "
+                                   "a list or one comma-joined string): a parked lease matches only "
+                                   "when its addons_path is exactly this list. Omit for your cwd's "
+                                   "worktree."}
+TREE_MISMATCH_SCHEMA = {
+    "type": "object",
+    "required": ["token_prefix", "db_name", "addons_path", "wanted", "reason"],
+    "properties": {
+        "token_prefix": {"type": "string"},
+        "db_name": {"type": "string"},
+        "addons_path": {"type": "array", "items": {"type": "string"},
+                        "description": "The tree the parked lease was built from; pass it as "
+                                       "addons_path to resume that lease deliberately."},
+        "wanted": {"type": ["array", "null"], "items": {"type": "string"},
+                   "description": "Your tree (the addons_path you passed, else your cwd's "
+                                  "worktree); null when unknown."},
+        "reason": {"type": "string", "description": "addons-path-differs | addons-path-unrecorded | "
+                                                    "worktree-differs."},
+    },
+}
 PROFILE_PROP = {"type": "string",
                 "description": "Catalog profile name when the series declares several instances; "
                                "omit for the unprofiled one."}
@@ -614,6 +640,20 @@ def _recorded_session_ended(row):
 # --------------------------------------------------------------------------- #
 # handlers
 # --------------------------------------------------------------------------- #
+def _addons_override(args):
+    """The `--addons-path-override <joined>` argv for a tool's addons_path argument ([] when it is
+    omitted): a list or one joined string of ABSOLUTE directories, joined by the SSOT joiner. The
+    allocator validates that each exists."""
+    addons = args.get("addons_path")
+    if not addons:
+        return []
+    entries = addons if isinstance(addons, list) else _addons_list(addons)
+    for entry in entries:
+        if not os.path.isabs(entry):
+            raise ToolError("INVALID_ARGUMENTS", "arguments.addons_path: %r is not an absolute path" % entry)
+    return ["--addons-path-override", join_addons(entries)]
+
+
 def _acquire(args, ctx):
     mode = args["mode"]
     run_id = args.get("run_id") or ""
@@ -635,13 +675,7 @@ def _acquire(args, ctx):
         argv += ["--run-id", run_id]
     if args.get("ports"):
         argv += ["--ports", str(args["ports"])]
-    addons = args.get("addons_path")
-    if addons:
-        entries = addons if isinstance(addons, list) else _addons_list(addons)
-        for entry in entries:
-            if not os.path.isabs(entry):
-                raise ToolError("INVALID_ARGUMENTS", "arguments.addons_path: %r is not an absolute path" % entry)
-        argv += ["--addons-path-override", join_addons(entries)]
+    argv += _addons_override(args)
     if args.get("db_name"):
         argv += ["--db-name", args["db_name"]]
     if args.get("profile"):
@@ -842,13 +876,29 @@ def _find(args, ctx):
         argv += ["--state", "parked"]
     if args.get("run_id"):
         argv += ["--run-id", args["run_id"]]
+    argv += _addons_override(args)
     try:
         f = cli.run_allocator("query", argv, cwd, READ_TIMEOUT_S)["fields"]
     except ToolError as exc:
         if exc.code == "NOT_FOUND":
-            return {"found": False, "state": state, "lease": None}
+            fields = exc.diagnostics.get("fields") or {}
+            return {"found": False, "state": state, "lease": None,
+                    "addons_mismatch": [_tree_mismatch(m) for m in fields.get("addons_mismatch") or []
+                                        if isinstance(m, dict)]}
         raise
-    return {"found": True, "state": state, "lease": found_lease(f, args.get("run_id") or "", cwd)}
+    return {"found": True, "state": state, "lease": found_lease(f, args.get("run_id") or "", cwd),
+            "addons_mismatch": []}
+
+
+def _tree_mismatch(item):
+    """One parked lease `query` skipped because it was built from another tree, token redacted
+    (it is not the caller's to mutate until a lease_find naming its tree returns it)."""
+    wanted = item.get("wanted")
+    return {"token_prefix": _redact(item.get("token")),
+            "db_name": _text(item.get("db_name")),
+            "addons_path": _addons_list(item.get("addons_path")),
+            "wanted": _addons_list(wanted) if wanted is not None else None,
+            "reason": _text(item.get("reason"))}
 
 
 def found_lease(fields, caller_run, cwd):
@@ -942,9 +992,11 @@ def _preflight(args, ctx):
 
 def _adopt(args, ctx):
     token, run_id = args["lease_token"], args["run_id"]
-    f = _owned_allocator_call("adopt", token, run_id, [token, "--run-id", run_id], os.getcwd(),
+    cwd = _cwd(args)
+    f = _owned_allocator_call("adopt", token, run_id,
+                              [token, "--run-id", run_id] + _addons_override(args), cwd,
                               READ_TIMEOUT_S)["fields"]
-    row = read_row(token)
+    row = read_row(token, cwd)
     lease = lease_from_row(row) if row is not None else lease_from_envelope(f)
     lease["token"] = token
     return {"lease": lease, "anchor": _text(f.get(cli.ANCHOR_ENV))}
@@ -1181,7 +1233,9 @@ def register(registry, ctx):
         "then resume it with instance_serve(lease_token), after lease_adopt when it came from an "
         "earlier session (session_alive=false). A lease of another run, or of your run held by "
         "another LIVE session, shows token=null and run_id=null (only its 8-char token_prefix): "
-        "serve or read it, never release or park it. found=false is a normal answer: acquire your "
+        "serve or read it, never release or park it. A parked lease built from another tree is "
+        "never returned (addons_mismatch names it and its addons_path; pass that addons_path to "
+        "lease_find to resume it deliberately). found=false is a normal answer: acquire your "
         "own. Read-only.",
         _obj({"series": SERIES_PROP,
               "state": {"type": "string", "enum": ["shared", "parked"], "default": "shared",
@@ -1191,9 +1245,15 @@ def register(registry, ctx):
                                         "only a lease your run owns (anchored to this session, or "
                                         "to one that has ended) is returned with its full token. "
                                         + NO_RUN_ID},
+              "addons_path": TREE_ADDONS_PROP,
               "cwd": CWD_OPT_PROP}, ["series"]),
         _obj({"found": {"type": "boolean"}, "state": {"type": "string"},
-              "lease": NULLABLE_FOUND_LEASE_SCHEMA}, ["found", "state", "lease"]),
+              "lease": NULLABLE_FOUND_LEASE_SCHEMA,
+              "addons_mismatch": {"type": "array", "items": TREE_MISMATCH_SCHEMA,
+                                  "description": "Parked leases of this series skipped because "
+                                                 "they were built from another tree (empty when "
+                                                 "a lease was found)."}},
+             ["found", "state", "lease", "addons_mismatch"]),
         _find, title="Find a reusable Odoo instance", read_only=True, long_running=True,
     )
     registry.add(
@@ -1252,8 +1312,10 @@ def register(registry, ctx):
         "your run's parked lease once its earlier session has ended. Adopt a parked lease from an "
         "earlier session BEFORE instance_serve resumes it (instance_serve refuses it otherwise, "
         "LEASE_NOT_ADOPTED). Requires the owning run_id (NOT_OWNER otherwise); changes nothing but "
-        "who vouches for the lease's liveness.",
-        _obj({"lease_token": LEASE_TOKEN_PROP, "run_id": RUN_ID_PROP}, ["lease_token", "run_id"]),
+        "who vouches for the lease's liveness. A parked lease built from another tree than yours "
+        "(addons_path, else your cwd's worktree) is refused with LEASE_ADDONS_MISMATCH.",
+        _obj({"lease_token": LEASE_TOKEN_PROP, "run_id": RUN_ID_PROP,
+              "addons_path": TREE_ADDONS_PROP, "cwd": CWD_OPT_PROP}, ["lease_token", "run_id"]),
         _obj({"lease": LEASE_SCHEMA, "anchor": {"type": "string"}}, ["lease", "anchor"]),
         _adopt, title="Adopt a lease into this session", destructive=False, idempotent=True,
     )

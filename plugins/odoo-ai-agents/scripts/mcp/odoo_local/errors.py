@@ -119,6 +119,7 @@ TOOL_REMEDIES = {
     "PID_NOT_ALIVE": "The server pid is not alive here: call instance_serve again; report to the user if it keeps failing.",
     "OWNERSHIP_UNPROVEN": "The launched server could not be proven to belong to this lease: report diagnostics to the user; do not retry blindly.",
     "NOT_FOUND": "Nothing matches: lease_acquire your own lease.",
+    "LEASE_ADDONS_MISMATCH": "That parked lease was built from another tree than yours (the message names both addons paths), so resuming it would serve other code. To resume it deliberately, call lease_find (state parked) with addons_path = that lease's addons_path, then lease_adopt with the same addons_path; otherwise lease_acquire your own lease for your tree.",
     "NO_ANCHOR": "This server has no session anchor (server_info anchor.exported is false): tell the user; leases still work but are protected only by their server pid.",
     "UNSPECIFIED": "Read diagnostics.stderr, fix the cause it names, then call again; report to the user if unclear.",
 }

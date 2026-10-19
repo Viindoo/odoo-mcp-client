@@ -19,6 +19,9 @@ Contracts protected:
     (per-tool documentation length: tests/test_odoo_local_prose_pointers.py).
   - lease_find discloses a lease's token and owner run only to its owner run; concurrent releases of
     one token report exactly one released; a venv-less lease is flagged and refused as VENV_MISSING.
+  - a parked lease of another tree is never returned by lease_find (addons_mismatch names it,
+    token redacted; naming its addons_path resumes it) and is refused by lease_adopt
+    (LEASE_ADDONS_MISMATCH).
 """
 
 from __future__ import annotations
@@ -507,7 +510,45 @@ def test_gc_reports_a_return_to_park_lease_as_parked_not_reclaimed(world):
 @pytest.mark.parametrize("state", ["shared", "parked"])
 def test_find_with_nothing_to_reuse_is_a_normal_answer(client, state):
     out = _ok(client.call("lease_find", {"series": SERIES, "state": state}))
-    assert out == {"found": False, "state": state, "lease": None}
+    assert out == {"found": False, "state": state, "lease": None, "addons_mismatch": []}
+
+
+def _parked_for_tree(c, world, name):
+    """A lease acquired for its own addons tree `name` (the row records it), then parked."""
+    tree = world["work"] / name
+    tree.mkdir()
+    token = _ok(_acquire(c, world, addons_path=[str(tree)]))["lease"]["token"]
+    _ok(c.call("lease_park", {"lease_token": token, "run_id": RUN}))
+    return token, tree
+
+
+def test_find_parked_never_returns_a_lease_of_another_tree_and_names_it_redacted(client, world):
+    token, theirs = _parked_for_tree(client, world, "theirs")
+    out = _ok(client.call("lease_find", {"series": SERIES, "state": "parked", "run_id": RUN,
+                                         "addons_path": [str(world["addons"])]}))
+    assert out["found"] is False and out["lease"] is None
+    assert out["addons_mismatch"] == [{
+        "token_prefix": token[:8], "db_name": _registry(world["home"])["leases"][0]["db_name"],
+        "addons_path": [str(theirs)], "wanted": [str(world["addons"])],
+        "reason": "addons-path-differs"}]
+    assert token not in json.dumps(out), "a lease of another tree is named by its prefix only"
+    again = _ok(client.call("lease_find", {"series": SERIES, "state": "parked", "run_id": RUN,
+                                           "addons_path": [str(theirs)]}))
+    assert again["found"] is True and again["lease"]["token"] == token, (
+        "naming that lease's addons_path resumes it deliberately")
+    assert again["addons_mismatch"] == []
+
+
+def test_adopt_of_a_parked_lease_of_another_tree_is_refused_with_its_remedy(client, world):
+    token, _theirs = _parked_for_tree(client, world, "theirs")
+    before = (world["home"] / "runtime" / "leases.json").read_bytes()
+    err = _err(client.call("lease_adopt", {"lease_token": token, "run_id": RUN,
+                                           "addons_path": [str(world["addons"])],
+                                           "cwd": str(world["work"])}))
+    assert err["code"] == "LEASE_ADDONS_MISMATCH"
+    assert err["remedy"] == errors.TOOL_REMEDIES["LEASE_ADDONS_MISMATCH"]
+    assert "lease_find" in err["remedy"] and "addons_path" in err["remedy"]
+    assert (world["home"] / "runtime" / "leases.json").read_bytes() == before
 
 
 def test_find_returns_the_shared_render_lease(client, world):
