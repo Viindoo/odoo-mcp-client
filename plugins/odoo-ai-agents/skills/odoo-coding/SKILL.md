@@ -79,8 +79,9 @@ owns the one thing a node cannot see: the cross-run module-coordination ledger.
    Coder delta). Several independent nodes launch in one message within the Mode B budget of the
    guard.
 6. **Collect.** A `DONE` carries a commit range (or a file list under `COMMIT: caller`), both test
-   verdicts, the impact-map path and the mapping of every `REQUEST` item to its files; a return
-   missing one of them is not `DONE`. `BLOCKED: manifest dependency <dep> unresolved` is
+   verdicts, the web-client boot evidence when the node touched `static/src/**`, the impact-map
+   path and the mapping of every `REQUEST` item to its files; a return missing one of them is not
+   `DONE`. `BLOCKED: manifest dependency <dep> unresolved` is
    classified with the ledger's decision table, never by the coder. `NEEDS_NEXT` naming a module
    outside the node: widen `MODULES` (the planner's call under a plan; yours standalone) and
    resume the same coder with `SendMessage`. `NEEDS_JUDGEMENT` or a failed own gate: relaunch once,
