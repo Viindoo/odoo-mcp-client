@@ -8,10 +8,11 @@ description: >-
 ## Role
 
 Module identity icon designer for Odoo: composes a version-correct, brand-aware SVG vector icon
-(era-matched style, FA-category glyph, solid background) then rasterizes it to a 256x256 PNG at
-`static/description/icon.png`. Works entirely from static source - no browser, no live instance.
-OSM is the primary source for module category and version grounding; the on-disk descriptor
-(`__manifest__.py`, or `__openerp__.py` on v8-v9) is the fallback.
+(era-matched style, purpose-drawn glyph, solid background) then rasterizes it to a 256x256 PNG at
+`static/description/icon.png` and gates it. Works entirely from static source - no browser
+session, no live instance. OSM is the primary source for module category and version grounding;
+the on-disk descriptor (`__manifest__.py`, or `__openerp__.py` where the module has it) is the
+fallback.
 
 NOT for auditing or rating a rendered screen (-> `odoo-ui-review`); NOT for capturing a live
 screenshot of a module as its icon (-> `odoo-doc-illustration`). Produces a designed vector asset,
@@ -79,16 +80,17 @@ MCP tool surface for the dispatched agent is the same as `## MCP tools` above - 
 The icon deliverable is a rasterized PNG (`static/description/icon.png`, 256x256), not a
 live-rendered Odoo UI component - the CSS design-token checks in
 `skills/_shared/odoo-frontend-fidelity.md` (which govern RENDERED Odoo screens) do NOT apply to
-it. Palette resolution (brief -> `brand-tokens.json` -> category hue -> Odoo default) and the
-brand-agnostic, no-vendor-palette rule are owned by `odoo-icon-designer`'s own Step 1 and
-Hard constraints - not restated here.
+it. Palette resolution (brief -> `brand-tokens.json` -> sibling family -> category hue -> Odoo
+default) and the brand-agnostic, no-vendor-palette rule are owned by `odoo-icon-designer`'s own
+Step 1 and Hard constraints - not restated here.
 
 ## Standalone-first fallback
 
 - **OSM unreachable:** agent proceeds disk-only from the manifest descriptor; exact fields read
   and warning text owned by `odoo-icon-designer`'s own Step 0.
-- **Rasterizer absent:** not a hard fail - `icon.svg` ships alone with install guidance; full
-  fallback behavior owned by `odoo-icon-designer`'s own Step 4.
+- **Rasterizer absent:** the agent tries rsvg-convert, inkscape, headless Chrome/Chromium, cairosvg
+  and ImageMagick in turn; with none of them, not a hard fail - `icon.svg` ships alone with install
+  guidance; full fallback behavior owned by `odoo-icon-designer`'s own Step 4.
 
 ## Verify then commit (git-delegation)
 
@@ -96,7 +98,12 @@ Hard constraints - not restated here.
 Output block (files exist at the reported paths under the `WORKTREE_PATH` resolved above -
 `icon.png`, plus `icon.svg` and the `__manifest__.py` `icon` key whenever the run wrote them;
 which asset formats the target series accepts is resolved by the agent against OSM, never
-assumed from a series here), then COMMIT
+assumed from a series here). Re-run the gate yourself:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py check <icon.png> --plate-hex '<the BG the
+agent reported>'` must print `ICON_GATE=PASS` - `FAIL` goes back to the agent, and `CANNOT-VERIFY`
+is reported as unverified, never as a pass. The agent's report must carry at least two 32 px loop
+passes, each with its cold read; Read its `PREVIEW_ZOOM` image and confirm the last cold read
+names the module's purpose. Then COMMIT
 `icon.png`/`icon.svg`/the manifest `icon` key via git-toolkit `git-ops` (one-way git; the skill
 never runs raw git mutations) - never the principal checkout (S9). Full contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.

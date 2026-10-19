@@ -61,8 +61,9 @@ from the module descriptor instead, proceed in disk-only mode, and prefix your o
 
 Verify the descriptor (`__manifest__.py` or `__openerp__.py`) exists at MODULE_PATH; call the filename it actually has `<descriptor>` and reuse that literal for every descriptor read and Edit below. Read it now to extract `name`, `category`,
 `summary`, `version`, and any existing `icon` key. Check whether `static/description/icon.png`
-(or `icon.svg`) already exists - if so, note current size via `identify` (record as baseline;
-you will replace it).
+(or `icon.svg`) already exists - if so, record its plate colour, corner radius and size as the
+baseline (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py sample <icon.png>`); you will
+replace it.
 
 ---
 
@@ -78,10 +79,18 @@ a value:
    `primary`; absent that too, the map's first color-valued token. FG = white or near-black,
    whichever wins the Step 4 contrast check. This tier is a HIT whenever the file parses and yields
    at least one color-valued token - an unfamiliar token NAME is never a miss, so never fall through
-   to tier 3/4 while a declared brand color is sitting in the map.
-3. Module `category` -> deterministic category-to-hue map (examples below); derive a hue, then
+   to a later tier while a declared brand color is sitting in the map.
+3. **Sibling family** - the icons of the modules this one sits beside: glob
+   `*/static/description/icon.png` in the module's addons directory for the modules that share its
+   name prefix, plus the in-repo modules it `depends` on. Sample them with
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py sample <png> [<png> ...]` (one
+   `PLATE=`, `CORNER_RADIUS_PX=`, `SIZE=` block per icon). When the plates are coherent (one colour,
+   or one hue family) inherit that plate as BG and the median corner radius scaled to your canvas
+   (`radius * 128 / width`), and say so in the report (`palette source: sibling family <modules>`).
+   Plates that disagree, or no sibling icon at all, fall through.
+4. Module `category` -> deterministic category-to-hue map (examples below); derive a hue, then
    compose a saturated BG with white foreground.
-4. Default Odoo palette: `BG: #714B67` (Odoo primary purple), `FG: #FFFFFF`.
+5. Default Odoo palette: `BG: #714B67` (Odoo primary purple), `FG: #FFFFFF`.
 
 **Category-to-hue reference (non-exhaustive - use judgment for unlisted categories):**
 - Sales / CRM / eCommerce -> orange-red hue (`#E65300` range)
@@ -92,9 +101,8 @@ a value:
 - Website / Marketing / Email -> pink/rose (`#C62828` range)
 - Technical / Base / Tools -> Odoo purple (`#714B67` default)
 
-**Hard rule: do NOT hardcode any vendor brand (Viindoo colors, customer logos) in this file.**
-This repo is public. Only use palette values from the BRIEF or `brand-tokens.json`. When
-neither is present, use the Odoo default.
+**Hard rule: do NOT hardcode any vendor brand (vendor colors, customer logos) in this file.**
+This repo is public. Palette values come only from the tiers above.
 
 ---
 
@@ -106,28 +114,24 @@ signal: `name` and `summary` keywords.
 Use OSM `describe_module` (if reachable) for a richer summary; fall back to the manifest fields
 already read in Step 0.
 
-**FontAwesome version by Odoo series:**
-- v8-v15: FontAwesome 4.7 glyph set (`fa-*` class names from FA 4.7 reference).
-- v16-v19: FontAwesome 4 glyph set (FA4 remains primary in Odoo through v19;
-  do NOT use FA5/FA6 class names for v15 and below).
+**Draw a purpose-made glyph** from simple primitives (`rect`, `circle`, `path` with a few straight
+or arc segments): ONE central concept, as one bold silhouette that still reads at 32 px. Concept
+motifs per category (starting points, not a closed list):
+- Sales / CRM -> a handshake, a price tag
+- Accounting / Finance -> a coin, a ledger page with a balance line
+- Inventory / Warehouse -> a box, a stacked pallet
+- Manufacturing -> a gear
+- HR / Employees -> one or two person silhouettes
+- Project / Timesheets -> a checklist, a clock face
+- Website / Marketing -> a globe, a megaphone
+- Email / Discuss -> an envelope, a speech bubble
+- Technical / Base -> a wrench
+- Payroll -> a payslip with a currency mark
+- Leaves / Holidays -> a calendar page
 
-**Category-to-glyph reference (non-exhaustive):**
-- Sales / CRM -> `fa-shopping-cart` or `fa-handshake-o`
-- Accounting / Finance -> `fa-money` or `fa-calculator`
-- Inventory / Warehouse -> `fa-cubes` or `fa-truck`
-- Manufacturing -> `fa-cogs`
-- HR / Employees -> `fa-users`
-- Project / Timesheets -> `fa-tasks`
-- Website / Marketing -> `fa-globe`
-- Email / Discuss -> `fa-envelope`
-- Technical / Base -> `fa-wrench`
-- Payroll -> `fa-credit-card`
-- Leaves / Holidays -> `fa-calendar`
-
-**IMPORTANT: compose the glyph as an SVG vector path** - look up the FA path data for the chosen
-glyph from the FA 4.7 SVG source (viewBox 0 0 1792 1792 or 0 0 1536 1536 depending on the glyph;
-scale into the icon canvas). Do NOT emit an `<i class="fa ...">` element - that is an HTML/DOM
-construct with no meaning in a standalone SVG file.
+Prefer one large shape over several small ones; the Step 4 32 px loop judges the glyph, not this
+list. Never emit an icon-font element (`<i class="...">`): it is an HTML/DOM construct with no
+meaning in a standalone SVG file - every glyph is drawn as SVG shapes.
 
 ---
 
@@ -154,6 +158,20 @@ visual style based on `odoo_version`:
 - Centered white symbol. Matches the Studio Icon Designer output and core module icons in
   this era.
 
+**Long-shadow** (use it when the BRIEF asks for it or the sibling family carries one; the drop
+shadow above stays the soft alternative):
+- A hard-edged extrusion of the glyph toward the bottom-right at 45 degrees, clipped to the plate
+  (`<clipPath>` holding the plate's rounded rect).
+- Build it by doubling: copies of the glyph (`<use href="#glyph">`) each offset one step further
+  along (+1, +1) until they leave the plate, all inside ONE wrapping `<g>` that carries the
+  opacity. Never set `fill-opacity` on each `<use>`: the overlapping translucent copies compound
+  to near-black.
+- Defaults: opacity ~0.27 on the wrapping `<g>`; direction 45 degrees; opacity held near the glyph,
+  then fading to 0 along x+y toward the plate corner (a diagonal `<linearGradient>` mask); plate
+  corner radius ~0.05 W (W = canvas width); two thin bevel strips (a ~1 px lighter strip along the
+  plate's top edge, a ~1 px darker one along its bottom edge).
+- The glyph sits above the shadow, unshadowed.
+
 **Safe-area padding:** place the glyph within a 15-20% inner margin on each side, so the symbol
 occupies roughly 60-70% of the canvas width. This prevents the icon from looking cramped when
 displayed in the Apps drawer at small sizes.
@@ -166,10 +184,10 @@ Minimal SVG skeleton:
 ```xml
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <!-- background -->
-  <rect width="128" height="128" rx="12" fill="<BG_COLOR>"/>
+  <rect width="128" height="128" rx="<R: sibling radius scaled to 128, else the era's shape>" fill="<BG_COLOR>"/>
   <!-- era-specific shadow/gradient layers here if applicable -->
-  <!-- centered glyph path scaled to ~76x76 centered at 64,64 -->
-  <path d="<FA_PATH_DATA>" fill="<FG_COLOR>" transform="translate(...) scale(...)"/>
+  <!-- centered glyph scaled to ~76x76 centered at 64,64 -->
+  <path id="glyph" d="<glyph path>" fill="<FG_COLOR>" transform="translate(...) scale(...)"/>
 </svg>
 ```
 
@@ -177,34 +195,35 @@ Write `icon.svg` to `<MODULE_PATH>/static/description/icon.svg`.
 
 ---
 
-## Step 4 - Detect rasterizer and render icon.png 256x256
+## Step 4 - Render, gate and review icon.png (256x256)
 
-**Detect available rasterizer** in this priority order - use the first found:
-```bash
-command -v rsvg-convert   # librsvg2-bin - best SVG fidelity (preferred)
-command -v inkscape        # Inkscape CLI (excellent fidelity, may be slow)
-command -v magick          # ImageMagick 7 (magick command)
-command -v convert         # ImageMagick 6 (convert command)
-python3 -c "import cairosvg" 2>/dev/null && echo cairosvg  # cairosvg Python library
-python3 -c "from PIL import Image" 2>/dev/null && echo pillow  # Pillow fallback (limited SVG)
-```
+Every command below is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py <command>`
+(`icon_gate` for short); its output is `KEY=VALUE` lines.
 
-**Rasterize commands by tool (256x256 output):**
-- `rsvg-convert`: `rsvg-convert -w 256 -h 256 icon.svg -o icon.png`
-- `inkscape`: `inkscape --export-type=png --export-width=256 --export-height=256 --export-filename=icon.png icon.svg`
-- `magick` (ImageMagick 7): `magick -background none -resize 256x256 icon.svg icon.png`
-- `convert` (ImageMagick 6): `convert -background none -resize 256x256 icon.svg icon.png`
-- `cairosvg` (Python): `python3 -c "import cairosvg; cairosvg.svg2png(url='icon.svg', write_to='icon.png', output_width=256, output_height=256)"`
-- `pillow` (last resort, limited SVG): compose the icon at raster level using Pillow's drawing
-  primitives (background rect + approximate glyph shape) rather than SVG rendering.
+1. **Detect** - `icon_gate probe` -> `RASTERIZERS=` (the available ones in probe order:
+   rsvg-convert, inkscape, headless Chrome/Chromium, cairosvg, ImageMagick) and `PILLOW=1|0`.
+2. **Render** - `icon_gate render <MODULE_PATH>/static/description/icon.svg
+   <MODULE_PATH>/static/description/icon.png --size 256` -> `RASTERIZER=`, `PNG_PATH=`; exit 2
+   means no rasterizer, or the chosen one failed. With no rasterizer but `PILLOW=1`, draw the same
+   design with Pillow's drawing primitives straight to `icon.png` (RGBA) and gate it the same way.
+3. **Gate** - `icon_gate check <MODULE_PATH>/static/description/icon.png --plate-hex '<BG>'
+   --out-dir <ISOLATE_DIR>/icon-gate/<module>` -> `ICON_GATE=PASS|FAIL|CANNOT-VERIFY`, one
+   `FAIL_REASON=` line per defect, and the previews `PREVIEW_32` / `PREVIEW_ZOOM`. It fails a
+   greyscale or grey-looking PNG, a plate pixel that is not the chosen BG, a transparent plate, a
+   wrong size and a blank image. The plate is sampled at the top centre; pass `--sample X,Y` when
+   your design puts something else there. `FAIL`: fix the SVG, re-render, re-gate.
+   `CANNOT-VERIFY` (Pillow or a rasterizer missing) is NOT a pass: report it as unverified.
+4. **32 px self-review loop (mandatory, at least two passes).** Read `icon.png` and the
+   `PREVIEW_ZOOM` image (the 32 px render enlarged with nearest-neighbour) with the Read tool. Write
+   one or two sentences of what a cold viewer who does not know the module would say it shows, and
+   compare that with the module's purpose. Then change the SVG, re-render, re-gate and re-read -
+   a second pass even when the first reads right; stop when the cold read names the purpose. Three
+   failure shapes are redrawn with fewer, bolder shapes, never tweaked:
+   - evenly pitched grooves or stripes read as a barcode;
+   - several small objects turn to mush, and a vertical panel with rungs reads as a ladder;
+   - a thin route line with an arrow reads as a growth chart.
 
-Run the selected command from `<MODULE_PATH>/static/description/`.
-
-**Verify output:** `identify icon.png` (ImageMagick). Confirm format PNG and dimensions 256x256.
-If `identify` is absent, use `python3 -c "from PIL import Image; i=Image.open('icon.png'); print(i.format, i.size)"`.
-
-**If NO rasterizer is found (rsvg-convert, inkscape, magick, convert, cairosvg, AND Pillow all
-absent):**
+**If NO rasterizer is found and `PILLOW=0`:**
 - Do NOT hard-fail. `icon.svg` is already written.
 - Emit a WARNING block with copy-paste install guidance:
 
@@ -221,8 +240,9 @@ macOS (Homebrew):
   brew install imagemagick                    # provides magick/convert
   brew install --cask inkscape               # provides inkscape CLI
 
-Cross-platform (Python):
-  pip install cairosvg                        # pure-Python SVG rasterizer
+Any OS:
+  google-chrome or chromium                   # headless rasterizer, used when found on PATH
+  pip install cairosvg pillow                 # pure-Python rasterizer + the gate's pixel reader
 ```
 - Set `status: NEEDS_CONTEXT(no SVG rasterizer; icon.svg written, icon.png pending)`.
 
@@ -264,19 +284,23 @@ them via `git-toolkit:git-ops`. Bounded reads (`git status`, `git diff --stat`) 
 
 ## Hard constraints
 
-- **Standalone:** no browser MCP, no live Odoo instance. All data comes from OSM and disk.
+- **Standalone:** no browser MCP, no live Odoo instance. All data comes from OSM and disk (a
+  headless Chrome that `icon_gate` drives is a rasterizer, not a browser session).
+- **Gate before return:** `icon.png` is reported done only with `ICON_GATE=PASS` and the 32 px
+  loop recorded; `FAIL` is fixed, `CANNOT-VERIFY` is reported as unverified, never as passed.
 - **Read-before-write manifest:** always Read `<descriptor>` (Step 0's resolved filename) before any
   Edit. Never truncate or rewrite the file wholesale, and never create the descriptor filename the
   module does not have - a second descriptor becomes the one Odoo loads and drops everything the
   real one declared.
 - **Brand-agnostic:** do NOT hardcode any vendor brand palette in the SVG or in this agent file.
-  Resolve palette from brief -> `brand-tokens.json` -> category hue -> Odoo default.
+  Resolve palette from brief -> `brand-tokens.json` -> sibling family -> category hue -> Odoo
+  default.
 - **Manifest `icon` key:** never refuse it on a version gate and never call it ignored - Odoo reads
   it (owner row: `docs/odoo-ui-knowledge.md` § Documentation screenshots > Layout). Write it only
   when a Step 5 trigger fires AND the resolution call confirms the series reads it; otherwise ship
   the conventional PNG and leave `<descriptor>` untouched.
-- **No `<i class>` in SVG:** glyph must be composed as a `<path>` element with FA vector path
-  data, not as an HTML glyph element.
+- **No `<i class>` in SVG:** the glyph is drawn as SVG shapes (`<path>`, `<rect>`, `<circle>`),
+  never as an icon-font element.
 - **Git -> return files; the `odoo-icon-design` skill commits via `git-toolkit:git-ops`** (you
   never invoke git-ops - leaf worker).
 
@@ -286,7 +310,11 @@ them via `git-toolkit:git-ops`. Bounded reads (`git status`, `git diff --stat`) 
 
 Report the following at the end of your run:
 - Produced paths: `icon.svg`, `icon.png` (absolute paths)
-- PNG size confirmed: `256x256` (or status if rasterizer was absent)
+- Gate result: `ICON_GATE=<value>` with its `FAIL_REASON` lines if any, and the `PREVIEW_32` /
+  `PREVIEW_ZOOM` paths
+- 32 px loop: one line per pass - the cold read, and what you changed
+- Palette source (brief, brand tokens, sibling family with the sampled modules, category hue or
+  default) and the glyph concept
 - Icon-key decision: `conventional-PNG (no manifest key)` or `PNG+SVG+manifest-key`, naming the
   resolution call run and its result
 - Rasterizer used (or NEEDS_CONTEXT if none found)
@@ -295,7 +323,8 @@ Report the following at the end of your run:
 ## Continuation Contract
 
 Before finishing, append significant decisions (version resolved, palette source, glyph chosen,
-rasterizer used, icon-key decision, manifest edit made or skipped) to the run worklog
+rasterizer used, gate result, 32 px loop verdicts, icon-key decision, manifest edit made or
+skipped) to the run worklog
 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 When you finish, append a Continuation Contract block per
