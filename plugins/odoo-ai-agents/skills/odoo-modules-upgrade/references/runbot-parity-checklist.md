@@ -235,8 +235,8 @@ included. Naming them would add no coverage at all, and would add a name that ha
 against every series forever.
 
 See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply
-for the demo default per series. See `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for
-Viindoo-specific gates (hr.employee groups, always-invisible comment).
+for the demo default per series. See `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for the
+upgrade-time authoring gates (hr.employee groups, always-invisible comment).
 
 ---
 
@@ -246,7 +246,7 @@ Viindoo-specific gates (hr.employee groups, always-invisible comment).
 |---|---|---|---|---|---|
 | flake8 (no bugbear) | yes | yes | yes | yes | yes |
 | /test_lint (Odoo CE) | yes (v14+) | yes | yes | yes | yes |
-| Viindoo lint module (presence AND name per series - `lint-gate-modules.md`) | no | no | resolve | resolve | resolve |
+| addons-path lint-class modules (`lint-gate-modules.md`) | resolve | resolve | resolve | resolve | resolve |
 | description RST | yes (v12+) | yes | yes | yes | yes |
 | images PIL | yes | yes | yes | yes | yes |
 | .po `#. module:` | yes | yes | yes | yes | yes |

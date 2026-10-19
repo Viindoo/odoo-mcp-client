@@ -258,7 +258,7 @@ If the user said "what's improved in purchase in v17 for our release blog" ->
 **Prompt**: "inventory what this module does" or "map all the capabilities of sale_custom".
 
 - `odoo-customization-inventory`: executive summary of CUSTOM code in a CLIENT'S instance -
-  what Viindoo (or the partner) has built on top of Odoo standard, for an engagement deliverable.
+  what the implementation partner has built on top of Odoo standard, for an engagement deliverable.
 - `odoo-doc-feature-map`: enumerates STANDARD module capabilities from source for documentation
   purposes - browser-free, OSM-primary, produces a feature-catalog artifact.
 

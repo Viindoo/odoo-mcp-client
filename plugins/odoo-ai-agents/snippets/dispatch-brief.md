@@ -29,7 +29,7 @@ against its own family-delta list, `## Brief self-check` below), unlike `worker-
 report back once, and R0 delivers it to you - rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
 
-`odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
+`odoo_version` and `osm_profile` are NOT skeleton fields - they are carried per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; ask the caller only for what no rung
 there answers.
 

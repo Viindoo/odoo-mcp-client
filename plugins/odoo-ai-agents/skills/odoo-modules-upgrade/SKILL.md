@@ -373,9 +373,8 @@ clears, THEN the PR opens. Do not reorder it locally.
 Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
 add a convention-compliance pass (manifest version-form - short, no series prefix, not bumped, per
-`references/upg-classification-table.md` § Manifest breaks - plus always-invisible XML comment and
-rename via `old_technical_name`, whose no-new-script clause is about a MODULE RENAME, not about the
-lower-series `migrations/` dirs this SERIES UPGRADE leaves untouched; see
+`references/upg-classification-table.md` § Manifest breaks - plus always-invisible XML comment;
+the lower-series `migrations/` dirs this SERIES UPGRADE carries stay untouched; see
 `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
 an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape).

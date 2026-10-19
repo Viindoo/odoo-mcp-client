@@ -55,7 +55,7 @@ series in play, and do not restate them here. Map what you read onto risk: no bo
 Low; exactly ONE = Medium; TWO OR MORE, or an upgrade starting from the pre-split OpenERP era, =
 High/Very High.
 
-Distribution note: modules with consistent naming (e.g. `viin_*`) are distribution-maintained - flag separately; their risk is generally lower than truly custom modules.
+Distribution note: modules sharing a distribution's name prefix are distribution-maintained - flag separately; their risk is generally lower than truly custom modules.
 
 **Data priority:** MCP tool results are ground truth for deprecated API counts and blast radius. Training knowledge is for interpreting business impact and recommending remediation.
 

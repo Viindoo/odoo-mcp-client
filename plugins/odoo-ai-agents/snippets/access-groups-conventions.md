@@ -51,7 +51,6 @@ Do NOT invent an id and do NOT omit `category_id` for an application's groups.
 |---|---|---|
 | `Human Resources/Employees` | `base.module_category_human_resources_employees` | core `hr` manifest |
 | `Sales/Sales` | `base.module_category_sales_sales` | core `sale` manifest |
-| `Accounting & Finance` | `base.module_category_accounting_and_finance` | Viindoo `tvtmaaddons` manifest |
 
 ---
 

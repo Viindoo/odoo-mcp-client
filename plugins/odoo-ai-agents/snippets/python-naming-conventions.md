@@ -4,45 +4,9 @@
 
 # Python Variable Naming Conventions
 
-## Universal (all distributions; pylint C0104-enforced)
-
 **Never use `l`, `O`, or `i` as single-character variable names.** pylint fires
 `C0104 ambiguous-variable-name` on them, which is a hard block in Odoo CI
-(the `/test_lint` gate enforces it). This is a universal Python/pylint rule - applies
-regardless of distribution, profile, or Odoo version.
+(the `/test_lint` gate enforces it). It applies regardless of distribution, profile, or
+Odoo version.
 
 **In review:** any occurrence is a **MED** finding (pylint C0104 blocks CI).
-
-## Viindoo Standard/Internal (profile-gated)
-
-> **PROFILE GATE:** Apply the rules below ONLY when BOTH conditions hold:
->
-> 1. OSM (`odoo-semantic`) is reachable.
-> 2. The active profile resolves to a Viindoo Standard or Viindoo Internal distribution -
->    profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`.
->    Use the profile resolved at rung 2 of
->    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (`INST_PROFILE`, the exact
->    declared name), else OSM `profile_inspect` / `list_available_profiles`.
->
-> Do NOT apply these rules for Odoo CE/EE upstream or any other non-Viindoo
-> distribution.
-
-**Rule B - Use meaningful names, avoid arbitrary single-letter abbreviations.**
-`for k, v in ...`, `x`, `y` (outside mathematical contexts) are careless shortcuts.
-Choose names that reveal intent: `for field_name, field_val in ...`.
-
-**Rule C - Record iteration over `self` MUST use `r`.**
-When iterating over a model's own recordset, write `for r in self:` - not `rec`, not
-`record`, not any other name.
-
-```python
-# Correct (Rule C)
-for r in self:
-    r.total = r.qty * r.price_unit
-
-# Wrong - do NOT write
-for rec in self:   # banned Viindoo-internal
-    rec.total = ...
-```
-
-**In review (Viindoo profile only):** Rule B and Rule C violations are **MED** findings.

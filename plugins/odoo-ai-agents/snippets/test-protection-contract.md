@@ -35,7 +35,7 @@ full gate list + reproduction steps; mark each "verify against live test class":
   resolve the name for the target before tagging either:
   ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes.
 - `test_lint` - Odoo CE static lint gate; the authoritative backend code-quality CI gate.
-- Viindoo's lint module (flake8 + extended static analysis) - present on Viindoo profiles only, and named per series; run alongside core `test_lint`. Which name, and how to resolve it: ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md.
+- Every lint-class module the addons path ships, run alongside core `test_lint`. Which modules, and how to scope them: ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md.
 
 ## MUST-NOT-BREAK
 

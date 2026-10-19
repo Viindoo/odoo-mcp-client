@@ -40,11 +40,11 @@ Model: haiku. Read-only. Output file: `intake.md`.
 TASK: Resolve the upgrade request into structured inputs.
 
 (1) Read the current branch name (`git branch --show-current`). Infer the Odoo SERIES
-    from it: a branch named `17.0`, `17.0-feat-x`, or `viindoo-17.0` -> series `17.0`.
+    `<S>` from it: a branch named `<S>`, `<S>-feat-x`, or `release-<S>` -> series `<S>`.
     If the branch name is ambiguous, mark as open_question.
     Cross-check: read a sample of module descriptors (BOTH names, as in (3a)) and find the MAX `version` series
     present on disk. If the branch-inferred series and the manifest-max series disagree
-    (e.g. branch says `17.0` but manifests say `16.0.x.y.z`), raise as open_question
+    (e.g. branch says `<S>` but manifests say `<S-1>.x.y.z`), raise as open_question
     rather than silently trusting the branch name.
     EXCEPTION - the manifests carry a SHORT `version` (2-3 numeric parts, no series prefix; the
     normal form, see `references/upg-classification-table.md` § Manifest breaks): there is no series
@@ -100,12 +100,12 @@ TASK: Resolve the upgrade request into structured inputs.
 
 OUTPUT FORMAT (write to intake.md):
 ```yaml
-resolved_series: "17.0"
-matched_profile: "viindoo_standard_17"
+resolved_series: "<S>"
+matched_profile: "<profile>"
 cluster_slug: "l10n_vn"   # scope slug; becomes <cluster> in every artifact path + worktree/branch name
-source_version: "16.0"
-target_version: "17.0"
-series_cross_check: "branch=17.0, manifest_max=16.0 -> DISAGREE -> open_question raised"
+source_version: "<S-1>"
+target_version: "<S>"
+series_cross_check: "branch=<S>, manifest_max=<S-1> -> DISAGREE -> open_question raised"
   # when the manifests already carry the short form: "skipped (short-form manifest, no series prefix)"
 candidate_modules:
   - path: "l10n_vn_custom/"
@@ -117,7 +117,7 @@ proposed_cluster:
 dependency_hints:
   l10n_vn_custom: ["l10n_vn", "account"]
 open_questions:
-  - "Confirm: upgrade l10n_vn_custom + l10n_vn_viin_accounting to 17.0? (detected via manifest version-series scan)"
+  - "Confirm: upgrade l10n_vn_custom + l10n_vn_custom_report to <S>? (detected via manifest version-series scan)"
 ```
 ```
 
@@ -465,11 +465,10 @@ INPUTS:
 - Breaking-change catalog: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md
 - Version delta (Removed + Changed for relevant symbols): version-delta.md
 - Design doc (if P2b produced one): <path or "none">
-- Conventions (CORE, applies on EVERY profile/distribution - never Viindoo-gated; this IS a
-  modules-upgrade adapt): ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0 - no
-  old-series compatibility, no migration script, no version bump, implement any
-  `reuse_candidates[]` target-core mechanism instead of a shim; see INSTRUCTIONS step 0c below
-  for the vendor-currency pass (clause (c)).
+- Conventions (apply on EVERY profile/distribution; this IS a modules-upgrade adapt):
+  ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0 - no old-series compatibility,
+  no migration script, no version bump, implement any `reuse_candidates[]` target-core mechanism
+  instead of a shim; see INSTRUCTIONS step 0c below for the vendor-currency pass (clause (c)).
 
 ADAPT TIER: <haiku | sonnet | opus | fable> (from upg-triage-table.md)
 
@@ -841,11 +840,10 @@ dep-order review -> push -> open PR. Do not reorder it locally.
 (${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md) PLUS
 these three passes before opening the PR, each cross-referencing its owning snippet:
 - Convention-compliance: manifest version-form is the short form with no series prefix and no bump
-  (references/upg-classification-table.md § Manifest breaks, the Rule A row), always-invisible view
-  fields carry an explanatory XML comment from v18, renames done via `old_technical_name` with no
-  NEW migration script for no-data modules - per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md.
-  Scope marker: that no-new-script rule is about a MODULE RENAME; an existing lower-series
-  `migrations/` dir carried by this SERIES UPGRADE is simply left untouched, never retargeted here.
+  (references/upg-classification-table.md § Manifest breaks, the Rule A row) and always-invisible
+  view fields carry an explanatory XML comment - per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md.
+  An existing lower-series `migrations/` dir carried by this SERIES UPGRADE is left untouched, never
+  retargeted here.
 - Perf-lens: no per-record `mapped()` aggregate over a high-volume model (`hr.attendance`,
   `stock.move`, `account.move.line`, `account.analytic.line`) in a stored compute - use a grouped
   `_read_group`.

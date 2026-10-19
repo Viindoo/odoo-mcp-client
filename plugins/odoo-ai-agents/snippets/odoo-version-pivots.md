@@ -51,7 +51,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 |---|---|---|---|
 | Inline Python modifiers | `readonly="record.state == 'done'"` | v17 | `attrs=`/`states=` → `ValidationError` **from v17** (not just a warning) |
 | List view arch tag | `<list>` | v18 | `<tree>` still accepted but `<list>` is canonical; `<tree>` was canonical up to v17 |
-| Always-invisible field | field + XML comment AFTER: `<!-- invisible: <reason> -->` | v18 | No comment → fails `base.TestInvisibleField` from v18+ |
+| Always-invisible field | XML comment stating why, right after the opening tag | v18 | Rule + enforcing test: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/xml.md` § Always-invisible field carries a comment |
 | Optional list column | `optional="hide"` / `optional="show"` on a list/tree `<field>` | v13 | Attribute not honoured before v13 - the column is always rendered |
 | Chatter element | `<chatter/>` | v18 | `<div class="oe_chatter">` deprecated; `<chatter/>` preferred from v18 |
 
@@ -128,12 +128,12 @@ documentation instance): test on a fresh lease.
 **Only two classes are listed here, and the list stays that size on purpose.** A class earns a row
 ONLY if all three hold: it is a FRAMEWORK class (lives in `base`/`hr`, not in the module under
 test), it enforces a convention THIS plugin teaches, and a module-scoped `--test-tags /<module>` run
-SKIPS it so nothing else would catch the violation. Odoo and Viindoo ship hundreds of thousands of
-tests; this is not a mirror of them, and a class that fails any of the three does not belong.
+SKIPS it so nothing else would catch the violation. Odoo ships hundreds of thousands of tests;
+this is not a mirror of them, and a class that fails any of the three does not belong.
 
 | Convention it enforces | Class, per series | Tag spec to pass |
 |---|---|---|
-| Always-invisible view field needs an explanatory XML comment | `TestInvisibleField` (in `base`), v18+ only - absent below | `/base:TestInvisibleField` |
+| Always-invisible view field needs an explanatory XML comment | `TestInvisibleField` (in `base`), v18+ only - absent below; rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/xml.md` § Always-invisible field carries a comment | `/base:TestInvisibleField` |
 | Custom `hr.employee` field needs `groups="hr.group_hr_user"` | in `hr`: `TestSelfAccessProfile` v13-v18, RENAMED to `TestSelfAccessPreferences` at v19 | `/hr:TestSelfAccessProfile` or `/hr:TestSelfAccessPreferences` per series |
 
 > **The `hr` class was RENAMED, not removed.** Its file and its `test_employee_fields_groups` method
@@ -223,22 +223,11 @@ raise UserError(_("Answer to %s is not valid, expected %s.", name, "int"))
 
 ---
 
-## Viindoo-distribution conventions (profile-gated - see `upg-conventions.md`)
-
-Apply ONLY under `upg-conventions.md`'s gating. NOT Odoo core or other distributions.
-
-| Convention | Rule | Cross-ref |
-|---|---|---|
-| No-data module rename | `old_technical_name` key only - no migration script | `upg-conventions.md` Convention 2 |
-
-### Backend lint-class gate - which modules exist per series
+## Backend lint-class gate - core module per series
 
 | Module | Source | Present at |
 |---|---|---|
 | `test_lint` | Odoo core (`odoo/addons/test_lint`) | v10+ ONLY - absent below that, where a `/test_lint` tag silently matches nothing |
-| `test_pylint` | Viindoo `tvtmaaddons` | v16 ONLY - the gate does not exist below v16 |
-| `test_viin_pylint` | Viindoo `tvtmaaddons` | v17+ ONLY - same gate as `test_pylint`, under the new name |
 
-> `test_pylint` and `test_viin_pylint` are ONE gate under two names, split at v17 - never install or
-> tag both in the same build. Selection procedure, and the false-green trap that makes this matter:
-> `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`.
+Selection of every lint-class module a build tags, and the false-green trap:
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`.

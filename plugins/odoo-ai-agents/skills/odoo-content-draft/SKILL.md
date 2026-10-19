@@ -95,7 +95,7 @@ Before presenting, verify all 7 checks:
 - [ ] Landing page: every section traces to a pain or a messaging pillar of the Buyer profile, and WHO-ITS-FOR is present
 - [ ] No invented customer name, revenue number, or fabricated ROI
 - [ ] Length within the channel matrix range; a landing page: each block holds the item count its Section Map row names (e.g. 3-5 pains)
-- [ ] No vault paths or internal Viindoo roadmap details
+- [ ] No vault paths or internal roadmap details
 
 Revise inline on any failure.
 

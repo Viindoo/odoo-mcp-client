@@ -2,7 +2,7 @@
 
 **Example 1:**
 Prompt: "list all our Odoo customizations and what they do"
-Output: Inventory table, each module classified as custom or Viindoo, business purpose in plain
+Output: Inventory table, each module classified as custom or distribution-maintained, business purpose in plain
 language, upgrade risk flag.
 
 **Example 2:**
