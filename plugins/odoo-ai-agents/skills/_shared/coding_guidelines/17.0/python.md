@@ -44,6 +44,21 @@ from odoo.addons.website.models.website import slug
 
 ---
 
+## `__init__.py` import order
+
+> Plugin rule (not in the upstream text):
+
+- Module root `__init__.py` and `models/__init__.py`: one `from . import <file>` per line. A file
+  comes after every file whose Python classes it imports or subclasses (a mixin or AbstractModel
+  used as a Python base class); the registry resolves `_inherit` by name, so that needs no order.
+  Otherwise the lines are alphabetical. Never `import *`.
+- `tests/__init__.py`: helper modules (such as `common`) first, then `from . import test_<name>`,
+  one line per test file, alphabetical, each test file exactly once. The test loader runs only the
+  test modules this file imports - a test file left out never runs. Alphabetical order lets two
+  branches that each add a test merge cleanly.
+
+---
+
 ## Idiomatics of Programming (Python)
 
 - Always favor **readability** over conciseness or using the language features or idioms.

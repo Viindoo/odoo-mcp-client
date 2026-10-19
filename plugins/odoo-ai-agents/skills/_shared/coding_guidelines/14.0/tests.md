@@ -35,6 +35,13 @@ series, never from another series.
 
 QUnit. Unit test files live under `static/tests/` and end in `_tests.js`; they are registered in the `web.qunit_suite_tests` bundle (`web.qunit_mobile_suite_tests` for mobile).
 
+> Plugin rule (not in the upstream text):
+
+- No per-module JS runner exists: a module's JS unit tests run inside `web`'s suite classes, which
+  run the JS tests of every installed module; read the module's own failures from the log. When JS
+  unit tests are in scope, tag BOTH `/web:WebSuite.test_js` and `/web:MobileWebSuite.test_mobile_js`. Green on one proves
+  nothing about the other. The mobile suite runs at `375x667` without touch emulation.
+
 ## Demo data
 
 In this series demo data loads by default (`--without-demo` defaults to off): a test MAY use demo records of a module in its upstream closure.

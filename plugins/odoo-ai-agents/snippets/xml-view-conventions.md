@@ -1,27 +1,10 @@
 # XML View Conventions - CORE (all distributions)
 
 CORE Odoo rules for XML view authoring, version-tagged. Applies to ALL distributions.
-Cross-ref F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` for the full pivot table - do NOT restate rows here.
-
----
-
-## Always-invisible field requires XML comment (v18+)
-
-A view field with `invisible="1"` or `column_invisible="1"` (constant value, not a dynamic
-expression) MUST carry an explanatory XML comment immediately after the field element:
-
-```xml
-<field name="legacy_field_id" invisible="1"/>
-<!-- invisible: required by ParentClass._compute_something; unused in this view -->
-```
-
-- "Always invisible" = literal `"1"` or `"True"`. Conditional (`invisible="record.state == 'done'"`)
-  does NOT require a comment.
-- Enforced by a `base` view-arch test from the series named in the pivot row below; absent before
-  it. The enforcing class has been renamed before - do not carry its name around. When you need to
-  TAG it, resolve the name for the target series per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes.
-- Pivot row: F0 `§XML views` row "Always-invisible field".
+Cross-ref F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` for the full pivot
+table - do NOT restate rows here. Series-specific view rules (always-invisible field comment,
+inheriting QWeb templates) live in
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/xml.md`.
 
 ---
 

@@ -35,6 +35,19 @@ series, never from another series.
 
 QUnit. Unit test files live under `static/tests/` and end in `_tests.js`. Confirm the asset bundle name for this series with `find_test_examples(query='qunit suite bundle', odoo_version='17.0')` before writing the manifest entry.
 
+> Plugin rule (not in the upstream text):
+
+- No per-module JS runner exists: a module's JS unit tests run inside `web`'s suite classes, which
+  run the JS tests of every installed module; read the module's own failures from the log. When JS
+  unit tests are in scope, tag BOTH `/web:WebSuite.test_js` and `/web:MobileWebSuite.test_mobile_js`. Green on one proves
+  nothing about the other. The mobile suite runs at `375x667` with touch emulation.
+- Touch: `hasTouch()` reads `browser.ontouchstart`, copied from `window` when `browser` is
+  imported, or a coarse pointer from `browser.matchMedia`; changing `window` inside a test changes
+  nothing. A test that needs a device condition patches `browser` with `patchWithCleanup`
+  (`ontouchstart`, and `matchMedia` where the mobile suite reports a coarse pointer), as core
+  `tooltip_service_tests.js` does for `ontouchstart`. A test titled for a device condition
+  establishes that condition itself.
+
 ## Demo data
 
 In this series demo data loads by default (`--without-demo` defaults to off): a test MAY use demo records of a module in its upstream closure.

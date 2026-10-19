@@ -33,7 +33,19 @@ series, never from another series.
 
 ## JavaScript unit tests
 
-QUnit. Unit test files live under `static/tests/` and end in `_tests.js`; they are registered in the `web.qunit_suite_tests` bundle. The Python side runs them with `browser_js('/web/tests?mod=<module>', ...)`.
+QUnit. Unit test files live under `static/tests/` and end in `_tests.js`; they are registered in the `web.qunit_suite_tests` bundle.
+
+> Plugin rule (not in the upstream text):
+
+- No per-module JS runner exists: a module's JS unit tests run inside `web`'s suite classes, which
+  run the JS tests of every installed module; read the module's own failures from the log. When JS
+  unit tests are in scope, tag BOTH `/web:WebSuite.test_js` and `/web:MobileWebSuite.test_mobile_js`. Green on one proves
+  nothing about the other. The mobile suite runs at `375x667` with touch emulation.
+- Touch: `hasTouch()` reads `browser.ontouchstart`, copied from `window` when `browser` is
+  imported, so changing `window` inside a test changes nothing. A test that needs a device
+  condition patches `browser` with `patchWithCleanup` (`ontouchstart` set for touch, `undefined`
+  for non-touch), as core `tooltip_service_tests.js` does. A test titled for a device condition
+  establishes that condition itself.
 
 ## Demo data
 

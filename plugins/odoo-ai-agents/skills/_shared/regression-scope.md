@@ -39,7 +39,8 @@ this node's coding nodes changed}. Compute the widening:
 
 Own-module suites for every module in the run-set:
 - Python: `module_inspect(name=<module>, method="tests", odoo_version=<explicit>)`.
-- JS / Hoot / tour: `js_test_inspect(module=<module>, odoo_version=<explicit>)`.
+- JS / Hoot / tour: `js_test_inspect(module=<module>, odoo_version=<explicit>)`. JS unit tests run
+  through the desktop AND mobile suite classes named in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § JavaScript unit tests.
 
 ## The run-set feeds BOTH sides of the invocation
 

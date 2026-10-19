@@ -123,3 +123,16 @@ New primary views do not require the inherit suffix as those are new records bas
     ...
 </record>
 ```
+
+## Inheriting QWeb templates
+
+> Plugin rule (not in the upstream text):
+
+When an inheriting template (`t-inherit` on a client template, `inherit_id` on a server template)
+inserts nodes with `position="before"` or `position="after"`, the inserted nodes must never land
+between a node carrying `t-if`/`t-elif` and the next sibling carrying `t-elif`/`t-else`: the
+original `t-elif`/`t-else` then binds to the inserted node and the chain breaks. So never use
+`position="after"` on such a `t-if`/`t-elif` node, nor `position="before"` on such a
+`t-elif`/`t-else` node. Insert with `position="inside"` on the parent, or wrap the whole chain instead.
+Inserting a `t-elif` node into the chain is fine. `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh`
+Tier 2 blocks the breaking form.

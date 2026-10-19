@@ -59,7 +59,7 @@ Run untagged only under one of these, and NAME which one in the report:
 4. **Reproducing a CI/Runbot gate that itself runs untagged** - parity is the point, so the scope
    matches that gate, not the blast radius.
 
-## Two widenings that stay inside the rule
+## Widenings that stay inside the rule
 
 - **Framework `post_install` classes.** `--test-tags` only FILTERS, never ADDS, so a `/<m>` run
   skips framework classes not tagged with your module. NAME them beside the module tags
@@ -68,8 +68,10 @@ Run untagged only under one of these, and NAME which one in the report:
 - **Lint modules** (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) are selected by tag but run only if INSTALLED, so a
   build that tags them unions them into `-i`/`-u` from the SAME probe - gated on `GATE_ROLE:
   pre-pr-lint-gate`, owned by `odoo-instance-ops` § Lint modules.
+- **JS unit tests:** tag every suite class the series guideline
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` names, desktop and mobile.
 
-Both widen BOTH sides together. Neither is an exception to the two-sided rule.
+None is an exception to the two-sided rule.
 
 ## Scoping vs suppression
 
