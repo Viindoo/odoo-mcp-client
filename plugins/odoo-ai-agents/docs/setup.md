@@ -335,6 +335,32 @@ drop-in. What it does:
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-ai-agents:odoo-setup` whenever a dependency is missing. The same hint prints `browser MCP flags outdated` when a registered browser server differs from the current spec (see the re-run note above).
 
+### Auto mode (`/odoo-ai-agents:odoo-setup auto-mode`)
+
+Claude Code's auto-mode classifier reads its `autoMode` rules only from your user settings file, and
+a plugin cannot ship them, so one setup step writes them after you approve. Without it, routine
+development (a break-check on a record rule, `git checkout <ref> -- <paths>`, a rebase `--continue`)
+can be blocked and, after repeated blocks, auto mode pauses to ask you.
+
+- **Derived from this machine, nothing typed in:** trusted roots = the parent directory of every
+  `addons_path` entry in the instance catalog plus the state root's `projects` directory;
+  organization = owner of each repository's `origin` remote; fork owner = owner of any other
+  remote; protected branches = the remote's default branch plus every `<major>.0` branch. Git is
+  only read. `propose` prints all of it; `apply` asks `[Y/n]` per group.
+- **What is written** (user settings, each entry tagged `odoo-ai-agents: `): `autoMode.allow`
+  (routine development inside the trusted roots, routine git, local instances), `autoMode.soft_deny`
+  (push or delete on a protected branch of the organization, merging a pull request without your
+  confirmation), `autoMode.environment` (the facts above), and `permissions.ask` push rules naming
+  each protected branch so those always prompt. Each `autoMode` array keeps `"$defaults"` first.
+  Never `hard_deny`, never `permissions.allow`, never a bypass mode. This is the one human gate:
+  pushing straight to a protected branch and merging a pull request.
+- **Keeping it current:** after you approved once, a SessionStart hook compares the entries with
+  the installed plugin version and rewrites only this plugin's tagged entries when they differ,
+  telling you in one line. Before the first approval it only reminds you. Re-run the command any
+  time to review or after the catalog or remotes change.
+- **Opt out:** `export ODOO_AI_NO_AUTO_PERMS=1` (the same switch as the other permission steps)
+  stops the step and the hook from writing; delete the tagged entries to remove what was written.
+
 ### Cross-runtime MCP wiring (what `/odoo-setup runtime` writes)
 
 Each runtime stores browser MCP config in a **different file with a different schema**.

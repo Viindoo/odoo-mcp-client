@@ -111,6 +111,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure-auto-mode.sh\"",
+            "timeout": 12
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure-ethos-import.sh\"",
             "timeout": 8
           }

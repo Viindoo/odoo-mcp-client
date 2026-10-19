@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|listing|instance|refresh] [--version X.Y] [--profile P]"
+argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh] [--version X.Y] [--profile P]"
 description: >-
   Set up browser MCP, permissions and local Odoo instances
 ---
@@ -61,6 +61,7 @@ menu" below).
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
+| `auto-mode`    | `34-auto-mode` only: `propose` (facts derived from the catalog and the git remotes), show it, then `apply` on consent (no preflight needed - config file only) |
 | `listing`      | `35-skill-listing-budget` only (no preflight needed - measures and, with consent, edits the user settings file) |
 | `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-6 + `40-instance-profile` + optional `45-venv` + `46-server-wide` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
 | `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`), then `35-skill-listing-budget` (installed skills change with updates). Declares nothing new. |
@@ -87,6 +88,10 @@ Which parts of the Odoo visual workflow would you like to set up?
 [ ] Declare + spin up a local Odoo instance - OSM-grounded propose-then-confirm
     flow that writes $ODOO_AI_HOME/instances.toml and launches an Odoo process
     (runs steps AI-1..AI-6 + 40 + optional 45 + 46 + 48 + 50)
+
+[ ] Let auto mode run routine Odoo development without prompts - derive the trusted roots,
+    organization and protected branches from this machine, review, then write them
+    (runs step 34; equivalent to auto-mode)
 
 [ ] Show every skill description to the model - measure the skill listing and,
     if it overflows, offer to raise its budget (runs step 35; equivalent to listing)
@@ -353,10 +358,12 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    1. **Local evidence.** Run `"$STEPS_DIR/46-server-wide.sh" propose --series <X.Y>
       [--profile <name>]`. Read its facts: `CORE_SERVER_WIDE_MODULES` (applied by the tools,
       never recorded), `SELF_DECLARED_SERVER_WIDE` (addons on the row's addons_path whose own
-      code tests their name against `server_wide_modules`), `CURRENT_SERVER_WIDE_MODULES` and
-      `UNDETECTED_CURRENT` (already declared, and which of those nothing re-found - typically an
-      operator's own addition: keep it unless the operator drops it), and
-      `PROPOSED_SERVER_WIDE_MODULES`. `CORE_READABLE=0` means the checkout is not readable:
+      code tests their name against `server_wide_modules`), `MANIFEST_HINTS` (addons whose
+      manifest summary or description says they load server wide), `CURRENT_SERVER_WIDE_MODULES`
+      and `UNDETECTED_CURRENT` (already declared, and which of those nothing re-found - typically
+      an operator's own addition: keep it unless the operator drops it), and
+      `PROPOSED_SERVER_WIDE_MODULES` with `PROPOSAL_SOURCES` (each module's evidence: code, log,
+      manifest, row) - show the operator that source beside each candidate. `CORE_READABLE=0` means the checkout is not readable:
       fix `odoo_root` (AI-4) first - the tools refuse a declared list whose core default they
       cannot read.
    2. **Odoo Semantic evidence** (skip on the user-declared path, and say so). Call
@@ -532,6 +539,16 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   Asks [Y/n] itself; after `apply` it prints the exact rules written and
   instructs ONE restart (permissions are finalized before SessionStart hooks
   run).
+- **34-auto-mode** - `propose` derives, from this machine only, the trusted roots (parent of every
+  catalog `addons_path` plus the state root's `projects`), the organization (owner of `origin`), the
+  fork owner (owner of any other remote) and the protected branches (the remote's default branch plus
+  every `<major>.0` branch); show the proposal, then `apply` on consent. It writes tagged
+  `odoo-ai-agents: ` entries into `autoMode.allow`, `autoMode.soft_deny`, `autoMode.environment`
+  (each array keeps `"$defaults"` first) and `permissions.ask` push rules for the protected
+  branches, in `$CLAUDE_SETTINGS`; never `hard_deny`, never `permissions.allow`. A later `apply`
+  prunes this plugin's own tagged entries before writing the current set and never touches yours;
+  the SessionStart hook `ensure-auto-mode.sh` re-applies after the owner has approved once.
+  Honours `ODOO_AI_NO_AUTO_PERMS=1`.
 - **35-skill-listing-budget** - measures the session's skill listing (installed plugins enabled
   in the settings files, the user's and the project's skills, `skillOverrides`; Claude Code's
   bundled skills from the CLI's own debug log when a session of this project measured the listing
