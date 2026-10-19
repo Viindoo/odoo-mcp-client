@@ -6,6 +6,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.8.0] - 2026-10-19
+
+### Added
+
+- `odoo-ai-agents` - **the venv carries the test imports the checkout names.** Odoo's test
+  framework imports some packages only when present (`websocket-client` among them) and skips
+  every browser, tour and Hoot test without them; several series never declare them in
+  `requirements.txt`. The venv step reads those optional imports from the checkout's
+  `tests/common.py` text, installs them with the tool that built the venv and verifies each
+  import; a test run names a missing package before it starts and in its summary, findings and
+  `job_wait` warning, with the remedy.
+- `odoo-ai-agents` - **auto mode kept current with one human gate.** `/odoo-ai-agents:odoo-setup
+  auto-mode` derives the trusted roots, organization, fork owner and protected branches from the
+  catalog and the git remotes and, on one approval, writes tagged `autoMode` allow, soft-deny and
+  environment entries plus `permissions.ask` rules into the user's settings, so routine
+  development (edits, deletes, break-checks, local instances, git on feature branches) is never
+  classified as destructive and the one action a human confirms is a push to a protected branch
+  or a pull-request merge. A SessionStart hook re-applies the plugin's own entries after an update
+  and never touches entries the user wrote. `snippets/permission-denial.md` tells an agent how to
+  handle a refused call.
+- `odoo-ai-agents` - **the frontend gate takes its series and checks references.**
+  `verify-frontend.sh --series <X.Y>` replaces the environment-variable-only resolution; its static
+  tier refuses a new JS import that does not resolve in the series tree and an xpath that inserts
+  between a `t-if` and its `t-else`. The reviewer, the frontend coder and the coder cite it with
+  the series, and a coder boots the web client of a node that touches `static/src`.
+- `odoo-ai-agents` - **an icon is measured before it is done.** `scripts/lib/icon_gate.py` renders
+  through the first rasterizer available (headless Chrome included), proves the PNG kept its
+  colour and plate, writes the 32 px preview and its zoom, and samples a sibling icon's plate and
+  corner radius; the icon designer inherits a module family's palette, draws its own geometry
+  instead of looking up glyph paths it has no source for, can build the long-shadow style, and
+  returns only after the gate passes and two written reads of the preview.
+- `odoo-ai-agents` - **per-series coding guidelines carry the rules agents asked for**, marked as
+  plugin rules beside the upstream text: the order of imports in a module's `__init__.py` files,
+  the XML comment an always-invisible field carries and the core test that enforces it from the
+  series that ships it, the desktop and mobile JS suite classes to tag together and how touch is
+  established under each runner, and the rule that an inherited QWeb template never inserts
+  between a `t-if` and its `t-else`.
+- `odoo-ai-agents` - `instance_build` accepts `conf_options`, extra `[options]` keys for the
+  generated config file (a lint module's own scoping options, for one); keys the tool owns are
+  refused by name. The server-wide step also proposes modules whose manifest text asks to be
+  loaded server-wide.
+
+### Changed
+
+- `odoo-ai-agents` - **a parked lease is identified by its addons path too.** `lease_find` compares
+  the caller's resolved tree with the parked row's, names every mismatch with both paths and the
+  way to resume that lease on purpose, and `lease_adopt` refuses a parked lease of another tree.
+- `odoo-ai-agents` - **`job_wait` reads languages from the database** once the job finished and
+  falls back to the log only for requested languages, treats both of Odoo's completion lines as a
+  finished registry load, measures a Hoot or QUnit run from any test file, and documents that the
+  summary's `STATUS` is the script's exit status, not the test verdict.
+- `odoo-ai-agents` - **the lint gate is scoped to the change's own tree**: the lint toolchain
+  exports the shortest path suffix unique on the run's addons path instead of a basename every
+  worktree shares, and the lint-gate snippet names only core `test_lint` plus whatever lint-class
+  modules the addons path ships, scoped through their own options and read as inconclusive when a
+  companion is not loaded server-wide.
+- `odoo-ai-agents` - **distribution-specific conventions are gone**: vendor-gated naming rules,
+  the vendor manifest key for a module rename, vendor lint module names and vendor example names
+  are deleted from every agent-facing text; the contract key `viindoo_profile` is `osm_profile`.
+- `odoo-ai-agents` - the forward-port local merge concludes itself (the human gates are the plan
+  and the pull-request merge) and a forwarded migration dir is retargeted only when every module
+  its script acts on is installable at the target tip; an instance is restarted on its own lease
+  (park, then serve) and a manifest change is an update build; a test dispatch without
+  `GATE_ROLE` runs as node-verify unless it installs a lint-class module; a caller that launches
+  the test writer provides its instance and commits its files; a data rule is broken only by
+  editing the file; the acceptance tester reads records as the role that owns them, A/B-tests a
+  symptom outside the change before blaming the environment, and runs at sonnet when a scenario
+  needs fixtures built; documentation captures assert state on the leased instance itself; a
+  worker's brief spells out every git verb it never runs and that it writes only inside its own
+  worktree.
+- `git-toolkit` - **one plain git command per call, never a stash, one human gate.** Every git call
+  a git agent makes is one `git -C <worktree> <subcommand>` with no chaining, assignment or `-c`
+  override, with a single spelled-out editor exception for rebase; a dirty tree before an
+  integration op is BLOCKED instead of stashed; the operator never edits file content beyond
+  resolving a conflict to the stated intent, and an import-only conflict in a package
+  `__init__.py` is resolved by union. The only operation a human confirms is a push or deletion
+  that changes a protected branch without a pull request, or merging one; every other rewrite runs
+  under its backup and tree-identity proof. Sign-off is added only when the repository requires it
+  (a DCO check, a stated contributing rule or the brief), never inferred from trailers in history,
+  and every git agent returns the final commit subject and names any message it rewrote.
+  (`git-toolkit` 0.7.0 -> 0.8.0.)
+
 ## [7.7.0] - 2026-10-16
 
 ### Changed
