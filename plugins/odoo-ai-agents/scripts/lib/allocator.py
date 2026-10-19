@@ -159,18 +159,27 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # living in a worktree gets verified against the principal
                  # checkout's (pre-fix) code instead.
     allocator.py query --series <X.Y> [--state parked] [--run-id <id>] [--force-attach]
+                 [--addons-path-override <csv-or-colon-paths>]
                  # DEFAULT (no --state): the live shared render server for a
                  # series, if any (exit 1 NOT_FOUND otherwise).
                  # --state parked: the resumable PARKED lease for that series
                  # (ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS/
                  # ALLOC_PARKED_AT). A parked lease has NO live owner by
-                 # construction, so it is HOST-and-SERIES scoped: this run's own
-                 # parked lease is returned silently; another run's parked lease
-                 # on THIS host is returned WITH ALLOC_ATTACHED_FROM_RUN; a parked
-                 # lease on a DIFFERENT host needs --force-attach. A same-host row
-                 # whose database is PROVABLY gone is SKIPPED, not offered, and
-                 # `release <token>` is named. "Could not look" is not "absent"
-                 # and is still offered.
+                 # construction, so it is scoped by host, series and TREE: only
+                 # a lease built from the caller's tree is offered - the row's
+                 # addons_path must equal --addons-path-override (same ordered
+                 # directories), or, without one, must not be another checkout
+                 # of the cwd's repo. A lease of another tree is never probed nor
+                 # offered: one `allocator: SKIPPING parked lease <token8> ...`
+                 # stderr line each, and JSON `addons_mismatch` [{token, db_name,
+                 # addons_path, wanted, reason}] on the NOT_FOUND. Then: this
+                 # run's own parked lease is returned silently; another run's
+                 # parked lease on THIS host is returned WITH
+                 # ALLOC_ATTACHED_FROM_RUN; a parked lease on a DIFFERENT host
+                 # needs --force-attach (which widens the host scope only, never
+                 # the tree). A same-host row whose database is PROVABLY gone is
+                 # SKIPPED, not offered, and `release <token>` is named. "Could
+                 # not look" is not "absent" and is still offered.
     allocator.py can-createdb --series <X.Y> [--profile <P>] [--instances <path>]
                  # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
                  # when undeterminable) and exit 0|6|7 - the SAME ladder and codes
@@ -264,11 +273,13 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # `--session mine` touches every lease of the caller's session in
                  # one registry hold - heartbeat_at included, because an older
                  # allocator judges a pid-less row by that stamp alone.
-    allocator.py adopt <token> --run-id <id>
+    allocator.py adopt <token> --run-id <id> [--addons-path-override <paths>]
                  # re-anchor a lease onto the CALLER's session (a hand-over inside
                  # one run). Requires the recorded owner run (exit 1 NOT_OWNER),
                  # the same host (exit 4 WRONG_HOST) and an anchored caller (exit 5
-                 # NO_ANCHOR). Changes who vouches for liveness, nothing else
+                 # NO_ANCHOR); a PARKED lease must also be the caller's tree, by
+                 # query's rule (exit 12 LEASE_ADDONS_MISMATCH, nothing written).
+                 # Changes who vouches for liveness, nothing else
                  # (adopting a PARKED lease also sets owner.return_to_park).
                  # Writes `allocator: adopted lease <token> run_id=<id>` to STDERR.
     allocator.py anchor [--print]
@@ -3007,6 +3018,11 @@ ERROR_CODES = {
                      "remedy": "wait for the session to end, or pass --force deliberately"},
     "NO_ANCHOR": {"rc": 5, "summary": "the caller has no session anchor",
                   "remedy": "run inside an agent session or export ODOO_AI_SESSION_ANCHOR"},
+    "LEASE_ADDONS_MISMATCH": {"rc": 12, "summary": "the parked lease's addons_path is not the "
+                                                   "caller's tree",
+                              "remedy": "lease_find with addons_path set to that row's addons_path "
+                                        "resumes it deliberately; otherwise acquire your own lease "
+                                        "for this tree"},
     "UNSPECIFIED": {"rc": 1, "summary": "the command failed", "remedy": "see stderr"},
 }
 
@@ -3131,6 +3147,22 @@ def _resolve_instance(path, series, profile=None):
     return inst, items
 
 
+def _override_parts(override):
+    """(entries, error_or_None) for an --addons-path-override value: split by the SSOT
+    `instances_io.split_addons_path` (comma or colon), every entry an existing
+    directory. An error is (message, None) - the shape `_resolve_addons_csv` reports
+    as ADDONS_PATH_OVERRIDE_INVALID. Shared by acquire, `query --state parked` and
+    adopt, so the caller's tree is spelled and validated one way everywhere."""
+    parts = instances_io.split_addons_path(override or "")
+    if not parts:
+        return None, ("--addons-path-override is empty", None)
+    missing = [p for p in parts if not os.path.isdir(p)]
+    if missing:
+        return None, ("--addons-path-override names non-existent directories: "
+                      + ", ".join(missing), None)
+    return parts, None
+
+
 def _resolve_addons_csv(inst, override):
     """Return (comma_joined_addons_path, error_or_None) for this acquire; an
     error is (message, ADDONS_PATH_OVERRIDE_INVALID reason or None).
@@ -3160,14 +3192,10 @@ def _resolve_addons_csv(inst, override):
     """
     if not override:
         return instances_io.join_addons_path(instances_io.addons_path_list(inst)), None
-    parts = instances_io.split_addons_path(override)
-    if not parts:
-        return None, ("--addons-path-override is empty", None)
-    missing = [p for p in parts if not os.path.isdir(p)]
-    if missing:
-        return None, ("--addons-path-override names non-existent directories: "
-                      + ", ".join(missing), None)
-    dropped = instances_io.core_addons_missing(inst.get("odoo_root"),
+    parts, error = _override_parts(override)
+    if error:
+        return None, error
+    dropped =instances_io.core_addons_missing(inst.get("odoo_root"),
                                                instances_io.addons_path_list(inst), parts)
     if dropped:
         return None, (
@@ -3235,6 +3263,42 @@ def _addons_path_worktree_mismatch(addons_entries):
         if entry_top and entry_top != cwd_top:
             return entry, cwd_top
     return None, None
+
+
+# Why a parked lease is not the caller's tree (`_parked_tree_mismatch`).
+TREE_ADDONS_PATH_DIFFERS = "addons-path-differs"
+TREE_ADDONS_PATH_UNRECORDED = "addons-path-unrecorded"
+TREE_WORKTREE_DIFFERS = "worktree-differs"
+
+
+def _parked_tree_mismatch(lease, override_parts):
+    """None when parked `lease` was built from the caller's tree, else
+    {token, db_name, addons_path (the row's entries), wanted, reason}.
+
+    A parked database holds the modules of the tree it was built from, so resuming
+    it for another tree verifies the wrong code. With `override_parts` (the
+    caller stated its tree) the row's recorded addons_path must be the SAME ordered
+    list of directories (compared by realpath); a row that recorded none cannot be
+    proven to match. Without one, the caller's cwd decides exactly as acquire's
+    false-green guard does (`_addons_path_worktree_mismatch` over the row's
+    entries): a cwd in another checkout of a repo the row serves is not its tree.
+    Reads only the long-standing `addons_path` row key, so a row an older allocator
+    wrote is judged the same way."""
+    row_entries = instances_io.split_addons_path(lease.get("addons_path") or "")
+    found = {"token": lease.get("token", ""), "db_name": lease.get("db_name", ""),
+             "addons_path": row_entries}
+    if override_parts is not None:
+        found["wanted"] = list(override_parts)
+        if not row_entries:
+            return dict(found, reason=TREE_ADDONS_PATH_UNRECORDED)
+        if [os.path.realpath(p) for p in row_entries] != \
+                [os.path.realpath(p) for p in override_parts]:
+            return dict(found, reason=TREE_ADDONS_PATH_DIFFERS)
+        return None
+    mismatched_entry, cwd_top = _addons_path_worktree_mismatch(row_entries)
+    if mismatched_entry:
+        return dict(found, wanted=[cwd_top] if cwd_top else None, reason=TREE_WORKTREE_DIFFERS)
+    return None
 
 
 def _emit_instance_common(inst, addons_csv):
@@ -4924,15 +4988,24 @@ def _emit_parked(lease, attached_from=""):
         _emit("ALLOC_ATTACHED_FROM_RUN", attached_from)
 
 
-def _query_parked(reg, series, run_id, force_attach, instances_path=None):
+def _query_parked(reg, series, run_id, force_attach, instances_path=None, override_parts=None):
     """Rung order for `query --state parked`, and the reasoning behind it.
 
     A parked lease has NO live owner BY CONSTRUCTION - park stopped the process
     group and cleared the pid - so the ownership objection that makes a RUNNING
-    lease private does not apply to it. That is why a parked lease is HOST-and-
-    SERIES scoped rather than run-scoped: gating the cross-session case behind a
-    flag would leave the very complaint park exists to answer (instances get
+    lease private does not apply to it. That is why a parked lease is scoped by
+    host, series and TREE rather than by run: gating the cross-session case behind
+    a flag would leave the very complaint park exists to answer (instances get
     destroyed and rebuilt between sessions) half-answered.
+
+    TREE IDENTITY comes before every rung (`_parked_tree_mismatch`): a parked
+    database holds the modules of the addons_path it was built from, so a lease
+    built from another tree (another worktree of the same repo, another stated
+    addons_path - `override_parts`) is never offered, never probed for its
+    database, and is reported instead: one stderr line each and, in JSON, the
+    `addons_mismatch` payload on the NOT_FOUND it leads to. Passing that row's
+    addons_path as --addons-path-override resumes it deliberately.
+    --force-attach widens the HOST scope only; it never overrides tree identity.
 
       1. This run's OWN parked lease -> return it silently. Nothing was
          inherited; there is nothing to report.
@@ -4972,11 +5045,34 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None):
     # match off-host is still the --force-attach case below.
     local = [lz for lz in parked if (lz.get("owner") or {}).get("host") == here]
     gone = set()
+    mismatched = {}
+
+    def _same_tree(lease):
+        """True when `lease` was built from the caller's tree; a mismatch is
+        recorded (and reported on stderr) once per lease."""
+        token = lease.get("token", "")
+        if token in mismatched:
+            return False
+        found = _parked_tree_mismatch(lease, override_parts)
+        if found is None:
+            return True
+        mismatched[token] = found
+        sys.stderr.write(
+            "allocator: SKIPPING parked lease {t} on {db}: its addons_path {row} is not your "
+            "tree {wanted}\n".format(
+                t=token[:8], db=found["db_name"],
+                row=instances_io.join_addons_path(found["addons_path"]) or "<unrecorded>",
+                wanted=instances_io.join_addons_path(found["wanted"] or []) or "<unknown>"))
+        return False
 
     def _offer(lease, attached_from=""):
-        """Emit this lease's coordinates unless its database is provably gone."""
+        """Emit this lease's coordinates unless it was built from another tree or
+        its database is provably gone (the tree is checked first: a lease that is
+        not the caller's is never probed)."""
         token = lease.get("token", "")
         if token in gone:
+            return False
+        if not _same_tree(lease):
             return False
         if _db_present(lease, instances_path) is False:
             gone.add(token)
@@ -5004,8 +5100,13 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None):
             # the HOST scope, it does not overrule a database that is not there.
             if lease.get("token", "") in gone:
                 continue
+            # Nor does it overrule tree identity: an off-host row of another tree
+            # is skipped like a local one.
+            if not _same_tree(lease):
+                continue
             _emit_parked(lease, attached_from=(lease.get("owner") or {}).get("run_id", ""))
             return 0
+    _payload("addons_mismatch", list(mismatched.values()))
     return _fail("NOT_FOUND", 1)
 
 
@@ -5018,18 +5119,27 @@ def cmd_query(opts):
 
     `--state parked`: the resumable PARKED lease for that series instead, so a
     returning agent can find the instance an earlier dispatch suspended rather
-    than build a new one. See `_query_parked` for the rung order.
+    than build a new one. See `_query_parked` for the rung order. Only a lease
+    built from the caller's tree is offered: the tree given with
+    --addons-path-override (validated like acquire's, exit 2
+    ADDONS_PATH_OVERRIDE_INVALID), else the cwd's checkout.
 
     Does not mutate the registry; a condemned row is simply skipped (gc reclaims
     it).
     """
     series = opts.get("series", "")
-    reg = _read_registry()
     state = (opts.get("state") or "").strip().lower()
+    override_parts = None
+    if opts.get("addons_path_override") is not None:
+        override_parts, error = _override_parts(opts.get("addons_path_override"))
+        if error:
+            sys.stderr.write("allocator: {m}\n".format(m=error[0]))
+            return _fail("ADDONS_PATH_OVERRIDE_INVALID", 2)
+    reg = _read_registry()
     if state == "parked":
         return _query_parked(
             reg, series, opts.get("run_id") or opts.get("session", ""),
-            bool(opts.get("force_attach")), opts.get("instances"),
+            bool(opts.get("force_attach")), opts.get("instances"), override_parts,
         )
     if state:
         sys.stderr.write(
@@ -5144,12 +5254,25 @@ def cmd_adopt(opts):
     process launched). It changes WHO vouches for the lease's liveness - never
     its owner run, its database, its ports or its mode - so it requires the
     ownership the release path requires (the run id recorded on the lease),
-    the same host, and a caller that HAS an anchor."""
+    the same host, and a caller that HAS an anchor.
+
+    A PARKED lease must also be the caller's tree (`_parked_tree_mismatch`: the
+    --addons-path-override given, else the cwd's checkout): adopting one built from
+    another tree is refused with LEASE_ADDONS_MISMATCH (exit 12) and nothing is
+    written. A running lease is adopted whatever its tree - the hand-over of a live
+    server does not choose which code it runs."""
     token = opts.get("token")
     run_id = opts.get("run_id") or ""
     if not token or not run_id:
-        sys.stderr.write("Usage: allocator.py adopt <token> --run-id <id>\n")
+        sys.stderr.write("Usage: allocator.py adopt <token> --run-id <id> "
+                         "[--addons-path-override <paths>]\n")
         return _fail("USAGE", 2)
+    override_parts = None
+    if opts.get("addons_path_override") is not None:
+        override_parts, error = _override_parts(opts.get("addons_path_override"))
+        if error:
+            sys.stderr.write("allocator: {m}\n".format(m=error[0]))
+            return _fail("ADDONS_PATH_OVERRIDE_INVALID", 2)
     anchor = _caller_anchor()
     if not anchor:
         return _fail("NO_ANCHOR", 5, "adopt needs a caller with a session anchor; this "
@@ -5177,6 +5300,17 @@ def cmd_adopt(opts):
             return _fail("RECLAIM_IN_PROGRESS", 11,
                          "lease {t} is being reclaimed right now by {who}; it was NOT "
                          "adopted.".format(t=token, who=_reclaimer_desc(target)))
+        if target.get("parked_at") is not None:
+            found = _parked_tree_mismatch(target, override_parts)
+            if found is not None:
+                return _fail("LEASE_ADDONS_MISMATCH", 12, (
+                    "REFUSING to adopt the parked lease for db {db!r}: it was built from "
+                    "addons_path {row} and your tree is {wanted} ({reason}). Nothing was "
+                    "written.".format(
+                        db=target.get("db_name"),
+                        row=instances_io.join_addons_path(found["addons_path"]) or "<unrecorded>",
+                        wanted=instances_io.join_addons_path(found["wanted"] or []) or "<unknown>",
+                        reason=found["reason"])))
         now = _now()
         owner["session"] = _session_block(anchor, now)
         target["owner"] = owner
