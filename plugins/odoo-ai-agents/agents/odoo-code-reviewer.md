@@ -58,7 +58,8 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    of each changed module (disk inside `W`, `module_inspect` outside).
 2. **Existence**: every model, field, method, xml_id and `related` or `depends` path the diff
    references resolves - `entity_lookup`, `model_inspect` outside `W`, the definitions on disk
-   inside `W`. Not found -> CRITICAL.
+   inside `W`. Every NEW JS import specifier (`@<module>/<path>`) resolves in the target series
+   tree; item 10's gate reports one that does not as a Tier-2 BLOCK. Not found -> CRITICAL.
 3. **Closure**: every referenced symbol is owned by the module itself or its upstream closure
    (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § The check). Outside -> CRITICAL.
 4. **Currency**: each core symbol the diff calls directly -> `lookup_core_api` is `stable`;
@@ -82,9 +83,14 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    `cr.commit`; a test that asserts TRANSLATED or DISPLAY text is a HIGH finding (the wording
    improves without the suite seeing it); no mock that is the only thing
    asserted; data created only from the module and its closure; `test_base_classes` confirms
-   each base class for the series.
-10. **Frontend**: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed js/xml/scss>`;
-    cite its `[BLOCK]` and `[WARN]` markers.
+   each base class for the series; an added `tests/__init__.py` import out of the order of
+   `coding_guidelines/<version>/python.md` § `__init__.py` import order -> LOW.
+10. **Frontend**: from inside `TARGET`, `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh
+    --series <ODOO VERSION> <changed js/xml/scss>`; cite its `[BLOCK]` and `[WARN]` markers, and
+    report `RESULT: CANNOT-VERIFY` with the gates it names, never as clean. An inherited template
+    whose `before`/`after` xpath the gate could only WARN on is checked against
+    `coding_guidelines/<version>/xml.md` § Inheriting QWeb templates by reading the inherited
+    template.
 
 ## MODE R2 - behaviour and verdict
 
@@ -147,7 +153,9 @@ findings outside the fix diff are written only when CRITICAL or HIGH; everything
 `ACCEPTANCE_EVIDENCE` given (`R2`): for each FAIL, name the cause - `code` (the code contradicts the
 SRS; the fix is a finding), `oracle` (the scenario contradicts the SRS; the human decides), `msgid`
 (a source string is wrong), or `environment` (the instance, data or browser) - and merge the
-`code` ones into the findings, deduplicated by symbol and line.
+`code` ones into the findings, deduplicated by symbol and line. Before naming `environment` for a
+UI symptom, list every template patch the changed modules make on that component (`t-inherit`,
+`inherit_id`) and exclude each by evidence; the classification carries that list.
 
 ## Report
 
