@@ -745,3 +745,135 @@ def test_fixture_checkouts_state_the_i18n_command_line_their_real_series_states(
     fixture = trees.write_checkout(tmp_path / "fx", series)
     assert facts.i18n_export_cli(fixture) == I18N_SURVEY[series]
     assert facts.i18n_export_cli(fixture) == facts.i18n_export_cli(_checkout(series))
+
+
+# ---------------------------------------------------------------- optional test-framework imports
+#
+# Odoo's test framework imports some packages only when present and SKIPS every test needing one
+# otherwise; no requirements.txt lists them. Which ones, and their distribution name, are read from
+# the checkout's own tests/common.py.
+
+COMMON_HEAD = "import logging\nimport unittest\n\n"
+WEBSOCKET_BLOCK = ("try:\n    import websocket\nexcept ImportError:\n"
+                   "    # chrome headless tests will be skipped\n    websocket = None\n\n")
+WEBSOCKET_GUARD = ("class ChromeBrowser:\n    def __init__(self, logger):\n"
+                   "        self._logger = logger\n        if websocket is None:\n"
+                   "            self._logger.warning(\"websocket-client module is not installed\")\n"
+                   "            raise unittest.SkipTest(\"websocket-client module is not installed\")\n")
+
+
+def _common(root: Path, body: str, pkg: str = "odoo") -> Path:
+    _write(root / pkg / "tests" / "common.py", COMMON_HEAD + body)
+    return root
+
+
+def test_an_optional_import_is_named_with_the_distribution_its_skip_message_states(tmp_path):
+    root = _common(tmp_path, WEBSOCKET_BLOCK + WEBSOCKET_GUARD)
+    assert facts.test_optional_imports(root) == [{
+        "import": "websocket", "distribution": "websocket-client",
+        "distribution_source": "message", "message": "websocket-client module is not installed"}]
+
+
+def test_the_oldest_core_package_is_read_too(tmp_path):
+    root = _common(tmp_path, WEBSOCKET_BLOCK + WEBSOCKET_GUARD, pkg="openerp")
+    assert [d["import"] for d in facts.test_optional_imports(root)] == ["websocket"]
+
+
+def test_without_a_skip_message_the_distribution_is_the_import_name(tmp_path):
+    root = _common(tmp_path, "try:\n    import freezegun\nexcept ImportError:\n    freezegun = None\n")
+    assert facts.test_optional_imports(root) == [{
+        "import": "freezegun", "distribution": "freezegun",
+        "distribution_source": "import-name", "message": None}]
+
+
+def test_an_if_not_guard_on_an_aliased_import_states_the_distribution_too(tmp_path):
+    body = ("try:\n    import pdf_lib as pdf\nexcept ImportError:\n    pdf = None\n\n"
+            "def f():\n    if not pdf:\n"
+            "        raise unittest.SkipTest('pdf-lib-dist module is not installed')\n")
+    assert facts.test_optional_imports(_common(tmp_path, body)) == [{
+        "import": "pdf_lib", "distribution": "pdf-lib-dist",
+        "distribution_source": "message", "message": "pdf-lib-dist module is not installed"}]
+
+
+def test_a_skip_message_beyond_the_guard_window_is_not_attributed(tmp_path):
+    body = ("try:\n    import websocket\nexcept ImportError:\n    websocket = None\n\n"
+            "def f():\n    if websocket is None:\n" + "        pass\n" * 6
+            + "        raise unittest.SkipTest('websocket-client module is not installed')\n")
+    found = facts.test_optional_imports(_common(tmp_path, body))
+    assert [(d["distribution"], d["distribution_source"]) for d in found] == [
+        ("websocket", "import-name")]
+
+
+def test_a_fallback_import_is_not_an_optional_package(tmp_path):
+    body = ("try:\n    import xmlrpc_client as xmlrpclib\nexcept ImportError:\n"
+            "    # pylint: disable=bad-python3-import\n    import xmlrpclib\n")
+    assert facts.test_optional_imports(_common(tmp_path, body)) == []
+
+
+def test_a_name_also_imported_unguarded_is_required_not_optional(tmp_path):
+    body = "import freezegun\n\ntry:\n    import freezegun\nexcept ImportError:\n    freezegun = None\n"
+    assert facts.test_optional_imports(_common(tmp_path, body)) == []
+
+
+def test_an_indented_try_is_not_a_module_level_optional_import(tmp_path):
+    body = ("def f():\n    try:\n        import websocket\n    except ImportError:\n"
+            "        websocket = None\n")
+    assert facts.test_optional_imports(_common(tmp_path, body)) == []
+
+
+def test_no_block_is_empty_and_no_file_is_none_never_a_guess(tmp_path):
+    assert facts.test_optional_imports(_common(tmp_path / "a", "x = 1\n")) == []
+    assert facts.test_optional_imports(tmp_path / "absent") is None
+    assert facts.test_optional_imports("") is None
+
+
+def test_cli_test_deps_prints_one_line_per_import_and_exits_3_when_unreadable(tmp_path):
+    body = WEBSOCKET_BLOCK + "try:\n    import freezegun\nexcept ImportError:\n    freezegun = None\n\n"
+    root = _common(tmp_path / "c", body + WEBSOCKET_GUARD)
+    r = _cli("test-deps", str(root))
+    assert r.returncode == 0
+    assert r.stdout.splitlines() == [
+        "TEST_DEP=websocket|websocket-client|websocket-client module is not installed",
+        "TEST_DEP=freezegun|freezegun|"]
+    r = _cli("test-deps", str(_common(tmp_path / "n", "x = 1\n")))
+    assert r.returncode == 0 and r.stdout == ""
+    r = _cli("test-deps", str(tmp_path / "absent"))
+    assert r.returncode == 3 and r.stdout == "" and "tests/common.py" in r.stderr
+    assert _cli("test-deps").returncode == 2
+
+
+def test_fixture_test_common_states_what_the_reader_finds(tmp_path):
+    sys.path.insert(0, str(ROOT / "tests"))
+    import odoo_tree_fixtures as trees
+    root = trees.write_checkout(tmp_path / "fx", "17.0")
+    trees.write_test_common(root, "17.0", imports=(("websocket", "websocket-client"),
+                                                   ("fictional_pkg", None)))
+    assert [(d["import"], d["distribution"], d["distribution_source"])
+            for d in facts.test_optional_imports(root)] == [
+        ("websocket", "websocket-client", "message"),
+        ("fictional_pkg", "fictional_pkg", "import-name")]
+
+
+# Surveyed by reading each series' odoo/tests/common.py (openerp/ on the oldest) by hand: the
+# browser driver `websocket` is imported optionally, its guard stating "websocket-client module is
+# not installed", from 12.0 on; 18.0 also guards `freezegun` but imports it unguarded too, so it is
+# required there, not optional. Earlier series import nothing optionally.
+TEST_DEPS_SURVEY = dict({s: [] for s in ("8.0", "9.0", "10.0", "11.0")},
+                        **{s: ["websocket-client"] for s in ("12.0", "13.0", "14.0", "15.0", "16.0",
+                                                             "17.0", "18.0", "19.0", "20.0")})
+
+
+def _survey_checkout(series: str) -> Path:
+    """The real checkout of `series` - `odoo_<series>`, else `odoo<major>` - under CHECKOUTS."""
+    for name in ("odoo_%s" % series, "odoo%s" % series.split(".", 1)[0]):
+        root = CHECKOUTS / name
+        if any((root / pkg / "tests" / "common.py").is_file() for pkg in ("odoo", "openerp")):
+            return root
+    pytest.skip("no Odoo %s checkout under %s" % (series, CHECKOUTS))
+
+
+@pytest.mark.parametrize("series", sorted(TEST_DEPS_SURVEY, key=lambda s: float(s)))
+def test_real_checkout_optional_test_imports(series):
+    found = facts.test_optional_imports(_survey_checkout(series))
+    assert [d["distribution"] for d in found] == TEST_DEPS_SURVEY[series]
+    assert all(d["distribution_source"] == "message" for d in found)

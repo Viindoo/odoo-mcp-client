@@ -118,6 +118,24 @@ Public API (stable - other scripts import it):
       "The module `m` should be loaded in server wide mode using `--load` ...".
       Sorted, deduplicated.
 
+  test_optional_imports(odoo_root) -> list[dict] | None
+      The Python packages Odoo's own test framework imports OPTIONALLY: each
+      column-0 block of `<core package>/tests/common.py` of the shape
+          try:
+              import X [as Y]
+          except ImportError:
+              # optional comments
+              Y = None
+      (a fallback import in the except body, or a name the file also imports
+      unguarded at column 0, is not optional). Each entry is
+      {"import": X, "distribution": <pip name>, "distribution_source":
+      "message" | "import-name", "message": <str> | None}: the distribution is
+      the `<dist>` of the string literal "<dist> module is not installed" that
+      an `if Y is None:` / `if not Y:` guard of the file states within 6 lines
+      (that literal is `message`, the line Odoo logs when it skips a test),
+      else the import name. [] when the file has no such block; None when no
+      tests/common.py is readable.
+
 CLI (for shell setup steps; every fact prints as KEY=value on stdout):
 
   python3 odoo_source_facts.py core-load <odoo_root>
@@ -142,9 +160,14 @@ CLI (for shell setup steps; every fact prints as KEY=value on stdout):
   python3 odoo_source_facts.py locate-launcher [--odoo-root <dir>] [<addons_dir> ...]
       ODOO_LAUNCHER=/path/odoo-bin + ODOO_ROOT=<its dir>  exit 0; exit 3 when none has one
   python3 odoo_source_facts.py self-declared <addons_dir> [<addons_dir> ...]
-      SELF_DECLARED_SERVER_WIDE=to_base,viin_brand (empty when none) exit 0
+      SELF_DECLARED_SERVER_WIDE=mod_a,mod_b (empty when none) exit 0
   python3 odoo_source_facts.py warnings [<logfile> ...]   (stdin when no file)
-      SERVER_WIDE_WARNINGS=viin_brand (empty when none)   exit 0
+      SERVER_WIDE_WARNINGS=mod_b (empty when none)        exit 0
+  python3 odoo_source_facts.py test-deps <odoo_root>
+      TEST_DEP=<import>|<distribution>|<message> per optional import, in file
+      order (message empty when the checkout states none; no line when there
+      is no optional import)                       exit 0; exit 3 when no
+                                                   tests/common.py is readable
   Usage errors exit 2.
 """
 
@@ -175,6 +198,7 @@ __all__ = [
     "self_declared_server_wide",
     "server_wide_warning_modules",
     "short_options",
+    "test_optional_imports",
 ]
 
 # The core package directory is `openerp/` on the oldest series and `odoo/`
@@ -842,6 +866,79 @@ def server_wide_warning_modules(log_text) -> list[str]:
     return sorted(set(_WARNING_RE.findall(log_text)))
 
 
+# ---------------------------------------------------------------- optional test-framework imports
+#
+# Odoo's test framework imports some packages only when they are present (the browser driver of
+# HttpCase above all) and SKIPS every test that needs one otherwise; the checkout's
+# requirements.txt does not list them. Which ones, and under which distribution name, is read
+# from the checkout's own `tests/common.py` - never from a hand-kept table.
+
+_GUARDED_IMPORT_RE = re.compile(
+    r"^\s+import\s+([A-Za-z_][\w.]*)(?:\s+as\s+([A-Za-z_]\w*))?\s*(?:#.*)?$")
+_EXCEPT_IMPORT_ERROR_RE = re.compile(
+    r"^except\s*\(?\s*(?:ImportError|ModuleNotFoundError)\b[^:]*:\s*(?:#.*)?$")
+_UNGUARDED_IMPORT_RE = re.compile(r"^(?:import|from)\s+([A-Za-z_]\w*)")
+_NOT_INSTALLED_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*) module is not installed$")
+_STRING_RE = re.compile(r"""(['"])(.*?)(?<!\\)\1""")
+_GUARD_WINDOW = 6
+
+
+def _not_installed_message(lines, bound):
+    """(distribution, message) from the first `if <bound> is None:` / `if not <bound>:` guard whose
+    next _GUARD_WINDOW lines hold a "<dist> module is not installed" literal, else None."""
+    guard = re.compile(r"^\s*if\s+(?:%s\s+is\s+None|not\s+%s)\s*:"
+                       % (re.escape(bound), re.escape(bound)))
+    for i, line in enumerate(lines):
+        if not guard.match(line):
+            continue
+        for follow in lines[i + 1:i + 1 + _GUARD_WINDOW]:
+            for m in _STRING_RE.finditer(follow):
+                hit = _NOT_INSTALLED_RE.match(m.group(2))
+                if hit:
+                    return hit.group(1), m.group(2)
+    return None
+
+
+def test_optional_imports(odoo_root) -> list[dict] | None:
+    """The packages the checkout's test framework imports optionally (see the module docstring),
+    in file order; [] when there is none, None when no tests/common.py is readable."""
+    if not odoo_root:
+        return None
+    text = None
+    for pkg in _CORE_PACKAGES:
+        text = _read_text(os.path.join(str(odoo_root), pkg, "tests", "common.py"))
+        if text is not None:
+            break
+    if text is None:
+        return None
+    lines = text.splitlines()
+    unguarded = {m.group(1) for m in map(_UNGUARDED_IMPORT_RE.match, lines) if m}
+    out, seen = [], set()
+    for i, line in enumerate(lines):
+        if line.rstrip() != "try:" or i + 3 >= len(lines):
+            continue
+        imp = _GUARDED_IMPORT_RE.match(lines[i + 1])
+        if not imp or not _EXCEPT_IMPORT_ERROR_RE.match(lines[i + 2]):
+            continue
+        name = imp.group(1)
+        bound = imp.group(2) or name.split(".", 1)[0]
+        j = i + 3
+        while j < len(lines) and lines[j][:1].isspace() and lines[j].lstrip().startswith("#"):
+            j += 1
+        none_bound = r"^\s+%s\s*=\s*None\s*(?:#.*)?$" % re.escape(bound)
+        if j >= len(lines) or not re.match(none_bound, lines[j]):
+            continue  # the except body imports a fallback, or does something else
+        if name.split(".", 1)[0] in unguarded or name in seen:
+            continue  # the file imports it unguarded too: a hard requirement, not optional
+        seen.add(name)
+        found = _not_installed_message(lines, bound)
+        out.append({"import": name,
+                    "distribution": found[0] if found else name,
+                    "distribution_source": "message" if found else "import-name",
+                    "message": found[1] if found else None})
+    return out
+
+
 # ---------------------------------------------------------------- CLI
 
 def _emit(key: str, value: str) -> None:
@@ -854,7 +951,7 @@ def _usage() -> int:
         "python <odoo_root> | "
         "i18n-facts <odoo_root> | python-suggest <series> [<odoo_root>] | locate-root|locate-launcher [--odoo-root <dir>] "
         "[<addons_dir>...] | "
-        "self-declared <addons_dir>... | warnings [<logfile>...]\n"
+        "self-declared <addons_dir>... | warnings [<logfile>...] | test-deps <odoo_root>\n"
     )
     return 2
 
@@ -952,6 +1049,17 @@ def main(argv) -> int:
         if not args:
             return _usage()
         _emit("SELF_DECLARED_SERVER_WIDE", ",".join(self_declared_server_wide(args)))
+        return 0
+    if cmd == "test-deps":
+        if len(args) != 1:
+            return _usage()
+        deps = test_optional_imports(args[0])
+        if deps is None:
+            sys.stderr.write("no readable odoo/tests/common.py (openerp/tests/common.py on the "
+                             "oldest series) under %s\n" % args[0])
+            return 3
+        for dep in deps:
+            _emit("TEST_DEP", "|".join((dep["import"], dep["distribution"], dep["message"] or "")))
         return 0
     if cmd == "warnings":
         chunks = []

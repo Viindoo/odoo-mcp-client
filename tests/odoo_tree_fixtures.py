@@ -8,7 +8,8 @@ i18n export options), under `openerp/` before 10.0 and `odoo/` after - plus, whe
 exports translations through the `i18n` subcommand instead of the server's `--i18n-export`
 (I18N_SUBCOMMAND), that command's `cli/i18n.py` parser declarations. CORE_LOAD and OPTIONS are what each series' own
 config.py declares - read from the real checkouts (`real_checkout` below finds them when present,
-and test_odoo_source_facts holds every fixture to the real tree it stands for).
+and test_odoo_source_facts holds every fixture to the real tree it stands for). A test that needs
+the core test framework's optional imports adds `tests/common.py` with write_test_common.
 """
 
 from __future__ import annotations
@@ -169,6 +170,31 @@ def write_checkout(root: Path, series: str, with_addons: bool = True) -> Path:
     if with_addons:
         (root / "addons").mkdir(exist_ok=True)
     return root
+
+
+def write_test_common(root: Path, series: str, imports=(("websocket", "websocket-client"),)) -> Path:
+    """Opt-in (write_checkout never calls it): the checkout's `<core package>/tests/common.py`
+    importing each (import name, distribution) of `imports` optionally, the way the real file
+    imports its browser driver - a column-0 try/except ImportError that binds the name to None, and
+    a guard that logs and skips with "<distribution> module is not installed". A None distribution
+    writes no such guard. Returns the file."""
+    tests = root / core_package(series) / "tests"
+    tests.mkdir(parents=True, exist_ok=True)
+    head = ["import logging", "import unittest", ""]
+    guards = []
+    for name, dist in imports:
+        head += ["try:", "    import %s" % name, "except ImportError:",
+                 "    # tests needing it will be skipped", "    %s = None" % name, ""]
+        if dist:
+            msg = "%s module is not installed" % dist
+            guards += ["    def _need_%s(self):" % name, "        if %s is None:" % name,
+                       "            self._logger.warning(%r)" % msg,
+                       "            raise unittest.SkipTest(%r)" % msg, ""]
+    body = head + ["_logger = logging.getLogger(__name__)", "", "", "class ChromeBrowser:"]
+    body += guards or ["    pass", ""]
+    path = tests / "common.py"
+    path.write_text("\n".join(body), encoding="utf-8")
+    return path
 
 
 def real_checkout(series):

@@ -24,6 +24,14 @@
 #   create-venv --series X.Y [--python VER] [--tool uv|pip]
 #               [--path DIR] [--requirements FILE]
 #                                    create a venv and record it on the instance.
+#                                    Once the venv runs the launcher, it also
+#                                    installs the packages the checkout's test
+#                                    framework imports only when present (read
+#                                    from its tests/common.py; no requirements.txt
+#                                    lists them, and without them every browser,
+#                                    tour and Hoot test skips), with the same tool
+#                                    that built the venv - one line per package,
+#                                    never fatal: see _install_test_deps.
 #                                    A Python 2.7 venv (the series' checkout
 #                                    declares Python 2, or --python 2.x) is built
 #                                    with virtualenv, never uv/pip venv (neither
@@ -53,6 +61,8 @@
 #                                    Each fact is recorded only when its own gate
 #                                    passes; a failed gate prints why and makes the
 #                                    exit non-zero, and NEVER records a guess.
+#                                    It also reports (installs nothing) each
+#                                    optional test-framework import the venv lacks.
 #                                    Run it once on a catalog written before these
 #                                    keys existed, and after any change to your
 #                                    Postgres container or venv.
@@ -311,6 +321,88 @@ _warn_venv_outside_range() {
     return 0
 }
 
+# ---------------------------------------------------------------------------
+# Optional test-framework imports. Odoo's own test framework imports some
+# packages only when present (the browser driver of HttpCase above all) and
+# SKIPS every browser, tour and Hoot test without them; the checkout's
+# requirements.txt does not list them. Which ones, under which distribution
+# name, is read from the checkout (odoo_source_facts.py test-deps) - never a
+# hand-kept table.
+#
+# _test_dep_facts <odoo_root>
+#   stdout: one `<import>|<distribution>|<message>` line per optional import.
+#   Return 3 when the checkout has no readable tests/common.py.
+_test_dep_facts() {
+    local out rc=0 line
+    out="$(python3 "$FACTS" test-deps "$1" 2>/dev/null)" || rc=$?
+    [[ "$rc" -eq 0 ]] || return 3
+    while IFS= read -r line; do
+        [[ "$line" == TEST_DEP=* ]] && printf '%s\n' "${line#TEST_DEP=}"
+    done <<<"$out"
+    return 0
+}
+
+# _py_imports <python> <import> - 0 when <python> can import <import>.
+_py_imports() {
+    "$1" -c 'import importlib, sys; importlib.import_module(sys.argv[1])' "$2" >/dev/null 2>&1
+}
+
+# _install_test_deps <tool> <venv_dir> <odoo_root>
+#   Install each optional test-framework import the checkout declares that the
+#   venv cannot import yet, with the SAME tool that built the venv (uv -> uv pip
+#   install --python <venv python>; pip / virtualenv -> <venv>/bin/pip install),
+#   then re-verify the import. One line per package. Never fatal: a package that
+#   fails to install only costs the browser, tour and Hoot tests, and says so.
+_install_test_deps() {
+    local tool="$1" venv_dir="$2" root="$3" facts rc=0 imp dist _msg
+    local venv_py="$venv_dir/bin/python"
+    facts="$(_test_dep_facts "$root")" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        echo "  Test dependencies: the checkout states none (no readable tests/common.py under $root)."
+        return 0
+    fi
+    if [[ -z "$facts" ]]; then
+        echo "  Test dependencies: the checkout's test framework imports no optional package."
+        return 0
+    fi
+    while IFS='|' read -r imp dist _msg; do
+        [[ -n "$imp" ]] || continue
+        if _py_imports "$venv_py" "$imp"; then
+            echo "  Test dependency $dist (import $imp): present"
+            continue
+        fi
+        case "$tool" in
+            uv) uv pip install --python "$venv_py" "$dist" >&2 || true ;;
+            *)  "$venv_dir/bin/pip" install "$dist" >&2 || true ;;
+        esac
+        if _py_imports "$venv_py" "$imp"; then
+            echo "  Test dependency $dist (import $imp): installed"
+        else
+            echo "  x Test dependency $dist (import $imp): install FAILED - browser, tour and Hoot tests will SKIP; install it into $venv_py by hand"
+        fi
+    done <<<"$facts"
+    return 0
+}
+
+# _check_test_deps <venv_py> <odoo_root> [series]
+#   Advisory, never fatal, installs nothing: reports each optional test-framework
+#   import the checkout declares that <venv_py> cannot import.
+_check_test_deps() {
+    local venv_py="$1" root="$2" series="${3:-<series>}" facts imp dist _msg
+    facts="$(_test_dep_facts "$root")" || return 0
+    while IFS='|' read -r imp dist _msg; do
+        [[ -n "$imp" ]] || continue
+        if _py_imports "$venv_py" "$imp"; then
+            echo "  Test dependency $dist (import $imp): present"
+        else
+            echo "  Warning: the venv lacks $dist (import $imp), which Odoo's test framework imports" >&2
+            echo "  optionally - every browser, tour and Hoot test will SKIP. Install it into" >&2
+            echo "  $venv_py, or rebuild: $(basename "$0") create-venv --series $series" >&2
+        fi
+    done <<<"$facts"
+    return 0
+}
+
 cmd_record_env() {
     local series="" profile=""
     while [[ $# -gt 0 ]]; do
@@ -346,6 +438,7 @@ cmd_record_env() {
         if [[ -n "$core_bin" ]] && "$venv_py" "$core_bin" --version >/dev/null 2>&1; then
             odoo_root="$(dirname "$core_bin")"
             _warn_venv_outside_range "$series" "$venv_py" "$odoo_root"
+            _check_test_deps "$venv_py" "$odoo_root" "$series"
         else
             echo "x '$venv_py <odoo launcher> --version' failed - python and odoo_root were NOT" >&2
             echo "  recorded. Rebuild the venv: $(basename "$0") create-venv --series $series." >&2
@@ -838,6 +931,11 @@ cmd_create_venv() {
         echo "  <repo>/requirements.txt for every repo. 'python' was NOT recorded." >&2
         return 1
     fi
+
+    # The packages the checkout's test framework imports only when present (no
+    # requirements.txt lists them; without them every browser, tour and Hoot test
+    # skips). Never fatal - the venv runs Odoo either way.
+    _install_test_deps "$tool" "$path" "$(dirname "$core_bin")"
 
     # Record the VERIFIED environment facts on the instance so step 50 and the
     # allocator use them: `python` (the interpreter just proven able to run
