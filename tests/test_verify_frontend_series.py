@@ -103,7 +103,7 @@ def _make_target_repo(
     return repo
 
 
-def _run(repo: Path, git_base: Path, js_file: Path, **env_extra):
+def _run(repo: Path, git_base: Path, js_file: Path, *series_args: str, **env_extra):
     env = dict(os.environ)
     env.update(
         {
@@ -116,7 +116,7 @@ def _run(repo: Path, git_base: Path, js_file: Path, **env_extra):
     env.pop("ODOO_SERIES", None)
     env.update(env_extra)
     return subprocess.run(
-        ["bash", str(SCRIPT), str(js_file)],
+        ["bash", str(SCRIPT), *series_args, str(js_file)],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -269,4 +269,78 @@ def test_a_series_prefixed_manifest_alone_does_not_resolve_a_series(tmp_path):
     assert "ODOO_SERIES" in out, (
         "the refusal must name its remedy - pinning ODOO_SERIES is the one action that unblocks "
         f"the caller. Output:\n{out}"
+    )
+
+
+def test_a_series_argument_selects_the_matching_checkout(tmp_path):
+    """Behaviour: `--series <X.Y>` names the target series, so a repo that declares none (a
+    feature branch) still gets its eslint oracle from the checkout of that series.
+
+    Fails if the argument is ignored - the run would be CANNOT-VERIFY on exactly the branch
+    class where the caller has no other way to say which series it targets.
+    """
+    git_base = tmp_path / "git"
+    git_base.mkdir()
+    _make_odoo_checkout(git_base, "odoo_16.0", 16, 0)
+    _make_odoo_checkout(git_base, "odoo_17.0", 17, 0)
+    repo = _make_target_repo(tmp_path, "17.0", branch="feature/no-series-here")
+    js = repo / "my_module" / "static" / "src" / "widget.js"
+
+    for args in (("--series", "17.0"), ("--series=17.0",)):
+        res = _run(repo, git_base, js, *args)
+        out = res.stdout + res.stderr
+        assert "odoo_17.0" in out and "odoo_16.0" not in out, (
+            f"{args} must select the 17.0 checkout. Output:\n{out}"
+        )
+        assert "[source: --series argument]" in out, (
+            f"the run must say the series came from the argument. Output:\n{out}"
+        )
+
+
+def test_the_series_argument_outranks_the_environment_and_derived_answers(tmp_path):
+    """Behaviour: the argument beats ODOO_SERIES, which beats the series-named branch.
+
+    Fails if either lower source wins over what the caller typed on the command line.
+    """
+    git_base = tmp_path / "git"
+    git_base.mkdir()
+    for major in (15, 16, 17):
+        _make_odoo_checkout(git_base, f"odoo_{major}.0", major, 0)
+    repo = _make_target_repo(tmp_path, "17.0")   # branch derives 17.0
+    js = repo / "my_module" / "static" / "src" / "widget.js"
+
+    res = _run(repo, git_base, js, "--series", "16.0", ODOO_SERIES="15.0")
+    out = res.stdout + res.stderr
+
+    assert "odoo_16.0" in out, f"the argument must win. Output:\n{out}"
+    assert "odoo_15.0" not in out and "odoo_17.0" not in out, (
+        f"neither ODOO_SERIES nor the branch may supply the oracle. Output:\n{out}"
+    )
+
+
+@pytest.mark.parametrize("bad", ["17", "abc", "17.0.1", ""])
+def test_a_malformed_series_argument_is_cannot_verify_naming_it_never_a_pass(tmp_path, bad):
+    """Behaviour: a series argument that is not <major>.<minor> resolves nothing - the run does
+    not fall back to the branch or the environment, names the bad value and both remedies, and
+    exits CANNOT-VERIFY.
+
+    Fails if the bad value is silently replaced by another source: the caller typed a series,
+    so quietly linting against a different one is a verdict for the wrong oracle.
+    """
+    git_base = tmp_path / "git"
+    git_base.mkdir()
+    _make_odoo_checkout(git_base, "odoo_17.0", 17, 0)
+    repo = _make_target_repo(tmp_path, "17.0")   # the branch WOULD resolve 17.0
+    js = repo / "my_module" / "static" / "src" / "widget.js"
+
+    res = _run(repo, git_base, js, f"--series={bad}", ODOO_SERIES="17.0")
+    out = res.stdout + res.stderr
+
+    assert res.returncode == EXIT_CANNOT_VERIFY, f"must be CANNOT-VERIFY. Output:\n{out}"
+    assert f"'{bad}'" in out, f"the refusal must name the bad value. Output:\n{out}"
+    assert "odoo_17.0/addons/web/tooling" not in out, (
+        f"no other source may stand in for the malformed argument. Output:\n{out}"
+    )
+    assert "ODOO_SERIES" in out and "--series" in out, (
+        f"the refusal must name both remedies. Output:\n{out}"
     )

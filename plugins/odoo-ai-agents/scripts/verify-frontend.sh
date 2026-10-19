@@ -18,8 +18,8 @@
 #       The script must run from INSIDE the target addon/Odoo repo (CWD anchors `git rev-parse`),
 #       with the changed JS files passed as args.
 #       The config is SERIES-SPECIFIC (15.0 pins an es2019 parser, 17.0 a later one), so the
-#       checkout it comes from is selected BY THE TARGET SERIES - resolved from ODOO_SERIES or
-#       from scripts/lib/odoo_series.py, this repo's series-derivation SSOT, which resolves only
+#       checkout it comes from is selected BY THE TARGET SERIES - resolved from the --series
+#       argument, else ODOO_SERIES, else from scripts/lib/odoo_series.py, this repo's series-derivation SSOT, which resolves only
 #       from evidence that IS the series (the core's own release.py, a series-named branch). An
 #       addon's __manifest__.py `version` resolves NOTHING here: it is the ADDON's version, not
 #       the core's, so "0.3.1" is not series "0.3" - the SSOT surfaces it as an UNCONFIRMED hint
@@ -35,24 +35,36 @@
 #   Tier 2 - STATIC OWL/SCSS (grep/ERE, always runs, zero toolchain needed)
 #     Applies ${CLAUDE_PLUGIN_ROOT}/scripts/rules/owl-pitfalls.txt over .js/.xml/.scss files.
 #     BLOCK on classes 1/3/6.  WARN on 2/4/5.
+#     Reference checks (scripts/lib/frontend_static_checks.py, needs python3, zero toolchain):
+#       - a NEW `@<module>/<path>` JS import must resolve to <module>/static/src/<path>(.js)
+#         in the changed repo, its sibling addons or the target series' Odoo checkout; a module
+#         present with the file missing is a BLOCK, a module not found anywhere is only info.
+#       - an `<xpath position="before|after">` of a template extension (t-inherit / inherit_id)
+#         must not land inside a t-if/t-elif -> t-elif/t-else chain (BLOCK); an inherited
+#         template or XPath that cannot be resolved is a WARN.
 #
 #   Tier 3 - RUNTIME SMOKE (only when a live Odoo instance is configured)
 #     Skipped silently when not configured. Never blocks when absent.
 #
 # USAGE:
-#   verify-frontend.sh [file ...]
-#   verify-frontend.sh             (defaults to `git diff --name-only HEAD`)
+#   verify-frontend.sh [--series <X.Y>] [file ...]
+#   verify-frontend.sh             (defaults to the files changed against VERIFY_FRONTEND_BASE)
+#   --series <X.Y> | --series=<X.Y>
+#                         the target Odoo series, parsed before the file list. Outranks
+#                         ODOO_SERIES and every derived answer; a value that is not
+#                         <digits>.<digits> resolves nothing (CANNOT-VERIFY) and never falls
+#                         through to another source.
 #
 # ENV OVERRIDES:
 #   CLAUDE_PLUGIN_ROOT    plugin root (required for rules/ and fallback config)
 #   ODOO_GIT_BASE         where Odoo core checkouts live (default: ~/git)
 #   ODOO_SERIES           target Odoo series for the JS oracle (e.g. 17.0). Wins over every
-#                         derived answer, and is the REMEDY the gate names whenever it reports
-#                         the series as unresolved - which is the expected outcome for a repo
+#                         derived answer (but not the --series argument), and is a
+#                         REMEDY the gate names whenever it reports the series as unresolved - which is the expected outcome for a repo
 #                         that declares no series (a feature-branch name plus addon-versioned
 #                         manifests declare none between them).
 #   ODOO_INSTANCE_URL     live instance base URL for Tier-3 smoke (e.g. http://localhost:8069)
-#   VERIFY_FRONTEND_BASE  git diff base ref (default: HEAD)
+#   VERIFY_FRONTEND_BASE  diff base ref (default: HEAD); the new-import check diffs against it
 #
 # EXIT CODE (tri-state - calling agents branch on these; the marker strings are byte-exact):
 #   0  RESULT: PASS (clean) | PASS (with N warning(s)) - eslint ran on the repo-pinned
@@ -118,6 +130,7 @@ _cannot_verify() { echo "  [CANNOT-VERIFY] $*"; CANNOT_VERIFY_COUNT=$((CANNOT_VE
 T1_PY_STATUS="DID NOT RUN (reason not recorded)"
 T1_JS_STATUS="DID NOT RUN (reason not recorded)"
 T2_STATUS="DID NOT RUN (reason not recorded)"
+T2_REFS_STATUS="DID NOT RUN (reason not recorded)"
 T3_STATUS="DID NOT RUN (reason not recorded)"
 T4_STATUS="DID NOT RUN (reason not recorded)"
 
@@ -198,9 +211,12 @@ _series_of_odoo_checkout() {
 # deliberately not promoted, so the CANNOT-VERIFY message can name a candidate
 # and a remedy instead of only saying no.
 #
-# Exactly two things resolve a series here:
-#   1. ODOO_SERIES          - the caller's explicit declaration.
-#   2. scripts/lib/odoo_series.py `detect` reporting SERIES_STATUS=OK - this
+# Exactly three things resolve a series here, in this order:
+#   1. the --series argument - the caller's explicit declaration for this run. A value
+#      that is not <digits>.<digits> resolves NOTHING and does not fall through to
+#      the rungs below: a caller who typed a series meant that one.
+#   2. ODOO_SERIES          - the caller's environment declaration.
+#   3. scripts/lib/odoo_series.py `detect` reporting SERIES_STATUS=OK - this
 #      repo's series-derivation SSOT. It resolves ONLY from evidence that IS the
 #      series by definition (the core's own release.py; a series-named branch),
 #      and documents at length why every weaker rung is a candidate, never a
@@ -231,6 +247,16 @@ _resolve_target_series() {
     TARGET_SERIES=""
     TARGET_SERIES_SRC=""
     TARGET_SERIES_WEAK=""
+    if [[ "$SERIES_ARG_GIVEN" == "true" ]]; then
+        local _series_re='^[0-9]+\.[0-9]+$'
+        if [[ "$SERIES_ARG" =~ $_series_re ]]; then
+            TARGET_SERIES="$SERIES_ARG"
+            TARGET_SERIES_SRC="--series argument"
+            return 0
+        fi
+        TARGET_SERIES_WEAK="the --series argument '$SERIES_ARG' is not a series (expected <major>.<minor>)"
+        return 1
+    fi
     if [[ -n "${ODOO_SERIES:-}" ]]; then
         TARGET_SERIES="$ODOO_SERIES"
         TARGET_SERIES_SRC="ODOO_SERIES override"
@@ -258,10 +284,73 @@ _resolve_target_series() {
 }
 
 # ---------------------------------------------------------------------------
+# _odoo_checkout_for_series <series>
+# Finds the Odoo checkout under ODOO_GIT_BASE that DECLARES <series> in its own
+# odoo/release.py (never by directory name). Sets, as globals:
+#   ODOO_CHECKOUT      the matching checkout ("" when none); one that ships
+#                      addons/web/tooling/_eslintrc.json is preferred
+#   SERIES_SEEN        every series the scanned checkouts declare (space-separated)
+#   TOOLING_DIR_SEEN   true when a matching checkout has addons/web/tooling
+# Shared by Tier 1 (the eslint config) and Tier 2 (import resolution).
+# ---------------------------------------------------------------------------
+ODOO_CHECKOUT=""
+SERIES_SEEN=""
+TOOLING_DIR_SEEN=false
+_odoo_checkout_for_series() {
+    local want="$1" _odoo_dir _cand_series _tooling
+    ODOO_CHECKOUT=""
+    SERIES_SEEN=""
+    TOOLING_DIR_SEEN=false
+    [[ -n "$want" ]] || return 1
+    while IFS= read -r _odoo_dir; do
+        [[ -n "$_odoo_dir" ]] || continue
+        _cand_series="$(_series_of_odoo_checkout "$_odoo_dir" || true)"
+        [[ -n "$_cand_series" ]] || continue
+        case " $SERIES_SEEN " in *" $_cand_series "*) ;; *) SERIES_SEEN="$SERIES_SEEN$_cand_series ";; esac
+        [[ "$_cand_series" == "$want" ]] || continue
+        _tooling="$_odoo_dir/addons/web/tooling"
+        [[ -d "$_tooling" ]] && TOOLING_DIR_SEEN=true
+        [[ -n "$ODOO_CHECKOUT" ]] || ODOO_CHECKOUT="$_odoo_dir"
+        if [[ -f "$_tooling/_eslintrc.json" ]]; then
+            ODOO_CHECKOUT="$_odoo_dir"
+            break
+        fi
+    done < <(find "$ODOO_GIT_BASE" -maxdepth 2 -name "odoo-bin" 2>/dev/null \
+             | xargs -I{} dirname {} 2>/dev/null | sort)
+    [[ -n "$ODOO_CHECKOUT" ]]
+}
+
+# ---------------------------------------------------------------------------
 # Collect file list
 # ---------------------------------------------------------------------------
-if [[ $# -gt 0 ]]; then
-    FILES=("$@")
+SERIES_ARG=""
+SERIES_ARG_GIVEN=false
+_FILE_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --series)
+            SERIES_ARG_GIVEN=true
+            SERIES_ARG="${2:-}"
+            if [[ $# -ge 2 ]]; then shift 2; else shift; fi
+            ;;
+        --series=*)
+            SERIES_ARG_GIVEN=true
+            SERIES_ARG="${1#--series=}"
+            shift
+            ;;
+        --)
+            shift
+            while [[ $# -gt 0 ]]; do _FILE_ARGS+=("$1"); shift; done
+            ;;
+        *)
+            _FILE_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [[ ${#_FILE_ARGS[@]} -gt 0 ]]; then
+    FILES=("${_FILE_ARGS[@]}")
 else
     # Default: files changed relative to base.
     # `mapfile` is bash 4+; read in a loop instead so this runs on macOS bash 3.2.
@@ -308,6 +397,16 @@ done
 # ===========================================================================
 echo
 echo "--- Tier 1: Format / Lint ---"
+
+# Resolve the target series ONCE, here, when JS or XML is in scope: Tier 1 picks its
+# eslint config from the matching checkout and Tier 2 resolves imports against it.
+if [[ ${#JS_FILES[@]} -gt 0 || ${#TEMPLATE_FILES[@]} -gt 0 ]]; then
+    _resolve_target_series || true
+    if [[ -n "$TARGET_SERIES" ]]; then
+        _info "target Odoo series: $TARGET_SERIES [source: $TARGET_SERIES_SRC]"
+        _odoo_checkout_for_series "$TARGET_SERIES" || true
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # T1-A: Python - ruff check (never ruff format)
@@ -413,7 +512,6 @@ else
     ESLINTRC=""
     ESLINTRC_SRC=""
     PKG_JSON=""          # for the prettier version pin
-    TOOLING_DIR_SEEN=false
 
     # (1) Repo-committed root eslintrc.
     for _rc in .eslintrc.json .eslintrc.js .eslintrc.cjs .eslintrc.yaml .eslintrc.yml .eslintrc; do
@@ -430,28 +528,12 @@ else
     # resolution: on any machine holding several checkouts it lints e.g. 17.0 sources with
     # 15.0's es2019 oracle and reports failures the real gate never raises. Resolve the series
     # the sources are written against, then take the checkout that DECLARES that series.
-    TARGET_SERIES=""
-    SERIES_SEEN=""
-    if [[ -z "$ESLINTRC" ]]; then
-        _resolve_target_series || true
-        if [[ -n "$TARGET_SERIES" ]]; then
-            _info "target Odoo series: $TARGET_SERIES [source: $TARGET_SERIES_SRC]"
-            while IFS= read -r _odoo_dir; do
-                [[ -n "$_odoo_dir" ]] || continue
-                _cand_series="$(_series_of_odoo_checkout "$_odoo_dir" || true)"
-                [[ -n "$_cand_series" ]] || continue
-                case " $SERIES_SEEN " in *" $_cand_series "*) ;; *) SERIES_SEEN="$SERIES_SEEN$_cand_series ";; esac
-                [[ "$_cand_series" == "$TARGET_SERIES" ]] || continue
-                _tooling="$_odoo_dir/addons/web/tooling"
-                [[ -d "$_tooling" ]] && TOOLING_DIR_SEEN=true
-                if [[ -f "$_tooling/_eslintrc.json" ]]; then
-                    ESLINTRC="$_tooling/_eslintrc.json"
-                    ESLINTRC_SRC="odoo $TARGET_SERIES checkout tooling: $ESLINTRC"
-                    [[ -f "$_tooling/_package.json" ]] && PKG_JSON="$_tooling/_package.json"
-                    break
-                fi
-            done < <(find "$ODOO_GIT_BASE" -maxdepth 2 -name "odoo-bin" 2>/dev/null \
-                     | xargs -I{} dirname {} 2>/dev/null | sort)
+    if [[ -z "$ESLINTRC" && -n "$ODOO_CHECKOUT" ]]; then
+        _tooling="$ODOO_CHECKOUT/addons/web/tooling"
+        if [[ -f "$_tooling/_eslintrc.json" ]]; then
+            ESLINTRC="$_tooling/_eslintrc.json"
+            ESLINTRC_SRC="odoo $TARGET_SERIES checkout tooling: $ESLINTRC"
+            [[ -f "$_tooling/_package.json" ]] && PKG_JSON="$_tooling/_package.json"
         fi
     fi
 
@@ -460,7 +542,7 @@ else
         # series, clone the matching checkout, or accept that this series ships no JS gate.
         if [[ -z "$TARGET_SERIES" ]]; then
             T1_JS_STATUS="DID NOT RUN (target Odoo series unresolved)"
-            _cannot_verify "the target Odoo series is unresolved${TARGET_SERIES_WEAK:+ (weak evidence only, NOT used: $TARGET_SERIES_WEAK)}; the web/tooling eslint config is series-specific, so no checkout can be chosen and the eslint oracle did NOT run. Pin it and re-run: ODOO_SERIES=<series> (e.g. ODOO_SERIES=17.0) - DO NOT treat as pass"
+            _cannot_verify "the target Odoo series is unresolved${TARGET_SERIES_WEAK:+ (weak evidence only, NOT used: $TARGET_SERIES_WEAK)}; the web/tooling eslint config is series-specific, so no checkout can be chosen and the eslint oracle did NOT run. Pin it and re-run with --series <X.Y> or ODOO_SERIES=<series> - DO NOT treat as pass"
         elif [[ "$TOOLING_DIR_SEEN" == "true" ]]; then
             T1_JS_STATUS="DID NOT RUN ($TARGET_SERIES ships no _eslintrc.json)"
             _cannot_verify "the $TARGET_SERIES checkout has addons/web/tooling but no _eslintrc.json (pre-v17 / v14 layout has no JS lint gate); the eslint oracle did NOT run - DO NOT treat as pass"
@@ -676,6 +758,78 @@ else
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# T2-REFS: new JS imports resolve, and xpath insertions keep t-if/t-else chains whole.
+# scripts/lib/frontend_static_checks.py prints BLOCK|WARN|INFO|<file>:<line>|<message>.
+# Addons dirs searched: the worktree top, the parent of every changed file's module, and the
+# resolved Odoo checkout's addons dirs (when the series resolved to one).
+# ---------------------------------------------------------------------------
+STATIC_CHECKS="${CLAUDE_PLUGIN_ROOT}/scripts/lib/frontend_static_checks.py"
+XML_FILES=()
+for _f in "${TEMPLATE_FILES[@]:-}"; do
+    case "$_f" in *.xml) XML_FILES+=("$_f") ;; esac
+done
+if [[ ${#JS_FILES[@]} -eq 0 && ${#XML_FILES[@]} -eq 0 ]]; then
+    T2_REFS_STATUS="n/a (no .js/.xml files in scope)"
+elif ! _have python3 || [[ ! -f "$STATIC_CHECKS" ]]; then
+    T2_REFS_STATUS="DID NOT RUN (python3 not available)"
+    _skip "python3 / frontend_static_checks.py unavailable - import and xpath reference checks skipped"
+else
+    ADDONS_DIR_ARGS=()
+    _ADDONS_SEEN=""
+    _add_addons_dir() {
+        [[ -n "$1" && -d "$1" ]] || return 0
+        case "|$_ADDONS_SEEN|" in *"|$1|"*) return 0 ;; esac
+        _ADDONS_SEEN="$_ADDONS_SEEN|$1"
+        ADDONS_DIR_ARGS+=(--addons-dir "$1")
+    }
+    _add_addons_dir "$WORKTREE_TOP"
+    for _f in "${JS_FILES[@]:-}" "${XML_FILES[@]:-}"; do
+        [[ -n "$_f" ]] || continue
+        _d="$(cd "$(dirname "$_f")" 2>/dev/null && pwd || true)"
+        while [[ -n "$_d" && "$_d" != "/" ]]; do
+            if [[ -f "$_d/__manifest__.py" || -f "$_d/__openerp__.py" ]]; then
+                _add_addons_dir "$(dirname "$_d")"
+                break
+            fi
+            _d="$(dirname "$_d")"
+        done
+    done
+    if [[ -n "$ODOO_CHECKOUT" ]]; then
+        _add_addons_dir "$ODOO_CHECKOUT/addons"
+        _add_addons_dir "$ODOO_CHECKOUT/odoo/addons"
+    fi
+    T2_REFS_STATUS="RAN (${#JS_FILES[@]} js import file(s), ${#XML_FILES[@]} xml xpath file(s))"
+    _REFS_OUT=""
+    _run_static_check() {
+        local out
+        if ! out="$(python3 "$STATIC_CHECKS" "$@" 2>&1)"; then
+            T2_REFS_STATUS="DID NOT RUN (frontend_static_checks.py failed: ${out##*$'\n'})"
+            return 0
+        fi
+        _REFS_OUT="${_REFS_OUT}${out}"$'\n'
+    }
+    if [[ ${#JS_FILES[@]} -gt 0 ]]; then
+        _run_static_check imports ${ADDONS_DIR_ARGS[@]+"${ADDONS_DIR_ARGS[@]}"} --base "$VERIFY_BASE" "${JS_FILES[@]}"
+    fi
+    if [[ ${#XML_FILES[@]} -gt 0 ]]; then
+        _run_static_check xpath-branch ${ADDONS_DIR_ARGS[@]+"${ADDONS_DIR_ARGS[@]}"} "${XML_FILES[@]}"
+    fi
+    _REFS_BLOCK_BEFORE=$BLOCK_COUNT
+    _REFS_WARN_BEFORE=$WARN_COUNT
+    while IFS='|' read -r _sev _loc _msg; do
+        case "$_sev" in
+            BLOCK) _block "$_loc - $_msg" ;;
+            WARN)  _warn  "$_loc - $_msg" ;;
+            INFO)  _info  "$_loc - $_msg" ;;
+        esac
+    done <<< "$_REFS_OUT"
+    if [[ $BLOCK_COUNT -eq $_REFS_BLOCK_BEFORE && $WARN_COUNT -eq $_REFS_WARN_BEFORE \
+          && "$T2_REFS_STATUS" == RAN* ]]; then
+        _ok "Tier 2 reference checks (new imports, xpath branches): no issues"
+    fi
+fi
+
 # ===========================================================================
 # TIER 3 - RUNTIME SMOKE (optional)
 # ===========================================================================
@@ -798,6 +952,7 @@ echo "  Gate ledger (a gate that did NOT run can never be a pass):"
 echo "    Tier 1 Python (ruff)      : $T1_PY_STATUS"
 echo "    Tier 1 JS (eslint oracle) : $T1_JS_STATUS"
 echo "    Tier 2 static OWL/SCSS    : $T2_STATUS"
+echo "    Tier 2 import/xpath refs  : $T2_REFS_STATUS"
 echo "    Tier 3 runtime smoke      : $T3_STATUS"
 echo "    Tier 4 brand fidelity     : $T4_STATUS"
 
@@ -812,6 +967,7 @@ _note_unrun() {
 _note_unrun "$T1_PY_STATUS" "Tier 1 Python ruff"
 _note_unrun "$T1_JS_STATUS" "Tier 1 JS eslint oracle"
 _note_unrun "$T2_STATUS"    "Tier 2 static scan"
+_note_unrun "$T2_REFS_STATUS" "Tier 2 import/xpath refs"
 _note_unrun "$T3_STATUS"    "Tier 3 runtime smoke"
 _note_unrun "$T4_STATUS"    "Tier 4 brand fidelity"
 
