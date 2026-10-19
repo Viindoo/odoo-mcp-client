@@ -89,6 +89,9 @@ build facts above (--load, --load-language, -l/--language, --with-demo, --withou
 is -s then -d), with the short options the lease's checkout declares. Odoo takes the LAST occurrence of a flag, so an extra `--database=other` would
 silently retarget the build at another database.
 
+Extra config keys (instance_build conf_options) go into the build's generated config file
+(55-instance-ops.sh --conf-option), never a key the tool owns: `_conf_options` / _TOOL_CONF_KEYS.
+
 Disclosure (instance_serve): serving by series hands back the shared lease's token and owner run
 only when this call LAUNCHED the server or the lease is disclosed to this caller under lease_find's
 rule (tools_lease module docstring); a parked lease anchored to another session is refused
@@ -146,7 +149,7 @@ _SUMMARY_KEYS = ("STATUS", "TEST_RESULT", "TEST_FAILED", "TEST_ERROR", "TEST_WAR
                  "JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS", "MODULES_LOADED",
                  "TESTS_RUN", "TEST_TAGS_USED", "FINDINGS_PATH", "BUILD_SERVER_WIDE_MODULES",
                  "BUILD_LANGUAGES", "BUILD_DEMO", "BUILD_MODULES_LOADED", "EXPORT_COUNT",
-                 "TEST_DEPS_MISSING", "TEST_DEPS_SKIPPED")
+                 "TEST_DEPS_MISSING", "TEST_DEPS_SKIPPED", "BUILD_CONF_KEYS")
 
 DEMO_VALUES = ("on", "off")
 # Odoo's source language: always active, unioned into every build's --load-language.
@@ -271,6 +274,65 @@ _BUILD_FACT_OWNER = {
     "with-demo": "use the demo argument",
     "without-demo": "use the demo argument",
 }
+
+# instance_build conf_options: extra `[options]` keys for the config file the build's Odoo reads
+# (55-instance-ops.sh --conf-option), e.g. a lint module's own scoping option. Refused: every key
+# the tool owns - the config key of each option in TOOL_CONTROLLED_LONG (its own spelling with `_`
+# for `-`, and the dest the lease's checkout declares for it, `_conf_options`), the keys the build
+# scripts write themselves, the log destination and level (job_wait reads the build's verdict from
+# that log), and any key naming a password.
+_TOOL_CONF_KEYS = frozenset([flag.replace("-", "_") for flag in TOOL_CONTROLLED_LONG] + [
+    "db_name", "dbfilter", "addons_path", "server_wide_modules", "load_language", "with_demo",
+    "without_demo", "data_dir", "http_interface", "xmlrpc_interface", "limit_memory_hard",
+    "limit_memory_soft", "limit_time_real", "limit_time_cpu", "unaccent", "log_level",
+    "log_handler", "admin_passwd", "db_password", "workers"])
+_CONF_KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _conf_options(args, row, lease, token):
+    """The validated `conf_options` argument as [(key, value-as-written)] sorted by key, or [] when
+    none. INVALID_ARGUMENTS names `arguments.conf_options.<key>` for a malformed key, a value that
+    is not a string / number / boolean or holds a line break, or a key the tool owns
+    (_TOOL_CONF_KEYS plus the dest the lease's checkout declares for each TOOL_CONTROLLED_LONG
+    option - read only when conf_options is given)."""
+    raw = args.get("conf_options") or {}
+    if not raw:
+        return []
+    options = _checkout_fact(row, lease, token, "the option table (odoo/tools/config.py)",
+                             "cli_options")
+    owned = set(_TOOL_CONF_KEYS)
+    for flag in TOOL_CONTROLLED_LONG:
+        entry = options.get("--" + flag) or options.get("--" + flag.replace("-", "_"))
+        if entry and entry.get("dest"):
+            owned.add(entry["dest"])
+    out = []
+    for key in sorted(raw):
+        value = raw[key]
+        where = "arguments.conf_options.%s" % key
+        if not _CONF_KEY_RE.match(key):
+            raise ToolError("INVALID_ARGUMENTS", "%s: not a config key (lower-case snake case)" % where,
+                            {"key": key})
+        if key in owned or "passw" in key:
+            raise ToolError("INVALID_ARGUMENTS",
+                            "%s: instance_build owns this config key (database and connection, "
+                            "addons path, data dir, server-wide modules, languages, demo, ports and "
+                            "interfaces, limits, workers, log destination and level, passwords) - "
+                            "use the tool's own arguments" % where, {"key": key})
+        if isinstance(value, bool):
+            text = "True" if value else "False"
+        elif isinstance(value, (int, float)):
+            text = repr(value)
+        elif isinstance(value, str):
+            text = value
+        else:
+            raise ToolError("INVALID_ARGUMENTS", "%s: the value must be a string, number or boolean"
+                            % where, {"key": key})
+        if "\n" in text or "\r" in text:
+            raise ToolError("INVALID_ARGUMENTS", "%s: the value may not hold a line break" % where,
+                            {"key": key})
+        out.append((key, text))
+    return out
+
 
 def is_short_option_token(token):
     """True for a short-option token (`-d`, `-sdother`), whose meaning depends on the checkout."""
@@ -602,6 +664,7 @@ def _build(args, ctx):
                                                 "log destination; use the tool's own arguments or "
                                                 "another lease"),
                             {"flag": refused, "token": a})
+    conf_options = _conf_options(args, row, lease, token)
     db = _lease_field(lease, "db_name", token)
     python = _lease_field(lease, "venv_python", token)
     addons = _lease_field(lease, "addons_path", token)
@@ -642,6 +705,8 @@ def _build(args, ctx):
             argv += ["--mode", args["test_mode"]]
         if args.get("log_mode"):
             argv += ["--log-mode", args["log_mode"]]
+    for key, value in conf_options:
+        argv += ["--conf-option", "%s=%s" % (key, value)]
     if extra:
         argv += ["--extra", " ".join(extra)]
 
@@ -654,7 +719,7 @@ def _build(args, ctx):
             "profile": lease.get("profile") or "",
             "modules": list(modules), "server_wide_modules": load,
             "server_wide_adjustment": adjustment, "languages": languages,
-            "demo": demo or "", "venv_python": python})
+            "demo": demo or "", "venv_python": python, "conf_options": dict(conf_options)})
     with database_job_slot(lease):
         # Recorded BEFORE the build starts: a build that fails half-way may already have loaded
         # demo data, and demo is sticky (record-build), so recording early can only over-state it.
@@ -669,7 +734,8 @@ def _build(args, ctx):
     # read now would state its pre-build facts. job_wait returns the handle once the job finished.
     return {"job_id": rec["job_id"], "pid": rec["pid"], "op": op, "log_path": log_path,
             "output_path": output_path, "lease_token": token, "server_wide_modules": load,
-            "server_wide_adjustment": adjustment, "languages": languages, "demo": demo or None}
+            "server_wide_adjustment": adjustment, "languages": languages, "demo": demo or None,
+            "conf_options": dict(conf_options)}
 
 
 # --------------------------------------------------------------------------- #
@@ -1443,7 +1509,8 @@ def register(registry, ctx):
         "database, reuse (-u) for modules already installed - -u is right for that on every series, "
         "while on recent series -i skips an installed module and runs none of its tests. log_path is the Odoo log to read for diagnosis. "
         "Every odoo-bin the tool launches reads a config file the tool generates, never the "
-        "operator's ~/.odoorc. The start result carries no INSTANCE_HANDLE (the database is what "
+        "operator's ~/.odoorc; conf_options adds keys to it for this build (e.g. a lint module's "
+        "own scoping options), never one the tool owns. The start result carries no INSTANCE_HANDLE (the database is what "
         "the build changes): job_wait returns it, with the database's post-build facts, once the "
         "job finished - forward that one.",
         _obj({
@@ -1494,6 +1561,15 @@ def register(registry, ctx):
             "log_mode": {"type": "string", "enum": ["info", "debug", "sql"],
                          "description": "op test only: log verbosity; omit for info."},
             "server_wide": SERVER_WIDE_PROP,
+            "conf_options": {"type": "object",
+                             "additionalProperties": {"type": ["string", "number", "boolean"]},
+                             "description": "Extra [options] keys for the config file this build's "
+                                            "Odoo reads, key -> string|number|boolean, e.g. a lint "
+                                            "module's own scoping options. Never a key the tool "
+                                            "owns (database and connection, addons path, data dir, "
+                                            "server-wide modules, languages, demo, ports, limits, "
+                                            "workers, log, passwords): refused with "
+                                            "INVALID_ARGUMENTS naming arguments.conf_options.<key>."},
             "cwd": _CWD_PROP,
         }, ["lease_token", "op", "modules"]),
         _obj({
@@ -1513,8 +1589,12 @@ def register(registry, ctx):
                      "description": "The demo value this build runs with (op test: the series "
                                     "default read from the checkout); null = not stated (op "
                                     "update)."},
+            "conf_options": {"type": "object",
+                             "additionalProperties": {"type": "string"},
+                             "description": "The extra config keys this build's config file carries, "
+                                            "as written (empty = none)."},
         }, ["job_id", "pid", "op", "log_path", "output_path", "lease_token", "server_wide_modules",
-            "server_wide_adjustment", "languages", "demo"]),
+            "server_wide_adjustment", "languages", "demo", "conf_options"]),
         _build, title="Start an Odoo build/test job", destructive=True,
     )
     registry.add(

@@ -3824,3 +3824,32 @@ def test_init_and_update_never_probe_optional_test_imports(tmp_path, verb):
     res = _deps_run(tmp_path, verb, ["Modules loaded."])
     assert res.returncode == 0, (res.stdout, res.stderr)
     assert "TEST_DEPS" not in res.stdout
+
+
+# ---------------------------------------------------------------------------
+# --conf-option: extra `[options]` keys of the build's own conf (e.g. a lint module's own scoping
+# option, which some variants read from the config file only).
+# ---------------------------------------------------------------------------
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update", "test"])
+def test_a_conf_option_reaches_the_build_conf_and_nothing_else_changes(tmp_path, verb):
+    plain, plain_argv = _facts_run(tmp_path, verb, "--version", "17.0")
+    plain_conf = _run_conf_lines(plain_argv)
+    res, argv = _facts_run(tmp_path, verb, "--version", "17.0",
+                           "--conf-option", "lint_scope_repo=a/src",
+                           "--conf-option", "lint_level=2")
+    assert argv == plain_argv, "the option goes into the conf file only, never onto the command line"
+    assert _run_conf_lines(argv) == plain_conf + ["lint_scope_repo = a/src", "lint_level = 2"]
+    assert "BUILD_CONF_KEYS=lint_scope_repo,lint_level" in res.stdout.splitlines()
+    assert "BUILD_CONF_KEYS=" in plain.stdout.splitlines()
+
+
+@requires_bash
+@pytest.mark.parametrize("bad", ["no_equals_sign", "Upper=1", "=value", "1key=x", "bad-key=x",
+                                 "key=line\nbreak", "key=car\rriage"])
+def test_a_malformed_conf_option_is_a_usage_error_and_nothing_runs(tmp_path, bad):
+    res, argv = _facts_run(tmp_path, "init", "--version", "17.0", "--conf-option", bad)
+    assert res.returncode == 2, (bad, res.stdout, res.stderr)
+    assert "--conf-option" in res.stderr
+    assert argv is None and "LOG_PATH=" not in res.stdout

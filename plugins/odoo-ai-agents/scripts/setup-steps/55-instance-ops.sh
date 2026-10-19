@@ -49,7 +49,12 @@
 # what a build does behind the caller's back. The build conf is keyed by the DATABASE
 # ($ODOO_AI_HOME/conf/<db>-build.conf, overwritten in place, swept with the other
 # conf files); it holds no password (libpq reads PGPASSWORD from the launch
-# environment).
+# environment). `--conf-option <key>=<value>` (init/update/test, repeatable; key
+# `^[a-z][a-z0-9_]*$`, no line break - else exit 2 before anything runs) adds one
+# `key = value` line per option after the build's own lines, e.g. a lint module's
+# own scoping option; which keys a caller may set is the odoo-local tool's rule
+# (instance_build conf_options), not this script's. Echo: BUILD_CONF_KEYS=<k1,k2>
+# (empty when none).
 #
 # After the run each build verb also prints BUILD_MODULES_LOADED=1|0: 1 when the
 # log carries Odoo's "Modules loaded." line, or the "At least one test failed when
@@ -1986,6 +1991,8 @@ _parse_common_args() {
     arg_demo=""
     # The instance's declared checkout root - the launcher fallback (_find_odoo_bin).
     arg_odoo_root=""
+    # Extra `key = value` lines for the run's conf (--conf-option, repeatable).
+    arg_conf_options=()
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -2051,6 +2058,14 @@ _parse_common_args() {
             --odoo-root)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --odoo-root requires a value" >&2; exit 2; }
                 arg_odoo_root="$2"; shift 2 ;;
+            --conf-option)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --conf-option requires a value" >&2; exit 2; }
+                # <key>=<value>, one `[options]` line of the run's conf. A config key
+                # is lower-case snake case; a CR or LF in either half would inject a
+                # second line (another key, or a section) into the file.
+                [[ "$2" == *=* && "${2%%=*}" =~ ^[a-z][a-z0-9_]*$ && "$2" != *$'\n'* && "$2" != *$'\r'* ]] || {
+                    echo "$(basename "$0"): --conf-option must be <key>=<value> with a lower-case key and no line break (got '$2')" >&2; exit 2; }
+                arg_conf_options+=("$2"); shift 2 ;;
             --test-tags)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --test-tags requires a value" >&2; exit 2; }
                 arg_test_tags="$2"; shift 2 ;;
@@ -2155,8 +2170,9 @@ _write_run_conf() {
 # ---------------------------------------------------------------------------
 # _build_run_conf - write the build verbs' run conf (RUN_CONF, keyed by the
 #   database: $ODOO_AI_HOME/conf/<db>-build.conf) from the caller-scope arg_db /
-#   arg_demo. One build runs on a database at a time, so the file is overwritten
-#   in place and the conf set stays bounded by the databases.
+#   arg_demo, then one `key = value` line per --conf-option (arg_conf_options,
+#   in the order given). One build runs on a database at a time, so the file is
+#   overwritten in place and the conf set stays bounded by the databases.
 # ---------------------------------------------------------------------------
 _build_run_conf() {
     RUN_CONF="$(odoo_ai_state_root)/conf/${arg_db}-build.conf"
@@ -2165,6 +2181,9 @@ _build_run_conf() {
     while IFS= read -r _line; do
         [[ -n "$_line" ]] && _lines+=("$_line")
     done < <(_demo_conf_lines "${arg_demo:-}")
+    for _line in ${arg_conf_options[@]+"${arg_conf_options[@]}"}; do
+        _lines+=("${_line%%=*} = ${_line#*=}")
+    done
     _write_run_conf "$RUN_CONF" ${_lines[@]+"${_lines[@]}"}
 }
 
@@ -2188,7 +2207,8 @@ _emit_modules_loaded() {
 # ---------------------------------------------------------------------------
 # _build_fact_args - populate the global array BUILD_FACT_ARGS with the odoo-bin
 #   flags for the caller-scope arg_load / arg_languages / arg_demo (see the
-#   header's "Build facts"), and echo the three BUILD_* facts to stdout.
+#   header's "Build facts"), and echo the BUILD_* facts to stdout (plus
+#   BUILD_CONF_KEYS: the keys of the --conf-option lines the run conf carries).
 # ---------------------------------------------------------------------------
 _build_fact_args() {
     BUILD_FACT_ARGS=()
@@ -2201,6 +2221,11 @@ _build_fact_args() {
     echo "BUILD_SERVER_WIDE_MODULES=${arg_load:-}"
     echo "BUILD_LANGUAGES=${arg_languages:-}"
     echo "BUILD_DEMO=${arg_demo:-}"
+    local _keys="" _opt
+    for _opt in ${arg_conf_options[@]+"${arg_conf_options[@]}"}; do
+        _keys="${_keys:+$_keys,}${_opt%%=*}"
+    done
+    echo "BUILD_CONF_KEYS=$_keys"
     return 0
 }
 
@@ -2211,6 +2236,7 @@ cmd_init() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
     local arg_load arg_languages arg_demo arg_odoo_root
+    local arg_conf_options=()
     _parse_common_args "$@"
 
     local odoo_bin
@@ -2303,7 +2329,8 @@ cmd_init() {
         # offer - on a stock Debian box the 2019 OS package, which exits 2 on a
         # config it cannot parse and FAILS the test with a message that reads
         # like a finding about the code while zero JS files were examined.
-        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules"
+        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules" \
+            "$(dirname "$odoo_bin")/$ODOO_CLI_CORE_PACKAGE/addons"
         lint_toolchain_diagnostics "$addons_csv"
         # Positive proof of the resolved tree (issue class: Odoo's own module-
         # loading log records only RELATIVE module paths, so a verifier can
@@ -2373,6 +2400,7 @@ cmd_update() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
     local arg_load arg_languages arg_demo arg_odoo_root
+    local arg_conf_options=()
     _parse_common_args "$@"
 
     local odoo_bin
@@ -2444,7 +2472,8 @@ cmd_update() {
         # offer - on a stock Debian box the 2019 OS package, which exits 2 on a
         # config it cannot parse and FAILS the test with a message that reads
         # like a finding about the code while zero JS files were examined.
-        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules"
+        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules" \
+            "$(dirname "$odoo_bin")/$ODOO_CLI_CORE_PACKAGE/addons"
         lint_toolchain_diagnostics "$addons_csv"
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.
@@ -2496,6 +2525,7 @@ cmd_test() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
     local arg_load arg_languages arg_demo arg_odoo_root
+    local arg_conf_options=()
     _parse_common_args "$@"
 
     local odoo_bin
@@ -2591,7 +2621,8 @@ cmd_test() {
         # offer - on a stock Debian box the 2019 OS package, which exits 2 on a
         # config it cannot parse and FAILS the test with a message that reads
         # like a finding about the code while zero JS files were examined.
-        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules"
+        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules" \
+            "$(dirname "$odoo_bin")/$ODOO_CLI_CORE_PACKAGE/addons"
         lint_toolchain_diagnostics "$addons_csv"
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.

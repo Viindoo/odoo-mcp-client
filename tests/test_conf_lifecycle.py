@@ -387,6 +387,22 @@ def test_respinning_an_instance_overwrites_its_conf_in_place(sandbox):
 
 
 @requires_bash
+def test_a_build_conf_with_options_is_still_keyed_by_the_database_and_overwritten(sandbox):
+    """A build's --conf-option lines change what its conf holds, never which file it is: the
+    conf stays `<db>-build.conf`, rewritten in place, so the conf set stays bounded by the
+    databases and a later build never reads an earlier build's options."""
+    sandbox.init("--conf-option", "lint_scope_repo=a/src")
+    conf = sandbox.conf_dir / f"{sandbox.db}-build.conf"
+    assert "lint_scope_repo = a/src" in conf.read_text(encoding="utf-8")
+    sandbox.init("--conf-option", "lint_level=2")
+    text = conf.read_text(encoding="utf-8")
+    assert "lint_level = 2" in text and "lint_scope_repo" not in text, text
+    assert text.count("[options]") == 1, text
+    assert [c for c in sandbox.confs() if c.endswith("-build.conf")] == [f"{sandbox.db}-build.conf"]
+    assert sandbox.ambient_files() == []
+
+
+@requires_bash
 def test_conf_dir_follows_the_state_root_home_fallback(sandbox, tmp_path):
     """GT1(6), the MUST-NOT-CATCH control - BOTH state-root resolutions are correct.
 
