@@ -60,7 +60,7 @@ git commit --no-edit            # concludes a merge
 
 For MECHANICAL conflicts in a rebase/cherry-pick, `-X ours` / `-X theirs` biases the auto-merge;
 for SEMANTIC conflicts, edit by hand. After resolution, commit per
-`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` (sign-off per C4). After resolving,
+`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` (sign-off only when C4 requires it). After resolving,
 confirm no conflict markers remain - exit status 1 with no output means no markers:
 
 ```bash

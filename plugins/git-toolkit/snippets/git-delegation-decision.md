@@ -44,7 +44,8 @@ Cold-spawn `git-pipeline-lead`, passing the tier the caller resolved from
 `DISPATCH MODEL:` first line of the brief; it runs P1-P5 below the caller. Use when the change is LARGE
 per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2 (>500 files OR >10k LOC OR a
 multi-commit rewrite OR a thousand-file backport). The lead maps -> evaluates -> strategizes ->
-human-confirms (if destructive) -> executes -> verifies, and returns only the final compact result.
+human-confirms (only before changing a protected branch without a pull request) -> executes ->
+verifies, and returns only the final compact result.
 
 ## Classify first
 
@@ -52,8 +53,9 @@ human-confirms (if destructive) -> executes -> verifies, and returns only the fi
 2. SIZE+RISK check: bounded output? destructive? multi-commit? large per M2?
 3. Route: bounded+low-risk -> INLINE; one medium op -> SINGLE-DELEGATE; large/complex ->
    PHASED-PIPELINE.
-4. DESTRUCTIVE ops ALWAYS carry the human-confirm gate from
-   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`, regardless of mode.
+4. DESTRUCTIVE ops ALWAYS carry the safety contract (S1 backup, S6 verify) from
+   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`, regardless of mode; only a change to a
+   protected branch without a pull request also needs the human-confirm gate.
 
 ## Compact-return contract
 

@@ -10,7 +10,7 @@ they approve what they only half-understood.
 
 ## The contract
 
-Every piece of CHAT-FACING text the agent emits - gate messages, the destructive human-confirm
+Every piece of CHAT-FACING text the agent emits - gate messages, the protected-branch human-confirm
 prompt, plan summaries, clarifying questions, progress notes, final summaries, and RELAYS of
 worker results - mirrors the USER'S language:
 

@@ -61,7 +61,7 @@ Signed-off-by: Name <email@host>
 - `Fixes`/`Closes`/`Resolves` + `#N` auto-closes the GitHub issue on merge (case-insensitive
   variants: fix, fixes, fixed, close, closes, closed, resolve, resolves, resolved).
 - `BREAKING CHANGE:` must be uppercase.
-- `Signed-off-by:` is appended by `git commit -s` (DCO).
+- `Signed-off-by:` is appended by `git commit -s`, only when the repo requires sign-off (C4).
 
 ## Example (GOOD)
 
@@ -73,7 +73,6 @@ already processing the original request. Customers were occasionally
 billed twice for the same order.
 
 Closes #1892
-Signed-off-by: Name <email@host>
 ```
 
 ## Committing a multi-line message

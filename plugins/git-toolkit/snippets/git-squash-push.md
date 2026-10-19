@@ -10,7 +10,9 @@ Squash every commit above `origin/<principal>` on the integration branch into a 
 verify tree identity, then force-with-lease push to the remote. This composes the S1, S6, and S2
 primitives from `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`; see that file for the
 primitive semantics. All commands run inside the dedicated `<worktree>` (S9 - never the primary
-checkout).
+checkout). The recipe needs no human confirmation: the S1 backup and the S6 verify make it
+reversible. Only an `integration-branch` that is a protected branch (the gate in the safety
+contract) needs `confirmed:` before step 5.
 
 ## Inputs
 
@@ -19,9 +21,8 @@ checkout).
 | `worktree` | Absolute path to the dedicated integration worktree (S9: never the primary checkout) |
 | `principal` | Branch name tracked at `origin/<principal>` (e.g. `master`, `main`) |
 | `backup-ref` | Tag name for the S1 backup (e.g. `backup/squash-YYYYMMDDHHMMSS`) |
-| `commit-msg` | Caller-proposed commit message for the squashed commit - a proposal, validated (and rewritten on mismatch) against C6 in step 4 before it reaches `git commit`, never passed through unchecked |
+| `commit-msg` | Caller-proposed commit message for the squashed commit - a proposal, validated (and rewritten on mismatch) against C6 in step 3 before it reaches `git commit`, never passed through unchecked |
 | `integration-branch` | Local and remote branch name to push (e.g. `integration/feature-batch`) |
-| `confirmed` | Verbatim human approval text. Required BEFORE step 2 (the `reset --soft` squash - a local history rewrite gated by N5) and re-checked before step 6 (the force-with-lease push - gated by the S2 item in the 8-item list). One `confirmed` value covers the whole recipe. |
 
 ## Steps
 
@@ -54,19 +55,7 @@ git tag <backup-ref> HEAD
 git rev-parse HEAD   # record pre-op SHA
 ```
 
-### 2 - Pre-squash human-confirm gate (MUST run before step 3; gates the `reset --soft` rewrite)
-
-Squash (`reset --soft`, step 3) is a local history rewrite. Per N5 in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` ("Interactive rebase, squash, split,
-amend, reset, filter-repo, and force-with-lease push all require the brief to state whether human
-confirmation was already obtained"), the brief MUST supply `confirmed: <verbatim human approval
-text>` BEFORE this step runs. If absent, STOP HERE - do NOT run step 3 - and return BLOCKED naming
-this gate. The S1 backup tag created in step 1 already exists on disk as the reversibility
-backstop even though the rewrite itself never ran; this ordering matches the generic
-confirm-before-execute sequence in `git-operator.md`'s Execution process, which this named recipe
-must not override.
-
-### 3 - Reset --soft to base
+### 2 - Reset --soft to base
 
 ```bash
 git reset --soft origin/<principal>
@@ -74,10 +63,11 @@ git reset --soft origin/<principal>
 
 All commits above `origin/<principal>` collapse into the index. The working tree is unchanged.
 
-### 4 - Validate, then commit
+### 3 - Validate, then commit
 
 Run C6 (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`) on `<commit-msg>` FIRST; commit
-the validated-or-rewritten string, never the raw input. Write it to a message file (C5), then:
+the validated-or-rewritten string, never the raw input, and report it in `commit_subject:` and
+`message_rewritten:`. Write it to a message file (C5), then:
 
 ```bash
 git commit -F <message-file>
@@ -85,7 +75,7 @@ git commit -F <message-file>
 
 When C4 requires sign-off, add `-s` and confirm the `Signed-off-by:` trailer landed.
 
-### 5 - S6 tree-identity gate
+### 4 - S6 tree-identity gate
 
 ```bash
 git diff --quiet <backup-ref>
@@ -95,12 +85,7 @@ Exit 0 (no diff) -> tree-identity confirmed; proceed.
 Non-zero -> content diverged. ABORT: restore from `<backup-ref>`, name the diverged paths in your report,
 do NOT push. See S6 in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`.
 
-### 6 - S2 force-with-lease push (re-checks confirmed)
-
-Gated by destructive human-confirm gate item 1 in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`. Re-verify the SAME `confirmed` value
-checked at step 2 is still present; if it is somehow absent here, STOP and return BLOCKED naming
-this gate.
+### 5 - S2 force-with-lease push
 
 ```bash
 git push --force-with-lease origin <integration-branch>
@@ -117,7 +102,7 @@ if the remote advanced since the last fetch; bare `--force` is banned.
 - **Empty-tree artifact.** The SHA `4b825dc642cb6eb9a060e54bf8d69288fbee4904` appears in diff
   output only when the squash accidentally produced a literally empty commit, indicating a
   misconfigured base ref. The authoritative check is the `git diff --quiet <backup-ref>` exit code
-  in step 5; the empty-tree SHA is a diagnostic artifact for an unexpectedly empty squash, not
+  in step 4; the empty-tree SHA is a diagnostic artifact for an unexpectedly empty squash, not
   part of the verification gate itself.
 - **force-with-lease vs force.** `--force-with-lease` bails when the remote has advanced;
   bare `--force` silently clobbers a teammate's push. Always use the former (S2).

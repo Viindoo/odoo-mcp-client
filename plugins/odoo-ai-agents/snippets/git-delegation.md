@@ -8,19 +8,21 @@
 ## Universal rule
 
 **Universal rule (EVERY actor - the main/orchestrating agent included, not only dispatched
-skills/agents/commands).** No actor may directly execute git mutations (rebase, cherry-pick, merge,
-reset, amend, push, branch force-delete, filter-repo), gh CLI calls, GitHub-MCP tools, or unbounded
-git reads. If you CREATE or EDIT any git-tracked file - even a one-line change, even repo
-self-maintenance - you MUST commit it by invoking the `git-toolkit:git-ops` skill; never hand-run
-stage / commit / push yourself. git-ops detects the repo's commit convention and applies the DCO
-sign-off itself (convention + sign-off SSOT: `git-toolkit/snippets/commit-convention.md` C1-C4), so
-routing through git-ops SATISFIES DCO. The main agent is bound by the equivalent statement in the
-repo `CLAUDE.md`; keep the two in lockstep.
+skills/agents/commands).** No actor may directly execute a git mutation (the verbs listed in § No
+LEAF-worker git, in any spelling), gh CLI calls, GitHub-MCP tools, or unbounded git reads. If you
+CREATE or EDIT any git-tracked file - even a one-line change, even repo self-maintenance - you MUST
+commit it by invoking the `git-toolkit:git-ops` skill; never hand-run stage / commit / push
+yourself. git-ops detects the repo's commit convention and applies the DCO sign-off where the repo
+requires it (convention + sign-off SSOT: `git-toolkit/snippets/commit-convention.md` C1-C4), so
+routing through git-ops satisfies a sign-off requirement. The main agent is bound by the equivalent
+statement in the repo `CLAUDE.md`; keep the two in lockstep. A call the permission classifier
+refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
 
 To perform a git/GitHub operation, INVOKE the `git-toolkit:git-ops` skill via the Skill
 tool, describing the op (e.g. create a worktree, cherry-pick a range onto integration +
-squash, open/merge a PR, read a diff range) + the scope + the worktree path + whether an
-L2 destructive op is human-confirmed. git-ops classifies the op INTERNALLY by op-type
+squash, open/merge a PR, read a diff range) + the scope + the worktree path + the human
+confirmation when the op pushes to, deletes, or merges a PR into a protected branch (§ Human-confirm
+pass-through). git-ops classifies the op INTERNALLY by op-type
 (read-only cognition, local mutation, GitHub API, or large/complex at scale) and routes it
 to the specialist that owns that class, then runs it under the safety contract. Consumers
 never name or pick the specialist themselves.
@@ -104,10 +106,14 @@ read once the candidate name is known. No actor resolves a stale `base` by fetch
 ## No LEAF-worker git - the orchestrator (or the node owner) commits via git-ops
 
 A dispatched HARD-LEAF worker (`odoo-frontend-coder`, `odoo-test-writer`, `odoo-impact-recon`, or
-ANY leaf domain subagent) does NOT run git - not even git add / git commit / git stash in its own
-worktree. Leaf workers do not own the project's git/commit conventions, so git is never their job. A
-leaf finishing work in a `WORKTREE_PATH` WRITES its files there and RETURNS the list of files it
-touched; it never stages, commits, or stashes.
+ANY leaf domain subagent) runs NO git mutation, not even in its own worktree. The mutation verbs are
+`add rm mv restore commit stash branch checkout switch cherry-pick rebase merge reset revert tag
+push pull fetch am apply worktree clean` - spelled `git <verb>` or `git -C <dir> <verb>`, run
+through a wrapper (`bash -c`, `$(...)`, a heredoc) or from inside a script alike. The read-only
+`status diff log show rev-parse blame ls-files worktree list` are not mutations; how much of their
+output may be read inline is the bounded-read allowlist above. Leaf workers do not own the
+project's git/commit conventions, so git is never their job. A leaf finishing work in a
+`WORKTREE_PATH` WRITES its files there and RETURNS the list of files it touched.
 
 The actor that COMMITS is the orchestrator OR the node owner that owns the worktree, by
 INVOKING `git-toolkit:git-ops`. In particular `odoo-coder` (`role: node-owner` - it writes the
@@ -115,10 +121,8 @@ node and may launch a leaf, so it is NOT a leaf) COMMITS its node by invoking
 `git-toolkit:git-ops` via the Skill tool once its whole-node test is green, and returns the
 range to `odoo-coding` (which collects it, never re-committing). The coder only REQUESTS the
 commit (files + business outcome); it never runs raw git and never dispatches a git leaf agent
-itself. Every git verb - `add`,
-`commit`, `stash`, `branch`, `checkout`, `switch`, `cherry-pick`, `merge`, `rebase`, `reset`, `tag`,
-`push`, `force-push`, `fetch`, `pull`, `worktree add/remove`, and all GitHub-API ops - is routed
-through git-ops. The ONLY git a worker may run inline is the bounded-read allowlist above.
+itself. A node owner or spawner asks `Skill(git-toolkit:git-ops)` for every mutation verb above
+and every GitHub-API op. The ONLY git a worker may run inline is the bounded-read allowlist above.
 
 ## How git-ops resolves a request (informational)
 
@@ -162,7 +166,12 @@ Invoke `git-toolkit:git-ops` via the Skill tool. In the request, describe AT MIN
 - `scope`: refs / range / paths
 - `worktree`: absolute path of the dedicated worktree - an existing one, or the `project_dir`
   axis `worktree` path git-ops creates it at
-- For destructive (L2) ops: `confirmed: <yes + quoted human approval | no>`
+- For the L2 op - a push to or deletion of a protected branch, or merging a PR into one:
+  `confirmed: <yes + quoted human approval | no>`
+- `commit`: the files and the business outcome, never a finished message. A proposed Odoo
+  `[TAG]` comes only from the TAG table in git-toolkit's
+  `skills/git-ops/references/commit-convention-odoo.md`. git-ops validates it and returns
+  `commit_subject:` and `message_rewritten:`; relay a rewrite, never re-commit it.
 - `USER LANGUAGE: <language>`
 
 git-ops classifies the op, routes it, and returns a compact result block. Do NOT inline unbounded
@@ -192,11 +201,12 @@ Hard leaf (cannot launch agents) -> return files, never git."
 
 ## Human-confirm pass-through
 
-For destructive ops, obtain explicit human confirmation BEFORE invoking git-ops. Present the
-op WITH Odoo context (module, branch, what is irreversible), then pass it as
-`confirmed: yes - <quote>` in the git-ops request. git-ops (and the git agent beneath it)
-enforces its own gate as backstop and returns BLOCKED if confirmation is absent. After a
-BLOCKED return, obtain confirmation and invoke git-ops again.
+The L2 git gate is ONE op class: a push that moves or deletes a protected branch without a pull
+request, and merging a PR into one (protected branch: git-toolkit `git-safety-contract`). Only
+for it, obtain explicit human confirmation BEFORE invoking git-ops - present it WITH Odoo context
+(module, branch, what changes on the remote) and pass `confirmed: yes - <quote>`. git-ops returns
+BLOCKED without it; then obtain it and invoke again. Every other op (rewrite, squash,
+force-with-lease to a feature or fork branch) git-ops decides itself; never ask the human.
 (Ref: git-toolkit `git-safety-contract`.)
 
 ## Conflict stateless-resume (rebase / merge / cherry-pick)
@@ -210,7 +220,8 @@ to the next Odoo-semantic conflict. When it stops on an unresolved semantic conf
 
 **Status mapping for callers:**
 - `DONE` => operation completed cleanly
-- `BLOCKED` => safety gate triggered; present to human, obtain approval, invoke git-ops again with `confirmed:`
+- `BLOCKED` with `gate_hit: protected branch ...` => present to human, obtain approval, invoke git-ops again with `confirmed:`
+- `BLOCKED` with `gate_hit: S4 dirty tree` => uncommitted changes git-ops will not stash; settle them, then invoke again
 - `BLOCKED-CONFLICT` => semantic conflict stopped the op; run the stateless-resume loop below
 
 **Resume loop** (rebase / merge / cherry-pick state persists ON DISK across separate git-ops invocations):

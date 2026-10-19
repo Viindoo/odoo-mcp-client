@@ -39,7 +39,7 @@ flowchart TD
 
     PL --> P1[P1 MAP: surveyor x N]
     P1 --> P2[P2 EVALUATE: surveyor per cluster]
-    P2 --> P3[P3 STRATEGY + HUMAN-CONFIRM]
+    P2 --> P3[P3 STRATEGY + protected-branch gate if needed]
     P3 --> P4[P4 EXECUTE: operator per cluster]
     P4 --> P5[P5 VERIFY: surveyor - tree-identity + range-diff]
 ```
@@ -83,8 +83,10 @@ the leaves' allowlists grant no messaging tool at all and cannot fan out.
 flowchart TD
     D[destructive op<br/>rebase-i / reset / filter-repo / force-push] --> B[S1 backup branch + record pre-op SHA]
     B --> CT[S4 clean tree]
-    CT --> HC{human-confirm gate<br/>8-item list}
-    HC -->|confirmed| E[execute headlessly<br/>force-with-lease, no-TTY]
+    CT --> PB{changes a protected branch<br/>without a pull request?}
+    PB -->|no| E[execute headlessly<br/>force-with-lease, no-TTY]
+    PB -->|yes| HC{human-confirm gate}
+    HC -->|confirmed| E
     HC -->|not confirmed| STOP[STOP - return BLOCKED]
     E --> V[S6 tree-identity verify<br/>git diff backup..HEAD empty]
     V -->|empty| DONE[report DONE + evidence]
@@ -101,8 +103,8 @@ for:
 
 - Worktree isolation per mutation - never operate on the primary/shared checkout (S9 in
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`).
-- Human-confirm for destructive ops - obtain confirmation and pass it through to the operator
-  (the destructive gate in the same snippet).
+- Human-confirm for the one gated op - a change to a protected branch without a pull request:
+  obtain confirmation and pass it through to the operator (the gate in the same snippet).
 - Compact returns - ingest the worker's summary + findings path, never the raw diff
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation-decision.md`).
 

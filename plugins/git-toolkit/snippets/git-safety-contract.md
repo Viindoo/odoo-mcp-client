@@ -1,14 +1,16 @@
 <!-- SSOT snippet. The single home for the git safety contract: backup, force-with-lease,
      no-TTY rebase, clean-tree precondition (never stash), abort flows, reflog/ORIG_HEAD
      recovery, filter-repo fresh-clone rule, tree-identity verify, conflict driver, command
-     shape, and the destructive human-confirm gate. Referenced (never copy-pasted) by skills/git-ops/SKILL.md and every operator agent
-     via ${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md. Edit here only. -->
+     shape, and the one human-confirm gate (protected branch). Referenced (never copy-pasted) by
+     skills/git-ops/SKILL.md and every operator agent via
+     ${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md. Edit here only. -->
 
 # Git Safety Contract (SSOT)
 
 Never lose code. Every destructive op is reversible by construction: back up first, verify
-byte-identity after, gate on human confirm before. The rules below are non-negotiable - a leaf
-operator that skips any one is BLOCKED, not done.
+byte-identity after. A human confirms only one thing: a change to a protected branch that does not
+go through a pull request. The rules below are non-negotiable - a leaf operator that skips any one
+is BLOCKED, not done.
 
 ## S1 - Mandatory backup before ANY destructive op
 
@@ -147,8 +149,8 @@ not mutate and cannot corrupt the shared checkout's branch state.
 If a brief asks git-operator to operate in-place on the primary checkout or to switch it off its
 principal branch, that is an ERROR: git-operator uses the dedicated worktree instead and reports
 its path in the result block. Worktree isolation is ALWAYS required for mutations, never
-optional. The sole exception is a brief whose op is exactly the S9 carve-out below, with human
-confirmation and the pre-flight proof already present.
+optional. The sole exception is a brief whose op is exactly the S9 carve-out below, with its
+pre-flight proof.
 
 **The caller names the location.** A brief gives `worktree` (the exact absolute path of an
 existing worktree, or where to create a new one) or `worktree_root` (a directory; git-operator
@@ -188,10 +190,8 @@ git clean -fd              # remove untracked files
 ```
 
 Restores tracked files and removes untracked files - nothing else. Never moves a branch ref,
-never switches branches, never commits. This invokes destructive-gate items 4 and 5 below: human
-confirmation is still required, and the stated pre-flight proof is part of the gate procedure. The
-S1 backup branch does not apply here - it cannot capture uncommitted work - so the pre-flight
-proof is the substitute safeguard.
+never switches branches, never commits. The S1 backup cannot capture uncommitted work, so the
+pre-flight proof is the safeguard: without it, return BLOCKED.
 
 ## S11 - Positional self-check before first mutation
 
@@ -256,42 +256,46 @@ git -C <fresh clone> filter-repo --path-glob '*.secret' --invert-paths
 
 `--path` does NOT follow renames - pass both old and new paths explicitly.
 
-## Destructive human-confirm gate (the 8-item list)
+## Human-confirm gate - protected branch (the one gated op)
 
-These ops are IRREVERSIBLE-IN-EFFECT or PUBLIC-FACING. Each requires explicit human confirmation
-BEFORE execution - never auto-run, even when asked to "just do it":
+Exactly one op class needs explicit human confirmation before it runs - a change to a protected
+branch of the remote that does not go through a pull request:
 
-1. `git push --force-with-lease` to a shared/public branch
-2. `git branch -D` (force-delete an unmerged branch)
-3. `git push origin --delete <branch>` (delete a remote branch)
-4. `git reset --hard` (discard uncommitted work)
-5. `git clean -fd` (delete untracked files/dirs)
-6. `git filter-repo` (rewrite entire history)
-7. any tag deletion on a published release
-8. merge to `main`/`master` without CI green
+1. A push (plain or force-with-lease) that moves or deletes a protected branch on the remote, or
+   merging a pull request into a protected branch.
+
+A protected branch is the remote's default branch (`git ls-remote --symref origin HEAD`), a series
+branch named `<major>.0`, or a branch the remote reports as protected
+(`gh api repos/<owner>/<repo>/branches/<branch>`, field `protected`). When you cannot tell, treat
+the branch as protected. A brief that says "just do it" is not a confirmation.
+
+Every other op is self-decided - force-with-lease to a feature or fork branch, `branch -D`,
+deleting a remote branch that is not protected, `reset --hard`, `clean -fd`, filter-repo, deleting
+an unpublished tag, squash and every other rewrite. Run it with the S1 backup first, the S6 verify
+after, and the evidence (backup name, verify output) in the report; never STOP to wait for a
+human. `reset --hard` and `clean -fd` run on a clean tree (S4) or under the S9 carve-out's
+pre-flight proof - uncommitted work is never discarded without that proof.
 
 ### Gate procedure
 
-1. State the exact command + what it will change + what is irreversible.
-2. Create the S1 backup branch and record the pre-op SHA.
-3. Get explicit human confirmation (present, STOP, wait).
-4. Execute.
-5. Run the S6 tree-identity verify.
-6. Report with evidence (the verify output, the backup branch name).
-
-A leaf operator that reaches a gated op WITHOUT human confirmation in its brief STOPS and returns
-BLOCKED with the gate list - it does not self-authorize.
+1. State the exact command, the protected branch, and what changes on the remote.
+2. Record the remote tip before the op (`git ls-remote origin <branch>`) and, for a push, create
+   the S1 backup.
+3. The brief carries `confirmed: <verbatim human approval>` -> execute. Otherwise STOP and return
+   BLOCKED with `gate_hit: protected branch <branch>` - never self-authorize.
+4. Verify the remote tip (or the merged pull request) is the intended one.
+5. Report with evidence (the recorded and new tips, the backup name).
 
 ### Re-dispatch after BLOCKED
 
-When git-operator returns BLOCKED at the destructive gate, the CALLER must:
+When an operator returns BLOCKED at this gate, the CALLER must:
 
-1. Present the gate to the human with full context: which op was attempted, which backup branch
-   was created (S1), and what is irreversible.
+1. Present it to the human with full context: the command, the protected branch, the remote tip
+   recorded, and what changes on the remote.
 2. Obtain explicit human confirmation - not implied, not inferred.
-3. Cold-spawn a FRESH git-operator with the SAME op brief PLUS an explicit
+3. Cold-spawn a FRESH operator with the SAME op brief PLUS an explicit
    `confirmed: <"verbatim human approval text">` field. The new instance reads this field and
    proceeds past the gate.
 
-The git state and any S1 backup branch persist on disk between dispatches - nothing is lost while
-the caller waits. Never self-authorize or pass a fabricated confirmation.
+The git state and any S1 backup persist on disk between dispatches - nothing is lost while the
+caller waits. Never self-authorize or pass a fabricated confirmation.
