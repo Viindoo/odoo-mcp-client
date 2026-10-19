@@ -71,15 +71,16 @@ files up front.
 
 ## Snippets catalog
 
-The per-version topic files are verbatim RST extractions - not edited for rules beyond upstream.
-Extra rules live in shared snippets. Read `<version>/INDEX.md` FIRST, then follow its "By file type"
+The per-version topic files are the upstream RST extract plus marked plugin rules - each plugin
+section opens with `> Plugin rule (not in the upstream text):`. Cross-series rules live in shared
+snippets. Read `<version>/INDEX.md` FIRST, then follow its "By file type"
 map to load only the snippets that apply to your task.
 
 | Snippet | Read when | Scope |
 |---|---|---|
 | `access-groups-conventions.md` | Adding/editing `res.groups` for an application (category_id derivation, implied_ids ladder) | CORE - all distributions |
 | `field-presence-resolution.md` | Writing or reviewing any field/method access | CORE - all distributions |
-| `xml-view-conventions.md` | Writing/reviewing XML views in v18+ (always-invisible comment, `<chatter/>`) | CORE - all distributions |
+| `xml-view-conventions.md` | Writing/reviewing XML views in v18+ (`<chatter/>`, `<list>`) | CORE - all distributions |
 | `odoo-version-pivots.md` | Any cross-version migration, or code touching a version-sensitive API | CORE - all distributions |
 | `upg-conventions.md` | Upgrading a module to a new Odoo series | CORE - all distributions |
 | `new-module-manifest.md` | Creating a new module `__manifest__.py` | CORE - all distributions |

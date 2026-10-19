@@ -171,7 +171,9 @@ method; that section is the build-time enforcement point.
 ## JS / OWL tests (framework depends on era - verify)
 
 - Older era ships **QUnit** (`web/static/lib/qunit`), run via `HttpCase` tour or the in-browser
-  test runner; tagged like `/web.test_js`.
+  test runner. A module's JS unit tests run inside `web`'s desktop and mobile suite classes; the
+  tag of each per series (`/web:<Class>.<method>`):
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § JavaScript unit tests.
 - Newer era introduces **Hoot** (`web/static/lib/hoot`); QUnit may still ship during the
   transition. **Detect which framework a given version/module uses** (check the module's JS
   test assets / `module_inspect`), do not assume.

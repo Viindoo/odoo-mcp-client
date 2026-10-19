@@ -149,3 +149,38 @@ The `<data>` tag is only used to set not-updatable data with `noupdate=1`.
   tag and do **not** add a `<data>` tag.
 - Only use `<data noupdate="1">` when a file contains a mix of updatable and not-updatable
   records.
+
+---
+
+## Always-invisible field carries a comment
+
+> Plugin rule (not in the upstream text):
+
+In a `list` or `form` view, a `<field>` whose `invisible` or `column_invisible` is the constant
+`"1"` or `"True"` carries an XML comment IMMEDIATELY AFTER its opening tag, stating why the field
+stays in the view:
+
+```xml
+<field name="company_id" invisible="1"/>
+<!-- invisible: the domain of partner_id reads it -->
+```
+
+A conditional expression (`invisible="state != 'draft'"`) needs no comment.
+
+No core test enforces this on this series; follow the rule anyway, so the view needs no change when
+it is forward-ported to a series whose `base` tests enforce it.
+
+---
+
+## Inheriting QWeb templates
+
+> Plugin rule (not in the upstream text):
+
+When an inheriting template (`t-inherit` on a client template, `inherit_id` on a server template)
+inserts nodes with `position="before"` or `position="after"`, the inserted nodes must never land
+between a node carrying `t-if`/`t-elif` and the next sibling carrying `t-elif`/`t-else`: the
+original `t-elif`/`t-else` then binds to the inserted node and the chain breaks. So never use
+`position="after"` on such a `t-if`/`t-elif` node, nor `position="before"` on such a
+`t-elif`/`t-else` node. Insert with `position="inside"` on the parent, or wrap the whole chain instead.
+Inserting a `t-elif` node into the chain is fine. `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh`
+Tier 2 blocks the breaking form.

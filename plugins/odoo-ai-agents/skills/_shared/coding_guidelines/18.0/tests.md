@@ -35,6 +35,18 @@ series, never from another series.
 
 Hoot is the runner for new tests; QUnit files still exist and still run but no new QUnit test is written. Hoot test files live under `static/tests/` and end in `.test.js`. Confirm the asset bundle name with `find_test_examples(query='hoot unit test bundle', odoo_version='18.0')` before writing the manifest entry. A QUnit test ported from an older series is rewritten as a Hoot test, never copied as is.
 
+> Plugin rule (not in the upstream text):
+
+- No per-module JS runner exists: a module's JS unit tests run inside `web`'s suite classes, which
+  run the JS tests of every installed module; read the module's own failures from the log. When JS
+  unit tests are in scope, tag BOTH `/web:WebSuite.test_unit_desktop` and `/web:MobileWebSuite.test_unit_mobile`. Green on one proves
+  nothing about the other. The mobile suite runs at `375x667` with touch emulation. A module that still ships QUnit files also tags `/web:WebSuite.test_qunit_desktop` and
+  `/web:MobileWebSuite.test_qunit_mobile`.
+- Touch: Hoot's `mockTouch(false)` never touches `browser.ontouchstart`, which `hasTouch()` reads
+  and which was copied from `window` when `browser` was imported - so on the mobile suite it stays
+  defined. Forcing non-touch needs `patchWithCleanup(browser, { ontouchstart: undefined })` beside
+  `mockTouch(false)`. A test titled for a device condition establishes that condition itself.
+
 ## Demo data
 
 In this series demo data loads by default (`--without-demo` defaults to off): a test MAY use demo records of a module in its upstream closure.
