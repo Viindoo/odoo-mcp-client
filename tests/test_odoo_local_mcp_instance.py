@@ -108,14 +108,19 @@ def world(tmp_path):
 
     fake_py_dir = tmp_path / "venv" / "bin"
     fake_py_dir.mkdir(parents=True)
+    # odoo_db.py answers nothing (the database cannot be read) unless a test writes db-facts.out:
+    # then `db-facts` prints that file - what the database holds.
+    db_facts = tmp_path / "db-facts.out"
     fake_py = _stub(fake_py_dir / "python", textwrap.dedent("""\
         if [[ "${2:-}" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
         case "${1:-}" in
-            *odoo_db.py) exit 0 ;;
+            *odoo_db.py)
+                if [[ "${2:-}" == "db-facts" && -f "%(facts)s" ]]; then cat "%(facts)s"; fi
+                exit 0 ;;
             %(bin)s) shift; exec bash "%(bin)s" "$@" ;;
         esac
         exec %(real)s "$@"
-        """ % {"bin": odoo_bin, "real": sys.executable}))
+        """ % {"bin": odoo_bin, "real": sys.executable, "facts": db_facts}))
 
     port_base = 38300 + (os.getpid() % 50) * 10
     (home / "instances.toml").write_text(
@@ -157,7 +162,7 @@ def world(tmp_path):
     w = {"home": home, "work": tmp_path, "addons": addons, "behavior": behavior, "calls": calls,
          "confs": confs, "rc_env": rc_env,
          "odoo_bin": odoo_bin, "python": fake_py, "curl_mode": curl_mode, "env": env,
-         "port_base": port_base}
+         "port_base": port_base, "db_facts": db_facts}
     yield w
     # Reap every server a test launched (recorded on its lease), then the anchor.
     reg = home / "runtime" / "leases.json"

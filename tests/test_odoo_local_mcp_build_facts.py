@@ -775,6 +775,70 @@ def test_the_shared_instance_takes_no_adjustment(client, world):
     assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
 
 
+def _lang_line(code):
+    return ('echo "odoo.addons.base.models.ir_module: module base: loading translation file '
+            '/x/base/i18n/%s.po for language %s"\n' % (code.split("_")[0], code))
+
+
+def test_job_wait_reads_active_languages_from_the_database_not_from_a_tests_rolled_back_activation(
+        client, world):
+    """A test may activate a language inside its own transaction (rolled back): the log shows Odoo
+    loading its terms, yet the database never holds it. A requested language the log shows
+    loading but the database does not hold is not loaded either."""
+    world["behavior"].write_text(
+        _lang_line("vi_VN") + _lang_line("de_DE") + 'echo "odoo.modules.loading: Modules loaded."\n'
+        + _lang_line("fr_FR") + "exit 0\n", encoding="utf-8")
+    world["db_facts"].write_text("DB_EXISTS=1\nDEMO=0\nLANGUAGES=vi_VN,en_US\n", encoding="utf-8")
+    lease = _lease(client, world, ports=1)
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod",
+                                    languages=["vi_VN", "de_DE"]))["job_id"])
+    assert done["languages_source"] == "database"
+    assert done["languages_loaded"] == ["en_US", "vi_VN"], "the database's own active set"
+    assert done["languages_failed"] == ["de_DE"]
+    assert done["instance_handle"]["facts_source"] == "database"
+
+
+def test_when_the_database_cannot_be_read_only_requested_languages_count_from_the_log(client, world):
+    world["behavior"].write_text(
+        _lang_line("vi_VN") + 'echo "odoo.modules.loading: Modules loaded."\n' + _lang_line("fr_FR")
+        + "exit 0\n", encoding="utf-8")
+    lease = _lease(client, world, ports=1)
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod",
+                                    languages=["vi_VN"]))["job_id"])
+    assert done["languages_source"] == "log"
+    assert done["languages_loaded"] == ["en_US", "vi_VN"], "fr_FR was never requested"
+    assert done["languages_failed"] == []
+
+
+def test_a_test_build_whose_at_install_tests_failed_still_proves_en_us(client, world):
+    """Odoo logs "At least one test failed when loading the modules." instead of "Modules
+    loaded." when an at_install test failed: the modules (and en_US) still loaded."""
+    world["behavior"].write_text(
+        'echo "odoo.addons.my_mod.tests.test_x: FAIL: test_y"\n'
+        'echo "odoo.modules.loading: At least one test failed when loading the modules."\n'
+        "exit 1\n", encoding="utf-8")
+    lease = _lease(client, world, ports=1)
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
+                                    test_tags="/my_mod"))["job_id"])
+    assert done["result"] == "failure"
+    assert done["summary"]["BUILD_MODULES_LOADED"] == "1"
+    assert done["languages_loaded"] == ["en_US"] and done["languages_failed"] == []
+
+
+def test_the_job_wait_summary_schema_says_status_is_the_exit_not_the_test_verdict(client):
+    tools = client.request("tools/list")["result"]["tools"]
+    (job_wait,) = [t for t in tools if t["name"] == "job_wait"]
+    (out,) = [branch["properties"] for branch in job_wait["outputSchema"]["anyOf"]
+              if "job_id" in branch.get("properties", {})]
+    status = out["summary"]["properties"]["STATUS"]["description"]
+    assert "exit" in status and "NOT the test verdict" in status and "test_result" in status
+    loaded = out["summary"]["properties"]["BUILD_MODULES_LOADED"]["description"]
+    assert "Modules loaded." in loaded and "test-failed" in loaded
+    assert out["languages_source"]["enum"] == ["database", "log", None]
+    assert out["summary"].get("additionalProperties", True) is not False, (
+        "the script may print keys beyond the documented ones")
+
+
 def test_job_wait_names_a_missing_optional_test_import_with_its_remedy(client, world):
     """The checkout's test framework imports a package only when present (a fictional one here, so
     the venv can never import it); without it every browser, tour and Hoot test skips. job_wait

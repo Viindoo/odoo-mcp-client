@@ -3275,15 +3275,64 @@ def test_the_findings_file_names_every_failing_js_test_under_its_own_run(tmp_pat
     ])
     text = _findings_text(res)
     assert "## JS test failures (Hoot/QUnit), per run" in text, text
-    assert "### WebSuite.test_unit_desktop" in text, text
-    assert "### MobileWebSuite.test_unit_mobile" in text, text
-    assert "### WebSuite" in text, text
+    assert "### web.test_js.WebSuite.test_unit_desktop" in text, text
+    assert "### web.test_js.MobileWebSuite.test_unit_mobile" in text, text
+    assert "### web.test_js.WebSuite\n" in text, text
     assert "@web/core/autocomplete/close on escape" in text, text
     assert "mail > mobile > Edit message (mobile)" in text, text
     assert text.count("@web/core/autocomplete/close on escape") >= 2, (
         "the same test failed in two runs and must be named under BOTH, not "
         f"folded into one:\n{text}"
     )
+
+
+@requires_bash
+def test_a_hoot_run_from_a_custom_modules_own_test_file_is_measured(tmp_path):
+    """A custom module drives its Hoot suite from a test file of its own, not core's test_js:
+    its failures are still counted, under a run named by its module and file."""
+    res = _run_test_verb_lines(tmp_path, "jscustom", [
+        "2026-01-01 00:00:01,000 1 ERROR testdb "
+        "odoo.addons.my_mod.tests.test_my_ui.MyModSuite.test_hoot.browser: "
+        '[HOOT] Test "@my_mod/widget/renders" failed:',
+    ])
+    assert _field(res, "JS_RUNS") == "1"
+    assert _field(res, "JS_FAILED_TESTS") == "1"
+    assert "### my_mod.test_my_ui.MyModSuite.test_hoot" in _findings_text(res)
+
+
+@requires_bash
+def test_two_modules_with_the_same_suite_name_are_two_runs(tmp_path):
+    line = ("2026-01-01 00:00:01,000 1 ERROR testdb odoo.addons.%s.tests.test_ui.UiSuite.browser: "
+            '[HOOT] Test "@shared/same name" failed:')
+    res = _run_test_verb_lines(tmp_path, "jstwomods", [line % "mod_a", line % "mod_b"])
+    assert _field(res, "JS_RUNS") == "2"
+    assert _field(res, "JS_FAILED_TESTS") == "2", "one failure per module, never folded into one"
+
+
+@requires_bash
+def test_a_tour_browser_line_is_never_counted_as_a_js_run(tmp_path):
+    """A tour logs under a `.browser` logger too, but publishes no Hoot/QUnit marker."""
+    res = _run_test_verb_lines(tmp_path, "jstour", [
+        "2026-01-01 00:00:01,000 1 INFO testdb "
+        "odoo.addons.my_mod.tests.test_tour.TestTour.test_checkout_tour.browser: "
+        "tour my_mod_checkout succeeded",
+        "2026-01-01 00:00:02,000 1 INFO testdb odoo.tests.result: 0 failed, 0 error(s) of 1 tests",
+    ], exit_code=0)
+    assert _field(res, "JS_RUNS") == ""
+    assert _field(res, "JS_FAILED_TESTS") == ""
+
+
+@requires_bash
+def test_a_build_whose_at_install_tests_failed_still_reports_its_modules_loaded(tmp_path):
+    """Odoo logs "At least one test failed when loading the modules." INSTEAD of "Modules
+    loaded." when an at_install test failed: the registry load still completed."""
+    res = _run_test_verb_lines(tmp_path, "atinstallfail", [
+        "2026-01-01 00:00:01,000 1 ERROR testdb odoo.addons.my_mod.tests.test_x: FAIL: test_y",
+        "2026-01-01 00:00:02,000 1 ERROR testdb odoo.modules.loading: "
+        "At least one test failed when loading the modules.",
+    ], exit_code=0)
+    assert _field(res, "TEST_RESULT") == "failed"
+    assert _field(res, "BUILD_MODULES_LOADED") == "1"
 
 
 def _js_corpus_dir() -> Path:
@@ -3331,7 +3380,7 @@ def test_js_counter_replayed_over_the_real_run_log_corpus(tmp_path):
     lib.write_text(src.split('SUBCMD="${1:-}"')[0], encoding="utf-8")
 
     scope_re = re.compile(
-        r"(?:openerp|odoo)\.addons\.[A-Za-z0-9_.]*tests\.test_js\.([A-Za-z0-9_.]+)\.browser:")
+        r"(?:openerp|odoo)\.addons\.([A-Za-z0-9_]+)\.tests\.([A-Za-z0-9_.]+)\.browser:")
     hoot_fail_re = re.compile(r'\[HOOT\] Test "([^"]+)" failed:')
     qunit_fail_re = re.compile(r"QUnit test failed: (.*)$")
     agg_re = re.compile(r"([0-9]+) / ([0-9]+) tests failed")
@@ -3354,7 +3403,7 @@ def test_js_counter_replayed_over_the_real_run_log_corpus(tmp_path):
                 any_marker = True
                 name = (h or q).group(1).strip().rstrip(":").strip()
                 scoped_names.add(name)
-                per_scope.setdefault(sc.group(1), set()).add(name)
+                per_scope.setdefault("%s.%s" % sc.groups(), set()).add(name)
             if sc and ran_re.search(line):
                 any_marker = True
             if a:

@@ -52,9 +52,10 @@
 # environment).
 #
 # After the run each build verb also prints BUILD_MODULES_LOADED=1|0: 1 when the
-# log carries Odoo's "Modules loaded." line - the registry build (and with it the
-# --load-language activation, which runs before it on every series) finished,
-# whatever a test suite that runs after it reports.
+# log carries Odoo's "Modules loaded." line, or the "At least one test failed when
+# loading the modules." line Odoo logs instead of it when an at_install test
+# failed - the registry build (and with it the --load-language activation, which
+# runs before it on every series) finished, whatever a test suite reports.
 #
 # Subcommands:
 #   describe  - one-line purpose (step-script contract)
@@ -703,23 +704,29 @@ _DEFAULT_LOG_LEVEL='info'
 #
 #   THE RUN BOUNDARY IS THE LOGGER SCOPE, NOT THE FILE. One log file holds
 #   SEVERAL JS runs: Odoo logs each browser suite under its own
-#   `<ns>.addons.<module>.tests.test_js.<Suite>[.<method>].browser` logger, and
-#   one `test` verb can drive several. Every figure below is therefore read PER
-#   SCOPE and summed; de-duplicating across the whole file merges runs that
-#   share test names and destroys real failures.
+#   `<ns>.addons.<module>.tests.<file>.<Suite>[.<method>].browser` logger - the
+#   test file is whatever module file drives the suite (core's `test_js`, or a
+#   custom module's own test file) - and one `test` verb can drive several.
+#   Every figure below is therefore read PER SCOPE and summed; de-duplicating
+#   across the whole file merges runs that share test names and destroys real
+#   failures.
 #
 #   _JS_SCOPE_RE - the run boundary AND the echo filter. Odoo prints the failing
 #     `browser_js(...)` SOURCE LINE inside its traceback, so the log contains
 #     `success_signal="[HOOT] Test suite succeeded"` verbatim in runs that
 #     FAILED. That echo carries no logger prefix; a real marker always does,
 #     and the prefix it carries is what binds it to one run - every marker
-#     below is read per scope only.
-#     The suite/method segment is deliberately unconstrained: the wrapper method
-#     is renamed three times across the supported series (`test_01_js`/
+#     below is read per scope only. A run is named `<module>.<file>.<Suite>
+#     [.<method>]`: the module and file are part of the name, so two modules
+#     whose suites share a class name are two runs.
+#     The file/suite/method segments are deliberately unconstrained: the wrapper
+#     method is renamed three times across the supported series (`test_01_js`/
 #     `test_02_js` at v11-v12, `test_js` at v13-v17, `test_unit_desktop`/
 #     `test_hoot`/`test_qunit_desktop` at v18-v19 - read from
-#     web/tests/test_js.py per series), so keying on it would gate the counter
-#     to one era.
+#     web/tests/test_js.py per series), and a custom module drives its suites
+#     from a file of its own, so keying on either would gate the counter.
+#     A tour also logs under a `.browser` logger, but carries none of the
+#     Hoot/QUnit markers below, so it is never read (or counted) as a JS run.
 #   _JS_HOOT_TEST_FAIL_RE - ONE failing Hoot test. Unit: TESTS.
 #   _JS_HOOT_SUITE_END_RE / _JS_HOOT_SUITE_FAILED_RE - a Hoot suite's own
 #     trailer. A suite name with no `/` is a ROOT suite; roots are disjoint by
@@ -762,7 +769,7 @@ _DEFAULT_LOG_LEVEL='info'
 #   green, but a possible undercount. The shared default is `info` and `warn` is
 #   refused outright, so the default path is unaffected.
 # ---------------------------------------------------------------------------
-_JS_SCOPE_RE='(openerp|odoo)\.addons\.[A-Za-z0-9_.]*tests\.test_js\.[A-Za-z0-9_.]+\.browser:'
+_JS_SCOPE_RE='(openerp|odoo)\.addons\.[A-Za-z0-9_]+\.tests\.[A-Za-z0-9_.]+\.browser:'
 _JS_HOOT_TEST_FAIL_RE='\[HOOT\] Test "[^"]+" failed:'
 _JS_HOOT_SUITE_END_RE='\[HOOT\] "[^"]+" ended \(passed: [0-9]+'
 _JS_HOOT_SUITE_FAILED_RE="${_JS_HOOT_SUITE_END_RE} / failed: [0-9]+"
@@ -1123,7 +1130,9 @@ _js_fail_counts() {
             sc = ""
             if (match($0, SCOPE)) {
                 tok = substr($0, RSTART, RLENGTH)
-                sub(/^.*test_js\./, "", tok); sub(/\.browser:$/, "", tok)
+                # <ns>.addons.<module>.tests.<file>.<Suite>[.<method>].browser:
+                #   -> <module>.<file>.<Suite>[.<method>]
+                sub(/^.*\.addons\./, "", tok); sub(/\.tests\./, ".", tok); sub(/\.browser:$/, "", tok)
                 sc = tok
             }
             if (sc == "") {
@@ -2161,11 +2170,15 @@ _build_run_conf() {
 
 # ---------------------------------------------------------------------------
 # _emit_modules_loaded <logf> - BUILD_MODULES_LOADED=1 when the run's log
-#   carries Odoo's module-loading completion line (_INSTALL_SUCCESS_MARKER),
-#   else 0 (see the header).
+#   carries Odoo's module-loading completion line: _INSTALL_SUCCESS_MARKER, or
+#   the test-failed blanket line (_TEST_FAIL_BLANKET_RE) that odoo/modules/
+#   loading.py logs INSTEAD of it (one XOR the other, every series) when an
+#   at_install test failed - the registry load completed either way. Else 0
+#   (see the header).
 # ---------------------------------------------------------------------------
 _emit_modules_loaded() {
-    if grep -aqF "$_INSTALL_SUCCESS_MARKER" "$1" 2>/dev/null; then
+    if grep -aqF "$_INSTALL_SUCCESS_MARKER" "$1" 2>/dev/null \
+            || grep -aqE "$_TEST_FAIL_BLANKET_RE" "$1" 2>/dev/null; then
         echo "BUILD_MODULES_LOADED=1"
     else
         echo "BUILD_MODULES_LOADED=0"

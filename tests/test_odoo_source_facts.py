@@ -769,19 +769,19 @@ def _common(root: Path, body: str, pkg: str = "odoo") -> Path:
 
 def test_an_optional_import_is_named_with_the_distribution_its_skip_message_states(tmp_path):
     root = _common(tmp_path, WEBSOCKET_BLOCK + WEBSOCKET_GUARD)
-    assert facts.test_optional_imports(root) == [{
+    assert facts.optional_test_imports(root) == [{
         "import": "websocket", "distribution": "websocket-client",
         "distribution_source": "message", "message": "websocket-client module is not installed"}]
 
 
 def test_the_oldest_core_package_is_read_too(tmp_path):
     root = _common(tmp_path, WEBSOCKET_BLOCK + WEBSOCKET_GUARD, pkg="openerp")
-    assert [d["import"] for d in facts.test_optional_imports(root)] == ["websocket"]
+    assert [d["import"] for d in facts.optional_test_imports(root)] == ["websocket"]
 
 
 def test_without_a_skip_message_the_distribution_is_the_import_name(tmp_path):
     root = _common(tmp_path, "try:\n    import freezegun\nexcept ImportError:\n    freezegun = None\n")
-    assert facts.test_optional_imports(root) == [{
+    assert facts.optional_test_imports(root) == [{
         "import": "freezegun", "distribution": "freezegun",
         "distribution_source": "import-name", "message": None}]
 
@@ -790,7 +790,7 @@ def test_an_if_not_guard_on_an_aliased_import_states_the_distribution_too(tmp_pa
     body = ("try:\n    import pdf_lib as pdf\nexcept ImportError:\n    pdf = None\n\n"
             "def f():\n    if not pdf:\n"
             "        raise unittest.SkipTest('pdf-lib-dist module is not installed')\n")
-    assert facts.test_optional_imports(_common(tmp_path, body)) == [{
+    assert facts.optional_test_imports(_common(tmp_path, body)) == [{
         "import": "pdf_lib", "distribution": "pdf-lib-dist",
         "distribution_source": "message", "message": "pdf-lib-dist module is not installed"}]
 
@@ -799,7 +799,7 @@ def test_a_skip_message_beyond_the_guard_window_is_not_attributed(tmp_path):
     body = ("try:\n    import websocket\nexcept ImportError:\n    websocket = None\n\n"
             "def f():\n    if websocket is None:\n" + "        pass\n" * 6
             + "        raise unittest.SkipTest('websocket-client module is not installed')\n")
-    found = facts.test_optional_imports(_common(tmp_path, body))
+    found = facts.optional_test_imports(_common(tmp_path, body))
     assert [(d["distribution"], d["distribution_source"]) for d in found] == [
         ("websocket", "import-name")]
 
@@ -807,24 +807,24 @@ def test_a_skip_message_beyond_the_guard_window_is_not_attributed(tmp_path):
 def test_a_fallback_import_is_not_an_optional_package(tmp_path):
     body = ("try:\n    import xmlrpc_client as xmlrpclib\nexcept ImportError:\n"
             "    # pylint: disable=bad-python3-import\n    import xmlrpclib\n")
-    assert facts.test_optional_imports(_common(tmp_path, body)) == []
+    assert facts.optional_test_imports(_common(tmp_path, body)) == []
 
 
 def test_a_name_also_imported_unguarded_is_required_not_optional(tmp_path):
     body = "import freezegun\n\ntry:\n    import freezegun\nexcept ImportError:\n    freezegun = None\n"
-    assert facts.test_optional_imports(_common(tmp_path, body)) == []
+    assert facts.optional_test_imports(_common(tmp_path, body)) == []
 
 
 def test_an_indented_try_is_not_a_module_level_optional_import(tmp_path):
     body = ("def f():\n    try:\n        import websocket\n    except ImportError:\n"
             "        websocket = None\n")
-    assert facts.test_optional_imports(_common(tmp_path, body)) == []
+    assert facts.optional_test_imports(_common(tmp_path, body)) == []
 
 
 def test_no_block_is_empty_and_no_file_is_none_never_a_guess(tmp_path):
-    assert facts.test_optional_imports(_common(tmp_path / "a", "x = 1\n")) == []
-    assert facts.test_optional_imports(tmp_path / "absent") is None
-    assert facts.test_optional_imports("") is None
+    assert facts.optional_test_imports(_common(tmp_path / "a", "x = 1\n")) == []
+    assert facts.optional_test_imports(tmp_path / "absent") is None
+    assert facts.optional_test_imports("") is None
 
 
 def test_cli_test_deps_prints_one_line_per_import_and_exits_3_when_unreadable(tmp_path):
@@ -849,7 +849,7 @@ def test_fixture_test_common_states_what_the_reader_finds(tmp_path):
     trees.write_test_common(root, "17.0", imports=(("websocket", "websocket-client"),
                                                    ("fictional_pkg", None)))
     assert [(d["import"], d["distribution"], d["distribution_source"])
-            for d in facts.test_optional_imports(root)] == [
+            for d in facts.optional_test_imports(root)] == [
         ("websocket", "websocket-client", "message"),
         ("fictional_pkg", "fictional_pkg", "import-name")]
 
@@ -874,6 +874,6 @@ def _survey_checkout(series: str) -> Path:
 
 @pytest.mark.parametrize("series", sorted(TEST_DEPS_SURVEY, key=lambda s: float(s)))
 def test_real_checkout_optional_test_imports(series):
-    found = facts.test_optional_imports(_survey_checkout(series))
+    found = facts.optional_test_imports(_survey_checkout(series))
     assert [d["distribution"] for d in found] == TEST_DEPS_SURVEY[series]
     assert all(d["distribution_source"] == "message" for d in found)

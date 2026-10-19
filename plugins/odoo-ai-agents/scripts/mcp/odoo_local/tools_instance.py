@@ -50,7 +50,8 @@ Build facts the TOOL applies (instance_build), never the agent:
                        server cannot change that server's set: when the running conf's set differs
                        from the adjusted one, the call is refused (SERVER_WIDE_NOT_APPLIED).
   languages            `--load-language=en_US[,...]` on every build (en_US always unioned), so every
-                       build proves en_US and job_wait can report languages_loaded.
+                       build proves en_US and job_wait can report languages_loaded (read from
+                       the database once the job finished; languages_source).
   demo                 `demo on|off`, required for op init, spelled from the checkout by
                        55-instance-ops.sh (_demo_args; both states stated explicitly, and the
                        operator's own Odoo config file is never read - the script hands odoo-bin
@@ -75,7 +76,8 @@ Build facts the TOOL applies (instance_build), never the agent:
                        runs on it, the database is a moment of that job. Only when it cannot be
                        read do the build records answer: every build that states demo records it on
                        the lease (`allocator.py record-build`, sticky), job_wait records the
-                       languages a finished build proved loaded, and the records of every lease on
+                       requested languages a finished build loaded (read from the database, the
+                       build log only when it cannot be read: _finished_state), and the records of every lease on
                        the same database are merged (tools_lease.database_built). facts_source
                        (handle) / diagnostics.facts_source (refusal) names who answered.
 
@@ -781,7 +783,8 @@ def _json_list(names):
 
 
 def _languages_verdict(state, modules_loaded, requested, seen):
-    """(languages_loaded, languages_failed) for a finished job; (None, None) while it runs. A
+    """The build LOG's answer - used only when the database cannot be read (_finished_state).
+    (languages_loaded, languages_failed) for a finished job; (None, None) while it runs. A
     language is loaded when the log shows Odoo loading its terms (an unknown code logs nothing and
     loads nothing, while the build still succeeds); en_US - whose terms Odoo never logs - when it
     was requested and the build's module loading finished (`modules_loaded`: the script's
@@ -795,26 +798,61 @@ def _languages_verdict(state, modules_loaded, requested, seen):
     return loaded, [lang for lang in requested if lang not in loaded]
 
 
-def _finished_handle(meta, cwd, loaded, log_path):
-    """Record the languages a finished build proved loaded onto its lease and return the lease's
-    INSTANCE_HANDLE; None when the lease is gone."""
+LANGUAGES_FROM_DATABASE = tools_lease.FACTS_FROM_DATABASE
+LANGUAGES_FROM_LOG = "log"
+
+
+def _finished_state(meta, cwd, log_path, requested, modules_loaded, log_seen):
+    """(instance_handle, languages_loaded, languages_failed, languages_source) for a FINISHED job.
+
+    The active languages are a fact of the DATABASE: read once from it (tools_lease.read_database:
+    res_lang.active) - so a language a test activated inside its own rolled-back transaction, which
+    the log shows loading, is never reported - with en_US first when active; failed = the requested
+    ones it does not hold; source "database". Only when the database cannot be read does the build
+    log answer (_languages_verdict), and then only for the REQUESTED languages; source "log". The
+    requested languages found active are recorded on the lease (record-build) and the handle is
+    built from the same read. Handle None when the job names no lease or the lease is gone."""
     token = meta.get("lease_token") or ""
-    if not token:
-        return None
-    if loaded:
+    row = None
+    if token:
         try:
-            record_build(token, cwd, languages=loaded)
+            row = tools_lease.read_row(token)
+        except ToolError:
+            row = None
+    db = tools_lease.read_database(row, cwd) if row is not None else None
+    if db is not None:
+        active = list(db.get("languages") or [])
+        if BASE_LANGUAGE in active:
+            active = [BASE_LANGUAGE] + [lang for lang in active if lang != BASE_LANGUAGE]
+        loaded, source = active, LANGUAGES_FROM_DATABASE
+        failed = [lang for lang in requested if lang not in active]
+        proved = [lang for lang in active if lang in requested]
+        facts = dict(db, source=tools_lease.FACTS_FROM_DATABASE)
+    else:
+        loaded, failed = _languages_verdict("finished", modules_loaded, requested,
+                                            [lang for lang in log_seen if lang in requested])
+        source = LANGUAGES_FROM_LOG if loaded is not None else None
+        proved = loaded or []
+        facts = None
+    if row is None:
+        return None, loaded, failed, source
+    if proved:
+        try:
+            record_build(token, cwd, languages=proved)
         except ToolError as exc:
             if exc.code != "LEASE_NOT_FOUND":
                 raise
-            return None
-    try:
-        row = tools_lease.read_row(token)
-    except ToolError:
-        return None
-    if row is None:
-        return None
-    return tools_lease.database_handle(row, log_path=log_path, cwd=cwd)
+            return None, loaded, failed, source
+    if facts is None:
+        # The database could not be read just now: the build records answer, without a second
+        # read of it in this call.
+        try:
+            row = tools_lease.read_row(token) or row
+        except ToolError:
+            pass
+        facts = tools_lease.database_facts(row, cwd=cwd, db=None)
+    return (tools_lease.database_handle(row, facts=facts, cwd=cwd, log_path=log_path),
+            loaded, failed, source)
 
 
 def _job_wait(args, ctx):
@@ -847,9 +885,11 @@ def _job_wait(args, ctx):
     finished = st["state"] != "running"
     seen, wide, no_demo = (_scan_build_log(log_path) if (finished and log_path and not exporting)
                            else ([], [], []))
-    loaded, failed = _languages_verdict(st["state"], summary.get("BUILD_MODULES_LOADED") == "1",
-                                        meta.get("languages") or [], seen)
-    handle = _finished_handle(meta, cwd, loaded, log_path) if finished else None
+    handle, loaded, failed, languages_source = None, None, None, None
+    if finished:
+        handle, loaded, failed, languages_source = _finished_state(
+            meta, cwd, log_path, meta.get("languages") or [],
+            summary.get("BUILD_MODULES_LOADED") == "1", seen)
     return {
         "job_id": job_id,
         "result": result,
@@ -870,6 +910,7 @@ def _job_wait(args, ctx):
         "demo": meta.get("demo") or None,
         "languages_loaded": loaded,
         "languages_failed": failed,
+        "languages_source": languages_source,
         "warnings": _build_warnings(wide, no_demo, meta, summary),
         "exports": _exports_from(output) if exporting else [],
         "instance_handle": handle,
@@ -1290,7 +1331,29 @@ JOB_WAIT_OUTPUT = _obj({
     "marker": {"type": "string"},
     "progress": {"type": "string"},
     "test_result": {"type": ["string", "null"]},
-    "summary": {"type": "object"},
+    "summary": {"type": "object",
+                "description": "The build script's own KEY=value summary lines (all values strings; "
+                               "a key the script did not print is absent).",
+                "properties": {
+                    "STATUS": {"type": "string",
+                               "description": "The build script's exit status: ok = it exited 0. "
+                                              "NOT the test verdict - for op test read "
+                                              "test_result."},
+                    "BUILD_MODULES_LOADED": {"type": "string",
+                                             "description": "\"1\" = the registry load completed: "
+                                                            "Odoo logged \"Modules loaded.\" or "
+                                                            "its test-failed alternative; \"0\" = "
+                                                            "it did not."},
+                    "TEST_DEPS_MISSING": {"type": "string",
+                                          "description": "op test: the packages the checkout's "
+                                                         "test framework imports optionally that "
+                                                         "the lease's venv lacks (comma-separated; "
+                                                         "empty = none)."},
+                    "TEST_DEPS_SKIPPED": {"type": "string",
+                                          "description": "op test: those of them whose skip "
+                                                         "message the log carries - their browser, "
+                                                         "tour and Hoot tests skipped."},
+                }},
     "log_path": {"type": ["string", "null"]},
     "output_path": {"type": ["string", "null"]},
     "log_tail": {"type": "array", "items": {"type": "string"}},
@@ -1305,14 +1368,21 @@ JOB_WAIT_OUTPUT = _obj({
                             "tool read); null = not stated (op update, or a job that is not a "
                             "build)."},
     "languages_loaded": {"type": ["array", "null"], "items": {"type": "string"},
-                         "description": "Languages the finished build proved active: a language "
-                                        "whose terms the log shows Odoo loading, and en_US once "
-                                        "the build's module loading finished - whatever a test "
-                                        "suite run after it reports (null while running)."},
+                         "description": "Once the job finished, the languages active in the "
+                                        "lease's database (en_US first), read from the database "
+                                        "itself; only when it cannot be read, the requested "
+                                        "languages the build log proves loaded (en_US once the "
+                                        "module loading finished, whatever a test suite run after "
+                                        "it reports). See languages_source. Null while running."},
     "languages_failed": {"type": ["array", "null"], "items": {"type": "string"},
-                         "description": "Requested languages the finished build did NOT prove "
-                                        "active - an unknown code, or a build that stopped before "
-                                        "its modules loaded (null while running)."},
+                         "description": "Requested languages that are not loaded - not active in "
+                                        "the database, or (log fallback) not proven by the log: an "
+                                        "unknown code, or a build that stopped before its modules "
+                                        "loaded. Null while running."},
+    "languages_source": {"type": ["string", "null"], "enum": ["database", "log", None],
+                         "description": "Who answered languages_loaded / languages_failed: the "
+                                        "database, or the build log when the database could not "
+                                        "be read. Null while running."},
     "warnings": {"type": "array", "items": {"type": "string"},
                  "description": "Problems a finished build logged without failing, each with its "
                                 "remedy; act on every one before trusting the instance."},
@@ -1323,8 +1393,8 @@ JOB_WAIT_OUTPUT = _obj({
                                        "null while running or when the lease is gone."},
 }, ["job_id", "result", "state", "exit_code", "op", "marker", "progress", "test_result", "summary",
     "log_path", "output_path", "log_tail", "output_tail", "detail", "server_wide_modules",
-    "server_wide_adjustment", "demo", "languages_loaded", "languages_failed", "warnings", "exports",
-    "instance_handle"])
+    "server_wide_adjustment", "demo", "languages_loaded", "languages_failed", "languages_source",
+    "warnings", "exports", "instance_handle"])
 
 
 def register(registry, ctx):
@@ -1456,11 +1526,14 @@ def register(registry, ctx):
         "end your turn waiting on a build without a tool call. The process exit code is "
         "authoritative; marker/progress come from the build script's own log reading, and progress "
         "changing between two waits shows the build is advancing. For op test read test_result and "
-        "summary (TEST_FAILED, TEST_ERROR, FINDINGS_PATH...). On failure read output_tail first (a "
+        "summary (TEST_FAILED, TEST_ERROR, FINDINGS_PATH...; summary.STATUS is the script's exit "
+        "status, not the test verdict). On failure read output_tail first (a "
         "refused preflight is reported there), then log_tail and log_path. Once the job finished: "
-        "languages_loaded / languages_failed say which requested languages the build proved active "
-        "(a failed one is an unknown code or a build that stopped before its modules loaded - never "
-        "report it as loaded; a test suite's own verdict does not change them); warnings "
+        "languages_loaded is the languages active in the database, read from it (languages_source "
+        "database; the build log answers for the requested languages only when the database cannot "
+        "be read), and languages_failed the requested ones not loaded (an unknown code or a build "
+        "that stopped before its modules loaded - never report it as loaded; a test suite's own "
+        "verdict does not change them); warnings "
         "lists problems the build logged without failing - e.g. a module Odoo says must be loaded "
         "server-wide, whose remedy is server_wide.include on a rebuild (this task) or a catalog "
         "change through /odoo-ai-agents:odoo-setup and a new lease (every build) - act on each "
