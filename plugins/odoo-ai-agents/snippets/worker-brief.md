@@ -1,14 +1,14 @@
 <!-- SSOT snippet. The single source for the dispatched-subagent worker brief: OSM
      grounding + worktree isolation. This is a worker brief, not a spawn guard - the
-     two rails it carries are "do the work directly" and "stay in your worktree".
+     two rails it carries are "do the work directly" and "no git, write only in WORKTREE_PATH".
      Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md so it has one home. -->
 
 # Worker Brief (OSM grounding + worktree isolation)
 
 A HARD-LEAF subagent dispatched into an isolated worktree carries this brief - `odoo-frontend-coder`,
 `odoo-test-writer`, `odoo-impact-recon` and the other leaf specialists. It keeps two rails:
-the work is done directly by the specialist, and ALL git stays out of the worker's hands -
-the worker writes files and returns them; the orchestrator commits via git-ops (see below). A hard
+the work is done directly by the specialist, and every git mutation stays out of the worker's
+hands - the worker writes files in its worktree and returns them; its launcher commits (below). A hard
 leaf launches NO sub-agent and invokes NO spawner skill.
 
 See also: the caller-side field schema (`OBJECTIVE`/`SCOPE`/`ACCEPTANCE`/... ) you were briefed
@@ -17,9 +17,7 @@ worker-side behavior once dispatched, not how the caller composed your brief.
 
 **Who this brief does NOT bind: any agent the registry declares `role: spawner`**
 (`generator/skill_tool_deps.json` -> `agents.<name>.role` is the SSOT - read the role, do not
-infer it from a name list here) **or `role: node-owner`** (`odoo-coder`). Today that is
-`odoo-coder` and `odoo-solution-architect`; a third promoted tomorrow is covered by the same
-sentence. Such an agent launches its own
+infer it from a name list here) **or `role: node-owner`** (`odoo-coder`). Such an agent launches its own
 children under `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` and the
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` cap, and takes its worker-side
 rails from its OWN agent body instead of the leaf rails above. `odoo-solution-architect` is
@@ -31,7 +29,7 @@ the recon it was not handed - per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-co
 via `Skill(odoo-instance)` inline, and - once the integrated test is green - COMMITS its node by
 invoking `git-toolkit:git-ops` via the Skill tool and returns the node's commit range to
 `odoo-coding`, which never re-commits (under `COMMIT: caller` it commits nothing and returns the
-file list). It NEVER authors the node's source itself: every source file is written by a teammate.
+file list).
 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
@@ -44,16 +42,18 @@ file list). It NEVER authors the node's source itself: every source file is writ
   call; call the setters once at Round 0 only, as the reachability probe, and never rely on the
   ambient pin afterward. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
   § OSM session-pin race.
-- **You do NOT run git - at all.** Not even git add / git commit / git stash in your own
-  worktree. Write and edit your files directly in your assigned worktree (`WORKTREE_PATH`), then
-  RETURN the list of files you touched to the orchestrator. Do NOT stage, commit, stash, branch,
-  checkout, switch, cherry-pick, merge, rebase, reset, tag, push, force-push, fetch, pull, or
-  add/remove worktrees. The orchestrator commits your output for you by invoking
-  `git-toolkit:git-ops`. You cannot launch agents and cannot delegate to git-toolkit yourself; just
-  return your files (or BLOCKED with the reason) and let the orchestrator handle every git step.
-  Full policy: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree.
-  A leaf never invokes git-ops even via the Skill tool - see
+- **You run no git mutation - in any form.** None of `add rm mv restore commit stash branch
+  checkout switch cherry-pick rebase merge reset revert tag push pull fetch am apply worktree
+  clean`, including `git -C <dir> <verb>`, a wrapper (`bash -c`, `$(...)`, a heredoc) and a script
+  that runs one. Read-only git (`status diff log show rev-parse blame ls-files`, `worktree list`)
+  is allowed. Return the list of files you touched (or BLOCKED with the reason); the node owner or
+  spawner that launched you commits them through `Skill(git-toolkit:git-ops)`. A leaf never
+  invokes git-ops, not even through the Skill tool. Full policy:
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+- **Write only inside your `WORKTREE_PATH`** (and `ISOLATE_DIR` for scratch). Resolve every path
+  you write against `WORKTREE_PATH`, never against your cwd or another worktree under
+  `<SHARE>/worktrees/`. A change another node's tree needs is reported upward (file + change) for
+  that node's owner.
 - **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
   Unlike git-ops, an instance-touching leaf (e.g. `odoo-qa-tester`) MAY invoke
   `Skill(odoo-instance)` to self-provision a live Odoo instance when handed NO `INSTANCE_HANDLE`,
