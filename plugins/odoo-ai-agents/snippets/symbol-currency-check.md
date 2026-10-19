@@ -99,7 +99,7 @@ Frontend JS/OWL/SCSS (pre-write, Tier-0) - `lookup_core_api` is NOT the JS autho
 | 1 | `module_inspect(name='web', method='owl', odoo_version='18.0')` (or `'qweb'`/`'js'`) | existing component/patch-chain existence |
 | 2 | `api_version_diff(symbol='web.Widget', from_version='16.0', to_version='18.0')` + `find_examples(query='OWL patch FormController', odoo_version='18.0')` | JS currency (the Python-only `lookup_core_api` returns not-found here); pivots §JavaScript/OWL for module header / `patch()` arity |
 | 3 | `resolve_stylesheet(module='web', odoo_version='18.0')` + `find_style_override(selector_or_variable='--primary', odoo_version='18.0')` | token currency (no invented `--bs-*`) |
-| 4 | `bash scripts/verify-frontend.sh <files>` (post-write) | eslint + OWL pitfall gate (already wired) |
+| 4 | `bash scripts/verify-frontend.sh --series <series> <files>` (post-write) | eslint + OWL pitfall, import-resolution and QWeb-inherit gates (already wired) |
 
 ## Test
 

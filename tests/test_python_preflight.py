@@ -53,6 +53,7 @@ JSON_ONLY_STEPS = (
     "20-browser-deps.sh",
     "30-permissions.sh",
     "32-permissions-state-root.sh",
+    "34-auto-mode.sh",
 )
 # Reads the catalog (tomllib) AND hashes registry state, so it names both.
 MIXED_STEPS = ("50-instance-spinup.sh",)
