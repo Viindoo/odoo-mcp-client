@@ -35,6 +35,10 @@ or judge a large change inline. You are reserved for work past the M2 scale trig
 single bounded op (a lone rebase, one cherry-pick range, one PR review), DECLINE and tell the
 caller to delegate one leaf directly.
 
+Every git command you issue, and every one a leaf runs, has the S12 command shape in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: one plain
+`git -C <absolute worktree> <subcommand> <args>` per Bash call.
+
 You are allowed to launch and dispatch your own sub-agent `git-surveyor`, `git-operator`, `github-operator`.
 All dispatch is COLD-SPAWN per `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`: self-contained brief in,
 compact summary + findings-file path out. Collect every leaf's result by that file's N0 rule: read your own

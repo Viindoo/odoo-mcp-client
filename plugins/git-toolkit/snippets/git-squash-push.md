@@ -77,13 +77,13 @@ All commits above `origin/<principal>` collapse into the index. The working tree
 ### 4 - Validate, then commit
 
 Run C6 (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`) on `<commit-msg>` FIRST; commit
-the validated-or-rewritten string, never the raw input.
+the validated-or-rewritten string, never the raw input. Write it to a message file (C5), then:
 
 ```bash
-git commit -s -m "<validated-commit-msg>"
+git commit -F <message-file>
 ```
 
-Then confirm the `Signed-off-by:` trailer landed (C4).
+When C4 requires sign-off, add `-s` and confirm the `Signed-off-by:` trailer landed.
 
 ### 5 - S6 tree-identity gate
 

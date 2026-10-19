@@ -76,15 +76,7 @@ Closes #1892
 Signed-off-by: Name <email@host>
 ```
 
-## Shell HEREDOC
+## Committing a multi-line message
 
-```bash
-git commit -s -m "$(cat <<'EOF'
-feat(scope): business-outcome subject
-
-Body explaining WHY. Wrap at 72.
-
-Closes #N
-EOF
-)"
-```
+Write the message to a file with the file tool, then `git commit -F <message-file>` - C5 in
+`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`.

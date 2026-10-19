@@ -58,19 +58,27 @@ Sign-off is a POST-condition, not an intention. After committing, confirm the `S
 trailer is present on the new commit (`git log -1 --format='%(trailers:key=Signed-off-by)'`). A
 commit created without it is not DONE - amend it before you report.
 
-## C5 - Multi-line commit from a shell
+## C5 - Multi-line commit message
 
-```bash
-git commit -s -m "$(cat <<'EOF'
+Write the message with the file tool into a file beside the findings file:
+
+```
 <type/tag>: business-outcome subject (<= 72 chars)
 
 Body paragraph: WHY this change, the business problem it solves.
 Wrap at 72 chars.
 
 Closes #N
-EOF
-)"
 ```
+
+Then commit from it in one plain call (S12 in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`), adding `-s` when C4 requires sign-off:
+
+```bash
+git commit -F <message-file>
+```
+
+A one-line message may go in with `-m "<subject>"` instead.
 
 ## C6 - Inbound validation (a supplied message is INPUT, never output)
 

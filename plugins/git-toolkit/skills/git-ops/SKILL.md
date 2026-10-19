@@ -22,7 +22,7 @@ clean and every mutation behind its backup/verify/confirm gate.
 ## Step 1 - classify the op
 
 Bucket the request into one of: READ (status/log/diff/blame/bisect-read), REVERSIBLE-WRITE
-(stage/commit/clone/init/stash, fetch/pull-rebase/merge/cherry-pick/branch/tag/worktree/non-force
+(stage/commit/clone/init, fetch/pull-rebase/merge/cherry-pick/branch/tag/worktree/non-force
 push/forward-port/backport/bisect-run), DESTRUCTIVE-REWRITE
 (rebase -i/squash/split/amend/reset/filter-repo/force-with-lease), or GITHUB
 (PR/issue/review/release/CI/fork). `bisect-read` (a completed session's `git bisect log`/`view`, no
