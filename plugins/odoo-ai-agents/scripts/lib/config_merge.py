@@ -41,6 +41,19 @@ Subcommands:
       invalid JSON (exit 2), idempotent no-op (no backup, no write) when
       nothing matches.
 
+  json-prune-tagged <settings.json> <dotted.array.path> <prefix> [--regex]
+      Remove every STRING entry of the array at <dotted.array.path> (for example
+      autoMode.allow or permissions.ask) that starts with <prefix> (with --regex:
+      that matches the regular expression <prefix> from its start). Never removes
+      the literal "$defaults" and never a non-string entry. Prune-only: adds
+      nothing; a missing path or an array with nothing to prune is a no-op
+      (exit 0, no backup). Backup before write, refuse invalid JSON (exit 2).
+
+  json-ensure-first <settings.json> <dotted.array.path> <value>
+      Make <value> the FIRST element of the array at <dotted.array.path>,
+      creating the path when absent and moving an existing occurrence to the
+      front. Same safety contract (backup, exit 2 on invalid JSON, idempotent).
+
   json-rule-covered <settings.json> <rule>
       Read-only (never writes, never backs up). Exit 0 if <rule> is ALREADY
       GRANTED by an existing permissions.allow[] entry - an exact duplicate,
@@ -952,6 +965,120 @@ def cmd_json_prune_allow(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommands: json-prune-tagged / json-ensure-first (dotted array paths)
+# ---------------------------------------------------------------------------
+
+def _array_parent(data: dict, dotted: str, create: bool):
+    """Return (container_dict, last_key) for a dotted path, or (None, None) when the path
+    is absent and create is False. Exits 2-style by returning (None, None) on a type clash."""
+    keys = [k for k in dotted.split(".") if k]
+    if not keys:
+        return None, None
+    node = data
+    for key in keys[:-1]:
+        nxt = node.get(key)
+        if nxt is None and create:
+            nxt = node[key] = {}
+        if not isinstance(nxt, dict):
+            return None, None
+        node = nxt
+    return node, keys[-1]
+
+
+def cmd_json_prune_tagged(args: list[str]) -> int:
+    """json-prune-tagged <settings.json> <dotted.array.path> <prefix> [--regex]
+
+    Remove every string entry of the array that starts with <prefix> (or matches it as a
+    regular expression from the start of the entry with --regex). The literal "$defaults"
+    and non-string entries are never removed. Prune-only; no-op (no backup) when nothing
+    matches or the path is absent; refuses invalid JSON (exit 2)."""
+    if not args or args[0] in ("-h", "--help"):
+        print(cmd_json_prune_tagged.__doc__)
+        return 0
+    use_regex = "--regex" in args
+    rest = [a for a in args if a != "--regex"]
+    if len(rest) != 3 or not rest[2]:
+        print("Usage: config_merge.py json-prune-tagged <settings.json> <dotted.array.path> <prefix> [--regex]",
+              file=sys.stderr)
+        return 1
+    settings_path, dotted, prefix = rest
+    matcher = None
+    if use_regex:
+        try:
+            matcher = re.compile(prefix)
+        except re.error as exc:
+            print(f"x invalid regex: {exc}", file=sys.stderr)
+            return 1
+
+    data = _load_json_target(settings_path)
+    if not isinstance(data, dict):
+        print(f"x {settings_path} is not a JSON object.", file=sys.stderr)
+        return 2
+    parent, key = _array_parent(data, dotted, create=False)
+    arr = parent.get(key) if parent is not None else None
+    if not isinstance(arr, list):
+        print("ok nothing to prune - no change.")
+        return 0
+
+    def _tagged(entry) -> bool:
+        if not isinstance(entry, str) or entry == "$defaults":
+            return False
+        return bool(matcher.match(entry)) if matcher is not None else entry.startswith(prefix)
+
+    kept = [e for e in arr if not _tagged(e)]
+    if kept == arr:
+        print("ok nothing to prune - no change.")
+        return 0
+    removed = [e for e in arr if _tagged(e)]
+    if os.path.exists(settings_path):
+        print(f"backup -> {_backup(settings_path)}")
+    parent[key] = kept
+    _write_json(settings_path, data)
+    print(f"ok pruned {len(removed)} entr{'y' if len(removed) == 1 else 'ies'} from {dotted} in {settings_path}.")
+    return 0
+
+
+def cmd_json_ensure_first(args: list[str]) -> int:
+    """json-ensure-first <settings.json> <dotted.array.path> <value>
+
+    Make <value> the first element of the array at the dotted path (created when absent;
+    an existing occurrence moves to the front). Backup before write; exit 2 on invalid JSON;
+    idempotent."""
+    if not args or args[0] in ("-h", "--help"):
+        print(cmd_json_ensure_first.__doc__)
+        return 0
+    if len(args) != 3:
+        print("Usage: config_merge.py json-ensure-first <settings.json> <dotted.array.path> <value>",
+              file=sys.stderr)
+        return 1
+    settings_path, dotted, value = args
+    data = _load_json_target(settings_path)
+    if not isinstance(data, dict):
+        print(f"x {settings_path} is not a JSON object.", file=sys.stderr)
+        return 2
+    parent, key = _array_parent(data, dotted, create=True)
+    if parent is None:
+        print(f"x {dotted} collides with a non-object value in {settings_path}.", file=sys.stderr)
+        return 2
+    arr = parent.get(key)
+    if arr is None:
+        arr = []
+    if not isinstance(arr, list):
+        print(f"x {dotted} is not an array in {settings_path}.", file=sys.stderr)
+        return 2
+    new = [value] + [e for e in arr if e != value]
+    if new == parent.get(key):
+        print(f"ok {value} already first in {dotted} - no change.")
+        return 0
+    if os.path.exists(settings_path):
+        print(f"backup -> {_backup(settings_path)}")
+    parent[key] = new
+    _write_json(settings_path, data)
+    print(f"ok {value} is first in {dotted} in {settings_path}.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: json-rule-covered
 # ---------------------------------------------------------------------------
 
@@ -1247,6 +1374,8 @@ SUBCOMMANDS = {
     "toml-upsert-instance-keys": cmd_toml_upsert_instance_keys,
     "json-ensure-allow": cmd_json_ensure_allow,
     "json-prune-allow": cmd_json_prune_allow,
+    "json-prune-tagged": cmd_json_prune_tagged,
+    "json-ensure-first": cmd_json_ensure_first,
     "json-rule-covered": cmd_json_rule_covered,
     "mcp-server-matches": cmd_mcp_server_matches,
     "mcp-server-set": cmd_mcp_server_set,
