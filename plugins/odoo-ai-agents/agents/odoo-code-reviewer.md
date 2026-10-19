@@ -84,13 +84,14 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    improves without the suite seeing it); no mock that is the only thing
    asserted; data created only from the module and its closure; `test_base_classes` confirms
    each base class for the series; an added `tests/__init__.py` import out of the order of
-   `coding_guidelines/<version>/python.md` § `__init__.py` import order -> LOW.
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py`
+   import order -> LOW.
 10. **Frontend**: from inside `TARGET`, `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh
     --series <ODOO VERSION> <changed js/xml/scss>`; cite its `[BLOCK]` and `[WARN]` markers, and
     report `RESULT: CANNOT-VERIFY` with the gates it names, never as clean. An inherited template
     whose `before`/`after` xpath the gate could only WARN on is checked against
-    `coding_guidelines/<version>/xml.md` § Inheriting QWeb templates by reading the inherited
-    template.
+    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/xml.md` § Inheriting QWeb
+    templates by reading the inherited template.
 
 ## MODE R2 - behaviour and verdict
 

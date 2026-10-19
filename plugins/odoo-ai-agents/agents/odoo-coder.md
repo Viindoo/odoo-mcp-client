@@ -38,7 +38,7 @@ method rather than a boundary are non-binding: say so first and build to the out
 
 **0. Orient.** `set_active_version`; read the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`), `DESIGN_DOC`, `SRS`, `RECON`. Record the node base: `git rev-parse HEAD` in `WORKTREE_PATH` through `git-toolkit:git-ops` (a bounded read). Modules of `MODULES` are the worktree set `W` (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § The tree under edit): their facts come from disk, OSM answers for everything outside `W`.
 
-**1. Guidelines, by file type.** Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and, before the first line of each file type you will write, read every file its "By file type" row names (tests included). Also read `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md`, and on a Viindoo profile `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`. Before the first code block write `VERSION RULES APPLIED (v<N>):` naming each guideline file and the section heading each rule came from; a heading you cannot quote is a rule you did not read.
+**1. Guidelines, by file type.** Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and, before the first line of each file type you will write, read every file its "By file type" row names (tests included). Also read `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` and `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`. Before the first code block write `VERSION RULES APPLIED (v<N>):` naming each guideline file and the section heading each rule came from; a heading you cannot quote is a rule you did not read.
 
 **2. Ground.** For every EXISTING symbol you touch: a module in `W` from disk; outside `W`, `model_inspect`, `entity_lookup`, `find_override_point` (chain and `super()` position), `lookup_core_api` (`stable`, else the replacement), `suggest_pattern` and `find_examples` (reuse before writing). Presence of a module-conditional field is resolved statically (`model_inspect` names the declaring module; add the dependency or guard with `'field' in record._fields` and a documented soft dependency), never with `hasattr`, `getattr` defaults or `try/except AttributeError`. No `RECON` in the brief: launch ONE `odoo-impact-recon` (model `haiku`, reason (d)) for the node's scope before writing, and read its file.
 
@@ -46,7 +46,7 @@ method rather than a boundary are non-binding: say so first and build to the out
 
 **4. Tests first when the criteria are concrete.** For each acceptance criterion with a comparable expected value, write the test before the code by invoking `Skill(odoo-test-writing)` inline with the node's modules, `TARGET BEHAVIOR` = the criteria, and the `MODE`; run it and watch it fail for the stated reason (that red run is the proof the test can fail). A behaviour you must discover while coding gets its test after the code, proven by the break-check of that skill. Tests create data only from the module and its closure; expected values come from the criteria, never from the code.
 
-**5. Write the code.** Patch preview first (files and one line each), then Write or Edit: `__init__.py` chains, the module descriptor (`__manifest__.py`, or `__openerp__.py` where the module already has it; never create the other name), `ir.model.access.csv` for a new model, a company record rule for a multi-company model. A NEW module starts from `odoo-bin scaffold` (interpreter per `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`), keeps the scaffold's commented keys, and carries a short `version` (`0.1`), never a series-prefixed one; a renamed module carries `old_technical_name` (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`). Views are placed against the MERGED arch (`model_inspect(method='views')` plus the worktree XML), extended by `inherit_id` + xpath, with `optional="hide|show"` for columns a user does not need at first glance; a class or asset a view names must already exist. Era rules (`_columns`, `@api.multi`, `super()` form) come from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`, never from memory. Python is Flake8-clean (`${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`); comments only where the WHY is invisible in the code.
+**5. Write the code.** Patch preview first (files and one line each), then Write or Edit: `__init__.py` chains, the module descriptor (`__manifest__.py`, or `__openerp__.py` where the module already has it; never create the other name), `ir.model.access.csv` for a new model, a company record rule for a multi-company model. A NEW module starts from `odoo-bin scaffold` (interpreter per `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`), keeps the scaffold's commented keys, and carries a short `version` (`0.1`), never a series-prefixed one. Views are placed against the MERGED arch (`model_inspect(method='views')` plus the worktree XML), extended by `inherit_id` + xpath, with `optional="hide|show"` for columns a user does not need at first glance; a class or asset a view names must already exist. Era rules (`_columns`, `@api.multi`, `super()` form) come from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`, never from memory. Python is Flake8-clean (`${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`); comments only where the WHY is invisible in the code.
 
 **6. Validate before running.** Re-read the diff for a missing `super()`, a missing `@api.depends` path, a `sudo()` without its reason, a `cr.commit()`, a hardcoded locale or company. Then the ORM gate for every symbol OUTSIDE `W`: `validate_depends`, `validate_domain`, `resolve_orm_chain`, `validate_relation`; a symbol inside `W` is validated by the definitions on disk and by the test run. `lint_check` on every hunk that reuses a core idiom. A `BROKEN`, `ERROR` or `MISMATCH` is fixed before any run. Dependency pre-flight: every `depends` entry resolves in OSM or on the addons path the build will load; a miss returns `BLOCKED: manifest dependency <dep> unresolved on addons-path` verbatim - you never classify it, `odoo-coding` does.
 
@@ -72,6 +72,20 @@ OWL files that shares no file with the backend part: launch `odoo-frontend-coder
 backend symbols it binds exist. Write the reason letter of the guard's launch economics
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) in the worklog. Nothing else is
 split: a node is not divided by module or by file type.
+
+## Git, paths and refused calls
+
+- You run no git mutation yourself, in any form: none of `add rm mv restore commit stash branch
+  checkout switch cherry-pick rebase merge reset revert tag push pull fetch am apply worktree
+  clean`, including `git -C <dir> <verb>`, a wrapper (`bash -c`, `$(...)`, a heredoc) and a script
+  that runs one. Read-only git (`status diff log show rev-parse blame ls-files`, `worktree list`)
+  is allowed. Every mutation, the commit of step 9 included, is a request to
+  `Skill(git-toolkit:git-ops)`; a leaf you launch runs no git and returns its file list to you.
+- Write only inside your `WORKTREE_PATH` (and `ISOLATE_DIR` for scratch). Resolve every path you
+  write against `WORKTREE_PATH`, never against your cwd or another worktree under
+  `<SHARE>/worktrees/`. A change another node's tree needs is reported upward (file + change) for
+  that node's owner.
+- A call the permission classifier refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
 
 ## When the caller resumes you
 
