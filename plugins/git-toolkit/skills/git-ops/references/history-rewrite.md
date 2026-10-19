@@ -1,8 +1,9 @@
 # History-rewrite recipes - deterministic, with backup + verify + confirm
 
 All recipes here are DESTRUCTIVE. Every one runs under
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: S1 backup + pre-op SHA FIRST, the 8-item
-human-confirm gate BEFORE execution, S6 tree-identity verify AFTER. Every command is one plain call
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: S1 backup + pre-op SHA FIRST, S6
+tree-identity verify AFTER; the operator decides them itself, and only a push that changes a
+protected branch waits for the human-confirm gate. Every command is one plain call
 in the shape of S12, which also settles every step that would open an editor.
 
 ## Pre-op (every recipe)
@@ -34,7 +35,7 @@ git commit -F <message-file>
 ## Split one commit into focused commits
 
 Rebuild the commit on a detached HEAD, then replay the commits above it onto the result. Commit
-messages per `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` (sign-off per C4):
+messages per `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` (sign-off only when C4 requires it):
 
 ```bash
 git switch --detach <sha>
@@ -60,7 +61,7 @@ Safe only on un-pushed commits (rewrites the SHA).
 ```bash
 git reset --soft  HEAD~<N>    # keep changes staged
 git reset --mixed HEAD~<N>    # keep changes unstaged (default)
-git reset --hard  <sha>       # DISCARD all changes - gated; backup first
+git reset --hard  <sha>       # DISCARD all changes - clean tree (S4) and backup first
 ```
 
 ## filter-repo (bulk rewrite - fresh clone only)

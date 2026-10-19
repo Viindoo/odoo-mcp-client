@@ -1,6 +1,6 @@
 <!-- SSOT snippet. The single home for commit-message formatting: the mandatory universal
-     business-subject rule, length limits, the convention-detection protocol, the DCO sign-off
-     post-condition, and the inbound-validation gate on any caller-supplied message. Points at the
+     business-subject rule, length limits, the convention-detection protocol, when sign-off is
+     required, and the inbound-validation gate on any caller-supplied message. Points at the
      two reference standards. Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md
      by every committing agent (git-operator, git-pipeline-lead, github-operator). Edit here only. -->
 
@@ -48,15 +48,30 @@ On detect, load the matching reference and format accordingly:
 - GENERAL -> `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/commit-convention-general.md`
 - ODOO -> `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/commit-convention-odoo.md`
 
-## C4 - Sign-off (DCO)
+## C4 - Sign-off only when the repo requires it
 
-When the repo requires sign-off (a `DCO` check, a `Signed-off-by` trailer in recent history, or a
-CONTRIBUTING note), append it with `git commit -s` - it adds `Signed-off-by:` from
-`git config user.name`/`user.email`. For an existing range, `git rebase --signoff <base>`.
+Sign off (`git commit -s`, which adds `Signed-off-by:` from `user.name`/`user.email`) only when
+the repo REQUIRES it, which is one of:
 
-Sign-off is a POST-condition, not an intention. After committing, confirm the `Signed-off-by:`
-trailer is present on the new commit (`git log -1 --format='%(trailers:key=Signed-off-by)'`). A
-commit created without it is not DONE - amend it before you report.
+1. a configured DCO check - `.github/dco.yml`, or a workflow under `.github/workflows/` that runs a
+   DCO / sign-off check;
+2. a stated requirement in `CONTRIBUTING*`, `README*`, the pull request template or `.gitmessage`;
+3. a brief that says sign-off is required.
+
+Detect it read-only, one command per call, and read every hit - a passing mention of DCO is not a
+requirement:
+
+```bash
+git ls-files -- .github/dco.yml
+git grep -n -E -e 'DCO' -e 'Developer Certificate of Origin' -e 'Signed-off-by' -e '--signoff' -- .github 'CONTRIBUTING*' 'README*' '.gitmessage'
+```
+
+`Signed-off-by` trailers in the history alone are a contributor's habit, not a requirement.
+
+When required, sign-off is a POST-condition, not an intention: after committing, confirm the
+`Signed-off-by:` trailer is present on the new commit
+(`git log -1 --format='%(trailers:key=Signed-off-by)'`); a commit created without it is not DONE -
+amend it before you report. When required for an existing range: `git rebase --signoff <base>`.
 
 ## C5 - Multi-line commit message
 
@@ -85,9 +100,12 @@ A one-line message may go in with `-m "<subject>"` instead.
 A caller may hand you a `commit-msg`. It is a proposal, not an instruction. Before any `git commit`:
 
 1. Detect the repo's convention (C3).
-2. Match the supplied subject against that standard's grammar.
+2. Match the supplied subject against that standard's grammar. A tag or type the detected
+   standard's table does not list, including a near spelling, is a mismatch: rewrite it to the
+   table's tag and report it.
 3. Match -> use it. Mismatch -> REWRITE the subject into the detected standard from the caller's
-   stated files + business outcome, and say in your report that you rewrote it and why.
+   stated files + business outcome, and report it in `message_rewritten:` beside
+   `commit_subject:`; never rewrite silently.
 4. Neither a conforming message NOR a business outcome to rewrite from -> STOP:
    `NEEDS_CONTEXT(business-outcome)`.
 

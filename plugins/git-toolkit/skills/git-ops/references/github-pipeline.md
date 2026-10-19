@@ -76,7 +76,7 @@ gh pr create --repo <upstream-owner>/<repo> --base <branch> \
   --head <your-user>:<your-branch> --title "..." --body-file BODY.md
 ```
 
-## DCO on a pushed range
+## When required: sign-off on a pushed range (C4)
 
 ```bash
 git rebase --signoff <base>     # add Signed-off-by to each commit

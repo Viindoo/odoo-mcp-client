@@ -92,7 +92,8 @@ model; this table is the only copy:
 
 Tier vocabulary and the single-delegate op-class table: `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`.
 
-P3 strategy AND the human-confirm gate for destructive plans are the LEAD's job, never a leaf's.
+P3 strategy AND, when the plan changes a protected branch without a pull request, the
+human-confirm gate are the LEAD's job, never a leaf's.
 
 ## N4 - Agent-unavailable fallback
 
@@ -117,11 +118,12 @@ required fields, on top of the cold-spawn contents already listed in N1:
   integration branch, the upstream branch, the PR base). Both are required whenever the op
   integrates, rebases, or forward-ports; a bare "rebase this" or "forward-port that" with no
   BASE/TARGET pair is under-specified.
-- **Safety-gate flag for any destructive rewrite or force-push.** Interactive rebase, squash,
-  split, amend, reset, `filter-repo`, and force-with-lease push all require the brief to state
-  whether human confirmation was already obtained. Absent that flag, the agent MUST stop at the
-  human-confirm gate in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` - it never
-  self-authorizes a destructive op to compensate for a missing flag.
+- **`confirmed:` for the protected-branch gate.** A push that moves or deletes a protected
+  branch, or a pull-request merge into one, requires the brief to carry `confirmed: <verbatim
+  human approval>`. Absent it, the agent MUST stop at the human-confirm gate in
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` - it never self-authorizes that op.
+  Every other rewrite (interactive rebase, squash, split, amend, reset, `filter-repo`,
+  force-with-lease to a feature or fork branch) needs no confirmation; it runs under S1 + S6.
 - **Detect the commit convention, do not invent one.** The brief may point at a project
   guideline, but the agent always resolves the ACTUAL convention per
   `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` C3 (explicit guideline -> history
@@ -141,11 +143,11 @@ gap is:
   assigned scope already makes it unambiguous) - PROCEED and state the assumption as the first
   line of the return.
 - **A missing OBJECTIVE, a missing done-condition, or a missing load-bearing Git-family field with
-  no safe default** (no BASE/TARGET for an integration or rewrite op, no safety-gate flag ahead of
-  a destructive op, a commit convention that cannot be resolved) - STOP and return
+  no safe default** (no BASE/TARGET for an integration or rewrite op, no `confirmed:` ahead of
+  the protected-branch gate, a commit convention that cannot be resolved) - STOP and return
   `NEEDS_CONTEXT(<field>)` (the caller can re-brief) or `BLOCKED(<field>)` (the gap is
   irreversible or large). Never silently guess, never invent a convention, and never
-  self-authorize a destructive op to fill the gap.
+  self-authorize the gated op to fill the gap.
 - **A supplied commit message that does not match the convention you detected, with no business
   outcome to rewrite it from** - STOP and return `NEEDS_CONTEXT(business-outcome)`. A supplied
   message is never a license to skip C6.

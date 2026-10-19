@@ -32,15 +32,16 @@ git diff -- <cluster-path>       # scoped content - safe, bounded to the cluster
 Each returns: conflict likelihood, risk, business intent of the cluster's change. Writes
 `survey/eval-<cluster>.md`. The lead collects verdicts; never re-reads the per-cluster diffs.
 
-## P3 - STRATEGY + HUMAN-CONFIRM (lead)
+## P3 - STRATEGY (lead)
 
 The lead synthesizes one safe execution plan: sequencing across clusters, conflict strategy,
 worktree isolation, backup points, and the commit convention to use (detect once, pass to every
 operator). Write `plan.md`.
 
-Then the HUMAN-CONFIRM gate for any destructive step (the 8-item list in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`): present the plan + what is irreversible,
-STOP, wait for explicit confirmation. This gate is the LEAD's, never a leaf's.
+When P4 would push to a protected branch without a pull request (the human-confirm gate in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`) and the lead's brief carries no
+`confirmed:`, present the plan + what changes on the remote, STOP, wait for explicit confirmation.
+This gate is the LEAD's, never a leaf's. Every other step runs under S1 + S6 without a human.
 
 ## P4 - EXECUTE (git-operator, per cluster)
 

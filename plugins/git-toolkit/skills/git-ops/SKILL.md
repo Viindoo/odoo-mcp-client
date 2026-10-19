@@ -17,7 +17,7 @@ it. Do NOT run rebases, merges, cherry-picks, resets, pushes, PR creates/merges,
 diff/PR body yourself in this context - a worker does that in its own context and returns a compact
 result. The ONE exception is a genuinely bounded, low-risk read on the INLINE allowlist below; when
 in doubt whether an op qualifies, it does not - delegate it. This is what keeps the caller's context
-clean and every mutation behind its backup/verify/confirm gate.
+clean and every mutation behind its backup and verify.
 
 ## Step 1 - classify the op
 
@@ -50,8 +50,8 @@ OUTPUT SIZE and RISK (never step count):
    cold-spawn `git-pipeline-lead`. The CALLER decides the lead's tier before launch from
    `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` row 1: pass it as the launch `model` AND as the first line
    `DISPATCH MODEL: <tier>` of the brief. It runs P1 map -> P2 evaluate -> P3 strategy +
-   HUMAN-CONFIRM -> P4 execute -> P5 verify below the caller, and returns only the final result.
-   P3 strategy and the human-confirm gate are the LEAD's job, not the surveyor's.
+   the protected-branch gate when it applies -> P4 execute -> P5 verify below the caller, and
+   returns only the final result. P3 strategy and that gate are the LEAD's job, not the surveyor's.
 
 Collect the worker's result by the N0 rule in `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 This skill runs in whatever context invoked it - the main conversation or a dispatched agent - so
@@ -70,9 +70,10 @@ dispatching; the worker never chooses a location (S9 in the safety contract).
 ## Step 3 - apply the safety contract to anything destructive
 
 Every destructive op carries the full safety contract in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` (S1-S8 + 8-item human-confirm gate),
-regardless of mode. A destructive op reaches a worker only WITH the human confirmation in its
-brief; otherwise STOP at the gate.
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` (backup, verify, command shape), regardless
+of mode, and the worker decides it itself. The one human gate is a change to a protected branch
+without a pull request (a direct push to or deletion of it, or merging a PR into it): that op
+reaches a worker only WITH the human confirmation in its brief; otherwise STOP at the gate.
 
 ## Step 4 - scale discipline
 
@@ -90,9 +91,10 @@ GitHub ops use `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: the
 
 Any commit this skill's workers create follows
 `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`: detect the repo's convention, state the
-BUSINESS outcome in the subject (WHAT/WHY not HOW), keep 50/72 limits, sign off (`-s`) when DCO is
-required. A caller-supplied commit message is input to validate against the detected convention
-(C6), never output to pass through unchanged.
+BUSINESS outcome in the subject (WHAT/WHY not HOW), keep 50/72 limits, sign off (`-s`) only when
+C4 finds the repo requires it. A caller-supplied commit message is input to validate against the
+detected convention (C6), never output to pass through unchanged; relay the worker's
+`commit_subject:` and `message_rewritten:` to the caller.
 
 ## Out of scope - route elsewhere
 
@@ -110,7 +112,7 @@ not separately-triggered skills:
 - `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/large-change-pipeline.md` - the P1-P5 phased
   recipe with per-phase model + dispatch briefs.
 - `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/history-rewrite.md` - rebase-i/squash/split/
-  amend/reset/filter-repo recipes with backup + verify + human-confirm.
+  amend/reset/filter-repo recipes with backup + verify.
 - `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/conflict-resolution.md` - merge/rebase/
   cherry-pick conflict strategy, rerere, abort flows.
 - `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/github-pipeline.md` - PR review / issue triage /

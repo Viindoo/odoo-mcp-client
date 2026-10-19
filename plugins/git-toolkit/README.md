@@ -17,15 +17,17 @@ monorepo, but domain-agnostic: it has no Odoo dependency.
   - **INLINE** - bounded, low-risk reads (`git status`, `git log -n`) run directly.
   - **SINGLE-DELEGATE** - one medium op cold-spawns one leaf agent.
   - **PHASED-PIPELINE** - a large change (>500 files / >10k LOC / multi-commit rewrite) cold-spawns
-    `git-pipeline-lead`, which runs map -> evaluate -> strategy + human-confirm -> execute -> verify
-    below the caller.
-- **Never loses code** - destructive ops back up first, verify tree-identity after, and stop at a
-  human-confirm gate before running.
+    `git-pipeline-lead`, which runs map -> evaluate -> strategy -> execute -> verify below the
+    caller.
+- **Never loses code** - destructive ops back up first and verify tree-identity after. A human
+  confirms only one op: changing a protected branch without a pull request.
+- **One plain command per call** - every git call is `git -C <worktree> <subcommand> <args>`, and
+  a dirty tree stops the op instead of being stashed.
 - **Scales** - never reads a huge diff whole; clusters by module and delegates per cluster; supports
   sparse-checkout / partial-clone / LFS.
 - **MCP-first GitHub** - prefers the GitHub MCP tools, falls back to the `gh` CLI.
 - **Convention-aware commits** - detects the repo's commit convention and writes business-outcome
-  subjects, with DCO sign-off when required.
+  subjects, signs off only when the repo requires it, and reports every subject it rewrote.
 
 ## Agents
 

@@ -55,7 +55,7 @@ the full body or diff:
 
 - **PR digest** (via `pull_request_read`): number, title, author, state (open/merged/draft),
   base <- head branch, CI/checks state, files-changed count, +/- line totals, review state,
-  1-2 line summary. This CI/checks read is informational here; the merge-to-main/master path in
+  1-2 line summary. This CI/checks read is informational here; the protected-branch merge path in
   `## Process` below reuses the SAME read as a HARD precondition, not merely informational.
 - **Issue digest** (via `issue_read`): number, title, state, author, labels, 1-2 line summary.
 
@@ -91,23 +91,22 @@ silently collapse to one flat comment.
 
 When you create a commit (e.g. `create_or_update_file`, `push_files`), a PR title, or a PR body,
 follow `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`: detect the repo's convention, apply
-the universal business-subject rule (WHAT/WHY not HOW), honor the 50/72 limits, and add DCO
-sign-off when required. A PR title obeys the same subject rule and ceiling.
+the universal business-subject rule (WHAT/WHY not HOW), honor the 50/72 limits, and sign off only
+when C4 finds the repo requires it. A PR title obeys the same subject rule and ceiling, and a
+supplied commit message or PR title is validated by C6; report the result in `commit_subject:` and
+`message_rewritten:`.
 
 ## Brief self-check
 
 (run before any work) Confirm the brief carries an OBJECTIVE, a done-condition, and - whenever the
 op integrates or changes state (merge, branch create, file write/delete, release) - the base and
-target refs/branches involved and, for any irreversible action (merge, delete, a force-push
-equivalent), the safety-gate flag confirming human confirmation was already obtained (see the
-destructive human-confirm gate - the 8-item list - in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`; `git-nesting-protocol.md` N5 is scoped
-ONLY to LOCAL history-rewrite ops - rebase/squash/split/amend/reset/filter-repo/force-with-lease -
-and is NOT the source for this gate). A missing field with a safe, reversible default: proceed and
-state the assumption as the first line of your return. A missing OBJECTIVE, a missing
-done-condition, or a missing load-bearing field with no safe default: stop and return
-`NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess, and never self-authorize an
-irreversible GitHub action to fill the gap.
+target refs/branches involved and, for an op that changes a protected branch without a pull
+request (merging a PR into it, deleting it, or writing files straight onto it), the `confirmed:`
+field (the protected-branch gate in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`). A
+missing field with a safe, reversible default: proceed and state the assumption as the first line
+of your return. A missing OBJECTIVE, a missing done-condition, or a missing load-bearing field
+with no safe default: stop and return `NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never
+guess, and never self-authorize the gated op to fill the gap.
 
 Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
@@ -115,14 +114,14 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
 1. Read the brief: the op, the repo (owner/name), the PR/issue number or branch/range, write vs
    read.
-2. **Merge-to-main/master precondition (HARD, non-negotiable - runs BEFORE step 3 for a `pr-merge`
-   op whose base is `main` or `master`).** Read the PR's checks via `pull_request_read` (or `gh pr
-   checks` on fallback). If ANY required check is not green (failing, pending, or unknown), REFUSE
-   the merge and return `BLOCKED`, citing gate item 8 ("merge to `main`/`master` without CI green")
-   in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`. A generic `confirmed: yes` in the
-   brief does NOT override a red/pending CI state - CI-green and human confirmation are TWO
-   SEPARATE hard preconditions and both must hold before `merge_pull_request` (or `gh pr merge`)
-   runs. This step does not apply to a non-`main`/`master` base branch merge.
+2. **Protected-branch merge preconditions (HARD - run BEFORE step 3 for a `pr-merge` op whose base
+   is a protected branch, as the gate in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`
+   defines it).** Read the PR's checks via `pull_request_read` (or `gh pr checks` on fallback). If
+   ANY required check is not green (failing, pending, or unknown), REFUSE the merge and return
+   `BLOCKED`. A `confirmed:` in the brief does NOT override a red/pending CI state - CI-green and
+   human confirmation are TWO SEPARATE hard preconditions and both must hold before
+   `merge_pull_request` (or `gh pr merge`) runs. A merge into a branch that is not protected needs
+   neither.
 3. Resolve via MCP first; on error/unavailability, fall back to `gh`.
 4. For unbounded reads (a PR body, file contents, a full diff), summarize - do not echo the whole
    payload back; write detail to a findings file.
@@ -138,6 +137,8 @@ op: <pr-create | pr-review | pr-merge | issue-triage | release | search | ci | f
 status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
 interface: <mcp | gh-fallback>
 result_ref: <PR URL / issue # / release tag / n/a>
+commit_subject: <final subject of each commit created, in order, and the PR title | n/a>
+message_rewritten: <original subject> -> <final subject> (<reason>) | no | n/a
 findings_file: <absolute path or n/a>
 summary: <one line>
 ```

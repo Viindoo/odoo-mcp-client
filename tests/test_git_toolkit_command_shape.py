@@ -276,3 +276,64 @@ def test_no_recipe_hard_codes_a_sign_off():
 @pytest.mark.parametrize("agent", sorted(AGENTS_DIR.glob("*.md")), ids=lambda p: p.stem)
 def test_every_toolkit_agent_cites_the_command_shape(agent):
     assert "S12" in agent.read_text(encoding="utf-8"), f"{agent.name} does not cite S12"
+
+
+# ---------------------------------------------------------------------------
+# One human gate; reported commit-message rewrites
+# ---------------------------------------------------------------------------
+
+CONSUMER_DELEGATION = REPO_ROOT / "plugins" / "odoo-ai-agents" / "snippets" / "git-delegation.md"
+COMMIT_CONVENTION = TOOLKIT / "snippets" / "commit-convention.md"
+RESULT_FIELDS = ("commit_subject:", "message_rewritten:")
+
+
+def _gate_section() -> str:
+    text = SAFETY_CONTRACT.read_text(encoding="utf-8")
+    headings = [h for h in re.findall(r"^## .*$", text, re.M) if "human-confirm gate" in h.lower()]
+    assert len(headings) == 1, f"expected one human-confirm gate section, found {headings}"
+    return text.split(headings[0], 1)[1].split("### ", 1)[0]
+
+
+def test_the_human_confirm_gate_lists_exactly_one_op_class():
+    items = re.findall(r"^\d+\.\s+(.*(?:\n[ \t]+\S.*)*)", _gate_section(), re.M)
+    assert len(items) == 1, f"the gate must list one op class, found {len(items)}: {items}"
+    item = " ".join(items[0].split())
+    assert "protected branch" in item and "pull request" in item
+
+
+def test_rewrites_outside_protected_branches_are_self_decided():
+    body = _gate_section()
+    for op in ("force-with-lease to a feature or fork branch", "`branch -D`", "`reset --hard`",
+               "filter-repo"):
+        assert op in body, f"{op} must be named as self-decided"
+    assert "never STOP to wait for a" in body
+
+
+def test_no_citer_still_names_the_old_multi_item_gate():
+    paths = _toolkit_markdown() + [CONSUMER_DELEGATION]
+    offenders = [
+        str(p.relative_to(REPO_ROOT)) for p in paths if "8-item" in p.read_text(encoding="utf-8")
+    ]
+    assert not offenders, "stale multi-item gate citation in: " + ", ".join(offenders)
+
+
+@pytest.mark.parametrize("agent", ["git-operator", "github-operator", "git-pipeline-lead"])
+def test_a_committing_agent_reports_the_final_subject_and_any_rewrite(agent):
+    text = (AGENTS_DIR / f"{agent}.md").read_text(encoding="utf-8")
+    block = text.split("## Output format", 1)[1].split("```", 2)[1]
+    for field in RESULT_FIELDS:
+        assert field in block, f"{agent} result block lacks {field}"
+
+
+def test_inbound_validation_reports_a_rewrite_in_both_fields():
+    text = COMMIT_CONVENTION.read_text(encoding="utf-8")
+    c6 = text.split("## C6", 1)[1]
+    for field in RESULT_FIELDS:
+        assert f"`{field[:-1]}" in c6 or f"`{field}" in c6, f"C6 does not name {field}"
+    assert "never rewrite silently" in c6
+
+
+def test_sign_off_is_conditional_on_a_repo_requirement():
+    c4 = COMMIT_CONVENTION.read_text(encoding="utf-8").split("## C4", 1)[1].split("## C5", 1)[0]
+    assert "only when" in c4 and "REQUIRES" in c4
+    assert "habit, not a requirement" in c4

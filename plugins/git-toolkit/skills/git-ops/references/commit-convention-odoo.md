@@ -3,7 +3,7 @@
 Loaded by `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` when detection resolves to ODOO
 (history shows `[TAG] module:` subjects, or the repo has `__manifest__.py` files). The universal
 business-subject rule and the 50/72 limits in that snippet ALWAYS apply on top of this. Source:
-odoo.com git guidelines (consistent across v16-v19).
+odoo.com git guidelines.
 
 ## Subject format (mandatory)
 
@@ -12,7 +12,7 @@ odoo.com git guidelines (consistent across v16-v19).
 ```
 
 - Square-bracket TAG, no space inside the brackets.
-- `module` = technical name (`sale`, `account`, `viin_fleet`), NOT a functional label.
+- `module` = technical name (`sale`, `account`, `fleet`), NOT a functional label.
 - Colon + single space after the module.
 - Description forms a valid sentence completing "if applied, this commit will <description>".
   Sentence case; no trailing period; subject <= 50 ideal, 72 hard ceiling.
@@ -82,9 +82,3 @@ calling pricelist._check_validity() for each before confirming.
 ```
 
 Bad: the body describes HOW (method, iteration) not WHY (the business harm prevented).
-
-## Viindoo note
-
-Viindoo follows standard Odoo conventions; module names use Odoo technical naming (`viin_account`,
-`viin_fleet`). `[MERGE]` is the canonical forward-port tag (not `[FW]`). Manifest `version` is the
-SHORT `x.y.z` form, no series prefix.

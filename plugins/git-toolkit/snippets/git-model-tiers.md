@@ -21,7 +21,7 @@ git-toolkit does NOT author application code, so the `fable` tier is not used he
 | `sonnet` | Destructive rewrite (interactive rebase, squash, split, amend, reset, filter-repo, force-with-lease push); conflict resolution; a PR review that judges correctness; the no-loss verify that gates an irreversible step. |
 | `opus` | ONLY the pipeline lead's strategy synthesis (P3) for a port across major versions, or after a sonnet lead returned BLOCKED at P3. |
 
-The safety contract (backup, tree-identity, human-confirm) is unchanged at every tier.
+The safety contract (backup, tree-identity, the protected-branch gate) is unchanged at every tier.
 
 ## Single-delegate op-class -> tier map
 
