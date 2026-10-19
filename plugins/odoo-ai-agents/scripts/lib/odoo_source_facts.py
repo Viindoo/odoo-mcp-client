@@ -118,7 +118,7 @@ Public API (stable - other scripts import it):
       "The module `m` should be loaded in server wide mode using `--load` ...".
       Sorted, deduplicated.
 
-  test_optional_imports(odoo_root) -> list[dict] | None
+  optional_test_imports(odoo_root) -> list[dict] | None
       The Python packages Odoo's own test framework imports OPTIONALLY: each
       column-0 block of `<core package>/tests/common.py` of the shape
           try:
@@ -192,13 +192,13 @@ __all__ = [
     "locate_odoo_root",
     "module_dirs",
     "module_search_dirs",
+    "optional_test_imports",
     "python_recommendation",
     "python_support",
     "second_port_key",
     "self_declared_server_wide",
     "server_wide_warning_modules",
     "short_options",
-    "test_optional_imports",
 ]
 
 # The core package directory is `openerp/` on the oldest series and `odoo/`
@@ -899,7 +899,7 @@ def _not_installed_message(lines, bound):
     return None
 
 
-def test_optional_imports(odoo_root) -> list[dict] | None:
+def optional_test_imports(odoo_root) -> list[dict] | None:
     """The packages the checkout's test framework imports optionally (see the module docstring),
     in file order; [] when there is none, None when no tests/common.py is readable."""
     if not odoo_root:
@@ -1053,7 +1053,7 @@ def main(argv) -> int:
     if cmd == "test-deps":
         if len(args) != 1:
             return _usage()
-        deps = test_optional_imports(args[0])
+        deps = optional_test_imports(args[0])
         if deps is None:
             sys.stderr.write("no readable odoo/tests/common.py (openerp/tests/common.py on the "
                              "oldest series) under %s\n" % args[0])
