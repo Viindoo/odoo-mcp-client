@@ -95,7 +95,9 @@ In the run's `notes`: the **tags used and their provenance** (caller-supplied / 
 under a named exemption); **modules actually loaded** and **tests actually run**, read from THIS
 run's log (`unknown` when it carries no figure - never estimated); and any failing test whose module
 is outside `M`, named as out of scope so a pre-existing failure routes separately. The verdict never
-softens: out-of-scope still fails, still blocks.
+softens: out-of-scope still fails, still blocks. A lint FINDING about code outside the PR's modules
+is handled by `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Scope the gate to the PR's
+modules.
 
 Those figures expose a scope that did not hold - tags meant to bound the run to two modules beside a
 log reporting thousands of tests.

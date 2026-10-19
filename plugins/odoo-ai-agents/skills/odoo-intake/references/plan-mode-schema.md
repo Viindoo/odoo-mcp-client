@@ -175,6 +175,7 @@ runs before the PR; merge is the only human gate of the tail.
   agent: odoo-qa-tester
   mode: A1A2
   model: haiku
+  # model sonnet when a Given needs a fixture built (concurrency-guard.md, Model-tier selection)
   depends_on: [<last verify>]
   when: the diff touches a view, menu, report, controller, JS file, or a state change of a model with a workflow
   # A4 (mode A4, model sonnet) follows when audience is not n/a and the diff adds or changes a screen

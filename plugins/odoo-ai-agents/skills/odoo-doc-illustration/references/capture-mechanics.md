@@ -100,9 +100,10 @@ started, and installed the module (as a cumulative delta) on that instance and o
 - After all writes, report every file path so the skill can verify, commit and install the next
   module delta. Never install the next module yourself.
 
-When `INSTANCE_HANDLE` is absent (standalone dispatch), confirm the module is installed first:
-`search_records` on `ir.module.module` with `[['name','=','<module>'],['state','=','installed']]`;
-if empty, stop `BLOCKED` and route to `odoo-instance` (`operation: install-module`).
+When `INSTANCE_HANDLE` is absent (standalone dispatch), confirm on the instance you capture from
+before anything else: `instance_status` says it is up and where, and the Apps screen of that
+instance, opened through the browser MCP and filtered to `<module>`, shows it installed. Not
+installed -> stop `BLOCKED` and route to `odoo-instance` (`operation: install-module`).
 
 ## 5. Auth
 
@@ -240,8 +241,9 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
        `browser_select_option` / `browser_wait_for`.
   3. Frame for the step's slot (section 7), on-theme check, then `take_screenshot` (chrome-devtools
      default) to the section-3 staging path.
-  4. Optional state-assert: confirm the step produced the expected record/state via the live Odoo MCP
-     (`mcp__odoo__read_record` / `search_records` / `execute_method`) before driving the next step.
+  4. Optional state-assert: confirm the step produced the expected record/state on the leased
+     instance itself - the record's form or list view in the browser MCP - before driving the next
+     step.
   Each step's still is staged under its section-3 name. This is the gap vs `odoo-demo-recording` (one continuous
   video) and `odoo-qa-tester` (drives to a PASS/FAIL verdict) - here you shoot a still per step.
 

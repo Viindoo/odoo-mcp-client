@@ -85,9 +85,8 @@ ad-hoc human test run is NEVER the run's ONE designated pre-PR lint gate, so thi
 risks silently reinstating the lint-class gate the pre-PR tail owns. Only forward
 `GATE_ROLE: pre-pr-lint-gate` when the caller explicitly identifies itself as that ONE gate - never
 inferred from module count, phrasing, or any other proxy. This resolution happens HERE so the
-dispatched `odoo-instance-ops` agent always receives a resolved `GATE_ROLE` and never has to guess
-on this skill's behalf (its own contract refuses with `NEEDS_CONTEXT` if it ever does see one
-missing).
+dispatched `odoo-instance-ops` agent always receives a resolved `GATE_ROLE` (an absent one it
+treats per its own § Lint modules HARD RULE).
 
 **Log verbosity default.** Every build (`create` / `init` / `update` / `run-tests`) runs at
 `--log-level=info` - Odoo's stock default, and the lowest level at which a PASSING run still emits
@@ -146,8 +145,9 @@ DATA-DRIVEN union:
   (every node verification run and every leaf self-provision), the agent does NOT probe, install, or
   tag any of them - a lint-class violation in that dispatch's own module is caught
   ONLY at the run's designated pre-PR gate, never as a per-node `tests-failed` blocker. A
-  `run-tests`/test-enable dispatch reaching the agent with `GATE_ROLE` still unresolved refuses with
-  `NEEDS_CONTEXT` rather than guess either way. Full contract: owned by `odoo-instance-ops`'s own
+  `run-tests`/test-enable dispatch reaching the agent with `GATE_ROLE` still unresolved runs as
+  `node-verify` with the assumption stated, unless it names a lint-class module (then
+  `NEEDS_CONTEXT`). Full contract: owned by `odoo-instance-ops`'s own
   "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" and
   `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
   Installing and tagging them is not proof their checkers ran: a clean counter set on a

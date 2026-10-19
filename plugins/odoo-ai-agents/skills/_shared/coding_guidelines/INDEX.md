@@ -64,7 +64,7 @@ The JS Tier-1 gate is tri-state: `RESULT: PASS` (exit 0) means eslint ran clean;
 (exit 1) means eslint found errors; `RESULT: CANNOT-VERIFY` (exit 2) means eslint did NOT run -
 exit 2 is NOT a pass, and the agent MUST NOT declare done on it. Read the printed cause rather
 than assuming the toolchain: an unresolved target Odoo series is a common one, and its remedy is
-`ODOO_SERIES=<series>`, not `npm install`. Every run prints a per-tier gate ledger in its
+`verify-frontend.sh --series <X.Y>` (or `ODOO_SERIES=<series>`), not `npm install`. Every run prints a per-tier gate ledger in its
 Summary - check it before quoting any single tier's clean line as the run's verdict. Both gates catch only the mechanical subset; the semantic rules (attribute ordering, naming
 intent, structure, secure-coding patterns) are the responsibility of the agent reading these
 files up front.

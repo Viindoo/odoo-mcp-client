@@ -43,8 +43,8 @@ radius do not move a tier.
 
 | tier | pick when the work is |
 |------|-----------------------|
-| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance modes `A1`, `A2`; comparing observed values with stated expected values |
-| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning |
+| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance mode `A1A2` when no Given needs a fixture built; comparing observed values with stated expected values |
+| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; acceptance `A1A2` when a Given needs a fixture built (a multi-company database, a stubbed external service, device emulation, an upgrade database); debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning |
 | **opus** | design (SRS and design session); any unit whose `business_function` is on the specialist list in `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`; a node that meets 5.2; review `R3`; the one retry a tier up after an evidenced sonnet failure |
 | **fable** | a design that changes an inheritance axis across two or more modules; never a default; always explicit human confirmation |
 
