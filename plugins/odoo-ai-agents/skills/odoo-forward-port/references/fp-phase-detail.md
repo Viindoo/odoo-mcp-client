@@ -235,7 +235,7 @@ inputs:
     # for the architect to accept or reject. Today exactly one producer: the P7 view-topology
     # `VIEW-TOPOLOGY | ... | action: merge-into-base | ...` finding line (see P7 below).
     # `[]` when there is none - the key is ALWAYS present, never omitted.
-    # A `NEEDS-HUMAN` view-topology line NEVER travels here: it goes to the P10 human gate.
+    # A `NEEDS-HUMAN` view-topology line NEVER travels here: it is presented at the P12 human gate.
 ```
 
 **Routing a proposal when no commit routes to P3.** A `merge-into-base` line can be raised on a
@@ -465,7 +465,7 @@ alias-preserving module fold at target that leaves the old base `xml_id` still r
 finds nothing broken and P2 classifies bucket-(b) instead of (c) even though the resulting view
 shape is identical to the canonical bucket-(c) defect) - at the same 8b adapt point those legs
 already pass through) but IDENTICAL in SHAPE
-(a finding line triaged into `merge-log.md`, confirmed before the gate). Buckets (a)/(d) land no
+(a finding line triaged into `merge-log.md`, confirmed before P10 commits). Buckets (a)/(d) land no
 new adapt content (Hard rule 7) and stay out of scope - only (b) and (c) can produce this shape.
 A HIT is a PROPOSAL only: the merge-and-delete outcome routes out through the P3 design gate to
 `odoo-solution-design` and is applied solely when the returned `design_doc` adopts it.
@@ -569,8 +569,8 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT above was
   built from; substitute it, never re-resolve from a worktree cwd>
 WORKLOG: <slug> - read, then append.
-CONSTRAINTS: C1 keep the TARGET version on a descriptor conflict, never bump; C2 retarget a
-  forwarded migrations dir; C3 carry pre-existing source bugs faithfully, never inline-fix -
+CONSTRAINTS: C1 keep the TARGET version on a descriptor conflict, never bump; C2 retarget or
+  forward a migrations dir; C3 carry pre-existing source bugs faithfully, never inline-fix -
   ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md
   [+ NEW MODULE yes: apply the installable:False checklist - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
   [+ LINT-ONLY: the module is installable:False at the target - fix syntax/lint breakage only,
@@ -606,12 +606,13 @@ but the target clean-tip was `installable:False`, re-set to False + re-comment
 `auto_install`/`application` with the `# TODO: Uncomment when upgrading` breadcrumb before
 dispatching the coder. SSOT: `[[fp-installable-false]]`.
 
-**8d - migration script:** RETARGET a forwarded `migrations/<src-series>.a.b.c/` dir per C2:
-default = rename to FULL `<tgt-series>.V` where `V` is chosen so the dir fires on a deployed target
+**8d - migration script:** decide each forwarded `migrations/<src-series>.a.b.c/` dir per C2. First
+the condition: retarget only when every module the script acts on is installable at the target tip;
+otherwise forward the dir unchanged under its source-series name and record why on the sha's
+`merge-log.md` row. A retarget renames to FULL `<tgt-series>.V` where `V` is chosen so the dir fires on a deployed target
 DB at manifest `M` (if `S > M`: `V=S`, merge already bumped; if `S <= M`: bump manifest to
 `V = M`'s last component +1, name dir `<tgt-series>.V`). Exception: a legacy source-origin-only
-data fix keeps `<src-series>.a.b.c` untouched. Lint-only lane (`installable:False` at target) = do
-NOT retarget. This is a migration-threshold action, NOT a "diff-touched-a-file" bump (C1). Full
+data fix keeps `<src-series>.a.b.c` untouched. This is a migration-threshold action, NOT a "diff-touched-a-file" bump (C1). Full
 rule + `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`. After the rename, sweep the
 migration body for source-series literals still in log strings or version constants:
 
@@ -652,7 +653,7 @@ conventions: `docs/reference/ODOO-TESTING.md`.
 too: this orchestrator dispatches the `odoo-instance` skill (via the Skill tool) for every step
 below. A bare `lease_acquire` / `instance_build` / `odoo-bin` call from this orchestration layer
 would both bypass the instance HARD RULES and skip the `WORKTREE_PATH` re-root below. Everything
-from here to the P10 gate is CONTENT for that dispatch brief and the adjudication this
+from here to P10 is CONTENT for that dispatch brief and the adjudication this
 orchestrator performs on the RETURNED `instance-ops` block, never a shell recipe run inline.
 
 **Env-bootstrap (informational, before the first dispatch).** Resolve the CATALOG
@@ -661,7 +662,7 @@ orchestrator performs on the RETURNED `instance-ops` block, never a shell recipe
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2. That is a baseline only:
 venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
 own job, never hand-built or hand-verified
-here. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY repo on disk - a missing
+here. A multi-repo stack needs EVERY repo on disk - a missing
 repo makes a module invisible (silent ImportError / "module not found") to the dispatched instance.
 Confirm every root in that entry's `addons_path` list exists on disk before dispatching; a missing
 repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
@@ -789,13 +790,14 @@ Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
 ---
 
-## P10 - Gate merge (STOP, per batch) - ONE commit closes the whole range
+## P10 - Conclude the merge (self-decided, per batch) - ONE commit closes the whole range
 
-Present `merge-log.md` and wait for human-confirm. Before the commit, build the FULL file list:
+No human confirmation: this is a local merge on `fp/<slug>`; `merge-log.md` and everything P10
+records are presented at P12. Before the commit, build the FULL file list:
 the union of every module row's `files:` (8b) plus the files P9.5's `odoo-i18n` result names.
 Compare it with `git -C <path>/fp-integration status --porcelain` (bounded read): a modified or
 untracked path in neither the list nor the merge's own staged set is work no step accounted for -
-attribute it to its module (or remove it) before you continue. On confirm, invoke the
+attribute it to its module (or remove it) before you continue. Then invoke the
 `git-toolkit:git-ops` skill (via the Skill tool) ONCE:
 
 ```
@@ -807,13 +809,12 @@ message: |
   <sha> <bucket x> <one-line reason>      # one body line per absorbed commit
   ...
 worktree: <path>/fp-integration
-confirmed: yes - human approved at P10 gate
 ```
 
 After it returns, confirm the tree is clean: `git -C <path>/fp-integration status --porcelain` is
 empty and `git -C <path>/fp-integration rev-parse -q --verify MERGE_HEAD` finds nothing (bounded
-reads). A leftover path is a file the list missed - report it at the gate with the path; never
-amend the merge commit.
+reads). A leftover path is a file the list missed - record it with the path in `merge-log.md` for P12;
+never amend the merge commit.
 
 That single commit closes the batch's merge window and lands the whole range; every SHA in the
 range is marked `done` in `checkpoint.json` by it. Buckets (a)/(d) are absorbed by the same commit
@@ -823,7 +824,7 @@ adapt work is not flagged.
 **There is no P5 loop.** A single-batch run (the default) reaches P10 once, then goes on to P11.
 Only a human-approved multi-batch split at the P4 plan gate returns to P5, once PER BATCH, never
 per commit: that pass merges the NEXT batch's range TIP in ONE operation, then P6 symbol-survival
--> P7 drift -> P8 adapt -> P9 verify -> P10 gate for that whole batch. Re-entering P5 for a single
+-> P7 drift -> P8 adapt -> P9 verify -> P10 conclude for that whole batch. Re-entering P5 for a single
 source commit, or committing part-way through a batch's range, is `SKILL.md` Hard rule 2's banned
 shape. Never skip P5/P6/P7 for a later batch by jumping straight to P8 either - that would leave
 the next range unabsorbed and unchecked.

@@ -78,7 +78,7 @@ before any read or git op).
 - **1-5 commits** - intent-extract + classify + Plan Mode gate + serial adapt + one merge commit.
 - **6+ commits** - full plan (commit topology, per-commit tier, buckets) in Plan Mode, recorded
   to `plan.md`. Still ONE merge and ONE merge commit by default; a human may split the run into
-  several gated batches at the plan gate, and then each BATCH gets one merge of its own range tip
+  several batches at the plan gate, and then each BATCH gets one merge of its own range tip
   - the commit count never sets the merge count.
 - **Repeatable by construction** - every SHA in the range is preserved, so the merge-base advances
   to the range tip and the next run never re-encounters a commit this one already landed. That is
@@ -107,7 +107,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    logical forward-port and re-resolves every shared hunk once per commit instead of once per run;
    (ii) **cherry-pick, at ANY granularity** - per commit or staged over a whole range, it mints
    fresh SHAs, leaves the merge-base behind, and forces re-resolving the same conflicts on every
-   future run, permanently. Splitting the run into gated BATCHES does not reinstate either shape: a
+   future run, permanently. Splitting the run into BATCHES does not reinstate either shape: a
    batch merges its own range TIP once, so batches - never commits - bound the merge-commit count.
 
    **There is no cherry-pick escape hatch, and none is needed.** The two situations that used to be
@@ -132,10 +132,11 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    at runtime. Resolve every broken symbol into a bucket before adapt starts. SSOT:
    `[[fp-symbol-survival-check]]`.
 
-6. **Human-confirm merge** - STOP at the P10 gate. The P4 plan gate runs the shared Plan-Mode gate
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit; user approves
-   in the Plan Mode UI). No automated commit of the integration into B, no auto-merge of the PR.
-   Present and wait.
+6. **Human gates are P4 (plan) and P12 (PR merge); local merges are self-decided.** The P4 plan
+   gate runs the shared Plan-Mode gate (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`
+   § Plan-Mode enter/exit; user approves in the Plan Mode UI). P10 concludes each batch's merge on
+   the integration branch `fp/<slug>` without asking - it lands nothing on B. No automated commit of
+   the integration into B, no auto-merge of the PR: P12 presents and waits.
 
 7. **Outcome a/d are still ABSORBED** - buckets (a) already-satisfied and (d) no-longer-relevant
    produce no adapt diff, but their SHAs stay inside the merged range: a bucket is a statement
@@ -145,7 +146,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    body, so reviewers see why those SHAs carry no adapt work. SSOT: `[[fp-merge-absorption]]`.
 
 8. **Verify subagent claims** - never trust a leaf's self-report of GREEN. Run the verify
-   command yourself per batch (P9) before the P10 gate.
+   command yourself per batch (P9) before P10 concludes the merge.
 
 9. **Acceptance is mandatory (narrow escape only)** - P11 dispatches `odoo-acceptance` ONCE for
    the whole forward-ported batch BEFORE P12 pushes the branch, opens the PR, or runs its
@@ -156,7 +157,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    verdict or a recorded narrow-escape.
 
 10. **i18n reconcile is mandatory (narrow escape only)** - 8e COMPUTES the two conditions and P9.5
-    DISPATCHES `odoo-i18n` per batch, after the P9 instance exists and before the P10 gate. This is NOT
+    DISPATCHES `odoo-i18n` per batch, after the P9 instance exists and before P10 concludes the merge. This is NOT
     opt-in: skip only via an enumerated escape recorded on the module's `merge-log.md` row
     (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`). The forward-port is not DONE without an
     i18n result or a recorded escape for every module whose row says `i18n_due: yes`.
@@ -567,7 +568,7 @@ is written regardless of tier.
   `DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>` (P3's route-out result,
   so 8b never adapts blind; same sentinel as `odoo-coding`'s "DESIGN_DOC: <child TDD path | none>") +
   `CONSTRAINTS` - the forward-port boundaries in ONE field: C1 (keep the TARGET version on conflict,
-  never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs faithfully, never
+  never bump), C2 (migration dir: retarget or forward), C3 (carry pre-existing source bugs faithfully, never
   inline-fix) - `[[fp-merge-absorption]]`; plus the installable:False checklist for a new module and
   `LINT-ONLY` for a module `installable:False` at the target - `[[fp-installable-false]]`. Pass no
   `INSTANCE_HANDLE`: `odoo-coding` resolves the node's instance over that `WORKTREE_PATH`.
@@ -587,10 +588,11 @@ is written regardless of tier.
       but merge carries `installable:True`): re-set to False + re-comment `auto_install`/
       `application` with breadcrumb - then lint-fix only.
   Both land in the LINT-ONLY lane. SSOT: `[[fp-installable-false]]`.
-- **8d migration script**: retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target
-  series per C2 (default: name it FULL `<tgt-series>.V` so it fires on a deployed target DB at manifest
-  `M`; bump the manifest only in the `S<=M` case; legacy source-only data fix keeps `<src-series>.a.b.c`).
-  This is a migration-threshold action, NOT a conflict-resolution version bump (C1). Full rule +
+- **8d migration script**: decide each forwarded `migrations/<src-series>.a.b.c/` dir per C2 -
+  retarget only when every module the script acts on is installable at the target tip, else forward
+  it unchanged and record why; a retargeted dir is named FULL `<tgt-series>.V` so it fires on a
+  deployed target DB at manifest `M` (bump the manifest only in the `S<=M` case; a legacy source-only
+  data fix keeps `<src-series>.a.b.c`). This is a migration-threshold action, NOT a conflict-resolution version bump (C1). Full rule +
   `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`.
 8b writes directly into the integration worktree (§ Git topology), so there is nothing to converge; P10 commits the adapt edits. A Tier-A resume is therefore always safe: the `cd`-on-resume target is the SAME path for the WHOLE run.
 
@@ -639,10 +641,10 @@ nothing and the loss is committed unseen) - `TARGET LANGUAGES` (best-effort: the
 source-side `<lang>.po` filenames - deliverable languages only, never `en_US` - when any exist; a
 module gaining its FIRST-EVER translatable string in this batch has none to infer, so OMIT the field
 rather than block on it - `odoo-i18n`'s own P0 still tries tiers 2-4 itself and records escape E3,
-non-blocking, if all four come up empty), and `GATE: fold into P10`. `odoo-i18n` owns the
+non-blocking, if all four come up empty), and `GATE: fold into P12`. `odoo-i18n` owns the
 non-destructive recipe and the isolated-DB export; this pipeline forwards only the intent. An
 `i18n_due: escape:<E-id>` module is skipped with its recorded reason. Present every result -
-reconciled or escaped - at the P10 gate, so the human sees ONE combined decision.
+reconciled or escaped - at P12 with the PR, so the human sees ONE combined decision.
 
 **Do NOT hand over the P9 verify instance.** P9's instance is built to RUN TESTS, not to export a
 catalog: it is not provisioned with demo data, and demo-owned records carry translatable terms that
@@ -654,25 +656,26 @@ build. `odoo-i18n` also needs a FRESH DB per pass anyway (the existing `<lang>.p
 before the re-export), so the reuse never bought much: let it provision, and let the P9 lease do
 its own job.
 
-**P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
-On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE with the FULL file
+**P10 - Conclude the merge [self-decided, per batch].** Write `merge-log.md`, reconcile the file
+list, and commit - no human confirmation: this is a local merge on `fp/<slug>`, and what P10 records
+is presented at P12. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE with the FULL file
 list - the union of every module row's `files:` (8b) plus the files P9.5 returned - and the request
 "stage these, then conclude the merge with one commit". That closes the batch's single open merge
 window: the batch's whole range lands as ONE merge commit, and every SHA in the range is marked
 `done` in `checkpoint.json` by that one commit (buckets a/d are absorbed by it too, carrying no adapt
 work - Hard rule 7). Then confirm the tree is clean (`git -C <path>/fp-integration status
 --porcelain` empty, `MERGE_HEAD` gone - bounded reads); a leftover path is a file the list missed:
-report it at the gate, never amend. Full brief: `references/fp-phase-detail.md` P10.
+record it in `merge-log.md` for P12, never amend. Full brief: `references/fp-phase-detail.md` P10.
 
 **There is no P5 loop.** A single-batch run (the default) reaches P10 exactly once and then goes on
-to P11. Only when the human split the run into several gated batches at the P4 plan gate does the
+to P11. Only when the human split the run into several batches at the P4 plan gate does the
 pipeline return to P5 - once PER BATCH, never per commit - and that next pass merges the NEXT
 batch's range TIP in one operation, then runs P6 symbol-survival -> P7 drift -> P8 adapt (directly
-in the integration worktree, as always - § Git topology) -> P9 verify -> P10 gate for that whole
+in the integration worktree, as always - § Git topology) -> P9 verify -> P10 conclude for that whole
 batch. Re-entering P5 for a single source commit, or committing part-way through a batch's range,
 is Hard rule 2's banned shape and produces the merge-commit sprawl this pipeline exists to avoid.
 
-**P9 instance release [MANDATORY].** Once the P10 loop has closed (the last batch passed its gate),
+**P9 instance release [MANDATORY].** Once the P10 loop has closed (P10 concluded the last batch's merge),
 no later stage needs the P9 verify instance - P11 acceptance never reuses it. This skill is its
 run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
 `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
@@ -684,7 +687,7 @@ only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop
 commit/batch this run covers has reached `status=done`) and BEFORE P12 pushes the branch, opens
 the PR, or runs its lint-class review gate - the position the default tail assigns it
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail). Acceptance and the i18n
-reconcile (P9.5, already mandatory per batch, ahead of every P10 gate) both land ahead of the PR and
+reconcile (P9.5, already mandatory per batch, ahead of every P10 commit) both land ahead of the PR and
 its review for the reason the tail states: a stage that can force a CODE CHANGE runs before the
 PR opens, so the PR does not churn and regression testing is not chasing a moving target. Goal: prove the forward-ported batch works end-to-end on a real running
 instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies. P9's per-batch
@@ -759,7 +762,7 @@ entry would re-run acceptance a second time for the same batch.
 
 NEVER squash (keeps SHA). Only once the review above is addressed does B get anything at all:
 open PR now (invoke `git-toolkit:git-ops`). B stays LOCKED - the PR carries the run's merge commit
-(one per gated batch; one in total for a default single-batch run), nothing else.
+(one per batch; one in total for a default single-batch run), nothing else.
 
 **Cross-check every static-review bot comment on the PR (post-PR, informational only - the ONE
 sub-step in this phase that genuinely needs the PR to already exist).** Once the PR above is open
@@ -899,8 +902,9 @@ Three more cross-cutting checks apply per batch:
   stale local ref. Detail: `references/fp-phase-detail.md`.
 - **Manifest version & migration dir.** Forward-port carries the source manifest AS-IS and NEVER
   auto-bumps `version`: on a `<tgt-descriptor>` conflict keep the TARGET file's value (C1). A forwarded
-  `migrations/` dir is RETARGETED to the target series (C2) - a dir rename with a threshold-driven
-  version, NOT a "diff-touched-a-file" bump. C1 and C2 are distinct; apply both. SSOT:
+  `migrations/` dir is RETARGETED to the target series when every module its script acts on is
+  installable at the target tip, else forwarded unchanged (C2) - a retarget is a dir rename with a
+  threshold-driven version, NOT a "diff-touched-a-file" bump. C1 and C2 are distinct; apply both. SSOT:
   `[[fp-merge-absorption]]`.
 - **Field-label grounding.** When the port renames or re-labels a field, confirm the
   target's canonical label before adapting -
@@ -960,8 +964,8 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `produced` lists `plan.md`, each touched module's own `<module>/intents/<sha>.md` (§ P1 write path -
 never the bare `intents/<sha>.md`), `merge-log.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
-URL; `next` is the human-confirm gate (P10 per-batch merge, P11 acceptance L2 gate, or P12 final
-PR/merge gate). When P3 routes a commit out to design,
+URL; `next` is the human gate the run stopped at (the P4 plan gate, or the P12 PR merge gate that
+carries the P11 acceptance verdict). When P3 routes a commit out to design,
 `next: odoo-solution-design` with the `inputs` block whose SSOT is
 `references/fp-phase-detail.md` P3 (read the field list there - it is not copied here), and the
 run YIELDS - the plan runner advances the hop and re-enters forward-port with the returned
