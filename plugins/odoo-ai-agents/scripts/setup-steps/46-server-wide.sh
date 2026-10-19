@@ -14,8 +14,14 @@
 #              (b) the "should be loaded in server wide mode" warnings found in
 #                  the build logs passed with --log (a probe build's log),
 #              (c) what the row already declares (never dropped silently - an
-#                  operator-added module leaves no trace in code or log);
-#            and prints the union minus the core default as the proposal.
+#                  operator-added module leaves no trace in code or log),
+#              (d) modules on the row's addons_path whose manifest
+#                  (__manifest__.py / __openerp__.py) summary or description
+#                  says it is loaded server wide ("server wide", "server-wide",
+#                  "server_wide" or "--load=") - read as text, never executed;
+#            and prints the union minus the core default as the proposal, with
+#            PROPOSAL_SOURCES naming each module's evidence
+#            (<module>:code|log|manifest|row, joined by "+").
 #            Candidates from Odoo Semantic and the operator's own additions are
 #            merged by the caller (the /odoo-setup command) before `record`.
 #   record   writes the CONFIRMED list onto the row (upsert: every other key,
@@ -56,8 +62,10 @@ cmd_describe() {
 #   _rows propose S P LOG... -> KEY=VALUE facts for row (S, P)
 _rows() {
     python3 - "$IO" "$FACTS" "$INSTANCES_TOML" "$@" <<'PY'
+import ast
 import importlib.util
 import os
+import re
 import shlex
 import sys
 
@@ -109,9 +117,58 @@ for path in logs:
         print("x cannot read log %s: %s" % (path, exc), file=sys.stderr)
         sys.exit(2)
 warned = facts.server_wide_warning_modules("\n".join(text))
+
+# (d) A module whose manifest says, in its summary or description, that it must be loaded server
+# wide. Read from the manifest TEXT (parsed, never executed); only the two prose keys count, so a
+# module merely depending on a server-wide one is not proposed.
+MANIFEST_NAMES = ("__manifest__.py", "__openerp__.py")
+HINT = re.compile(r"server[\s_-]+wide|--load=", re.IGNORECASE)
+
+
+def manifest_prose(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            tree = ast.parse(fh.read(), path)
+    except (OSError, SyntaxError, ValueError):
+        return ""
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict):
+            continue
+        for key, value in zip(node.keys, node.values):
+            if isinstance(key, ast.Constant) and key.value in ("summary", "description"):
+                found += [n.value for n in ast.walk(value)
+                          if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    return "\n".join(found)
+
+
+def manifest_hinted(dirs):
+    out = set()
+    for base in dirs:
+        try:
+            names = sorted(os.listdir(base))
+        except OSError:
+            continue
+        for name in names:
+            for manifest in MANIFEST_NAMES:
+                path = os.path.join(base, name, manifest)
+                if os.path.isfile(path):
+                    if HINT.search(manifest_prose(path)):
+                        out.add(name)
+                    break
+    return sorted(out)
+
+
+manifest_hints = manifest_hinted(addons)
 core_set = set(core or [])
-proposed = sorted((set(current) | set(self_declared) | set(warned)) - core_set)
-undetected = sorted(set(current) - set(self_declared) - set(warned) - core_set)
+evidence = {"code": set(self_declared), "log": set(warned), "manifest": set(manifest_hints),
+            "row": set(current)}
+proposed = sorted(set().union(*evidence.values()) - core_set)
+undetected = sorted(set(current) - set(self_declared) - set(warned) - set(manifest_hints)
+                    - core_set)
+sources = ["%s:%s" % (m, "+".join(k for k in ("code", "log", "manifest", "row")
+                                 if m in evidence[k]))
+           for m in proposed]
 
 
 def emit(key, value):
@@ -128,8 +185,10 @@ emit("DECLARED", "1" if KEY in row else "0")
 emit("CURRENT_SERVER_WIDE_MODULES", current)
 emit("SELF_DECLARED_SERVER_WIDE", self_declared)
 emit("LOG_WARNINGS", warned)
+emit("MANIFEST_HINTS", manifest_hints)
 emit("UNDETECTED_CURRENT", undetected)
 emit("PROPOSED_SERVER_WIDE_MODULES", proposed)
+emit("PROPOSAL_SOURCES", sources)
 PY
 }
 

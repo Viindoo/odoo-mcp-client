@@ -7,8 +7,9 @@ Business rules protected:
     entry never overrides the source, and a new series needs no table edit.
   - `record-env` warns when the venv's interpreter lies outside that range (advisory only).
   - `server_wide_modules` is a DEPLOYMENT fact on each catalog row: step 46 PROPOSES it from
-    evidence (self-checking addons, a probe build's log warnings, what the row already declares)
-    without Odoo's core default, and RECORDS only an explicit, validated list. An operator's own
+    evidence (self-checking addons, a probe build's log warnings, manifests whose prose says
+    server wide, what the row already declares) naming each module's source, without Odoo's
+    core default, and RECORDS only an explicit, validated list. An operator's own
     addition that no evidence re-finds is kept in the proposal, never dropped silently.
   - Recording upserts one key on one row: every other key, comment and row survives byte for byte,
     a multi-line array is replaced whole, the file stays parseable by tomllib AND by the text-scan
@@ -344,7 +345,33 @@ def test_propose_unions_evidence_minus_core_and_keeps_undetected_declared_module
     assert facts["PROPOSED_SERVER_WIDE_MODULES"] == "mod_logged,mod_self,operator_added", (
         "the proposal is every piece of evidence plus what the row declares, WITHOUT the core "
         "default the tools apply on their own")
+    assert facts["PROPOSAL_SOURCES"] == "mod_logged:log,mod_self:code,operator_added:row"
     assert facts["DECLARED"] == "1"
+
+
+@requires_bash
+def test_propose_offers_a_module_whose_manifest_says_it_loads_server_wide_naming_that_source(
+        tmp_path):
+    """A module's own manifest prose is evidence too: one whose description says it must be
+    loaded server wide is proposed with source "manifest"; one whose manifest says nothing of the
+    kind is not, though it sits on the same addons path."""
+    core = _core(tmp_path, load="base,web")
+    addons = tmp_path / "custom"
+    _write(addons / "mod_hinted" / "__manifest__.py",
+           "{'name': 'Hinted', 'summary': 'Session helpers',\n"
+           " 'description': '''This module must be loaded in server wide mode\n"
+           " (add it to --load=base,web,mod_hinted).''', 'depends': ['web']}\n")
+    _write(addons / "mod_legacy" / "__openerp__.py",
+           "{'name': 'Legacy', 'summary': 'Needs server-wide loading'}\n")
+    _write(addons / "mod_quiet" / "__manifest__.py",
+           "{'name': 'Quiet', 'summary': 'Adds a report', 'depends': ['mod_hinted']}\n")
+    catalog = _catalog_for(tmp_path, core, addons)
+    res = _run([STEP46, "propose", "--series", "17.0", "--profile", "p1"], _env(tmp_path, catalog))
+    assert res.returncode == 0, res.stderr
+    facts = _kv(res.stdout)
+    assert facts["MANIFEST_HINTS"] == "mod_hinted,mod_legacy"
+    assert facts["PROPOSED_SERVER_WIDE_MODULES"] == "mod_hinted,mod_legacy"
+    assert facts["PROPOSAL_SOURCES"] == "mod_hinted:manifest,mod_legacy:manifest"
 
 
 @requires_bash
