@@ -163,9 +163,9 @@ exists at the target - the same result would be expressible directly in the base
 catches that shape. It runs at the SAME choke point the 8b bucket-(b)/(c) legs already pass
 through - once the commit's own adapt step lands or modifies the view record, directly in the
 integration worktree (P8 never uses a per-module child worktree - `SKILL.md` § Git topology) - and
-is reconfirmed clean at the P10 gate. It mirrors the P7
+is reconfirmed clean before P10 commits. It mirrors the P7
 pre-adapt drift scan's SHAPE exactly (a finding line, triaged into `merge-log.md`, checked before
-the gate) rather than inventing a new kind of step; it is a DIFFERENT discriminator
+P10) rather than inventing a new kind of step; it is a DIFFERENT discriminator
 (`VIEW-TOPOLOGY`, not `SYMBOL-BROKEN`) because the defect here is structural redundancy, not a
 broken reference.
 
@@ -257,7 +257,7 @@ modules' xpaths address it by its OWN `xml_id`, and it must stay addressable und
 or not V survives.
 
 **Merge-unsafe guard - when either holds, do NOT auto-merge or auto-delete and do NOT even propose
-the merge at P3; instead KEEP the stack as-is and flag it for the human at the P10 gate:**
+the merge at P3; instead KEEP the stack as-is and flag it for the human at the P12 gate:**
 
 - **External reference exists.** Confirm nothing outside V's own defining file references V's
   `xml_id`: (a) `entity_lookup(kind='view', xmlid='<xml_id of V>', odoo_version='<target>')` - a
@@ -292,5 +292,5 @@ A clean pass is a valid, desirable result - document it as
 **Where recorded.** Append the finding as its OWN row in `merge-log.md`, module+commit-keyed and
 distinct from the per-commit intent/bucket rows (the same placement discipline the P2
 Installable-probe row already uses) - place it under a `## View-topology` heading. Surface every
-`merge-into-base` and every `NEEDS-HUMAN` row as an explicit line at the P10 gate presentation, so
-the human sees it BEFORE the merge is committed, never only in a findings file read a week later.
+`merge-into-base` and every `NEEDS-HUMAN` row as an explicit line in the P12 presentation, so the
+human sees it before the PR merges, never only in a findings file.

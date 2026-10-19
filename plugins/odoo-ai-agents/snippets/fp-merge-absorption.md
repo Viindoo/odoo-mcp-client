@@ -42,7 +42,7 @@ The merge-base advances to `<src-tip-SHA>` after the commit. Next run, the scope
    expensive mistake available in a forward-port, and there is no mode, flag, or special case that
    licenses it.
 
-**Batching does NOT reinstate either shape.** A batch is a VERIFY-and-GATE unit, not a git unit.
+**Batching does NOT reinstate either shape.** A batch is a VERIFY unit, not a git unit.
 If the human splits the run at the plan gate, each batch boundary is a source SHA, and batch *k*
 merges the LAST SHA of batch *k* - absorbing every commit up to it in one merge. So `N` batches
 produce at most `N` merge commits, never one per commit; the default (a single batch) produces
@@ -87,32 +87,38 @@ no-commit merge while one is in progress (git index is shared; git-toolkit enfor
 
 ## Migration dir retarget (C2) - distinct from C1
 
-C1 ("keep target / no manual bump") does NOT license leaving a migration dir on the source series.
-A source-series commit adds `migrations/<src-series>.a.b.c/`. Let `S` = `a.b.c` (source). Let `M` = the target module's
-manifest `version` BEFORE this forward-port (the version deployed target DBs have already reached).
-A migration runs only on UPGRADE and only when `installed < dir_version <= manifest`.
+A source-series commit adds `migrations/<src-series>.a.b.c/`. Let `S` = `a.b.c` (source). Let `M` =
+the target module's manifest `version` BEFORE this forward-port (the version deployed target DBs
+have already reached). A migration runs only on UPGRADE and only when
+`installed < dir_version <= manifest`. Decide each dir in this order:
 
-Decision criterion: **does the fix need to apply to native-target-series data?**
-
-1. **Default (yes - applies on the target series):** RETARGET the prefix to the target series and pick
-   `V` so the dir fires on a deployed target DB sitting at `M`:
+1. **Retarget only when every module the script acts on is already upgraded on the target series**
+   - the module that owns the dir and every module whose tables, fields or records the script reads
+   or writes is `installable` at the target tip (the clean-tip read of `[[fp-installable-false]]`).
+   Otherwise FORWARD the dir unchanged under its source-series name, do not bump, and record why
+   on the commit's `merge-log.md` row (`<sha> | C2 forwarded | <module> not installable at target
+   tip`): a script run on a series where the modules it acts on are not upgraded meets a schema
+   that is not there. A module `installable:False` at the target is the lint-only lane, so its own
+   migrations are always forwarded unchanged.
+2. **Legacy source-origin-only data fix** (irrelevant to native-target data): KEEP the dir as
+   `<src-series>.a.b.c`, do NOT bump. It still fires for src->tgt jumpers below `a.b.c`; it can
+   never fire on a native-target DB (the source series sorts below the target), which is correct.
+3. **Otherwise RETARGET** the prefix to the target series and pick `V` so the dir fires on a
+   deployed target DB sitting at `M`:
    - `S > M`: `V = S` (the merge already bumped the manifest M->S; just name the dir `<tgt>.S`, no extra bump).
      (Exception: if C1 fired on this commit - the merge had a `version` conflict and TARGET's value was kept,
      leaving manifest at M not S - treat as the `S <= M` case below; bump manifest to S so `dir <= manifest` holds.)
    - `S <= M`: `V` = `M`'s last component +1 (next patch); **bump the manifest to V** - keeping `a.b.c=S`
      would leave `dir <= installed` and it would NEVER run. Set **manifest version == dir version == V**.
    - Dir named FULL `<tgt-series>.V`. Invariant: the retargeted dir version MUST be `<= the final manifest version` (guarantees `M < V <= manifest`; if this would be violated, use the `S <= M` bump path).
-2. **Exception (legacy source-origin-only data fix, irrelevant to native-target data):** KEEP the dir as
-   `<src-series>.a.b.c`, do NOT bump. It still fires for src->tgt jumpers below `a.b.c`; it can never fire
-   on a native-target DB (the source series sorts below the target), which is correct.
-3. **C1 vs C2 de-confliction:** a manifest bump is FORBIDDEN for ordinary code commits and for conflict
-   resolution (keep target). It is REQUIRED **only** in case 1 when `S <= M`; the bump target is the
-   **current target manifest's next patch**, not `S`.
-4. Dir name is always FULL `<tgt-series>.x.y.z` (Viindoo convention; FULL compare lets a target-series dir
-   exceed a native-target DB's installed version). Migrations must be idempotent: a fully-updated source DB
-   jumping the major re-runs a retargeted tip migration.
-5. Module that is `installable:False` at target = lint-only lane - do NOT retarget its migrations.
-   Rule and the clean-tip read: `[[fp-installable-false]]`.
+
+**C1 vs C2 de-confliction:** a manifest bump is FORBIDDEN for ordinary code commits and for conflict
+resolution (keep target). It is REQUIRED **only** in step 3 when `S <= M`; the bump target is the
+**current target manifest's next patch**, not `S`.
+
+A retargeted dir name is always FULL `<tgt-series>.x.y.z` (FULL compare lets a target-series dir
+exceed a native-target DB's installed version). Migrations must be idempotent: a fully-updated
+source DB jumping the major re-runs a retargeted tip migration.
 
 ### WHY (Odoo source - module.py + migration.py)
 
@@ -160,9 +166,9 @@ those SHAs carry no diff.
 ## Verify protocol - per-batch, not per-commit
 
 Running a full install + test-enable pass for every absorbed commit is prohibitive. Batch
-verification instead: collect every commit in one P10 gate window into a batch, then verify the
+verification instead: collect every commit of one merge window into a batch, then verify the
 WHOLE batch on ONE ephemeral instance. The DEFAULT batch is the whole run - one merge, one verify
-pass, one gate, one merge commit; splitting into several batches is a human decision taken at the
+pass, one merge commit; splitting into several batches is a human decision taken at the
 plan gate, and each batch still merges its own range TIP once (§ Git operation above), never one
 commit at a time.
 
@@ -189,8 +195,8 @@ principal checkout.
 3. For a re-verify after a fix inside the SAME batch, or for a SUBSEQUENT batch touching only a
    subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE`, `mode: reuse`
    (`-u` semantics) and `GATE_ROLE: node-verify` on the changed modules only - skip the full reinstall.
-4. Release the instance once no later step of this run needs it - after the LAST batch has passed
-   its gate, never between batches. P11 acceptance never reuses this handle: its database carries the series'
+4. Release the instance once no later step of this run needs it - after P10 has concluded the LAST
+   batch's merge, never between batches. P11 acceptance never reuses this handle: its database carries the series'
    test-build demo shape (none where demo is opt-in), and acceptance provisions its own
    demo-carrying cluster on a fresh lease. Call `lease_release` with the cached `lease_token`/`run_id`. The lease was provisioned for YOUR run and handed back to you, so you
    are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). It
@@ -269,8 +275,8 @@ The integration worktree branches from the TARGET branch (never the target branc
 no direct commits land there during forward-port). Adapt work happens DIRECTLY in that integration
 worktree - the single open merge window spans the whole range, so no per-module child worktree can
 ever converge back into it (full derivation: `odoo-forward-port` § Git topology).
-Only after a human-gated P10 + P11 acceptance + P12 PR review does the human merge
-the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
+Only after P10 concludes the merge and P11 acceptance and P12 PR review clear does the human
+merge the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.
 
