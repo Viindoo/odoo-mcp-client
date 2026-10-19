@@ -204,9 +204,9 @@ no format choice. Its brief is worktree-and-instance shaped:
 - `addons_path`.
 - `GATE_ROLE` (`pre-pr-lint-gate` | `node-verify`) - REQUIRED on every `run-tests` dispatch
   (and any test-enable `init-modules`/`update-modules`); decides whether the lint-module union
-  fires. A load-bearing field with NO safe default - absence is refused (`NEEDS_CONTEXT`), never
-  guessed either way. Detailed rule owned by `odoo-instance-ops` (§ Lint modules HARD RULE) -
-  not restated here.
+  fires. Absent, it defaults to `node-verify` (assumption stated) unless the dispatch names a
+  lint-class module, then `NEEDS_CONTEXT`. Detailed rule owned by `odoo-instance-ops` (§ Lint
+  modules HARD RULE) - not restated here.
 - The "provision-once / forward-everywhere" rule (`instance-handle-contract.md`).
 - No git fields - this family runs zero git.
 

@@ -72,7 +72,8 @@ adjudicator stay three contexts
    (reverse closure, risk rank, affected screens) into `<ISOLATE_DIR>/qa/<slug>-scope.md`;
    `DEPENDENTS` = the in-repo dependents of `MODULES` from `RECON` and the manifest grep of the
    repo (`none` when there are none).
-4. **Launch `A1A2`** (`odoo-qa-tester`, `MODE: A1A2`, `model: haiku`): `ORACLE_PATH`, `MODULES`,
+4. **Launch `A1A2`** (`odoo-qa-tester`, `MODE: A1A2`, `model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection - `haiku` unless a
+   Given needs a fixture built): `ORACLE_PATH`, `MODULES`,
    `DEPENDENTS`, `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `RUN_ID`, `SCOPE` (screens and roles
    of the manifest), `BROWSER_MODE` (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`),
    `SLUG`, `SHARE_DIR`, `ISOLATE_DIR`, `DOMAIN`, `INSTANCE_HANDLE` when one exists, `REPORT_PATH:
@@ -84,8 +85,10 @@ adjudicator stay three contexts
    handle the `A1A2` tester reports, or waits for it.
 6. **Durable tests** when the plan asks for them: launch `odoo-test-writer` (`MODE: tour/HttpCase`,
    `model: haiku` when every scenario is executable, else `sonnet`) for the High-tier PASS
-   scenarios, on a fresh test instance without demo
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`).
+   scenarios. Provision its fresh test instance without demo through `Skill(odoo-instance)`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`), pass it as `INSTANCE_HANDLE`, and
+   release that lease after the writer returns. Commit the files it returns through
+   `git-toolkit:git-ops`; the writer never commits.
 7. **Return.** The report path, the roll-up (PASS, FAIL, UNVERIFIED per database; `ACCEPTED` or
    `REJECTED`), the A4 rows, the bug list, and the Continuation Contract. UNVERIFIED on a
    High-tier scenario: relaunch the tester for that scenario on a fresh session at most twice,

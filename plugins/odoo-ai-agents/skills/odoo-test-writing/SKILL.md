@@ -80,8 +80,11 @@ looks like in `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`. Read b
 every time. The steps below are how to apply them here; use judgment where a step does not fit.
 
 Write test files in the brief's `WORKTREE_PATH` (the `odoo-test-writer` agent already `cd`s there).
-Invoked standalone with no worktree in scope, provision one through `git-toolkit:git-ops` before
-writing (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+Invoked standalone, you hold the caller's duties: with no worktree in scope, provision one through
+`git-toolkit:git-ops` before writing (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`);
+provision the break-check instance through `Skill(odoo-instance)` and release its lease when done;
+commit the test files through `git-toolkit:git-ops`. Run by `odoo-test-writer`, the agent's caller
+commits them.
 
 ### 1. Pin the series, read the framework
 
@@ -139,8 +142,8 @@ code.
 - **Own data only.** Create every record the test needs; never read a demo record - the test later
   runs in the automation-test environment, which on some series loads no demo
   (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE).
-- **Register the file** in `<addon>/tests/__init__.py`; the module's own `__init__.py` stays
-  untouched. A JS test or tour asset loaded through a manifest key is the one `__manifest__.py`
+- **Register the file** in `<addon>/tests/__init__.py` per
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py` import order; the module's own `__init__.py` stays untouched. A JS test or tour asset loaded through a manifest key is the one `__manifest__.py`
   edit you may make.
 - **Expected log noise** - wrap with `assertLogs` / `mute_logger` only when the path really logs a
   WARNING or ERROR, and assert the logger and level, never the wording
@@ -181,8 +184,11 @@ leaf-mode, which decides the lease and has you release what you took), `instance
    broken measurement: fix it and re-run. A test that stays green guards nothing - strengthen or
    replace it; never relax it.
 4. **Restore** the file exactly and confirm it (e.g. by hash) before the next break and before you
-   return. The final verdict must come from a database that reflects the restored code - say when
-   a break touched a data file or the schema, so the caller rebuilds fresh.
+   return. The final verdict must come from a database that reflects the restored code. A data
+   (XML/CSV) rule is broken by editing the file - `-u` reloads an updatable record, a `noupdate`
+   record needs a fresh build - never by an ORM write inside the test
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Database state); say when a
+   break touched a `noupdate` record or the schema, so the caller rebuilds fresh.
 
 No handle -> the tests stay written and the runs are pending (§ No instance).
 

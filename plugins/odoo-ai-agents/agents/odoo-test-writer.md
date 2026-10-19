@@ -51,7 +51,8 @@ Missing `MODE`, `MODULE SCOPE`, `TARGET BEHAVIOR`, `ODOO VERSION` or `WORKTREE_P
 
 ## Return
 
-First line: `DONE`, `BLOCKED`, `NEEDS_NEXT` or `NEEDS_CONTEXT`. Then the test file paths and one
+First line: `DONE`, `BLOCKED`, `NEEDS_NEXT` or `NEEDS_CONTEXT`. Then the test file paths - your
+caller commits these; you never do - and one
 line per behaviour test - the test, what you broke, how it failed, that you restored it - plus the
 existing tests that already covered a behaviour, the tests you adjusted and why, any break that
 touched a data file or the schema, and the Continuation Contract of
@@ -60,7 +61,7 @@ verbatim.
 
 ## Never
 
-Write production code; read the implementation to choose an expected value; widen, relax or
+Write a file outside `WORKTREE_PATH`; write production code; read the implementation to choose an expected value; widen, relax or
 delete an assertion to make a test green; silence a test with `skip` or `pass`; cite an
 unshippable reference (a design, a worklog, a run id, an absolute path) inside a test; assert
 translated or display text; launch an agent.

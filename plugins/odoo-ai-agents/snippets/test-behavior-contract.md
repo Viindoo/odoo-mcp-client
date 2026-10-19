@@ -94,8 +94,9 @@ banned. A `.po` catalog is validated by
 
 Arrange-Act-Assert, one business rule per test, readable top-down by a junior. Expected values are
 literals from the business rule - never computed in the test, no loops or helpers that build
-expectations, no re-implemented rule. Register each test file in `tests/__init__.py`; never import
-`tests` from the module's own `__init__.py` (Odoo's loader imports it). Example: the GOOD tests below.
+expectations, no re-implemented rule. Register each test file in `tests/__init__.py` per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py` import order; never import `tests` from the module's own `__init__.py` (Odoo's loader imports
+it). Example: the GOOD tests below.
 
 ## Odoo BAD vs GOOD (confirm workflow)
 

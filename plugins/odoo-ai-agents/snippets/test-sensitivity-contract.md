@@ -57,9 +57,13 @@ never provision a new database. With no handle, write the tests, run nothing, an
 `NEEDS_NEXT: odoo-instance` naming the break-checks still owed as method-level tags (e.g.
 `PENDING BREAK_CHECK: /sale_cap:TestDiscountCap.test_above_cap_refused`).
 
-**Database state.** A verdict must come from a database that reflects the restored code: re-run with
-`-u` (`reuse`); rebuild fresh when a break touched a data file (XML/CSV) or the schema, because
-records and columns outlive the file restore. Use judgment.
+**Database state.** A verdict must come from a database that reflects the restored code. A data
+(XML/CSV) rule has one break: edit the file. An updatable record is reloaded by `-u` (`reuse`); a
+`noupdate` record is written only at install, so its break and its verdict each need a fresh build.
+An ORM write inside the test transaction is not a valid break for an updatable record - `-u`
+reverts it. After a schema break, rebuild fresh: columns outlive the file restore.
+
+A call the permission classifier refuses: see `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
 
 ## Broken measurement is not a red
 

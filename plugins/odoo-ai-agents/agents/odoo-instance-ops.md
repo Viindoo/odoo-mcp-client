@@ -262,12 +262,12 @@ inferred from module count, worktree path, or any other proxy:**
   `run-tests` operation below), with no lint-module union. A lint-class violation in freshly
   written code is caught ONLY at the pre-PR lint gate, by design - it is never a per-node
   `tests-failed` blocker.
-- `GATE_ROLE` absent from a `run-tests`/test-enable dispatch - STOP and return `status:
-  NEEDS_CONTEXT`, `blocked_reason: GATE_ROLE unresolved for a test-run build - the lint-module union
-  cannot be decided`. NEVER default either way: defaulting to install/tag silently reinstates the
-  per-node lint gate this rule exists to remove; defaulting to skip risks a false-green
-  pre-PR lint gate that forgot to declare its own role. The same resolve-or-refuse discipline applies
-  to `PROFILE:` below - never probe (or skip probing) on an unresolved input.
+- `GATE_ROLE` absent from a `run-tests`/test-enable dispatch - when neither `MODULES` nor the
+  caller's tags name a lint-class module, run it as `node-verify` and state that assumption in
+  `notes`. When they do name one, the dispatch may be the lint gate that forgot its role: STOP and
+  return `status: NEEDS_CONTEXT`, `blocked_reason: GATE_ROLE unresolved for a test-run build that
+  names a lint-class module`. Resolve `PROFILE:` below the same way - never probe (or skip probing)
+  on an unresolved input.
 
 **When `GATE_ROLE: pre-pr-lint-gate`, probe and union as follows.** Resolve and PIN the profile
 BEFORE any probe - never call `check_module_exists` profile-less:
@@ -286,18 +286,18 @@ BEFORE any probe - never call `check_module_exists` profile-less:
    Step B). Live-verified: a profile-less `check_module_exists` can answer from a cross-profile view
    and report a module present on a build that does not carry it.
 
-The SERIES picks the lint module name and the probe only confirms the pinned profile carries it,
-because this gate has one name below a boundary and another above it: two names from the same
-distribution unioned into one build is a defect, never belt-and-braces, no matter what the index
-answers for both. Then resolve WHICH modules this gate is made of, and probe them,
-exactly as `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` specifies - that snippet owns the
-candidate set, the one-name-per-series selection, and the stale-index rule that makes a bare probe
-insufficient. Pass `profile_name=` explicitly on every call, never relying on the ambient
-`set_active_profile` pin alone (same last-write-wins concurrency caveat as Step B). For every module
-that snippet resolves as present:
+Then resolve WHICH modules this gate is made of, and probe them, exactly as
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` specifies - that snippet owns the candidate
+set (read from the resolved addons path), the scoping and server-wide companion rules, and the
+stale-index rule that makes a bare probe insufficient. Pass `profile_name=` explicitly on every
+call, never relying on the ambient `set_active_profile` pin alone (same last-write-wins concurrency
+caveat as Step B). For every module that snippet resolves as present:
 
 1. UNION it into the build's `modules` list for this build.
 2. Append its tag to `test_tags` (one `/<module>` per resolved module).
+3. Pass its own scoping options, set to the PR's modules, as the build's `conf_options` - option
+   names read from that module's source, never assumed. A module whose source names none runs
+   unscoped: say so in `notes`.
 
 The install set and the tag set MUST derive from the SAME probe - never tag a module you did not
 install (its tests will not load, and a green run would be a false pass). This is the two-sided
@@ -540,7 +540,9 @@ Then adjudicate SCOPE from `findings_path`: a failing or erroring test whose mod
 dispatch's `--modules` list is OUT OF SCOPE. Whenever at least one exists, `notes` MUST state that
 the verdict was decided partly - or, when no in-scope test failed at all, ENTIRELY - by tests
 outside the module under verification, naming those modules. The verdict itself never softens: an
-out-of-scope failure is still `tests-failed` and still BLOCKING.
+out-of-scope failure is still `tests-failed` and still BLOCKING. A lint-class FINDING about code outside the PR's
+modules is the one exception, and it is decided by
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Scope the gate to the PR's modules.
 
 **Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** A custom checker (or a whole checker plugin - e.g. an SQL-injection rule) that fails to load inside a lint-class module produces NONE of the four signals: not a failure (the checker never ran), not a skip (it is not a test), not a warning (nothing objected). The wrapper test still runs, so the build earns a genuine `passed` at `0/0/0/0` having checked less than the caller asked for. This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these modules; a `GATE_ROLE: node-verify` dispatch never installs them, so there is nothing to check coverage on there.
 
@@ -642,6 +644,16 @@ database.
 A refused resume leaves the lease unchanged and still parked: follow the error code's remedy
 (`DB_GONE` -> release it and build fresh via operation 1, reporting the rebuild in `notes`), and
 never re-run the same serve hoping for a different answer.
+
+### Restart on the same lease
+
+A running instance on a lease THIS dispatch obtained keeps its database, filestore and ports across
+a restart:
+
+- Python-only change: `lease_park(lease_token, run_id)`, then `instance_serve(lease_token)`.
+- Manifest, data or field change: `instance_build` operation `update` on the same lease.
+- Never kill or relaunch `odoo-bin` by hand - the lease tracks only the server its tools start.
+- A handle that only arrived in your brief is not yours to park: ask its owner for the restart.
 
 ### Doc-context provision (composite: demo + language + skip-auto-install)
 
@@ -785,7 +797,7 @@ EVERY operation, not only create-instance.
 - [ ] the brief's `SERVER_WIDE` passed verbatim as `server_wide` to every build and serve of that database (none -> omitted), never `--load` in `extra_args`
 - [ ] every job_wait warning acted on: a server-wide-module warning -> instance not trusted, lease cleared, `NEEDS_CONTEXT` carrying the warning's remedy (`server_wide.include` for this task, the catalog route for every build); a demo-failure warning -> `status: error`
 - [ ] profile resolved and PINNED before any lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
-- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> lint modules resolved and probed per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` with the same pinned `profile_name=`, each resolved module unioned into BOTH `modules` AND `test_tags` from the same probe (never tagged without being installed), and each tagged module confirmed from the log to have actually installed and loaded its tests; `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
+- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> lint modules resolved and probed per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` with the same pinned `profile_name=`, each resolved module unioned into BOTH `modules` AND `test_tags` from the same probe (never tagged without being installed), its own scoping options passed as `conf_options` (or the unscoped run named in `notes`), and each tagged module confirmed from the log to have actually installed and loaded its tests; `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `node-verify` with the assumption in `notes` when no lint-class module is named, else `NEEDS_CONTEXT`
 - [ ] load-language: an `init` of `base` with `languages`; loaded/failed locales reported from job_wait; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): `demo` on + `languages` + skip-auto-install (from cli_help) in one init build; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] `MODE_HINT: path-incremental` brief -> `NEEDS_CONTEXT(MODE_HINT)`, nothing acquired
@@ -813,13 +825,13 @@ Confirm the dispatch brief carries this family's required fields (`INSTANCE_HAND
 the module list to init/update; `DEMO` (init builds only - a test build takes none) + `LANGUAGES`; `addons_path`; `RUN_ID`; for every `run-tests`
 (or test-enable `init-modules`/`update-modules`) dispatch, `GATE_ROLE` (`pre-pr-lint-gate` |
 `node-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
-designated pre-PR lint gate" HARD RULE above; absent is a load-bearing gap with NO safe default,
-never guessed either way); the provision-once/forward-everywhere rule per
+designated pre-PR lint gate" HARD RULE above, which also says when an absent one defaults to
+`node-verify`); the provision-once/forward-everywhere rule per
 `instance-handle-contract.md`). `INPUTS`, any artifact-path field (`DESIGN_DOC` and its kin), `OBJECTIVE`, and `ACCEPTANCE` are NOT keys of this family's brief and are NEVER required here - this family operates live infrastructure, not design docs, and `odoo-instance`'s own Brief shape is the exhaustive key list, emitting none of the four. Their absence is NEVER a STOP and never something to go looking for; the required fields above carry that substance. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing a load-bearing family field from the list above with no safe default (e.g. `GATE_ROLE`
-  on a run-tests / test-enable dispatch, or `RUN_ID`): STOP and return
+  on a test-run dispatch that names a lint-class module, or `RUN_ID`): STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an

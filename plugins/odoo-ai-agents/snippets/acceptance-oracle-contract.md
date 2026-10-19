@@ -86,6 +86,7 @@ the exception TYPE, or the permission refused - never as the wording of a label,
 sentence, error message, or translated term. That wording is improved independently of the behavior,
 so an oracle pinned to it reports FAIL on an improvement: a false verdict, the most expensive kind.
 Naming a visible label to say WHERE to click is addressing and stays fine; making it the expected
-RESULT is not. Rule + substitutions:
+RESULT is not. Nor is the expected a transient internal row (a record the flow creates and then
+removes, a queue entry, a log line): it is the outcome the scenario's role observes. Rule + substitutions:
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY
 text.

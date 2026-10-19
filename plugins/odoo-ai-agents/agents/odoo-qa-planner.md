@@ -72,7 +72,8 @@ tester's job.
    restate); Low-tier a smoke scenario. Tag every scenario with its risk tier.
 4. **Choose the expected up front.** Fix the single observable `expected` (state/value/side-effect
    record/rendered element/raised error), derived from the requirement, plus the concrete evidence
-   that proves it.
+   that proves it. It is an outcome the scenario's role can observe - never a transient internal
+   row (a record the flow creates and then removes, a queue entry, a log line).
 5. **Ground references**, then write the file.
 
 ## Output - the oracle file (immutable)
@@ -88,7 +89,7 @@ NOT edit any expected to match actual`. Then one block per scenario:
 - screen/model: <view_xmlid or model> [view_type]
 - Given:  <precondition / fixture state>
 - When:   <action - the real workflow step, e.g. press Confirm / set field / search filter>
-- Then (expected): <single observable outcome, derived from REQUIREMENT>
+- Then (expected): <single outcome the role can observe, derived from REQUIREMENT - never a transient internal row>
 - required-evidence: <what proves it - screenshot of field=X / server state / raised AccessError / console clean / record created>
 - FAIL looks like: <the observation that would make this FAIL - so the tester knows the contradiction to watch for>
 ```

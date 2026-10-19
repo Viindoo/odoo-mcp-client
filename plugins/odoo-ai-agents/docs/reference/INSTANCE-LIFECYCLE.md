@@ -25,9 +25,9 @@
 | Change | Action | Why / trap |
 |--------|--------|------------|
 | First time loading a module into a DB | `-i` / `--init <module>` | registers in `ir_module_module`; loads all data incl. `noupdate`, runs demo data |
-| Python only (method, compute, onchange, business logic) | **restart server** (no `-i`/`-u` needed) | code is re-imported on boot; `--dev=reload` for autoreload. #1 agent confusion - editing a method does NOT need `-u` |
+| Python only (method, compute, onchange, business logic) | **restart server** (no `-i`/`-u` needed); leased: `lease_park` then `instance_serve(lease_token)` | code is re-imported on boot; `--dev=reload` for autoreload. Editing a method does NOT need `-u` |
 | New/changed **field** (column add/drop/type) | `-u` / `--update <module>` | runs ORM schema sync |
-| Changed `__manifest__.py` `depends` / `data` | `-u <module>` | a brand-new dependency is auto-installed by `-u`; or `-i` the new dep explicitly |
+| Changed `__manifest__.py` `depends` / `data` | `-u <module>`; leased: `instance_build` operation `update` on the same lease | a brand-new dependency is auto-installed by `-u`; or `-i` the new dep explicitly |
 | XML / view / data record changed | `-u <module>` | **TRAP:** records in `<data noupdate="1">` (or a noupdate file) are written once at `-i` and **never** rewritten by `-u`. Editing them has no effect - flip noupdate, migrate, or delete the `ir_model_data` row |
 | `store=True` computed field added / formula changed | `-u <module>` | `-u` should recompute the stored column; if recompute is skipped, force it (shell `env … recompute`, or null the column + `-u`). Verify the column, don't assume |
 | Removed a model / field / changed an XML id | `-u <module>` + watch for orphans | may leave stale columns / `ir_model_data` orphans; hard cleanup → reinstall |
@@ -40,7 +40,8 @@
   noupdate), run demo data, run `tagged at_install` tests if `--test-enable`.
 - `-u <module>` = update: re-run schema sync, reload **non-noupdate** data, run scripts in
   `migrations/`, recompute stored fields. `-u all` updates every installed module (slow).
-- Neither is needed for pure-Python logic changes - a **server restart** picks those up.
+- Neither is needed for pure-Python logic changes - a **server restart** picks those up (leased:
+  `lease_park` then `instance_serve(lease_token)`, never a hand-killed `odoo-bin`).
 - `-i` never resets an already-installed module; to truly reset, uninstall or drop the DB. To
   RE-RUN tests on a DB that already has the module installed, use
   `-u <module> --test-enable --test-tags /<module>` on every series - `-i` there runs none of its

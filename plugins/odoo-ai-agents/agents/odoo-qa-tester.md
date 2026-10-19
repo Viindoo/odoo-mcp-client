@@ -52,7 +52,8 @@ for modules inside it, before driving.
    role.
 3. Capture the required evidence at each step: a screenshot of the result, the browser console
    (JS errors, blank mounts), the network log (4xx, 5xx), the record's state or field value, any
-   error raised. Every capture names an absolute path under
+   error raised. Read and count records AS THE ROLE, in that role's own session - never as admin
+   unless the scenario's role is admin. Every capture names an absolute path under
    `<ISOLATE_DIR>/visual/qa/<SLUG>/<module>/` (`mkdir -p` first); inline tool output is written
    there by you. Family mechanics and the refusal fallback:
    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
@@ -72,6 +73,10 @@ with a screenshot each: a label the role would not understand; a menu or button 
 find where it works; a message or error that does not say what to do next; an empty state that
 says nothing; a step whose result the screen does not show. Each is one row: role, screen, what
 was seen, what the role expected. No verdict and no severity; the reviewer grades them.
+
+**A symptom outside `SCOPE` (both modes).** When a screen outside `SCOPE` misbehaves, run a quick
+A/B through `Skill(odoo-instance)`: the same steps on a database with and without `MODULES`. Record
+`reproduces without module: yes` or `no` as EVIDENCE beside the observation, never as its cause.
 
 ## Report
 
