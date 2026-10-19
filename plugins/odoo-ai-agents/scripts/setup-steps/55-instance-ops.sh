@@ -155,6 +155,9 @@
 #             has to grep for and retype. EMPTY means the log carried no such
 #             marker (unmeasured), never 0. The whole summary block is ALSO
 #             appended to the log, so `wait-log` can surface the verdict.
+#             Before the run it prints TEST_DEPS_MISSING= (the checkout's optional
+#             test-framework imports --python lacks), after it TEST_DEPS_SKIPPED=
+#             (those the log shows skipping tests) - see "TEST deps" below.
 #   i18n-export --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--languages <code,...>] --target <module>=<dir> (one per module)
 #             [--i18n-dir <module>=<dir>] [--db-host H] [--db-user U] [--db-port P]
@@ -300,6 +303,16 @@
 #               count. They are EMPTY when the log published no figure at all -
 #               unmeasured, never 0, so they can never read `0` beside a `failed`
 #               verdict)
+# TEST deps:    TEST_DEPS_MISSING=<dist,...>  (`test` verb only; printed BEFORE the run,
+#               always - empty when none is missing): the packages the checkout's test
+#               framework imports only when present (read from its tests/common.py)
+#               that --python cannot import; without them every browser, tour and
+#               Hoot test of the run skips. A non-empty value adds a `WARNING:` line
+#               naming the remedy. Never a refusal.
+#               TEST_DEPS_SKIPPED=<dist,...>  (`test` verb only, beside TEST_SKIPPED):
+#               those whose own skip message ("<dist> module is not installed") the
+#               log carries; the findings file's "Missing test dependencies" section
+#               names each with the remedy. Neither changes TEST_RESULT.
 # JS counts:    JS_RUNS=<n> JS_SCOPE=scoped|unscoped
 #               JS_FAILED_REPORTED=<n> JS_FAILED_TESTS=<n>
 #               (parseable; `test` verb only; the Hoot/QUnit half). A RUN is one
@@ -574,6 +587,43 @@ _read_checkout_facts() {
         exit 2
     fi
     return 0
+}
+
+# ---------------------------------------------------------------------------
+# _read_test_dep_facts <odoo_root> - the packages the checkout's test framework
+#   imports only when present (odoo_source_facts.py test-deps reads them from its
+#   tests/common.py; no requirements.txt lists them, and Odoo SKIPS every
+#   browser, tour and Hoot test without them) into the global _TEST_DEP_FACTS:
+#   one `<import><TAB><distribution><TAB><message>` line each, message = the line
+#   Odoo logs when it skips for lack of it (empty when the checkout states none).
+#   Empty when there is none or the checkout states none. Read by the `test`
+#   verb only: init and update run no test.
+# ---------------------------------------------------------------------------
+_TEST_DEP_FACTS=""
+_read_test_dep_facts() {
+    _TEST_DEP_FACTS=""
+    local out line imp dist msg
+    out="$(python3 "$_ODOO_CLI_FACTS_PY" test-deps "$1" 2>/dev/null)" || return 0
+    while IFS= read -r line; do
+        [[ "$line" == TEST_DEP=* ]] || continue
+        IFS='|' read -r imp dist msg <<<"${line#TEST_DEP=}"
+        [[ -n "$imp" ]] || continue
+        _TEST_DEP_FACTS+="${imp}"$'\t'"${dist}"$'\t'"${msg}"$'\n'
+    done <<<"$out"
+    return 0
+}
+
+# _test_deps_missing <python> - comma-separated distributions of _TEST_DEP_FACTS
+#   whose import <python> cannot resolve (empty when none is missing).
+_test_deps_missing() {
+    local py="$1" imp dist _msg missing=""
+    while IFS=$'\t' read -r imp dist _msg; do
+        [[ -n "$imp" ]] || continue
+        "$py" -c 'import importlib, sys; importlib.import_module(sys.argv[1])' "$imp" \
+            >/dev/null 2>&1 && continue
+        missing="${missing:+$missing,}$dist"
+    done <<<"$_TEST_DEP_FACTS"
+    printf '%s\n' "$missing"
 }
 
 # ---------------------------------------------------------------------------
@@ -1263,7 +1313,9 @@ _open_log() {
 #   file. TEST_RESULT is inconclusive (never a bare passed) whenever
 #   TEST_SKIPPED>0 and no failure occurred, and whenever no era-correct
 #   "the suite ran" marker is present - `passed` is a POSITIVE finding here,
-#   never a fallthrough.
+#   never a fallthrough. Also TEST_DEPS_SKIPPED: the optional test-framework
+#   imports (_TEST_DEP_FACTS) whose skip message the log carries - reported, never
+#   part of the verdict.
 #   Reads $logf and (best-effort) $arg_modules / $arg_version from the caller's
 #   scope (bash dynamic scope) to mark in-scope warnings and pick the era gate.
 # ---------------------------------------------------------------------------
@@ -1363,6 +1415,18 @@ _parse_test_result() {
             } | awk '!seen[$0]++'
         )"
     fi
+
+    # Optional test-framework imports whose skip message this log carries
+    # (_TEST_DEP_FACTS, read by cmd_test from the checkout): the run SKIPPED its
+    # browser, tour and Hoot tests for lack of them. Named here so a skip is
+    # traced to its cause; the verdict below is not touched by it.
+    local deps_skipped="" deps_section="" _dimp _ddist _dmsg
+    while IFS=$'\t' read -r _dimp _ddist _dmsg; do
+        [[ -n "$_dimp" && -n "$_dmsg" ]] || continue
+        grep -aqF -- "$_dmsg" "$logf" 2>/dev/null || continue
+        deps_skipped="${deps_skipped:+$deps_skipped,}$_ddist"
+        deps_section+="- \`$_ddist\` (import \`$_dimp\`): the log says \"$_dmsg\" - every browser, tour and Hoot test skipped. Install it into ${arg_python:-the venv python} (45-venv.sh create-venv installs it), then rerun."$'\n'
+    done <<<"$_TEST_DEP_FACTS"
 
     # --- Pass/fail verdict ---------------------------------------------------
     # Resolved BEFORE the findings file is written, because that file has to
@@ -1529,6 +1593,14 @@ _parse_test_result() {
             echo "_No skipped tests detected in the log._"
         fi
         echo
+        echo "## Missing test dependencies"
+        echo
+        if [[ -n "$deps_section" ]]; then
+            printf '%s' "$deps_section"
+        else
+            echo "_none_"
+        fi
+        echo
         echo "## In-scope warnings (mention a --modules name, capped at $warn_cap)"
         echo
         echo '```'
@@ -1549,6 +1621,7 @@ _parse_test_result() {
     echo "TEST_ERROR=$n_error"
     echo "TEST_WARNING=$n_warn"
     echo "TEST_SKIPPED=$n_skip"
+    echo "TEST_DEPS_SKIPPED=$deps_skipped"
     echo "FINDINGS_PATH=$findings"
     # SCOPE the run actually covered, as machine output. The alternative is an
     # agent hand-running two greps and hand-writing both figures into free text -
@@ -2425,6 +2498,17 @@ cmd_test() {
     # construction the same checkout this build is about to run.
     _preflight_db_auth "$arg_python" "${arg_db_host:-}" "${arg_db_user:-}" \
         "${arg_db_port:-}" "$(dirname "$odoo_bin")"
+
+    # The checkout's optional test-framework imports this venv lacks, stated BEFORE
+    # the run: without them every browser, tour and Hoot test of the run skips. A
+    # warning, never a refusal - the Python tests still run.
+    _read_test_dep_facts "$(dirname "$odoo_bin")"
+    local _deps_missing
+    _deps_missing="$(_test_deps_missing "$arg_python")"
+    echo "TEST_DEPS_MISSING=$_deps_missing"
+    if [[ -n "$_deps_missing" ]]; then
+        echo "WARNING: TEST_DEPS_MISSING=$_deps_missing - every browser/tour/Hoot test of this run will SKIP; install into $arg_python (45-venv.sh create-venv installs them)"
+    fi
 
     local logf
     _open_log "$arg_db" test "${arg_version:-}"

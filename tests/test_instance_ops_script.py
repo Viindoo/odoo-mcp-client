@@ -3702,3 +3702,76 @@ def test_malformed_build_facts_are_usage_errors(tmp_path, bad):
     res, argv = _facts_run(tmp_path, "init", "--version", "17.0", *bad)
     assert res.returncode == 2, (bad, res.stdout, res.stderr)
     assert argv is None
+
+
+# ---------------------------------------------------------------------------
+# Optional test-framework imports: the packages the checkout's tests/common.py imports only when
+# present (Odoo skips every browser, tour and Hoot test without them). A fictional import name, so
+# the real interpreter behind the fake python can never import it.
+# ---------------------------------------------------------------------------
+
+DEP_IMPORT, DEP_DIST = "fictional_browser_driver", "fictional-browser-driver"
+DEP_MESSAGE = "%s module is not installed" % DEP_DIST
+GREEN_SUMMARY = "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 3 tests"
+
+
+def _deps_run(tmp_path, verb, log_lines, *, declare=True):
+    fake_bin = _make_fake_odoo_bin_lines(tmp_path, exit_code=0, lines=log_lines)
+    if declare:
+        trees.write_test_common(tmp_path, "17.0", imports=((DEP_IMPORT, DEP_DIST),))
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    (tmp_path / "addons").mkdir(exist_ok=True)
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    return _run(verb, "--db", "depsdb", "--python", str(fake_py), "--addons",
+                str(tmp_path / "addons"), "--modules", "web", "--version", "17.0", env=env)
+
+
+@requires_bash
+def test_a_test_run_names_the_missing_optional_test_import_before_it_runs(tmp_path):
+    res = _deps_run(tmp_path, "test", ["Modules loaded.", GREEN_SUMMARY])
+    lines = res.stdout.splitlines()
+    assert _field(res, "TEST_DEPS_MISSING") == DEP_DIST
+    log_at = next(i for i, ln in enumerate(lines) if ln.startswith("LOG_PATH="))
+    assert lines.index("TEST_DEPS_MISSING=%s" % DEP_DIST) < log_at, "stated before the run starts"
+    warning = [ln for ln in lines if ln.startswith("WARNING: TEST_DEPS_MISSING=")]
+    assert len(warning) == 1 and "will SKIP" in warning[0] and "45-venv.sh create-venv" in warning[0]
+
+
+@requires_bash
+def test_a_test_run_with_nothing_missing_states_so_and_warns_nothing(tmp_path):
+    res = _deps_run(tmp_path, "test", ["Modules loaded.", GREEN_SUMMARY], declare=False)
+    assert _field(res, "TEST_DEPS_MISSING") == ""
+    assert not [ln for ln in res.stdout.splitlines() if ln.startswith("WARNING: TEST_DEPS")]
+
+
+@requires_bash
+def test_a_run_whose_browser_tests_skipped_names_the_package_and_stays_inconclusive(tmp_path):
+    res = _deps_run(tmp_path, "test", [
+        "Modules loaded.",
+        "WARNING 1 depsdb odoo.addons.web.tests.test_js.WebSuite: %s" % DEP_MESSAGE,
+        "INFO 1 depsdb odoo.addons.web.tests.test_js: skipped test_qunit_desktop : %s" % DEP_MESSAGE,
+        GREEN_SUMMARY])
+    assert _field(res, "TEST_DEPS_SKIPPED") == DEP_DIST
+    assert _field(res, "TEST_RESULT") == "inconclusive"
+    findings = _findings_text(res)
+    section = findings.split("## Missing test dependencies", 1)[1].split("\n## ", 1)[0]
+    assert DEP_DIST in section and DEP_MESSAGE in section and "45-venv.sh create-venv" in section
+
+
+@requires_bash
+def test_a_missing_optional_test_import_alone_never_changes_a_passed_verdict(tmp_path):
+    res = _deps_run(tmp_path, "test", ["Modules loaded.", GREEN_SUMMARY])
+    assert _field(res, "TEST_DEPS_MISSING") == DEP_DIST
+    assert _field(res, "TEST_DEPS_SKIPPED") == ""
+    assert _field(res, "TEST_RESULT") == "passed"
+    section = _findings_text(res).split("## Missing test dependencies", 1)[1].split("\n## ", 1)[0]
+    assert "_none_" in section
+
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update"])
+def test_init_and_update_never_probe_optional_test_imports(tmp_path, verb):
+    res = _deps_run(tmp_path, verb, ["Modules loaded."])
+    assert res.returncode == 0, (res.stdout, res.stderr)
+    assert "TEST_DEPS" not in res.stdout

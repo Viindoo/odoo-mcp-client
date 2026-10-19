@@ -143,7 +143,8 @@ MODULE_LIST_SEP = ","
 _SUMMARY_KEYS = ("STATUS", "TEST_RESULT", "TEST_FAILED", "TEST_ERROR", "TEST_WARNING", "TEST_SKIPPED",
                  "JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS", "MODULES_LOADED",
                  "TESTS_RUN", "TEST_TAGS_USED", "FINDINGS_PATH", "BUILD_SERVER_WIDE_MODULES",
-                 "BUILD_LANGUAGES", "BUILD_DEMO", "BUILD_MODULES_LOADED", "EXPORT_COUNT")
+                 "BUILD_LANGUAGES", "BUILD_DEMO", "BUILD_MODULES_LOADED", "EXPORT_COUNT",
+                 "TEST_DEPS_MISSING", "TEST_DEPS_SKIPPED")
 
 DEMO_VALUES = ("on", "off")
 # Odoo's source language: always active, unioned into every build's --load-language.
@@ -651,7 +652,7 @@ def _build(args, ctx):
             "profile": lease.get("profile") or "",
             "modules": list(modules), "server_wide_modules": load,
             "server_wide_adjustment": adjustment, "languages": languages,
-            "demo": demo or ""})
+            "demo": demo or "", "venv_python": python})
     with database_job_slot(lease):
         # Recorded BEFORE the build starts: a build that fails half-way may already have loaded
         # demo data, and demo is sticky (record-build), so recording early can only over-state it.
@@ -740,8 +741,23 @@ def _catalog_row_words(meta):
     return key or "?", refresh
 
 
-def _build_warnings(wide, no_demo, meta):
+def _build_warnings(wide, no_demo, meta, summary=None):
+    """Remedy-bearing warnings of a finished job: modules Odoo says must load server-wide, modules
+    installed without their demo data, and (a test build) the optional test-framework imports the
+    lease's venv lacks - the script's TEST_DEPS_MISSING / TEST_DEPS_SKIPPED summary keys."""
     out = []
+    missing = (summary or {}).get("TEST_DEPS_MISSING") or ""
+    if missing:
+        skipped = (summary or {}).get("TEST_DEPS_SKIPPED") or ""
+        python = meta.get("venv_python") or "the lease's venv python"
+        out.append("the lease's venv lacks %s, which Odoo's test framework imports optionally; every "
+                   "browser, tour and Hoot test skipped without %s (TEST_DEPS_SKIPPED names those "
+                   "that did%s). Rebuild the venv through /odoo-ai-agents:odoo-setup (step 45 "
+                   "create-venv installs them) or install them into %s, then rerun." % (
+                       missing.replace(",", ", "),
+                       "them" if "," in missing else "it",
+                       ": %s" % skipped.replace(",", ", ") if skipped else ": none in this run",
+                       python))
     if wide:
         key, refresh = _catalog_row_words(meta)
         them = "them" if len(wide) > 1 else "it"
@@ -854,7 +870,7 @@ def _job_wait(args, ctx):
         "demo": meta.get("demo") or None,
         "languages_loaded": loaded,
         "languages_failed": failed,
-        "warnings": _build_warnings(wide, no_demo, meta),
+        "warnings": _build_warnings(wide, no_demo, meta, summary),
         "exports": _exports_from(output) if exporting else [],
         "instance_handle": handle,
     }

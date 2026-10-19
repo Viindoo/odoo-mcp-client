@@ -773,3 +773,39 @@ def test_the_shared_instance_takes_no_adjustment(client, world):
                                               "server_wide": {"exclude": ["viin_brand"]}}))
     assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
     assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
+
+
+def test_job_wait_names_a_missing_optional_test_import_with_its_remedy(client, world):
+    """The checkout's test framework imports a package only when present (a fictional one here, so
+    the venv can never import it); without it every browser, tour and Hoot test skips. job_wait
+    names the package, the tests that skipped for it, and how to install it into the lease's venv."""
+    dist = "fictional-browser-driver"
+    message = "%s module is not installed" % dist
+    trees.write_test_common(world["odoo_bin"].parent, SERIES,
+                            imports=(("fictional_browser_driver", dist),))
+    world["behavior"].write_text(
+        'echo "odoo.modules.loading: Modules loaded."\n'
+        'echo "INFO 1 insttest odoo.addons.web.tests.test_js: skipped test_qunit_desktop : %s"\n'
+        'echo "INFO 1 insttest odoo.tests.result: 0 failed, 0 error(s) of 3 tests"\nexit 0\n'
+        % message, encoding="utf-8")
+    lease = _lease(client, world, ports=1)
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
+                                    test_tags="/my_mod"))["job_id"])
+    assert done["summary"]["TEST_DEPS_MISSING"] == dist
+    assert done["summary"]["TEST_DEPS_SKIPPED"] == dist
+    (warning,) = [w for w in done["warnings"] if dist in w]
+    assert "/odoo-ai-agents:odoo-setup" in warning and "create-venv" in warning
+    assert str(world["python"]) in warning, "the remedy names the venv to install it into"
+
+
+def test_job_wait_warns_nothing_when_the_venv_has_every_optional_test_import(client, world):
+    trees.write_test_common(world["odoo_bin"].parent, SERIES, imports=(("json", None),))
+    world["behavior"].write_text(
+        'echo "odoo.modules.loading: Modules loaded."\n'
+        'echo "INFO 1 insttest odoo.tests.result: 0 failed, 0 error(s) of 3 tests"\nexit 0\n',
+        encoding="utf-8")
+    lease = _lease(client, world, ports=1)
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
+                                    test_tags="/my_mod"))["job_id"])
+    assert done["summary"]["TEST_DEPS_MISSING"] == ""
+    assert not [w for w in done["warnings"] if "test framework" in w]
