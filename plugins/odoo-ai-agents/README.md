@@ -226,7 +226,7 @@ a human stop. **L2 always stops for a human; the dial can never lower it.**
 |------|-----------|----------------|
 | **L0** | Read-only / chat answers | Auto-passes |
 | **L1** | Writes internal files under the `$ODOO_AI_HOME` state root (reversible, outside the repo) | Auto-passes |
-| **L2** | Irreversible / outward: git push or merge, sending to a customer, touching a live instance - **and any source-code write that was not in the approved plan** | **Always stops for you** |
+| **L2** | Outward and irreversible: a push to or deletion of a protected branch, merging a pull request, sending to a customer - **and any source-code write that was not in the approved plan** | **Always stops for you** |
 
 **Best practice.** Start with a plain-language `/odoo-intake "<what you want>"`. Approve the plan once.
 Let `--auto` carry the routine steps; you will be stopped exactly at the moments that matter
@@ -268,8 +268,8 @@ codegen - all fan-out is real subagent launches.
 The agent frontmatter `model:` is only a default - the dispatch `model` parameter overrides it per
 launch. Review runs the same way: `odoo-code-reviewer` at `haiku` for the mechanical pass (R1),
 `sonnet` for behaviour and the verdict (R2), `opus` for the specialist pass (R3) when due;
-`odoo-qa-tester` at `haiku` for the execution pass (A1A2) and `sonnet` for the role walk-through
-(A4).
+`odoo-qa-tester` at `haiku` for the execution pass (A1A2), at `sonnet` when a scenario's Given
+needs a fixture built, and at `sonnet` for the role walk-through (A4).
 
 > **Model aliases follow the provider's current generation.** `haiku`, `sonnet`, `opus` and `fable`
 > are family aliases, so each resolves to the newest generation your provider offers. If your
@@ -283,7 +283,7 @@ flowchart TD
     DES --> PLAN["plan node: agent + mode + model + when:"]
     PLAN --> NODE["ONE odoo-coder per node<br/>guidelines by file type -> tests red -> code<br/>-> stand-alone + with-dependents runs<br/>-> impact-map.md -> commit via git-ops"]
     NODE -.->|"new JS/OWL files, disjoint"| FE["odoo-frontend-coder"]
-    NODE --> REV["R1 haiku -> R2 sonnet (R3 opus when due)<br/>|| A1A2 haiku (A4 sonnet when due)"]
+    NODE --> REV["R1 haiku -> R2 sonnet (R3 opus when due)<br/>|| A1A2 haiku, sonnet when fixtures are built (A4 sonnet when due)"]
     REV -->|"merged findings, SendMessage"| NODE
     REV -->|"clean"| TAIL["i18n when: -> docs when: -> integrate"]
 ```
@@ -425,9 +425,9 @@ flowchart TD
         PA --> PC["migration rename gate + i18n compute<br/>(8e records i18n_due; no dispatch here)"]
     end
 
-    PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, integrated run per batch,<br/>break-check reports carried;<br/>released once the last P10 gate passes)"]
+    PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, integrated run per batch,<br/>break-check reports carried;<br/>released once P10 concludes the last batch)"]
     P9 --> P95["P9.5 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>odoo-i18n builds its OWN demo-loaded<br/>export instance, never the P9 one)"]
-    P95 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(ONE commit closes the batch's range;<br/>P5 again only per human-approved batch)"]
+    P95 --> P10["P10 - Conclude the merge<br/>(self-decided; ONE commit closes the batch's range;<br/>P5 again only per human-approved batch)"]
     P10 --> P11["P11 - End-to-end acceptance<br/>(odoo-acceptance, on its own demo-carrying<br/>instance) - MANDATORY cluster-wide,<br/>narrow-escape only; runs BEFORE the P12 PR<br/>opens or its review runs"]
     P11 --> P12["P12 - PR + code-review<br/>(mandatory for new engines);<br/>pushes + opens the PR only after P11 acceptance<br/>and this phase's own diff-based review clear"]
     P12 --> DONE(["Done - <ISOLATE_DIR>/forward-port/"])
@@ -443,12 +443,12 @@ flowchart TD
 | P5 Git merge --no-commit | ONE `git merge --no-ff --no-commit` of the batch's range tip (absorb-all): every source SHA in the range comes with it and the merge window stays open through P10; never one merge per commit | Once per batch | - |
 | P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
 | P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
-| P8 Adapt | Code first, then tests, per module: adapt code by bucket (a=skip/b=3-way/c=reimplement/d=skip) via `odoo-coding` -> `odoo-coder`, then the node test leg (`odoo-test-writer` adapts the source tests and proves each with an executed break-check; a bucket-(a) commit runs its source test first as an absorption probe - GREEN confirms it is absorbed, a failure on the assertion re-buckets it); the node runs with `COMMIT: caller`, so it makes no commit and the batch's merge window stays open; migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per module (a module touched by several commits is adapted once against the merged result; its coder is launched once and resumed by the id that launch returned) | - |
-| P9 Verify by behavior | Ephemeral instance, integrated run per batch carrying each node's break-check report; every batch reuses it, and the pipeline releases it once the last P10 gate passes | Per-batch | - |
-| P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; dispatches `odoo-i18n` once, which builds its OWN demo-loaded export instance on the batch worktree - never the P9 test instance, whose database lacks demo terms (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
-| P10 Gate merge | STOP, then ONE commit (via `git-toolkit:git-ops`) stages the batch's full file list and concludes the merge, closing the whole range; there is no per-commit P5 loop - P5 runs again only for the next human-approved batch | - | STOP - human confirm |
+| P8 Adapt | Code first, then tests, per module: adapt code by bucket (a=skip/b=3-way/c=reimplement/d=skip) via `odoo-coding` -> `odoo-coder`, then the node test leg (`odoo-test-writer` adapts the source tests and proves each with an executed break-check; a bucket-(a) commit runs its source test first as an absorption probe - GREEN confirms it is absorbed, a failure on the assertion re-buckets it); the node runs with `COMMIT: caller`, so it makes no commit and the batch's merge window stays open; migration dir retarget or forward (C2: retarget only when every module the script acts on is installable at the target tip) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per module (a module touched by several commits is adapted once against the merged result; its coder is launched once and resumed by the id that launch returned) | - |
+| P9 Verify by behavior | Ephemeral instance, integrated run per batch carrying each node's break-check report; every batch reuses it, and the pipeline releases it once P10 concludes the last batch | Per-batch | - |
+| P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; dispatches `odoo-i18n` once, which builds its OWN demo-loaded export instance on the batch worktree - never the P9 test instance, whose database lacks demo terms (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); result presented at P12 | - | - |
+| P10 Conclude the merge | Self-decided local merge on `fp/<slug>`: ONE commit (via `git-toolkit:git-ops`) stages the batch's full file list and concludes the merge, closing the whole range; what it records is presented at P12; there is no per-commit P5 loop - P5 runs again only for the next human-approved batch | - | - |
 | P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch, with no instance handle - it provisions its own demo-carrying cluster; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the plan's default tail, `skills/odoo-intake/references/plan-mode-schema.md` § Default tail) | - | L2 (human) - verdict carried into the P12 human-merge decision |
-| P12 PR + code-review | Push + open PR only after P11 acceptance and this phase's own diff-based review clear; mandatory code-review for new engines; bot-comment cross-check runs post-PR (the one sub-step that genuinely needs an open PR) | - | - |
+| P12 PR + code-review | Push + open PR only after P11 acceptance and this phase's own diff-based review clear; mandatory code-review for new engines; bot-comment cross-check runs post-PR (the one sub-step that genuinely needs an open PR) | - | STOP - human merges the PR |
 
 ### Git-rebase pipeline (`/odoo-git-rebase`)
 
@@ -794,6 +794,13 @@ the capture area, because a relative path would land in your repository. It refu
 answering server provably carries its state-root flag; a server you have not re-registered yet gets
 an advisory instead.
 
+**Auto mode.** `/odoo-ai-agents:odoo-setup auto-mode` derives the trusted roots, organization, fork
+owner and protected branches from your catalog and git remotes and, on one approval, writes tagged
+`autoMode` and `permissions.ask` entries into your user settings, so routine development is never
+classified as destructive and the one human gate left is a push to a protected branch or a
+pull-request merge. A SessionStart hook keeps those entries current after a plugin update and never
+touches entries you wrote yourself.
+
 **After updating the plugin, re-run `/odoo-ai-agents:odoo-setup browser` and restart the session**
 (MCP does not hot-reload). Setup replaces any registration that differs from what it would write
 today (older pin, missing flag, moved `$ODOO_AI_HOME`). On Claude Code a SessionStart hint
@@ -888,7 +895,7 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/odoo-bin-resource-limits.md` | The odoo-bin memory-cap policy for every launch: a version-general `ulimit -Sv` + `--limit-memory-hard` pair (the v12.0 boundary where Odoo's own enforcement begins), the `MemTotal`-derived default (overridable via `ODOO_AI_LIMIT_MEMORY_HARD`), and which limit flags fire on a `--stop-after-init` build vs a long-running listener conf |
 | `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A resume a child you launched, by the id its own launch returned / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
 | `snippets/new-module-manifest.md` | Greenfield `__manifest__.py` authoring: scaffold-first, preserve commented placeholder keys, and use the short version form (`0.1` / `1.0.0`) - never the series-prefixed `17.0.1.0.0` form on a new module (enforced by `odoo-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer`) |
-| `snippets/upg-conventions.md` | Viindoo upgrade + module-rename conventions (Viindoo Standard/Internal profile, OSM-gated): keeping the manifest `version` unchanged on a code-level upgrade; a renamed module's `__manifest__.py` must carry `old_technical_name` so Viindoo tooling can map the old name to the new one; does not replace OpenUpgrade DB-level rename (consumed by `odoo-coder`, `odoo-code-reviewer`) |
+| `snippets/upg-conventions.md` | Upgrade conventions for every distribution: a major-series upgrade is a code upgrade, the manifest `version` stays unchanged on a code-level upgrade, and pointers for the always-invisible comment and `hr.employee` `groups=` rules (consumed by `odoo-coder`, `odoo-code-reviewer`) |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`); `odoo-planning` is the canonical producer of the node-partitioned result, which `odoo-coding` and the plan runner consume so all dispatch follows `depends_on` order - the module boundary is a property of a node, not a tier of decomposition |
 
 The two-axis state root at a glance (full classification tables + the resolve-capture-substitute
@@ -993,7 +1000,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-diff-comparator` | Sonnet | Read-only: reads a git-diff range and emits a structured business-intent / expected-outcome / acceptance-criteria comparison (rebase: branch vs base; upgrade: custom vs core). |
 | `odoo-gap-analyzer` | Sonnet | Gap-analysis leaf dispatched by `odoo-gap-analysis` (one per requirement cluster) - classifies each requirement against standard Odoo (coverage full/partial/none, classification standard/config/extension/custom, effort tier S/M/L/XL) grounded in OSM first and the local checkout as fallback, then writes a machine-readable findings file; read-only on source, does not design or write code |
 | `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author - only when the SRS criteria are not concrete scenarios (role, precondition, steps, comparable value) |
-| `odoo-qa-tester` | Haiku *(A4 at sonnet)* | A1A2: builds the stand-alone and with-dependents databases, drives every SRS scenario as its role, rules PASS/FAIL/UNVERIFIED by comparing observed and expected values with evidence; A4: uses the new screens as each audience role and reports what the role cannot understand |
+| `odoo-qa-tester` | Haiku *(sonnet when a Given needs a fixture built; A4 at sonnet)* | A1A2: builds the stand-alone and with-dependents databases, drives every SRS scenario as its role, rules PASS/FAIL/UNVERIFIED by comparing observed and expected values with evidence; A4: uses the new screens as each audience role and reports what the role cannot understand |
 
 ## Requirements
 

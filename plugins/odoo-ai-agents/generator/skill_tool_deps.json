@@ -1072,7 +1072,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Live acceptance executor in two caller-set modes: A1A2 (haiku) builds the stand-alone and with-dependents databases through the odoo-instance skill, drives each scenario as its role, captures evidence and rules PASS/FAIL/UNVERIFIED by comparison; A4 (sonnet) walks the new screens as each audience role and reports what the role cannot understand. OSM is static structural grounding for modules outside the worktree; live values come from the instance and the browser. Never edits the oracle, never fixes code, launches nothing.",
+      "notes": "Live acceptance executor in two caller-set modes: A1A2 (haiku, sonnet when a Given needs a fixture built: a multi-company database, a stubbed external service, device emulation, an upgrade database) builds the stand-alone and with-dependents databases through the odoo-instance skill, drives each scenario as its role, captures evidence and rules PASS/FAIL/UNVERIFIED by comparison; A4 (sonnet) walks the new screens as each audience role and reports what the role cannot understand. OSM is static structural grounding for modules outside the worktree; live values come from the instance and the browser. Never edits the oracle, never fixes code, launches nothing.",
       "brief": {
         "required": [
           "MODE",
@@ -1107,7 +1107,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; icon.png + icon.svg are always emitted (no version-gated PNG-only era - Odoo reads the manifest `icon` key first and only auto-discovers the conventional PNG when it is empty, per docs/odoo-ui-knowledge.md's boundary row), the manifest `icon` key is set only when the brief or a non-conventional asset path calls for it; style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module.",
+      "notes": "Icon design leaf agent: draws a purpose-made module icon as SVG (palette: brief -> brand-tokens.json -> sibling family sampled with scripts/lib/icon_gate.py sample -> category hue -> Odoo default; optional long-shadow), rasterizes it with icon_gate.py render (rsvg-convert, inkscape, headless Chrome/Chromium, cairosvg, ImageMagick) and gates it with icon_gate.py check (RGBA colour, plate pixel equals the chosen BG, non-blank; CANNOT-VERIFY is not a pass) plus a mandatory two-pass 32 px self-review on the nearest-neighbour preview; icon.png + icon.svg are always emitted (no version-gated PNG-only era - Odoo reads the manifest `icon` key first and only auto-discovers the conventional PNG when it is empty, per docs/odoo-ui-knowledge.md's boundary row), the manifest `icon` key is set only when the brief or a non-conventional asset path calls for it; era-aware plate style (see the agent's Step 3); standalone-first, no browser session. OSM optional for category/version grounding. min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
           "MODULE_PATH",
@@ -1467,7 +1467,7 @@
       "spawns": [
         "git-ops (read PR CI status + review state, MERGE at the L2-merge-gate, re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - via git-ops skill - git-toolkit)",
         "odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool)",
-        "odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2)"
+        "odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push to the PR branch is self-decided, only the merge into the protected branch waits for the human)"
       ],
       "stack": "none",
       "instance_touching": false,
@@ -1645,11 +1645,11 @@
       "spawns": [
         "odoo-intent-extractor (read-only, one instance PER MODULE covering that module's full ordered commit list - never per commit; model per the capability map in skills/_shared/concurrency-guard.md)",
         "odoo-installable-prober (read-only per-module category-3 disambiguation in P2: reads the orchestrator-written target clean-tip manifest + the source manifest history dump; haiku)",
-        "odoo-coding (P8 adapt via the Skill tool; one invocation per module, MODE: adapt, COMMIT: caller; owns the node's coder (odoo-coder, with odoo-frontend-coder for a disjoint JS/OWL part; the coder writes the node's tests test leg that adapts the forwarded tests and break-checks them) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); modules adapted serially in the one integration worktree; the coder is launched ONCE per module and its returned id recorded, then resumed by that id on every later invocation for that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
-        "git-ops (P5 absorb-all - ONE no-ff no-commit merge of the batch's range TIP, the pipeline's only git shape - plus branch/worktree ops, the single P10 merge commit, and all other local git mutations, plus read-only diff/range map and PR create/review - via git-ops skill - git-toolkit; never a per-commit merge, and never a cherry-pick at any granularity)",
+        "odoo-coding (P8 adapt via the Skill tool; one invocation per module, MODE: adapt, COMMIT: caller; owns the node's coder (odoo-coder, with odoo-frontend-coder for a disjoint JS/OWL part; the coder writes the node's tests test leg that adapts the forwarded tests and break-checks them) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir retarget-or-forward (retarget only when every module the script acts on is installable at the target tip), C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); modules adapted serially in the one integration worktree; the coder is launched ONCE per module and its returned id recorded, then resumed by that id on every later invocation for that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
+        "git-ops (P5 absorb-all - ONE no-ff no-commit merge of the batch's range TIP, the pipeline's only git shape - plus branch/worktree ops, the single self-decided P10 merge commit (no human gate; human gates are P4 and the P12 PR merge), and all other local git mutations, plus read-only diff/range map and PR create/review - via git-ops skill - git-toolkit; never a per-commit merge, and never a cherry-pick at any granularity)",
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
         "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
-        "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; SELF_PROVISIONS its own demo-loaded export instance - the P9 verify instance is built without demo and cannot serve an export - folds its result into the P10 gate)"
+        "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; SELF_PROVISIONS its own demo-loaded export instance - the P9 verify instance is built without demo and cannot serve an export - its result is presented at the P12 PR gate)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1716,7 +1716,7 @@
     "odoo-acceptance": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-qa-tester (MODE A1A2 at haiku: the stand-alone and with-dependents databases, scenario execution, evidence, PASS/FAIL/UNVERIFIED; MODE A4 at sonnet: the audience walk-through when the node adds a user-facing screen)",
+        "odoo-qa-tester (MODE A1A2 at haiku, or sonnet when a Given needs a fixture built per concurrency-guard.md Model-tier selection: the stand-alone and with-dependents databases, scenario execution, evidence, PASS/FAIL/UNVERIFIED; MODE A4 at sonnet: the audience walk-through when the node adds a user-facing screen)",
         "odoo-qa-planner (only for SRS criteria without a comparable expected value)",
         "odoo-test-writer (durable tour/HttpCase for High-tier PASS scenarios when the plan asks)",
         "odoo-instance (the testers build their databases through the skill, on leases the run owns)"
