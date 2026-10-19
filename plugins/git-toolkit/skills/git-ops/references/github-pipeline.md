@@ -56,7 +56,8 @@ gh release list
 Tag a release annotated:
 
 ```bash
-git tag -a v1.2.3 -m "Release v1.2.3" && git push origin v1.2.3
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
 ```
 
 ## CI status (gh - script-safe exit codes)
@@ -78,5 +79,6 @@ gh pr create --repo <upstream-owner>/<repo> --base <branch> \
 ## DCO on a pushed range
 
 ```bash
-git rebase --signoff <base>     # add Signed-off-by to each commit, then force-with-lease push
+git rebase --signoff <base>     # add Signed-off-by to each commit
+git push --force-with-lease     # S2
 ```

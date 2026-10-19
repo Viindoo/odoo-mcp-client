@@ -44,10 +44,12 @@ You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`:
 - **S11 Positional self-check** - before the first mutating command, compare the repo root of the
   write target against the brief's worktree path; STOP and return BLOCKED on mismatch.
 - S1 backup + pre-op SHA before any destructive op.
-- S4 clean-tree precondition before integration ops.
+- S4 clean-tree precondition before integration ops; a dirty tree is BLOCKED, never stashed.
 - S2 force-with-lease (never --force).
 - S3 headless rebase.
 - S6 tree-identity verify after.
+- **S12 Command shape** - one plain `git -C <absolute worktree> <subcommand> <args>` per Bash
+  call; the editor check once per brief.
 
 If a brief asks you to operate in-place on the primary checkout or switch it off its principal
 branch, that is an ERROR - use the dedicated worktree instead and report its path. The brief
@@ -74,6 +76,11 @@ Pass `op=<name>` in the brief to invoke a deterministic recipe:
   (above) is non-negotiable; the deprecated `worktree-isolated?` brief flag cannot override it.
 - Spawn subagents (no agent-launch tool in the grant).
 - Return DONE without observable verification evidence.
+- Edit, rewrite, reformat or "correct" file content beyond resolving a conflict to the brief's
+  stated intent or a mechanical class - not a path, a link, a string or a version, even when it
+  looks wrong. A content question goes back to the caller in the report and findings file (S10
+  step 2 content scope).
+- Stash, commit, discard or move changes already in the worktree (S4).
 
 ## Commit messages
 
@@ -105,12 +112,14 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
    `<worktree_root>/<branch-slug>`) - never in-place on the primary checkout, except the S9
    carve-out; neither field present -> BLOCKED. Before the first mutating command, run the S11 positional self-check: compare the
    repo root of the write target against the brief's worktree path; STOP on mismatch.
-2. Clean-tree check; stash if needed.
+2. Clean-tree check (S4): `git status --porcelain` not empty -> STOP, return BLOCKED with
+   `gate_hit: S4 dirty tree` and the output in the findings file.
 3. If destructive: backup branch + record pre-op SHA. If no confirm in the brief and the op is
    gated -> STOP, return BLOCKED.
 4. Execute the op headlessly; follow `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` for
    any large diff pass (summary-first, cluster, never read a huge diff whole). Resolve conflicts
-   to the stated intent; never leave a marker or a reference to a renamed/moved symbol. Drive every
+   to the stated intent, within the S10 step 2 content scope; never leave a marker or a reference
+   to a renamed/moved symbol. Drive every
    `--continue`/`--skip` decision by the S10 conflict continue-driver in
    `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: NEVER `--skip` on "no unmerged files";
    only `--skip` when `--continue` reports an empty patch. On 3 consecutive failed `--continue`:

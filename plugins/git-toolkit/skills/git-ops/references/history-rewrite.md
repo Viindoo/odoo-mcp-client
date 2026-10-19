@@ -2,42 +2,48 @@
 
 All recipes here are DESTRUCTIVE. Every one runs under
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: S1 backup + pre-op SHA FIRST, the 8-item
-human-confirm gate BEFORE execution, S6 tree-identity verify AFTER. Drive interactive rebases
-headlessly (S3) - a subagent has no TTY.
+human-confirm gate BEFORE execution, S6 tree-identity verify AFTER. Every command is one plain call
+in the shape of S12, which also settles every step that would open an editor.
 
 ## Pre-op (every recipe)
 
 ```bash
-git status --porcelain                                   # S4 clean tree (stash if not)
-git branch backup/$(git rev-parse --abbrev-ref HEAD)-$(date +%Y%m%d%H%M%S)
-git rev-parse HEAD                                        # record pre-op SHA
+git status --porcelain                                   # S4: any output -> BLOCKED, never stash
 ```
+
+Then the S1 backup: branch name, pre-op SHA, timestamp, backup branch - one call each.
 
 ## Interactive rebase - autosquash (preferred)
 
-Make fixups while committing, then collapse them non-interactively:
+Make fixups while committing, then collapse them:
 
 ```bash
 git commit --fixup=<target-sha>                          # "fixup! <target subject>"
-GIT_SEQUENCE_EDITOR=true git rebase --autosquash -i <base>
-EDITOR=true GIT_SEQUENCE_EDITOR=true git rebase --autosquash -i <base>   # if exec/amend involved
+git rebase -i --autosquash <base>
 ```
 
 ## Squash a range
 
+Write the squashed commit's message with the file tool beside the findings file (C5), then:
+
 ```bash
-GIT_SEQUENCE_EDITOR='awk "NR==1{print} NR>1{sub(/^pick/,\"squash\")} {print}"' \
-  git rebase -i HEAD~<N>
+git reset --soft <base>
+git commit -F <message-file>
 ```
 
 ## Split one commit into focused commits
 
+Rebuild the commit on a detached HEAD, then replay the commits above it onto the result. Commit
+messages per `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` (sign-off per C4):
+
 ```bash
-GIT_SEQUENCE_EDITOR='sed -i "s/^pick <sha>/edit <sha>/"' git rebase -i <sha>^
+git switch --detach <sha>
 git reset HEAD^                  # unstage that commit's changes
-git add <first set>;  git commit -s -m "<first focused subject>"    # use -s + format per commit-convention.md
-git add <second set>; git commit -s -m "<second focused subject>"   # use -s + format per commit-convention.md
-git rebase --continue
+git add <first set>
+git commit -F <first-message-file>
+git add <second set>
+git commit -F <second-message-file>
+git rebase --onto HEAD <sha> <branch>
 ```
 
 ## Amend the last commit
@@ -60,10 +66,10 @@ git reset --hard  <sha>       # DISCARD all changes - gated; backup first
 ## filter-repo (bulk rewrite - fresh clone only)
 
 ```bash
-git clone --no-local repo/ repo-rewrite/ && cd repo-rewrite/
-git filter-repo --analyze                                # rename/size report first
-git filter-repo --path-glob '*.secret' --invert-paths    # remove secrets
-git filter-repo --path-rename old/:new/                   # rename a path (give BOTH paths)
+git clone --no-local <repo> <fresh clone>
+git -C <fresh clone> filter-repo --analyze                                # rename/size report first
+git -C <fresh clone> filter-repo --path-glob '*.secret' --invert-paths    # remove secrets
+git -C <fresh clone> filter-repo --path-rename old/:new/                  # rename a path (give BOTH paths)
 ```
 
 Refuses to run in-place; rewrites EVERY SHA; coordinate with all fork owners. `--path` does NOT
@@ -97,6 +103,6 @@ When the branch is shared/public, prefer revert over rewrite - it adds a new inv
 churn, no force-push:
 
 ```bash
-git revert <sha>
-git revert <sha1>..<sha2>     # range, reverse order
+git revert --no-edit <sha>
+git revert --no-edit <sha1>..<sha2>     # range, reverse order
 ```

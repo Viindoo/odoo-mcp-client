@@ -44,6 +44,10 @@ for one op. On a `gh` fallback, return `DONE_WITH_CONCERNS` noting it. If neithe
 authenticated, STOP and return NEEDS_CONTEXT naming the missing credential
 (`GITHUB_PERSONAL_ACCESS_TOKEN` for MCP, `gh auth login` for the CLI).
 
+Every local git read and every `gh` call has the S12 command shape in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: one plain command per Bash call, git as
+`git -C <absolute worktree> <subcommand> <args>`.
+
 ## Default behavior - bare PR or issue URL
 
 When handed a bare PR or issue URL with NO further instruction, return a COMPACT DIGEST - never

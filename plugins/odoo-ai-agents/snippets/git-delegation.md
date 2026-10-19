@@ -201,7 +201,8 @@ BLOCKED return, obtain confirmation and invoke git-ops again.
 
 ## Conflict stateless-resume (rebase / merge / cherry-pick)
 
-Ask git-ops to resolve ALL mechanical conflicts (.po / .pot / binary / generated) and advance
+Ask git-ops to resolve ALL mechanical conflicts (.po / .pot / binary / generated / a package
+`__init__.py` whose conflicting hunks are import lines only) and advance
 to the next Odoo-semantic conflict. When it stops on an unresolved semantic conflict it returns
 `BLOCKED-CONFLICT` (distinct from plain `BLOCKED`) with two extra result-block fields:
 - `conflicted_files: [<relative-paths>]` - files carrying unresolved conflict markers
