@@ -68,13 +68,17 @@ across every module's adapt work, and closes once. All work happens here - in th
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
    see [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
    against the range's combined result - re-resolving it per commit is the banned shape above.
-2a. **Manifest version (C1) - never invent a bump.** `--no-ff` already carries whatever the source
-    commit did to the module descriptor - which filename applies on which series is owned by
-    `odoo-era-boundaries.md` row 6, never restated here. Do NOT
-    add, derive, or increment a `version` bump on the target side. On a module-descriptor `version`
-    CONFLICT, keep the **TARGET** file's `version` field as-is - never merge-pick the higher number,
-    never bump "to be safe". (The only bump permitted anywhere in forward-port is the C2 case below,
-    and it is a migration-threshold bump, not a conflict decision.)
+2a. **Manifest version (C1) - set by formula, only when the source bumped.** `--no-ff` already
+    carries whatever the source commit did to the module descriptor - which filename applies on
+    which series is owned by `odoo-era-boundaries.md` row 6, never restated here. For a module that
+    already exists on the target and whose `version` the range changes on the source, set the target
+    descriptor's `version` to `max(M + 1, S)`, whether or not the merge conflicted on that field:
+    `M` = the target module's version BEFORE this forward-port, `S` = the module's version in the
+    source tip, both read on the module part after the series prefix and compared as dotted integer
+    tuples; `+ 1` adds one to the last component. Write the result in the form the target
+    descriptor already uses. A range that does not change the module's `version` on the source
+    leaves the target's value as it is, and a module new on the target keeps the version the merge
+    carries. Never merge-pick one side's value and never bump for any other reason.
 3. Adapt per module, code first: ONE `odoo-coding` node adapts the code, then its test leg forwards
    and adapts the tests and proves each
    (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
@@ -87,34 +91,30 @@ no-commit merge while one is in progress (git index is shared; git-toolkit enfor
 
 ## Migration dir retarget (C2) - distinct from C1
 
-A source-series commit adds `migrations/<src-series>.a.b.c/`. Let `S` = `a.b.c` (source). Let `M` =
-the target module's manifest `version` BEFORE this forward-port (the version deployed target DBs
-have already reached). A migration runs only on UPGRADE and only when
-`installed < dir_version <= manifest`. Decide each dir in this order:
+A source-series commit adds `migrations/<src-series>.a.b.c/`. `M` and `S` are as in C1. A migration
+runs only on UPGRADE and only when `installed < dir_version <= manifest`. Decide each dir in this
+order:
 
-1. **Retarget only when every module the script acts on is already upgraded on the target series**
-   - the module that owns the dir and every module whose tables, fields or records the script reads
-   or writes is `installable` at the target tip (the clean-tip read of `[[fp-installable-false]]`).
-   Otherwise FORWARD the dir unchanged under its source-series name, do not bump, and record why
-   on the commit's `merge-log.md` row (`<sha> | C2 forwarded | <module> not installable at target
-   tip`): a script run on a series where the modules it acts on are not upgraded meets a schema
-   that is not there. A module `installable:False` at the target is the lint-only lane, so its own
-   migrations are always forwarded unchanged.
-2. **Legacy source-origin-only data fix** (irrelevant to native-target data): KEEP the dir as
-   `<src-series>.a.b.c`, do NOT bump. It still fires for src->tgt jumpers below `a.b.c`; it can
-   never fire on a native-target DB (the source series sorts below the target), which is correct.
-3. **Otherwise RETARGET** the prefix to the target series and pick `V` so the dir fires on a
-   deployed target DB sitting at `M`:
-   - `S > M`: `V = S` (the merge already bumped the manifest M->S; just name the dir `<tgt>.S`, no extra bump).
-     (Exception: if C1 fired on this commit - the merge had a `version` conflict and TARGET's value was kept,
-     leaving manifest at M not S - treat as the `S <= M` case below; bump manifest to S so `dir <= manifest` holds.)
-   - `S <= M`: `V` = `M`'s last component +1 (next patch); **bump the manifest to V** - keeping `a.b.c=S`
-     would leave `dir <= installed` and it would NEVER run. Set **manifest version == dir version == V**.
-   - Dir named FULL `<tgt-series>.V`. Invariant: the retargeted dir version MUST be `<= the final manifest version` (guarantees `M < V <= manifest`; if this would be violated, use the `S <= M` bump path).
-
-**C1 vs C2 de-confliction:** a manifest bump is FORBIDDEN for ordinary code commits and for conflict
-resolution (keep target). It is REQUIRED **only** in step 3 when `S <= M`; the bump target is the
-**current target manifest's next patch**, not `S`.
+1. **Precondition - installability.** Every module the script acts on (the owner of the dir and
+   each module whose tables, fields or records the script reads or writes) is `installable` at the
+   target tip (the clean-tip read of `[[fp-installable-false]]`). Otherwise FORWARD the dir
+   unchanged under its source-series name and record why on the commit's `merge-log.md` row
+   (`<sha> | C2 forwarded | <module> not installable at target tip`): a script run where the
+   modules it acts on are not upgraded meets a schema that is not there. A module
+   `installable:False` at the target is the lint-only lane, so its own migrations are always
+   forwarded unchanged.
+2. **Decision - does the TARGET have the problem the script solves?** Read the script and the
+   target's code and data model for that module: the field, model or data shape the script repairs
+   exists on the target and is affected the way the source was. YES -> RETARGET. NO -> do not
+   retarget: FORWARD the dir unchanged under `<src-series>.a.b.c` and record why on the `merge-log.md`
+   row (`<sha> | C2 forwarded | target has no <problem the script solves>`). A dir forwarded under its
+   source-series name still fires for source-to-target jumpers below `a.b.c` and never fires on a
+   native-target database, which is correct for a problem only the source had.
+3. **Retarget.** Name the dir FULL `<tgt-series>.V`, where `V` is the version C1 sets for the
+   module (`max(M + 1, S)`, which is always above `M`, so the dir fires on a deployed target
+   database sitting at `M`). When the range carries no other `version` change for the module, a
+   retarget still sets the manifest to that `V`. Invariant: the dir version is `<=` the final
+   manifest version.
 
 A retargeted dir name is always FULL `<tgt-series>.x.y.z` (FULL compare lets a target-series dir
 exceed a native-target DB's installed version). Migrations must be idempotent: a fully-updated
@@ -130,12 +130,12 @@ manifest `a.b.c` to `<series>.a.b.c` and stores it as the module's `installed_ve
 every DB already at the source-series state when it upgrades to the target series. Migrations run on
 UPGRADE only (never fresh install).
 
-Worked (`<tgt>` = the target series): M=0.1.2, S=0.1.2 (M==S) -> bump to 0.1.3, dir `<tgt>.0.1.3`
-(keeping 0.1.2: `<tgt>.0.1.2 < <tgt>.0.1.2` false -> never runs). M=0.1.1, S=0.1.2 (M<S) -> dir
-`<tgt>.0.1.2`, no extra bump. M=0.1.4, S=0.1.2 (M>S) -> S<=M applies -> bump to 0.1.5, dir
-`<tgt>.0.1.5`, manifest bumped to 0.1.5 (naming dir `<tgt>.0.1.2` would never run: 0.1.4 < 0.1.2 is
-false). Legacy-only `<src-series>.a.b.c` -> kept, fires for source-series jumpers, inert on a native
-target DB (correct).
+Worked (`<tgt>` = the target series; `V = max(M + 1, S)`): M=0.1.2, S=0.1.2 -> V=0.1.3, manifest
+0.1.3, dir `<tgt>.0.1.3` (naming it `<tgt>.0.1.2` never runs: `<tgt>.0.1.2 < <tgt>.0.1.2` is false).
+M=0.1.1, S=0.1.2 -> V=0.1.2, dir `<tgt>.0.1.2`. M=0.1.1, S=0.1.5 -> V=0.1.5, dir `<tgt>.0.1.5`.
+M=0.1.4, S=0.1.2 -> V=0.1.5, manifest 0.1.5, dir `<tgt>.0.1.5` (naming it `<tgt>.0.1.2` never runs:
+0.1.4 < 0.1.2 is false). A source migration repairing a shape the target never had -> no retarget,
+dir stays `<src-series>.a.b.c`, reason on the `merge-log.md` row; the manifest still follows C1.
 
 After the rename, sweep the body for source-series literals (log strings, version constants) - they
 survive the rename and mislead operators.
