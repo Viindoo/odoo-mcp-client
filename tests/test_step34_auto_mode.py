@@ -116,7 +116,8 @@ def test_an_upstream_read_only_remote_is_not_a_fork_owner(machine, tmp_path):
     out = _run(machine, "propose")
     assert out.returncode == 0, out.stderr
     assert _fork_lines(out) == ["fork owner (remote the user pushes to): alice"]
-    assert "bigupstream" not in out.stdout
+    assert "FORK_PUSHED_REMOTES=fork=alice" in out.stdout
+    assert "FORK_PUSHED_REMOTES=upstream" not in out.stdout
     assert _run(machine, "apply").returncode == 0
     assert "bigupstream" not in json.dumps(_data(machine))
 
@@ -127,6 +128,53 @@ def test_a_clone_with_only_an_upstream_remote_has_no_fork_owner(machine, tmp_pat
     out = _run(machine, "propose")
     assert _fork_lines(out) == []
     assert _run(machine, "apply").returncode == 0
+    assert not any("Fork owner" in e for e in _data(machine)["autoMode"]["environment"])
+
+
+def _fork_facts_of(out):
+    return dict(ln.partition("=")[::2] for ln in out.stdout.splitlines() if ln.startswith("FORK_"))
+
+
+def test_propose_asks_which_account_holds_the_fork_when_nothing_was_pushed(machine, tmp_path):
+    _sh(machine["repo"], "git", "remote", "remove", "fork")
+    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
+    out = _run(machine, "propose")
+    assert out.returncode == 0, out.stderr
+    facts = _fork_facts_of(out)
+    assert facts["FORK_STATUS"] == "fork-remote-unpushed"
+    assert "acme/addons-repo" in facts["FORK_QUESTION"]
+    assert "FORK_PUSHED_REMOTES" not in facts
+
+
+def test_propose_asks_the_fork_question_for_a_clone_with_no_other_remote(machine):
+    _sh(machine["repo"], "git", "remote", "remove", "fork")
+    facts = _fork_facts_of(_run(machine, "propose"))
+    assert facts["FORK_STATUS"] == "no-fork-remote"
+    assert "acme/addons-repo" in facts["FORK_QUESTION"]
+
+
+def test_propose_proposes_the_pushed_remote_and_asks_nothing(machine):
+    facts = _fork_facts_of(_run(machine, "propose"))
+    assert facts["FORK_STATUS"] == "fork-remote-pushed"
+    assert facts["FORK_PUSHED_REMOTES"] == "fork=alice"
+    assert "FORK_QUESTION" not in facts
+
+
+def test_propose_never_prints_a_credential_from_a_remote_url(machine):
+    repo = machine["repo"]
+    _sh(repo, "git", "remote", "set-url", "origin", "https://token123@example.org/acme/addons-repo.git")
+    _sh(repo, "git", "remote", "set-url", "fork", "https://alice:secret456@example.org/alice/addons-repo.git")
+    out = _run(machine, "propose")
+    assert out.returncode == 0, out.stderr
+    assert "token123" not in out.stdout and "secret456" not in out.stdout
+
+
+def test_an_unconfirmed_fork_candidate_is_never_written(machine, tmp_path):
+    _sh(machine["repo"], "git", "remote", "remove", "fork")
+    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
+    assert _run(machine, "apply").returncode == 0
+    written = json.dumps(_data(machine))
+    assert "bigupstream" not in written
     assert not any("Fork owner" in e for e in _data(machine)["autoMode"]["environment"])
 
 
