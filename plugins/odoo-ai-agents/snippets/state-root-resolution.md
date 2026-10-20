@@ -10,9 +10,6 @@ All persistent agent state lives under one machine-global root, `$ODOO_AI_HOME` 
 `$HOME/.odoo-ai`) - never a project-relative `./.odoo-ai/` (an execute-agent has no guaranteed
 working directory across dispatches, and a project-relative dir collides the moment two sessions
 work the same repo from different cwd). Every artifact belongs to exactly ONE of three tiers.
-Getting the tier wrong is not cosmetic: a Tier-1 path re-rooted onto a project dir silently forks
-the machine's lease registry, and a Tier-2 path that should ISOLATE but gets SHARE'd breaks a hook
-that assumes exactly one active thing per scope (see § The rule, case `run-<id>.json`).
 
 ## The three tiers
 
@@ -187,11 +184,15 @@ path inside the target repo or any working tree, never no destination. Pick the 
    above. The default when in doubt; a capture no skill owns goes to `<ISOLATE_DIR>/visual/adhoc/<slug>/`.
 3. **A committed module deliverable** (`<module>/static/description/...`, `<module>/doc/...`) is
    NEVER a capture destination. An image the module ships is `mv`d from ISOLATE into the location the
-   target doc resolves (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md`
+   target doc resolves (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md`
    § Place finals where the target doc resolves them), then committed via `git-toolkit:git-ops`.
 
 Bucket 3 keeps the committed-deliverable pipeline intact: the doc writers reach a module tree
 only by that explicit `mv`.
+
+Use the session scratchpad only for throwaway output read in the same turn; anything a later step,
+agent or session needs (scripts, facts, plans, captures, venvs) goes under the state root (ISOLATE
+for run working files, SHARE for shared).
 
 **Per family.** chrome-devtools: `filePath` (`take_screenshot`, `take_snapshot`,
 `take_heapsnapshot`, `performance_stop_trace`; never `path` - unknown keys are silently ignored, and

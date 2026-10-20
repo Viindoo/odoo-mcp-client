@@ -152,6 +152,22 @@
 #   it grants nothing extra a broader existing permission does not already
 #   cover. See `json-prune-allow`'s docstring in config_merge.py.
 #
+# EPHEMERAL STATE ROOTS - a throwaway root never gets rules, and old debris goes
+# (decided by scripts/lib/state_root_permissions.py, the SSOT for both questions):
+#   - A session whose $ODOO_AI_HOME is ephemeral - under a system temp directory, or
+#     under the scratch directory of the default state root ($HOME/.odoo-ai/scratch) -
+#     gets NO Read/Edit state-root rule: a test or scratch run used to append a pair per
+#     run to the user's settings file, each pointing at a root that later vanished, and
+#     nothing ever removed them. The Bash rules (keyed to the plugin directory, not the
+#     state root) are unaffected.
+#   - `apply` also removes the plugin's OWN earlier Read/Edit state-root pairs whose root
+#     directory is gone, or lies under a system temp directory even if it still exists.
+#     Only the exact pair shapes written here are recognised, an Edit(//<root>/projects/**)
+#     rule being the signature; a user's own rule, and the session's own root, stay.
+#   - ODOO_AI_TEMP_DIRS (an os.pathsep list) replaces the built-in system temp list; it
+#     exists so tests can place a throwaway root outside the real temp directories.
+#   - ODOO_AI_NO_AUTO_PERMS=1 disables all of it (nothing is written or pruned).
+#
 # Subcommands:
 #   describe   One-line description.
 #   check      Exit 0 if every rule is either already present OR already
@@ -185,6 +201,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
+ROOT_LIB="$SCRIPT_DIR/../lib/state_root_permissions.py"
 
 CLAUDE_SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
 
@@ -254,6 +271,17 @@ RULES=(
     "Read(/${ODOO_AI_HOME}/**)"
     "Edit(/${ODOO_AI_HOME}/projects/**)"
 )
+
+# Whether this session's state root may hold permission rules at all (see EPHEMERAL STATE
+# ROOTS above). An unusable helper counts as "not ephemeral": a missing helper must never
+# withhold the rules.
+_root_is_ephemeral() {
+    [[ -f "$ROOT_LIB" ]] || return 1
+    python3 "$ROOT_LIB" ephemeral "$ODOO_AI_HOME" >/dev/null 2>&1
+}
+
+# Index of the first Read/Edit state-root rule in RULES (0,1 are the Bash rules).
+STATE_RULES_FROM=2
 
 # Stale-detection suffixes, index-aligned with RULES[0] and RULES[1] (the two
 # Bash rules only - Read/Edit above key off $ODOO_AI_HOME, not $PLUGIN_ROOT,
@@ -345,11 +373,25 @@ sys.exit(1)
 PY
 }
 
+_stale_roots_present() {
+    [[ -f "$ROOT_LIB" && -f "$CLAUDE_SETTINGS" ]] || return 1
+    python3 "$ROOT_LIB" prune "$CLAUDE_SETTINGS" "$ODOO_AI_HOME" --check >/dev/null 2>&1
+}
+
 cmd_check() {
-    local missing=0
-    for r in "${RULES[@]}"; do
-        _rule_satisfied "$r" || missing=1
+    local missing=0 i ephemeral=0
+    _root_is_ephemeral && ephemeral=1
+    for i in "${!RULES[@]}"; do
+        # An ephemeral state root is never granted Read/Edit rules, so it cannot lack them.
+        if [[ "$ephemeral" -eq 1 && "$i" -ge "$STATE_RULES_FROM" ]]; then
+            continue
+        fi
+        _rule_satisfied "${RULES[$i]}" || missing=1
     done
+    # Debris of an earlier ephemeral or vanished root also counts as "not converged".
+    if _stale_roots_present; then
+        missing=1
+    fi
     # A stale same-plugin, prior-version rule also counts as "not converged
     # yet" so the SessionStart hook re-triggers `apply` (which prunes it) on
     # the very next session, rather than only after the NEXT version bump
@@ -397,9 +439,32 @@ cmd_apply() {
             ;;
     esac
 
-    local i r rc had_io_error=0
+    local i r rc out had_io_error=0 added=0 ephemeral=0
+    _root_is_ephemeral && ephemeral=1
+
+    # Remove the plugin's own Read/Edit rules of roots that are gone or ephemeral
+    # (see EPHEMERAL STATE ROOTS above). Unconditional, like the Bash prune below.
+    if [[ -f "$ROOT_LIB" ]]; then
+        set +e
+        python3 "$ROOT_LIB" prune "$CLAUDE_SETTINGS" "$ODOO_AI_HOME"
+        rc=$?
+        set -e
+        if [[ "$rc" -eq 2 ]]; then
+            echo "x $CLAUDE_SETTINGS is not valid JSON. Fix it by hand (or restore a .bak.*) and re-run." >&2
+            return 2
+        elif [[ "$rc" -ne 0 ]]; then
+            echo "x failed to prune stale state-root rules in $CLAUDE_SETTINGS." >&2
+            had_io_error=1
+        fi
+    fi
+
     for i in "${!RULES[@]}"; do
         r="${RULES[$i]}"
+
+        if [[ "$ephemeral" -eq 1 && "$i" -ge "$STATE_RULES_FROM" ]]; then
+            echo "i  $ODOO_AI_HOME is an ephemeral state root - not adding $r."
+            continue
+        fi
 
         # Step 1 - prune (Bash rules only, UNCONDITIONAL): the two Bash(...)
         # rules are version-pinned (embed $PLUGIN_ROOT). When PRUNE_ANCHOR=1
@@ -441,9 +506,11 @@ cmd_apply() {
         # plain json-ensure-allow is always sufficient for them; Bash rules
         # were already pruned above, so a plain add is sufficient here too).
         set +e
-        python3 "$LIB" json-ensure-allow "$CLAUDE_SETTINGS" "$r"
+        out="$(python3 "$LIB" json-ensure-allow "$CLAUDE_SETTINGS" "$r")"
         rc=$?
         set -e
+        printf '%s\n' "$out"
+        [[ "$out" == *"Added "* ]] && added=1
         if [[ "$rc" -eq 2 ]]; then
             echo "x $CLAUDE_SETTINGS is not valid JSON. Fix it by hand (or restore a .bak.*) and re-run." >&2
             return 2
@@ -457,11 +524,15 @@ cmd_apply() {
         return 1
     fi
 
-    echo "ok state-root planning permissions allow-listed in $CLAUDE_SETTINGS:"
-    for r in "${RULES[@]}"; do
-        echo "   $r"
-    done
-    echo "i  because permissions are finalized BEFORE SessionStart hooks run, RESTART Claude Code once (or start a new session) for them to take effect this session."
+    # Only a run that really added a rule needs the restart; a prune-only or
+    # ephemeral-root run changes nothing this session depends on.
+    if [[ "$added" -eq 1 ]]; then
+        echo "ok state-root planning permissions allow-listed in $CLAUDE_SETTINGS:"
+        for r in "${RULES[@]}"; do
+            echo "   $r"
+        done
+        echo "i  because permissions are finalized BEFORE SessionStart hooks run, RESTART Claude Code once (or start a new session) for them to take effect this session."
+    fi
 
     # Self-verify.
     if cmd_check >/dev/null; then
