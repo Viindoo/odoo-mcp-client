@@ -8,51 +8,22 @@ description: >-
 
 <!-- execution SSOT: workflows/video-produce.workflow.yaml -->
 
-This command is a thin dispatcher. All phase logic, gates, skill invocations, output
-paths, and fallback rules are defined in the declarative workflow SSOT:
+Thin dispatcher. Invoke the `workflow-chaining` skill with
+`plugins/odoo-ai-agents/workflows/video-produce.workflow.yaml`; the workflow YAML holds all phase
+logic, skill invocations, output paths and fallback rules (storyboard, record-scenes, assemble).
+`$ARGUMENTS` is an optional project label (e.g. `/odoo-produce-video Sales-Demo-Q3`); the runner
+collects the remaining inputs before the workflow plan.
 
-```
-plugins/odoo-ai-agents/workflows/video-produce.workflow.yaml
-```
-
-## How to run
-
-The `workflow-chaining` skill auto-discovers `video-produce.workflow.yaml` and executes it
-when this command fires. Dispatch happens via natural-language routing - the runner reads
-the workflow YAML and drives each phase in sequence.
-
-To invoke: type `/odoo-produce-video` (optionally followed by a project label, e.g.
-`/odoo-produce-video Sales-Demo-Q3`). The runner collects remaining inputs interactively
-at Phase 0.
-
-## What the workflow produces
-
-Three gated phases (Pipeline pattern):
-
-| Phase | Handler | Gate |
-|-------|---------|------|
-| 0 - Storyboard | inline | approve / refine: [feedback] / cancel |
-| 1 - Record scenes | `odoo-demo-recording` (per scene) | approve / refine: [feedback] / cancel |
-| 2 - Assemble | inline | approve / skip / cancel |
-
-Gate replies are the two declared sets only (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`),
-matching `workflows/video-produce.workflow.yaml` line for line. At Phase 1, `refine: [scene numbers]`
-re-takes just those scenes. At Phase 2, `approve` saves the assembled video and `skip` leaves it unsaved.
-
+The storyboard is the workflow plan, approved once; the other phases then run without stopping.
 Scene clips land in `<ISOLATE_DIR>/visual/videos/`; the assembled video lands at
 `<ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
 once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
 absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
-> **pagecast is opt-in.** Recording (pagecast / Playwright video) is no longer an eager browser
-> MCP - only the headless `chrome-devtools` is eager. Wire the recorder family first via
-> `/odoo-ai-agents:odoo-setup browser` (step 12 for Claude, step 10 for Codex/Gemini). If it is
-> not wired, Phase 1 falls back to a `chrome-devtools` screenshot frame sequence assembled into a GIF.
+Recording (pagecast / Playwright video) needs its browser family wired first via
+`/odoo-ai-agents:odoo-setup browser`; without it the record-scenes phase falls back to a
+`chrome-devtools` screenshot frame sequence assembled into a GIF.
 
-> **Narrated per-scene evidence.** Each Phase 1 scene is one `odoo-demo-recording` invocation, so a
-> scene described with "narrated", "before/after evidence", or a `--label before|after` argument
-> gets that scene's captions/badge/end-card automatically - see the `odoo-demo-recording` SKILL.md
-> § Narrated evidence mode. This command does not add any narrated-mode logic of its own.
-
-For full phase specifications, gate behavior, standalone fallback rules, hard rules,
-and examples - read `workflows/video-produce.workflow.yaml` directly.
+A scene described with "narrated", "before/after evidence", or a `--label before|after` argument
+gets `odoo-demo-recording`'s Narrated evidence mode (its SKILL.md § Narrated evidence mode); this
+command adds no narrated-mode logic of its own.

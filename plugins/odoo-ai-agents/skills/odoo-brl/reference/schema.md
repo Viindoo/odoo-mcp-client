@@ -1,8 +1,6 @@
 # BRL Artifact Schema
 
-> SSOT for all artifacts written by the `odoo-brl` skill.
-> Source of truth for the BRL job artifact layout: this file.
-> This file documents field-level detail and JSON schema for each artifact type.
+> SSOT for the layout and field-level schema of every artifact the `odoo-brl` skill writes.
 
 ---
 
@@ -10,10 +8,7 @@
 
 All BRL artifacts live under `<SHARE_DIR>/brl/<job-id>/` (resolve `<SHARE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
-never write a bare `.odoo-ai/` literal into a Read/Write/Edit). The machine-global `$ODOO_AI_HOME`
-state root carries its own `.gitignore` (written by `scripts/lib/resolve_instances.sh` when the root
-is created), and `/odoo-ai-agents:odoo-setup` step `40-instance-profile.sh` excludes a stray
-project-local `.odoo-ai/` in the working repo - so no artifact is ever committed to the project repo.
+never write a bare `.odoo-ai/` literal into a Read/Write/Edit).
 
 `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>`
 Example: `Customer-A-20260531-9f3a`
@@ -22,7 +17,7 @@ CUSTOMER_LABEL MUST be abstract (Customer-A, Customer-B, etc.). Never use a real
 
 ```
 <SHARE_DIR>/brl/<job-id>/
-  manifest.json           # immutable job metadata (written at Phase 0, never mutated after Gate 0)
+  manifest.json           # immutable job metadata (written at Phase 0, never mutated after)
   input.jsonl             # 1 line per requirement: {req_id, req_text, req_category?, priority?}
   chunkplan.json          # chunk split plan
   checkpoint.json         # machine resume state (updated after each chunk)
@@ -48,7 +43,7 @@ CUSTOMER_LABEL MUST be abstract (Customer-A, Customer-B, etc.). Never use a real
 
 ## 2. manifest.json
 
-Written once at Phase 0 before Gate 0. Never mutated after gate approval.
+Written once at Phase 0. Never mutated after.
 
 ```json
 {
@@ -109,10 +104,8 @@ the outer loop at `last_completed_chunk + 1`. Re-running a chunk is idempotent
 
 `phase` values (lifecycle): `ingest | classify | dag | deliver | done`
 
-`session_pinned_at`: Used for 24h idle-TTL detection. The pin is keyed per live MCP
-session and also resets on a server restart, so if `now - session_pinned_at > 23h`
-OR any MCP call returns "no active version" (TTL lapse or server restart), re-run
-bootstrap and update this field.
+`session_pinned_at`: if `now - session_pinned_at > 23h` OR any MCP call returns "no active
+version", re-run bootstrap and update this field.
 
 `per_req`: Sparse dict - only in-flight or error items appear. Completed items are omitted
 to keep the file small. Values: `"done" | "pending" | "error"`.
@@ -121,7 +114,7 @@ to keep the file small. Values: `"done" | "pending" | "error"`.
 
 ## 4. input.jsonl
 
-One JSON object per line. Written at Phase 0. Never modified after Gate 0.
+One JSON object per line. Written at Phase 0. Never modified after.
 
 ```json
 {"req_id": "REQ-0001", "req_text": "Multi-level invoice approval workflow", "req_category": "Functional", "priority": "Must-have"}
@@ -299,9 +292,9 @@ below.
 
 **Invariant:** `sum(phase_breakdown_usd.values()) == budget_usd.max`. `phase_distribution`
 in `cost-config.json` sums to exactly 1.0, so the breakdown reconciles to the final budget.
-Contingency is applied ONCE (the `(1 + contingency_pct)` factor in `budget_usd`); it is NOT a
-separate phase line - listing it twice would double-count. `annual_maintenance_usd` is a
-separate forward-looking figure (`budget_max * annual_maintenance_pct`), not part of the budget.
+Contingency is applied ONCE (the `(1 + contingency_pct)` factor in `budget_usd`); never add it as a
+separate phase line. `annual_maintenance_usd` = `budget_max * annual_maintenance_pct`, not part of
+the budget.
 
 ---
 
@@ -377,10 +370,8 @@ Dependency adjacency written by Phase D after all chunks finish. The reasoning a
   ]
 }
 ```
-A cycle is a REPORTED outcome (surfaced in GATE E + report.md), never a silent edge-drop or
+A cycle is a REPORTED outcome (surfaced in report.md), never a silent edge-drop or
 crash. `topological_order` still covers the acyclic remainder.
-
-Edge `type` values: `technical | business-logic | data-flow`
 
 ---
 

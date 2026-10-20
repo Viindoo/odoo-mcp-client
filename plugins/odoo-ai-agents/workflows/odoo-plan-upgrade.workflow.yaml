@@ -29,7 +29,6 @@ phases:
       (breaking framework changes, OWL migration, removed APIs, ecosystem readiness), and
       a go/no-go signal with rationale.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"   # refine: [feedback] re-runs the overview deeper
 
   - id: deprecation-audit
     skill: odoo-deprecation-audit
@@ -39,8 +38,7 @@ phases:
       fix before upgrade), WARN (should fix; runtime warnings or unexpected behavior), and
       STYLE (optional cleanup; no functional impact). Show a count summary first, then the
       full findings table (file | symbol | line | tier | recommended replacement).
-    model_tier: sonnet
-    gate: "approve / skip / cancel"   # export is an option of the phase itself, not a gate reply
+    model_tier: haiku
 
   - id: version-diff
     skill: odoo-version-diff
@@ -50,8 +48,7 @@ phases:
       APIs, controller and route changes, JavaScript / OWL framework changes, removed XML
       qweb template namespaces or view keys, and any relevant ir.model.data external ID
       renames.
-    model_tier: sonnet
-    gate: "approve / skip / cancel"
+    model_tier: haiku
 
   # ------------------------------------------------------------------
   # Phase synthesis - action ordering + effort estimate + assemble (inline)
@@ -61,7 +58,6 @@ phases:
   - id: synthesis
     inline: true
     model_tier: sonnet
-    gate: "approve / skip / cancel"   # approve = produce the plan; skip = skip this phase, no plan produced; cancel = abort
     # 1. ACTION ORDERING - fixed order regardless of which items are present:
     #    (1) Pre-flight CRITICAL fixes (BREAKING tier from deprecation audit + any
     #        CRITICAL risk factors needing code changes before upgrade starts)

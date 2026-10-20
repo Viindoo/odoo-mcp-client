@@ -1,6 +1,3 @@
-# odoo-respond-bid.workflow.yaml
-# Declarative SSOT for the /odoo-respond-bid command.
-# Runner: skills/workflow-chaining - auto-discovered at runtime.
 name: odoo-respond-bid
 domain: presales
 team_pattern: Pipeline
@@ -22,9 +19,6 @@ resume: true
 fallback: standalone
 
 phases:
-  # ------------------------------------------------------------------
-  # Phase 0 - Parse arguments + resolve project facts (inline: runner handles)
-  # ------------------------------------------------------------------
   - id: parse-and-context
     inline: true
     model_tier: inherit
@@ -34,11 +28,8 @@ phases:
     # unresolved after every rung is asked for once here, never defaulted.
     # Hard rules enforced inline:
     #   - Abstract labels only (no real company/contact names in saved files)
-    #   - No external writes before the assemble-proposal gate
+    #   - No external writes; the runner never sends the proposal
 
-  # ------------------------------------------------------------------
-  # Phase 1 - Discovery synthesis
-  # ------------------------------------------------------------------
   - id: discovery-synthesis
     skill: odoo-discovery-summary
     nl_trigger: >
@@ -48,11 +39,7 @@ phases:
       contact names.
       Input: {prospect_input}
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
-  # ------------------------------------------------------------------
-  # Phase 2 - Gap analysis
-  # ------------------------------------------------------------------
   - id: gap-analysis
     skill: odoo-gap-analysis
     nl_trigger: >
@@ -63,9 +50,8 @@ phases:
       Flag Custom items as "to be quoted separately". Write the locked artifact set and
       report the run directory path so downstream phases can read it by file path.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
-    # Artifact output (locked file-handoff contract; written by odoo-gap-analysis, READ by
-    # capability-proof + objection-preempt + assemble-proposal instead of re-deriving from chat):
+    # Artifact output (written by odoo-gap-analysis; capability-proof, objection-preempt and
+    # assemble-proposal READ it instead of re-deriving from chat):
     #   .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl  - one JSON object per requirement
     #     {req_id, requirement, coverage, classification, effort_tier, module, grounded, notes}
     #   .odoo-ai/gap-analysis/<slug>-<date>/gap-report.md     - human matrix + effort totals
@@ -73,9 +59,6 @@ phases:
     # Downstream phases resolve the path via the run dir reported here, or by globbing the
     # newest match: .odoo-ai/gap-analysis/*/gap-matrix.jsonl
 
-  # ------------------------------------------------------------------
-  # Phase 3 - Capability proof
-  # ------------------------------------------------------------------
   - id: capability-proof
     skill: odoo-capability-proof
     nl_trigger: >
@@ -89,14 +72,7 @@ phases:
       with the note "to be quoted separately in commercial proposal". Odoo series: the one
       Phase 0 resolved per snippets/project-facts-resolution.md; ask only if every rung missed.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
-  # ------------------------------------------------------------------
-  # Phase 4a - Objection list (inline; GENERATES the objections[] fan-out input)
-  # odoo-objection-handling is a REACTIVE single-objection skill (argument-hint
-  # "[objection / concern]") - it must not be asked to invent the list itself. This
-  # phase owns list generation; Phase 4b dispatches the skill once per objection.
-  # ------------------------------------------------------------------
   - id: objection-list
     inline: true
     model_tier: sonnet
@@ -106,13 +82,9 @@ phases:
     # path), select 2-3 likely objections from the prospect. Common archetypes to consider:
     # missing enterprise feature, data residency/compliance, TCO vs current solution, data
     # migration risk, local support availability. Emit objections: [<objection text>, ...]
-    # (2-3 items) for Phase 4b to fan out over. This phase ONLY selects/phrases the
-    # objection list - it does NOT draft the rebuttal (that is Phase 4b).
+    # (2-3 items) for the objection-preempt phase to fan out over. Select/phrase the list
+    # only; do not draft the rebuttals.
 
-  # ------------------------------------------------------------------
-  # Phase 4b - Objection pre-empt (fan-out: one odoo-objection-handling dispatch PER
-  # objection from Phase 4a's objections[] - keeps the reactive skill single-purpose)
-  # ------------------------------------------------------------------
   - id: objection-preempt
     skill: odoo-objection-handling
     nl_trigger: >
@@ -125,11 +97,7 @@ phases:
     model_tier: sonnet
     fanout: true
     chunk_by: objections
-    gate: "approve / refine: [feedback] / cancel"
 
-  # ------------------------------------------------------------------
-  # Phase 5 - Assemble proposal draft (inline assembly)
-  # ------------------------------------------------------------------
   - id: assemble-proposal
     inline: true
     model_tier: sonnet
@@ -140,25 +108,18 @@ phases:
     #   3. Gap matrix table - read from the gap-analysis run dir gap-report.md
     #      (.odoo-ai/gap-analysis/<slug>-<date>/gap-report.md), not from chat
     #   4. Capability evidence list (Phase 3 output, grouped by module)
-    #   5. Anticipated objection responses (Phase 4a/4b objection-list + objection-preempt
-    #      fan-out, aggregated)
+    #   5. Anticipated objection responses (objection-list + objection-preempt fan-out, aggregated)
     #   6. Roadmap and cost tier (S/M/L/XL effort_tier from gap-matrix.jsonl; NO currency figures)
     #   7. Next steps (CTA: book demo / technical workshop / commercial proposal)
     # Extension/Custom items: "Custom development items will be quoted separately
     # after technical scope confirmation."
     # Confirms close_date and cost tier are consistent with Phase 0 inputs.
-    gate: "approve / refine: [feedback] / cancel"   # approve = save the proposal file and print it for copy-paste
 
-  # ------------------------------------------------------------------
-  # Phase 6 - Output (inline write)
-  # ------------------------------------------------------------------
   - id: output
     inline: true
     model_tier: inherit
-    # On the assemble-proposal gate `approve`:
+    # After the assemble-proposal phase:
     #   1. Write .odoo-ai/bids/<customer_label>-<YYYY-MM-DD>.md (create dir if needed)
     #   2. Print full proposal to terminal for copy-paste
     #   3. Show summary: "Bid response saved: .odoo-ai/bids/<file>"
-    #   4. Remind: .odoo-ai/bids/... resolves to the per-worktree ISOLATE dir under
-    #      $ODOO_AI_HOME at runtime, outside the repo
     # Note: runner does NOT send emails.

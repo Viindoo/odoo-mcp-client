@@ -173,7 +173,7 @@ VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
 # agents.<name>.role enum (V-01 SSOT - now populated for every agent; see the agent-role pass below).
 VALID_AGENT_ROLE = {"leaf", "spawner", "node-owner"}
-# output_mode drives the Plan-Mode decision; default_gate_tier drives the runner's gate
+# output_mode records whether a skill persists a file; default_gate_tier drives the runner's gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
 # per-skill from the SKILL.md Output field (a backend-stack skill can be read-only/chat-only,
 # so it is NOT derived from stack). default_gate_tier IS derived once output_mode is known.

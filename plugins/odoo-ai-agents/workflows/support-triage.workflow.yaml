@@ -1,11 +1,3 @@
-# support-triage.workflow.yaml
-# Declarative SSOT for the odoo-support-triage composition workflow.
-# Runner: skills/workflow-chaining - auto-discovered at runtime.
-# Pattern note: Pipeline with two mutually-exclusive conditional phases
-# (root-cause-bug / root-cause-feature) gated by `when:` predicates. The runner
-# evaluates `when:` in Pipeline and skips the non-matching branch, so exactly one
-# root-cause phase fires per ticket (matches the SKILL.md classify->single-dispatch
-# design).
 name: support-triage
 domain: support
 team_pattern: Pipeline
@@ -23,32 +15,21 @@ resume: true
 fallback: standalone
 
 phases:
-  # ------------------------------------------------------------------
-  # Phase 0 - Collect ticket + context (inline: runner handles)
-  # ------------------------------------------------------------------
   - id: collect-ticket
     inline: true
     model_tier: inherit
     # Runner collects: ticket description (pasted text or summary), Odoo version,
     # module/menu path (optional), customer label (abstract), severity (optional).
     # Enforces confidentiality: abstract labels only; no real company/contact names
-    # in any artifact. Warns user that the output resolves to the per-worktree ISOLATE dir
-    # under $ODOO_AI_HOME at runtime, outside the repo (never a project-relative path).
+    # in any artifact.
 
-  # ------------------------------------------------------------------
-  # Phase 1 - Classify the ticket (inline: no specialist needed)
-  # ------------------------------------------------------------------
   - id: classify
     inline: true
     model_tier: haiku
-    gate: "approve / refine: [feedback] / cancel"
     # Runner applies classification logic (config / bug / feature-request / training)
     # with confidence (high/medium/low) and one-line rationale.
     # Output: classification block written to .odoo-ai/support/<slug>-classify.md.
 
-  # ------------------------------------------------------------------
-  # Phase 2a - Root-cause via inline UI diagnosis (debug-method) (bug path)
-  # ------------------------------------------------------------------
   - id: root-cause-bug
     inline: true
     nl_trigger: >
@@ -64,9 +45,6 @@ phases:
     model_tier: sonnet
     when: "classification == 'bug'"
 
-  # ------------------------------------------------------------------
-  # Phase 2b - Root-cause via odoo-feature-check (feature-request path)
-  # ------------------------------------------------------------------
   - id: root-cause-feature
     skill: odoo-feature-check
     nl_trigger: >
@@ -75,16 +53,12 @@ phases:
       is "feature-request". Provide: module name (if exists), edition (CE/EE), one-line
       verdict (available / not available / partial), and recommended next step for the
       support team (configure / custom-dev / roadmap item).
-    model_tier: sonnet
+    model_tier: haiku
     when: "classification == 'feature-request'"
 
-  # ------------------------------------------------------------------
-  # Phase 3 - Resolution draft (inline assembly)
-  # ------------------------------------------------------------------
   - id: resolution-draft
     inline: true
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
     # Runner assembles the resolution artifact from prior phases:
     # - config/training: customer-facing reply (B2B tone, odoo-deal-followup style)
     # - bug: internal escalation note + customer acknowledgement
@@ -92,17 +66,11 @@ phases:
     # Structure: classification summary + root-cause hint + draft reply or escalation note
     # + "Suggest next skill" block.
 
-  # ------------------------------------------------------------------
-  # Phase 4 - Write artifact (inline, confidentiality-safe)
-  # ------------------------------------------------------------------
   - id: output
     inline: true
     model_tier: inherit
-    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
-    # On Gate confirm:
+    # Then:
     #   1. Write .odoo-ai/support/<customer-label>-<YYYY-MM-DD>.md (abstract labels only)
     #   2. Print full triage to terminal for copy-paste
     #   3. Show summary: "Support triage saved: .odoo-ai/support/<file>"
-    #   4. Remind: .odoo-ai/support/... resolves to the per-worktree ISOLATE dir under
-    #      $ODOO_AI_HOME at runtime, outside the repo (customer data protection)
     # CONFIDENTIALITY: no real company/contact names in saved file; use abstract labels.

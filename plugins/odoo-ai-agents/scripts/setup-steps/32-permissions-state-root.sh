@@ -27,7 +27,7 @@
 # resolve and write under $ODOO_AI_HOME on every planning/run-DAG turn. Without
 # this permission pre-grant, a fresh install prompts for the SAME handful of
 # Bash/Read/Edit calls on every session - not a Plan-Mode problem (see
-# snippets/planning-gate-contract.md § Plan-Mode enter/exit for that fix), a
+# snippets/planning-gate-contract.md § One Plan-Mode gate per request for that fix), a
 # permissions-onboarding problem. This step is the out-of-the-box experience for
 # a fresh install; it does not (and cannot) change Plan Mode's own inheritance
 # behavior.

@@ -7,10 +7,10 @@ description: >-
 
 ## Role
 
-Developer front door. Turns an approved node (or a small change with no plan) into committed,
+Developer front door: turn an approved node (or a small change with no plan) into committed,
 tested code by launching ONE `odoo-coder` per node, at the tier the design hints, inside the
-node's worktree. It computes nothing the plan already computed, writes no source itself, and
-owns the one thing a node cannot see: the cross-run module-coordination ledger.
+node's worktree. Compute nothing the plan already computed, write no source yourself, and own the
+cross-run module-coordination ledger.
 
 ## Out of Scope
 
@@ -66,6 +66,8 @@ owns the one thing a node cannot see: the cross-run module-coordination ledger.
 2. **One node, one coder.** A plan gives the node; standalone, the change is one node with the
    modules it touches in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`)
    and `SRS_REQUIRED` decided with the list in `odoo-solution-design` (met -> that skill first).
+   Standalone work that needs more than one node: stop and invoke `odoo-planning`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request, rule 6).
    Two nodes that touch the same module never run at once.
 3. **Tier.** `model` = `build_tier_hint` from the design; absent, the table of
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (5.1 for
@@ -83,11 +85,12 @@ owns the one thing a node cannot see: the cross-run module-coordination ledger.
    path and the mapping of every `REQUEST` item to its files; a return missing one of them is not
    `DONE`. `BLOCKED: manifest dependency <dep> unresolved` is
    classified with the ledger's decision table, never by the coder. `NEEDS_NEXT` naming a module
-   outside the node: widen `MODULES` (the planner's call under a plan; yours standalone) and
+   outside the node: under a plan, a module outside the approved scope re-plans (same contract,
+   rule 7); standalone, widen `MODULES` and
    resume the same coder with `SendMessage`. `NEEDS_JUDGEMENT` or a failed own gate: relaunch once,
    one tier up, with `PRIOR ATTEMPT`.
 7. **Record** per node in `<ISOLATE_DIR>/coding/<slug>-<date>/plan.md`: modules, tier, the agent id
-   of the launch (the registry a later resume needs), status, commit range.
+   of the launch, status, commit range.
 
 ## Brief to `odoo-coder`
 
@@ -107,13 +110,13 @@ PRIOR ATTEMPT: <relaunch only>
 USER LANGUAGE: <lang | omit>
 ```
 
-The brief carries inputs only; the coder's body owns every procedure. Paths handed down (design,
-recon, worklog, state dirs, worktree) never appear in shipped code.
+The brief carries inputs only. Paths handed down (design, recon, worklog, state dirs, worktree)
+never appear in shipped code.
 
 ## Fix rounds
 
 Findings from review or acceptance, or a proven root cause from debug, go back to the coder that
-built the node with `SendMessage` - it holds the context - never to a new launch. Three rounds per
+built the node with `SendMessage`, never to a new launch. Three rounds per
 node; a fourth finding of the same kind stops the loop and returns the evidence to the caller.
 Review itself is a plan node or the caller's next step, never driven from here.
 

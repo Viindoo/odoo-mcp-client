@@ -8,8 +8,8 @@ description: >-
 ## Where this sits in the flow
 
 ```
-SRS (architect)  ->  human gate  ->  recon (haiku)  ->  design (architect)  ->  human gate
-   ->  odoo-planning (two or more nodes)  |  odoo-coding (one node)  ->  review and acceptance
+SRS (architect)  ->  text gate  ->  recon (haiku)  ->  design (architect)  ->  text gate
+   ->  odoo-planning (the one Plan-Mode gate)  ->  code, review and acceptance
 ```
 
 One architect session carries the whole left half; this skill resolves its inputs, launches it,
@@ -17,11 +17,6 @@ relays each gate to the human and resumes the SAME session with the answer. Outp
 `<SHARE_DIR>/designs/` (resolve `<SHARE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, substitute the captured absolute path),
 never production source.
-
-## Role
-
-Front door for designing an Odoo change. Turns a requirement into an approved SRS and design that
-`odoo-planning` or `odoo-coding` consumes, with a build-tier hint per node.
 
 ## Before dispatch
 
@@ -35,9 +30,8 @@ Front door for designing an Odoo change. Turns a requirement into an approved SR
 4. Enumerate the modules in scope from the first artifact available: deep-survey `synthesis.md`,
    BRL `dag.json`, modules-upgrade `graph.md`, else the module descriptors on disk. Master-child
    mode is proposed only when more than one module is in scope AND the gap artifact grades at
-   least two of them `Extension-L` or `Custom-XL`; then ask once, in the user's language:
-   `approve-single` (default) / `approve-master-child` / `cancel`. Nothing else is asked before
-   dispatch.
+   least two of them `Extension-L` or `Custom-XL`; then ask once, in the user's language, whether
+   to design single (the default) or master-child. Nothing else is asked before dispatch.
 
 ## Dispatch (P1)
 
@@ -66,20 +60,22 @@ several modules: run the design on the deepest-reasoning setting? About 2x the c
 
 ## Gates (the human decides; the same session continues)
 
-The architect stops with `status: NEEDS_CONTEXT` and `gate: srs` or `gate: design`. Present its
-`summary` and `artifact` in the user's language (paths, module and model names verbatim), then
-ask `approve / refine: <feedback> / cancel`. Send the answer to the SAME architect with
+Every gate here is a text question, never Plan Mode: the request's one Plan-Mode approval comes
+later, on the execution plan (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One
+Plan-Mode gate per request). The architect stops with `status: NEEDS_CONTEXT` and `gate: srs` or
+`gate: design`. Present its `summary` and `artifact` in the user's language (paths, module and
+model names verbatim), then ask `approve / refine: [feedback] / cancel`. Send the answer to the SAME architect with
 `SendMessage` - never a new launch; the session holds the SRS, the recon and the grounding. On
 `cancel` the artifacts stay on disk.
 
-Optional at `gate: design`: `review` launches a fresh `odoo-solution-architect` in `MODE: review`
+Optional at `gate: design`: `refine: review` launches a fresh `odoo-solution-architect` in `MODE: review`
 (`model: opus`) over the design; present its findings and re-ask the same gate.
 
-## Master-child branch (after `approve-master-child`)
+## Master-child branch (when the human chose master-child)
 
 Contract SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` (layout,
 `index.yaml`, §10, contested symbols, handoff fields). The orchestration:
-a. `MODE: master` -> gate `approve-master` / `review-master` / `refine:` / `cancel`.
+a. `MODE: master` -> gate `approve / refine: [feedback] / cancel`; `refine: review` runs the opt-in review.
 b. Children per `dag_layers`, layer by layer, same-layer children in one batch under Mode B of
    the guard; each child brief carries `CHILD_MODULE`, `MASTER_DESIGN_DOC`, and the lower-layer
    child designs it depends on. After a layer returns, read `contested-symbols.md`; when it has
@@ -89,8 +85,9 @@ b. Children per `dag_layers`, layer by layer, same-layer children in one batch u
 c. `MODE: consistency` once every child is `designed`; it is the sole `index.yaml` and §10
    applier and emits `conflict-list.md` (lead-resolved and escalated seams).
 d. One batch gate: every escalated seam for the human, every lead-resolved seam listed with its
-   evidence, one summary per child. `approve-all` / `review-children` / `refine:<module>:` /
-   `cancel`. On `approve-all`, write `status: approved` per module.
+   evidence, one summary per child. `approve / refine: [feedback] / cancel` - a refine names its
+   module; `refine: review` runs the opt-in review of the children. On `approve`, write
+   `status: approved` per module.
 e. Continuation Contract with `design_index`, `master_design_doc`, `design_docs` under `inputs`
    (the contract's canonical form); never a bare `design_doc`.
 
@@ -152,19 +149,13 @@ Three documents under `<SHARE_DIR>/designs/`: the SRS (`<slug>-<date>-srs.md`: r
 interactions, non-functional, demo data, acceptance criteria with expected values, effort, the
 Domain line), the recon (`<SHARE_DIR>/recon/<slug>-<date>/recon.md`, written by
 `odoo-impact-recon`), and the design (`<slug>-<date>.md`, light or full, with one `## Nodes`
-block carrying `build_tier_hint` per node). The architect's own body owns every template.
+block carrying `build_tier_hint` per node).
 
 ## Standalone-first fallback
 
 When OSM is unreachable the architect grounds from the checkout per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` and the design header says
-`grounded: local-source`; nothing here changes.
-
-## Agent-managed tools
-
-The architect inherits the full tool surface and launches only `odoo-impact-recon` by default;
-the grounding skills it may invoke are listed in its own body. It launches no coder, reviewer or
-executor.
+`grounded: local-source`.
 
 ## Continuation Contract
 
@@ -172,9 +163,6 @@ After the human approves the design, emit the block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`:
 - `return_to` SET: `next: <return_to>`, `inputs: {design_doc: <path>}` (master-child: the
   contract's canonical `inputs`).
-- `return_to` UNSET: `next: odoo-planning` when the design has two or more nodes;
-  `next: odoo-coding` when it has one (the main agent fills the single-node plan from the default
-  template of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`); a
-  single-module migration script meeting
+- `return_to` UNSET: `next: odoo-planning`; a single-module migration script meeting
   `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Migration carve-out goes to
   `next: odoo-data-migration`. `inputs` always carries `srs`, `recon` and `design_doc`.

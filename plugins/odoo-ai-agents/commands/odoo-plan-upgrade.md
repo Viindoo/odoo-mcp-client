@@ -8,13 +8,12 @@ description: >-
 
 Thin dispatcher for the declarative odoo-plan-upgrade workflow.
 
-**SSOT**: `plugins/odoo-ai-agents/workflows/odoo-plan-upgrade.workflow.yaml`
-
-All phase definitions, gates, model tiers, skills, output directory (`<ISOLATE_DIR>/upgrade-plans/`;
-resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
-substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
-Read/Write/Edit), fallback policy, and resume logic live in the workflow YAML. Do not duplicate
-them here.
+**SSOT**: `plugins/odoo-ai-agents/workflows/odoo-plan-upgrade.workflow.yaml` holds the phase
+definitions, model tiers, skills, fallback policy and resume logic, and the output directory
+`<ISOLATE_DIR>/upgrade-plans/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Do not duplicate them
+here.
 
 ## Dispatch
 
@@ -22,44 +21,25 @@ them here.
 
 Yield to the `odoo-intake` skill with the intent already resolved: run the `odoo-plan-upgrade`
 workflow over this command's `$ARGUMENTS` (an optional version range, `<from>-to-<to>` or
-`<from>-<to>`). Because that workflow declares an `on_complete` cross-workflow chain, intake MUST engage
-Phase P (trigger 3: a single workflow node whose YAML declares `on_complete`) - serializing a 1-node
-RUN-DAG and running it (`plan-mode-schema.md` § Running the plan). The runner then dispatches `workflow-chaining`,
-which reads the workflow YAML, collects missing inputs (source version, target version, scope,
-deadline), emits the soft-plan-gate, and executes the four-phase pipeline:
+`<from>-<to>`). Intake MUST engage Phase P (trigger 3: a single workflow node whose YAML declares
+`on_complete`), serializing a 1-node RUN-DAG and running it (`plan-mode-schema.md` § Running the
+plan). The runner dispatches `workflow-chaining`, which reads the workflow YAML, collects missing
+inputs (source version, target version, scope, deadline), decides the workflow plan, and executes:
 
 ```
 risk-overview -> deprecation-audit -> version-diff -> synthesis
 ```
 
-Output is written to `<ISOLATE_DIR>/upgrade-plans/` on explicit user confirmation at the final gate. Do NOT
-dispatch `workflow-chaining` directly - without a run above it, the `on_complete` design
-handoff degrades to a human suggestion (see below).
+Do NOT dispatch `workflow-chaining` directly: without a run above it, the `on_complete` design
+handoff (`needs_design == true` chains to `odoo-solution-design`) degrades to a human suggestion.
 
-**Design handoff (`on_complete`).** When the plan contains migration/refactor items with more than one
-viable approach (`needs_design == true`), `on_complete` chains to `odoo-solution-design` so those items
-are designed before any code is written. Routing through `/odoo-intake` Phase P keeps a run
-present to read the emitted Continuation Contract and auto-advance - the chain fires automatically. A
-bare `workflow-chaining` dispatch (no run) degrades this to a visible human suggestion, which is
-why this command routes via intake.
-
-**Execute handoff.** For the code-level upgrade once this plan is approved, invoke `odoo-modules-upgrade`
-(skill) - it executes the dependency-ordered adapt loop this plan only scoped. This is a manual next
-step, separate from the `on_complete` design chain above: this plan writes no code, and
-`odoo-modules-upgrade` is not auto-dispatched.
+**Execute handoff.** For the code-level upgrade once this plan is approved, invoke
+`odoo-modules-upgrade` (skill) manually; it is not auto-dispatched and this plan writes no code.
 
 ## When to use
 
 - A client asks for a **full upgrade plan** covering risk, deprecation, and API diff in one deliverable.
-- You need **executive-readable risk overview** and **dev-readable action items** in the same artifact.
+- You need an **executive-readable risk overview** and **dev-readable action items** in one artifact.
 
-Do **not** use when:
-- Only a deprecation check is needed: invoke `odoo-deprecation-audit` directly.
-- Only an API diff is needed: invoke `odoo-version-diff` directly.
-
-## See also
-
-- `workflows/odoo-plan-upgrade.workflow.yaml` - phase contract (SSOT)
-- `odoo-modules-upgrade` skill - executes the code-level upgrade once this plan is approved
-- `odoo-deploy-checklist` skill - use at actual deploy time
-- `/odoo-respond-bid` - if this upgrade is part of a prospect proposal
+Do **not** use when only a deprecation check is needed (`odoo-deprecation-audit`) or only an API
+diff is needed (`odoo-version-diff`).

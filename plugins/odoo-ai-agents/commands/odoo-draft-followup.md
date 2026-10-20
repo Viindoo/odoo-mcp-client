@@ -6,7 +6,7 @@ description: >-
 ---
 # /odoo-draft-followup
 
-Single-purpose slash command for sales follow-up email drafting. Chains the `odoo-deal-followup` skill with an explicit save-to-file step, gating on user approval before writing to disk.
+Single-purpose slash command for sales follow-up email drafting. Chains the `odoo-deal-followup` skill with a save-to-file step.
 
 ## When to use
 
@@ -24,7 +24,7 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
   - Last touch date - only if not already provided
   - Current pipeline stage - only if not already provided
   - Prior commitments or blockers (e.g., "waiting on PO", "evaluating competing offer")
-- **Gate before saving**: Display the drafted email to the user. Explicitly ask: "Email draft OK? (approve / refine: [feedback] / cancel)" - the PLAN gate set (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`). Do not write to disk unless the user confirms "approve".
+- **Save without asking**: write the draft under `<ISOLATE_DIR>/followups/` and report its path; a user who wants changes says so and the command redrafts.
 - **No auto-send**: This command **only drafts**. It does not send email, update CRM systems, or trigger workflows.
 
 ## Phases
@@ -59,7 +59,7 @@ The skill outputs:
 - **Next-best-action**: specific action the customer or you should take next (e.g., "schedule call", "send spec sheet", "escalate to manager").
 - **Draft email**: 3-5 paragraph follow-up email, subject line included, ready for review.
 
-### Phase 2: Display and gate
+### Phase 2: Display
 Show the draft to the user in a readable format:
 ```
 Subject: [subject line from draft]
@@ -71,17 +71,12 @@ Risk Score: [yellow]
 Next-Best-Action: [Schedule a 30-min call next week]
 ```
 
-Ask explicitly: **"Email draft OK? Reply with `approve` to save, `refine: [feedback]` to change it, or `cancel` to discard."**
+When the user asks for changes (tone, specifics, objection, next action), invoke the skill again with the updated context and redraft.
 
-- **`approve`** → Phase 3.
-- **`refine: [feedback]`** → Ask what to change (tone, specifics, objection, next action), invoke skill again with updated context, loop back to Phase 2.
-- **`cancel`** → End command, discard draft.
-
-### Phase 3: Write to disk and confirm
-On user "approve":
+### Phase 3: Write to disk and report
 1. Create directory `<ISOLATE_DIR>/followups/` if it does not exist.
 2. Slugify customer-label: lowercase, replace whitespace and non-alphanumeric with `-`, collapse repeats. Example: `ABC Manufacturing` → `abc-manufacturing`.
-3. Derive filename: `<slugified-customer-label>-<YYYY-MM-DD>.md` (e.g., `abc-manufacturing-2026-05-28.md`). If a file for today already exists for this customer, append a short suffix (e.g., `-v2`) or ask the user for a unique name.
+3. Derive filename: `<slugified-customer-label>-<YYYY-MM-DD>.md` (e.g., `abc-manufacturing-2026-05-28.md`). If a file for today already exists for this customer, append a short numeric suffix.
 3. Write the draft to the file in Markdown format:
    ```markdown
    # Follow-up Draft: [Customer Label]
@@ -98,7 +93,7 @@ On user "approve":
    
    [email body]
    ```
-4. Confirm to user: `✓ Draft saved to <ISOLATE_DIR>/followups/abc-manufacturing-2026-05-28.md`.
+4. Report to the user: `✓ Draft saved to <ISOLATE_DIR>/followups/abc-manufacturing-2026-05-28.md`.
 
 ## Examples
 

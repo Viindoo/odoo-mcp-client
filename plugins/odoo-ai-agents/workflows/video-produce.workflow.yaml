@@ -1,6 +1,3 @@
-# video-produce.workflow.yaml
-# Declarative SSOT for the /odoo-produce-video command.
-# Runner: skills/workflow-chaining - auto-discovered at runtime.
 name: video-produce
 domain: marketing
 team_pattern: Pipeline
@@ -21,13 +18,10 @@ resume: true
 fallback: standalone
 
 phases:
-  # ------------------------------------------------------------------
-  # Phase 0 - Parse args + context check + storyboard (inline gate)
-  # ------------------------------------------------------------------
   - id: storyboard
     inline: true
+    plan: true
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
     # Runner collects:
     #   - project_label  (default "Demo-Project")
     #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
@@ -37,13 +31,10 @@ phases:
     # Produces a Markdown storyboard: scene index, workflow description, estimated
     # duration, key actions (menu → record → field → action), and output filename.
     # Hard rules enforced inline:
-    #   - No writes before gate approval
+    #   - No writes before the storyboard is decided
     #   - Abstract labels only (no real customer names in saved files)
     #   - Each scene maps to one odoo-demo-recording invocation
 
-  # ------------------------------------------------------------------
-  # Phase 1 - Record scenes (odoo-demo-recording, one invocation per scene)
-  # ------------------------------------------------------------------
   - id: record-scenes
     skill: odoo-demo-recording
     nl_trigger: >
@@ -62,33 +53,25 @@ phases:
       scene, including a retake - see
       ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md T0 and T2 - Browser: close
       what you drove.
-      After all scenes are recorded, report each clip path and duration so the user
-      can review before assembly.
+      After all scenes are recorded, report each clip path and duration.
       If a scene's storyboard description says "narrated", "before/after evidence", or carries a
       --label before|after, dispatch that scene's odoo-demo-recording invocation in Narrated
-      evidence mode instead of the default flow - same gate, same clip-path convention, no change to this phase otherwise.
-      Support retake: if the user marks a scene for retake,
-      re-record that scene only (stop + close it too) before proceeding to assembly.
+      evidence mode instead of the default flow - same clip-path convention, no change to this phase otherwise.
+      Retake: when the user asks to retake a scene, re-record that scene only (stop + close it
+      too) and assemble again.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"   # refine: [scene numbers] re-takes just those scenes
 
-  # ------------------------------------------------------------------
-  # Phase 2 - Assemble clips into final deliverable (inline gate)
-  # ------------------------------------------------------------------
   - id: assemble
     inline: true
     model_tier: sonnet
-    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner assembles the individual scene clips into a single deliverable:
-    #   1. Concatenate the scene clips reported by Phase 1 (under <ISOLATE_DIR>/visual/videos/)
+    #   1. Concatenate the scene clips reported by record-scenes (under <ISOLATE_DIR>/visual/videos/)
     #      in storyboard order with ffmpeg (check `command -v ffmpeg` first); pagecast
     #      convert_to_mp4 / convert_to_gif convert ONE clip each and never join clips.
     #      Without ffmpeg, deliver the per-scene clips in storyboard order and say the
     #      single file was not produced because ffmpeg is missing.
     #   2. Write final file to <ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>
     #   3. Print artifact path, total duration, scene count, and the re-runnable storyboard.
-    #   4. Remind: <ISOLATE_DIR> is the per-worktree ISOLATE dir under the state root,
-    #      outside the repo - the final file is not committed.
     # Fallback: if only screenshot capture was available for any scene, the assembler
     # stitches frame sequences and prefixes the output with:
     #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.

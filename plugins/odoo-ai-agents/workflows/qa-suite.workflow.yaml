@@ -3,7 +3,7 @@ domain: qa
 team_pattern: Pipeline
 description: |
   Static release QA pipeline for an Odoo feature or module: generate a structured
-  release TEST-PLAN (non-executing), gate on a pre-deploy safety checklist across
+  release TEST-PLAN (non-executing), run a pre-deploy safety checklist across
   8 domains, and triage user-reported bugs with severity classification, reproduction
   steps, and suspected module assignment.
   Trigger: "full QA suite", "test cases and checklist", "generate tests and triage bugs",
@@ -22,7 +22,6 @@ phases:
       permission check). Each test name must state the business rule, not the
       implementation. Output to .odoo-ai/qa/ as a markdown table.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
   - id: qa-checklist
     skill: odoo-deploy-checklist
@@ -33,7 +32,6 @@ phases:
       staging. Use the Odoo version from context. Return a verdict (READY / NEEDS WORK
       / NOT READY) and write the checklist to .odoo-ai/qa/.
     model_tier: sonnet
-    gate: "approve / skip / cancel"
 
   - id: bug-triage
     skill: odoo-qa-suite
@@ -46,18 +44,14 @@ phases:
       `code_bugs_found: true` if any triaged item is a code-level defect, else
       `code_bugs_found: false`.
     model_tier: sonnet
-    gate: "approve / skip / cancel"
 
   - id: synthesize
     inline: true
     model_tier: inherit
-    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
 
 resume: true
 fallback: standalone
 
-# Cross-workflow transition (G2): when triage finds code-level bugs, emit a chain to the
-# backend fix bundle. The runner only EMITs this in next[] for the plan runner; it never self-dispatches.
 on_complete:
   - when: "code_bugs_found == true"
     next: odoo-coding

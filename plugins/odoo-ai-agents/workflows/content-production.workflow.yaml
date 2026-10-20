@@ -1,10 +1,3 @@
-# content-production.workflow.yaml
-# Declarative SSOT for the content production workflow.
-# Runner: skills/workflow-chaining - auto-discovered at runtime.
-# Pattern: Producer-Reviewer - draft produced by odoo-content-draft (producer), then
-# reviewed in an inline read-only pass against explicit content-quality criteria before
-# the publish schedule is finalized. The reviewer is intentionally inline (runner-driven):
-# this is a TEXT/editorial review, not a rendered-UI review, so no browser/UI agent is used.
 name: content-production
 domain: content
 team_pattern: Producer-Reviewer
@@ -25,9 +18,6 @@ resume: false
 fallback: standalone
 
 phases:
-  # ------------------------------------------------------------------
-  # Phase 0 - Collect content brief (inline: runner handles)
-  # ------------------------------------------------------------------
   - id: brief
     inline: true
     model_tier: inherit
@@ -36,9 +26,6 @@ phases:
     # SEO keywords (optional), word/character limit (optional), deadline (optional).
     # Enforces: abstract product label; no confidential roadmap details in artifacts.
 
-  # ------------------------------------------------------------------
-  # Phase 1 - Draft content (Producer: odoo-content-draft)
-  # ------------------------------------------------------------------
   - id: draft
     skill: odoo-content-draft
     nl_trigger: >
@@ -49,15 +36,10 @@ phases:
       language, and any SEO or length constraints from the brief. The draft must be
       fully self-contained - no placeholder sections left for the user to fill in.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
-  # ------------------------------------------------------------------
-  # Phase 2 - Review for quality and brand alignment (Reviewer: read-only)
-  # ------------------------------------------------------------------
   - id: review
     inline: true
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
     # Inline editorial review (read-only) of the draft phase output against:
     #   (a) message clarity and audience fit,
     #   (b) tone consistency with the brief's stated guidance,
@@ -66,22 +48,14 @@ phases:
     #   (e) channel-norm compliance (character limits, hashtag usage, link placement).
     # Runner produces a structured verdict (approved / approved-with-minor-edits /
     # needs-revision) with specific, actionable feedback per issue. Does NOT rewrite the
-    # draft - only flags and annotates. Intentionally inline, not the odoo-ui-reviewer
-    # agent: that agent reviews a RENDERED Odoo UI in a live browser (five-lens visual
-    # verdict), which is the wrong instrument for editorial review of marketing copy.
+    # draft - only flags and annotates.
 
-  # ------------------------------------------------------------------
-  # Phase 3 - Publish schedule (inline assembly)
-  # ------------------------------------------------------------------
   - id: publish-schedule
     inline: true
     model_tier: sonnet
-    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner finalizes the publish artifact:
     #   1. Final approved draft (incorporating any review edits)
     #   2. Recommended publish date and time band (by channel best-practice)
     #   3. Distribution checklist (platforms, hashtags, UTM parameters if applicable)
     #   4. Brief performance-tracking note (what metric to check after 48 hours)
     # Writes to .odoo-ai/content/<topic-slug>-<YYYY-MM-DD>-<channel>.md
-    # Reminder: .odoo-ai/content/... above resolves to the per-worktree ISOLATE dir under
-    # $ODOO_AI_HOME at runtime, outside the repo - content artifacts are never committed.

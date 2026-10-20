@@ -119,7 +119,7 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 1: `odoo-intake`
 
-> Phase A - universal front door / brainstorm + 4-tier route + soft-plan-gate. No MCP calls.
+> Phase A - universal front door / brainstorm + 4-tier route + hand-off. No MCP calls.
 
 **Trigger prompt (VI)**: "I have a prompt to handle but I'm not sure which skill to use - Customer A has a question about Odoo manufacturing"
 
@@ -128,8 +128,8 @@ Before beginning this checklist, confirm all of the following:
 **Expected output**:
 - Recommended skill name (exactly ONE, e.g. `odoo-feature-check`) OR brainstorm clarifying options if vague
 - One-sentence justification citing the intent signal
-- Proposed Plan gate: `approve / refine / cancel`
-- NO actual work output (intake does not execute the target skill)
+- The approach question (`approve / refine: [feedback] / cancel`) while the approach is unsettled, else a one-line hand-off
+- NO Plan Mode and no work output from intake itself
 
 | Runtime | Pass? | Notes |
 |---------|-------|-------|

@@ -7,9 +7,8 @@ description: >-
 
 ## Role
 
-QA engineer / Odoo developer producing test plans, checklist gates, and structured bug reports for a
-module or feature change. Audience: the engineering team preparing a release; output is operational
-and actionable, not executive-level. Three jobs in one pass: (1) generate test cases, (2) gate on a
+QA engineer / Odoo developer producing test plans, checklists, and structured bug reports for a
+module or feature change. Three jobs in one pass: (1) generate test cases, (2) run the
 pre-deploy checklist, (3) triage bugs with severity and root-cause hints.
 
 **Composition orchestrator:** delegate phases via the Skill tool to leaf skills; handle work inline
@@ -57,44 +56,26 @@ only when no leaf skill covers it.
 
 ---
 
-## Phase 0 - Scope confirmation
+## Phase 0 - Scope
 
 Resolve series, profile, and module scope per
-`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` before asking for any project fact -
-the ladder derives from the declared instance catalog and then from the checkout itself, so asking
-comes last, not second. Whatever it resolves is pre-filled; skip asking for it.
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 
-Ask for all remaining missing inputs in a **single message**:
-1. **Feature / module name** (skip when the resolved module scope or the request already names it)
-2. **Odoo series** e.g. `17.0` (skip when the ladder resolved it; never substitute a default)
-3. **Open bugs to triage** (optional) - as a list, or a file path to `Read`; pass `none` to skip triage
-4. **Scope** - `unit` / `integration` / `both` (default: `both`)
+Inputs:
+1. **Feature / module name** - from the resolved module scope or the request.
+2. **Odoo series** - from the ladder; never substitute a default.
+3. **Open bugs to triage** (optional) - a list, or a file path to `Read`; absent or `none` skips triage.
+4. **Scope** - `unit` / `integration` / `both` (default: `both`).
 
-Present a **soft-plan-gate** before running any phase:
+Return `status: NEEDS_CONTEXT` naming any of inputs 1-2 that stay unresolved.
 
-```
-## Proposed QA Plan
-Feature/module: <name>
-Version:        <X.Y>
-Phases:         generate-tests → qa-checklist → bug-triage
-Output:         <ISOLATE_DIR>/qa/
-Gate: approve / refine: [feedback] / cancel
-```
-
-`qa/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol in
+`qa/` is Tier-2 ISOLATE; resolve it via the resolve-capture-substitute protocol in
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
 below).
 
-After gate approval, run the **test inventory** before Phase 1: call `tests_covering` for the
+Run the **test inventory** before Phase 1: call `tests_covering` for the
 module's primary model(s) to find which test methods already exercise them, then `test_coverage_audit`
-for the module to identify untested methods and coverage gaps. Example:
-
-```
-tests_covering(model='sale.order', odoo_version='17.0')
-test_coverage_audit(module='sale_management', odoo_version='17.0')
-```
-
-Carry both into Phase 1 so test-case generation focuses on **uncovered business rules** - do not
+for the module to identify untested methods and coverage gaps. Carry both into Phase 1 so test-case generation focuses on **uncovered business rules** - do not
 generate cases for behaviors already protected by existing tests unless `test_coverage_audit` flags a
 known gap.
 
@@ -102,16 +83,11 @@ known gap.
 
 ## Phase 1 - Release TEST-PLAN (static, non-executing, inline)
 
-Generate a structured release test-plan table for planning and review. STATIC document: the Pass/Fail
-column is left blank; no tests execute here. Derived from code structure and coverage gaps, NOT from a
-requirement oracle.
+Generate a STATIC test-plan table derived from code structure and coverage gaps: leave the Pass/Fail
+column blank; execute nothing.
 
 For a behavioral acceptance oracle + live execution across the blast-radius cluster, dispatch
-`odoo-acceptance` instead (it delegates oracle authoring to `odoo-qa-planner`). The two artifacts are
-complementary: this Phase 1 = release planning table; qa-planner = immutable execution oracle. Do NOT
-duplicate the oracle's scenario steps into this table.
-
-Generate a structured test suite table:
+`odoo-acceptance` instead. Do NOT duplicate the oracle's scenario steps into this table.
 
 | # | Test name (business rule) | Type | Precondition | Steps | Expected result | Pass/Fail |
 |---|---|---|---|---|---|---|
@@ -123,12 +99,9 @@ Rules:
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
 - Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
-- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table - it returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract plus the authoritative base-class menu (e.g. `test_base_classes(odoo_version='17.0')`). For runnable tests, route to `odoo-test-writing` (see frontmatter `description`) - this phase only records the base-class menu in the table.
-- **JS test framework grounding:** for any frontend module, call `js_test_inspect` (e.g. `js_test_inspect(module='web', odoo_version='17.0')`) to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release.
-- Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md` (state-root cache, never git-tracked - no
-  `WORKTREE_PATH` applies to this phase; the executable `.py`/`.js` test files themselves are
-  written by `odoo-test-writing`, which carries its own `WORKTREE_PATH` contract per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5)
+- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table. For runnable tests, route to `odoo-test-writing`; this phase only records the base-class menu in the table.
+- **JS test framework grounding:** for any frontend module, call `js_test_inspect` to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone.
+- Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md` (no `WORKTREE_PATH` applies to this phase)
 
 ---
 
@@ -137,8 +110,6 @@ Rules:
 Invoke `odoo-deploy-checklist` via the Skill tool: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
 
 Write the returned checklist to `<ISOLATE_DIR>/qa/<slug>-deploy-checklist.md`.
-
-Gate before dispatching: "approve / skip / cancel".
 
 ---
 
@@ -199,7 +170,7 @@ Write `<ISOLATE_DIR>/qa/<slug>-qa-summary.md`:
 
 ## Suggested next skills
 - `odoo-debug` - for any Critical/High bugs requiring live runtime investigation
-- `odoo-deploy-checklist` - run standalone for the full 8-domain gate if not done
+- `odoo-deploy-checklist` - run standalone for the full 8-domain checklist if not done
 - `odoo-coding` - for implementing fixes uncovered during triage
 ```
 
@@ -222,10 +193,9 @@ next:
     inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules under test>"]}
     confidence: 0.9
 ```
-so the caller provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
+The caller (or next DAG node) re-invokes this skill to continue Phase 3. Return `BLOCKED` only if provisioning is itself impossible.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the plan runner - it does not change anything produced above.
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).

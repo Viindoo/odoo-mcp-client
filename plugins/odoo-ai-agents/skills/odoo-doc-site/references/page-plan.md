@@ -1,7 +1,7 @@
 # odoo-doc-site - find existing content, then plan
 
-Done per series, on the series worktree, before any page is written. Never plan a page before the
-search below ran.
+Done per series, before any worktree or page is written. Never plan a page before the search below
+ran.
 
 ## 1. Map the area to modules
 
@@ -55,5 +55,10 @@ every other page is absent from the plan, not `skip`.
 
 ## 4. The gate
 
-Show the plan with the open pull requests found and wait for
-`approve / refine: [feedback] / cancel`. `refine` recomputes the plan.
+When this skill owns the request, present the plan with the open pull requests found through Plan
+Mode (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request):
+`EnterPlanMode`, present the plan, `ExitPlanMode` on approve. `refine: [feedback]` recomputes the
+plan; `cancel` leaves nothing behind and stops.
+
+Under an approved plan - a plan node, a workflow phase, the closing documentation of another run -
+present no gate: write the page plan into the return and the PR body, and continue.

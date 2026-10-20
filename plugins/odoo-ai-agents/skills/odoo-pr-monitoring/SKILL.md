@@ -9,61 +9,38 @@ model: inherit
 
 # odoo-pr-monitoring - the post-PR lifecycle owner (poller)
 
-## Where this sits in the flow
-
-Begins where the plan's `integrate` node stops at "PR opened": once every node in that repo is
-terminal and a DONE verification node covers every module its coding nodes touched, the main
-agent (`plan-mode-schema.md` § Running the plan) squashes the repo's run-integration branch, fresh
-FIRST-pushes it (non-force), opens ONE PR for that repo (run-integration -> principal), and STOPS
-(never merges). The surviving invariant is exactly ONE PR per repo per run. `monitor` and `merge`
-are ORDINARY plan nodes the runner launches like any other node - `monitor depends_on integrate`,
-`merge depends_on monitor` - and this skill is what runs each time either is dispatched; the runner
-never materializes a second one dynamically. CI runs minutes-to-hours and review takes hours-to-days, so a
-dispatch of `monitor` never holds the run's turn open for that long: each poll tick reads once,
-classifies, and PARKS - it emits a `NEEDS_NEXT` Continuation Contract naming itself in `next[]` so the
-runner's turn ends cleanly, and a later `/loop` tick or `/schedule` cron re-invocation re-attaches via
-`run-<id>.json` and resumes. Once the watch classifies green + approved + mergeable, the `monitor`
-node itself reaches DONE - it does NOT also perform the merge; that is the separate `merge` node's
-job, dispatched only once `monitor` is DONE, so the outward L2 gate keeps its own `depends_on` edge
-and its own `gate_log` entry.
-
-```
-the repo's last verification node closes green  ->  integrate node: squash + fresh first-push + open ONE PR  ->  STOP at "PR opened"
-   --- `monitor` node (the runner launches it like any other node; each tick PARKS via NEEDS_NEXT instead of blocking the turn) ---
-odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
-   -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
-        -> proposed re-push is HUMAN-GATED (X2); max_review_rounds cap; exhaustion -> BLOCKED
-   -> green + approved + mergeable  ->  `monitor` node reaches DONE
-   --- `merge` node (depends_on: monitor; the runner launches it once monitor is DONE) ---
-odoo-pr-monitoring  ->  present merge approval gate  ->  merge (git-ops)
-        -> post-merge cleanup (worktrees/branches/tag via git-ops)
-```
-
-It makes no domain/code decision and runs no git/GitHub op itself: it reads PR state + merges via the
-`git-toolkit:git-ops` skill (also used for cleanup), routes diagnosis to `odoo-debug` and fixes to
-`odoo-coding`. Every git mutation stays human-gated + worktree-only, including from an unattended
-cron poll.
-
 ## Role
 
-PR release-watcher. After the executor opens the PR, this poller babysits it to merge: it samples
-CI + review on an interval, surfaces failures to the right specialist, holds the irreversible merge
-behind the human merge approval gate, and tidies up afterwards. It owns the WATCH and the MERGE; it owns
-no code, no design, and no git authority of its own (all git/GitHub work is delegated).
+Post-PR lifecycle owner. The plan's `integrate` node stops at "PR opened" (ONE PR per repo per run).
+`monitor` and `merge` are ordinary plan nodes (`monitor depends_on integrate`, `merge depends_on
+monitor`); this skill runs each time either is dispatched. Each poll tick reads once, classifies,
+and PARKS: emit a `NEEDS_NEXT` Continuation Contract naming this skill in `next[]`; a later `/loop`
+tick or `/schedule` cron re-invocation re-attaches via `run-<id>.json`. Once the watch classifies
+green + approved + mergeable, the `monitor` node reaches DONE; it never performs the merge.
+
+```
+monitor node:  poll (/loop | /schedule)
+   -> any CI warning/error/fail -> odoo-debug (D3: root-cause) -> odoo-coding (fix)
+        -> proposed re-push is human-gated (X2); max_review_rounds cap; exhaustion -> BLOCKED
+   -> green + approved + mergeable -> `monitor` DONE
+merge node:    present merge approval gate -> merge (git-ops) -> post-merge cleanup (git-ops)
+```
+
+Make no domain/code decision and run no git/GitHub op yourself: read PR state, merge and clean up
+via the `git-toolkit:git-ops` skill, route diagnosis to `odoo-debug` and fixes to `odoo-coding`.
+Every git mutation stays human-gated + worktree-only, including from an unattended cron poll.
 
 ## Inputs - the PR handle (re-attachable across sessions)
 
-The watch is keyed on the PR produced upstream. On start, locate the PR by pointer (do NOT re-open
-or re-derive it):
+On start, locate the PR by pointer (do NOT re-open or re-derive it):
 
 - **PR URL + branches** - from the active `run-<id>.json`, which lives under the Tier-2 ISOLATE
   dir; resolve it via the resolve-capture-substitute protocol in
   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
   below) - `<ISOLATE_DIR>/run-<id>.json` (the `integrate` node's `produced` carries the PR URL,
   the run-integration branch, the squashed SHA). A fresh session re-attaches by reading
-  `run-<id>.json` for the PR URL and resuming. (The runner owns writing `run-<id>.json`;
-  this skill only SURFACES the PR URL + poll state in its Continuation Contract `produced`, and
-  writes its own poll-state notes under `<ISOLATE_DIR>/pr-monitoring/<id>.md`.)
+  `run-<id>.json`. Surface the PR URL + poll state in the Continuation Contract `produced`, and
+  write poll-state notes under `<ISOLATE_DIR>/pr-monitoring/<id>.md`.
 - **Direct user invocation** - "watch PR #N" supplies the PR number/URL directly; no run file
   required.
 
@@ -78,20 +55,15 @@ re-run the cadence choice below.
 
 ## Phase 1 - Attach + choose the poll cadence
 
-**Orphan sweep (do this every run, BEFORE step 1 below).** `pr-monitoring/<id>.md` files are never
-deleted by anything today, so an old PR's poll-state note outlives it forever:
+**Orphan sweep (every run, BEFORE step 1 below).**
 
 `find <ISOLATE_DIR>/pr-monitoring/ -maxdepth 1 -type f -name '*.md' -mmin +43200 -exec rm -rf {} +`
 
-(any sibling `<id>.md` untouched for over 30 days is presumed consumed - a still-monitored PR is
-rewritten on every poll tick, so its mtime never ages past the threshold). Full rule + bound
-rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
-Enforcer: whoever executes `odoo-pr-monitoring` next, unconditionally, every run.
+Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 
 1. Resolve the PR handle (above). Read any existing poll-state note
    (`<ISOLATE_DIR>/pr-monitoring/<id>.md`) and the run worklog
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, oldest-first) so a resumed watch builds on
-   what an earlier turn already saw (last CI conclusion, review round count).
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, oldest-first).
 2. Choose the cadence and state it:
    - **`/loop` (in-session)** - when the user is present and wants to watch now (default for a
      direct "watch this PR" ask). The poll re-runs on an interval in the live session.
@@ -109,9 +81,7 @@ Each poll tick, invoke the `git-toolkit:git-ops` skill (via the Skill tool, per
 - review decision (approved / changes-requested / review-required) and unresolved review threads;
 - mergeable state (clean / blocked / behind / conflicting).
 
-Reading PR/CI/review state is a GitHub-API read - it is delegated to `git-ops`, never run
-inline (no `gh`, no GitHub MCP call, no inline git in this skill - the delegation boundary, guarded
-by `tests/test_git_delegation_boundary.py`). The poller classifies the returned state into exactly
+Read PR/CI/review state through `git-ops` only (no `gh`, no GitHub MCP call, no inline git). Classify the returned state into exactly
 one of three branches:
 
 - **pending** -> record the tick, keep polling (no action).
@@ -125,44 +95,35 @@ sees the history.
 
 ## Phase 3 - D3: CI warning/error/fail -> odoo-debug (root-cause first), fix human-gated
 
-D3 is LOCKED: a failing PR is NOT patched blindly. Root-cause comes before any fix, and the fix is
-NEVER pushed autonomously.
+Root-cause comes before any fix, and the fix is NEVER pushed autonomously.
 
 1. **Bound the loop.** `review_round += 1`. If `review_round > max_review_rounds`, STOP and report
-   `BLOCKED` ("max_review_rounds exhausted - human review") - do not keep re-trying. This prevents
-   review/CI ping-pong.
-2. **Diagnose.** Route the failure to `odoo-debug` via the Skill tool (front-door debug
-   orchestrator: reproduce -> falsifiable hypothesis -> bisect -> confirm-by-toggle). Pass the
-   failing check log/summary and the PR/branch context. `odoo-debug` proves the root cause; it does
-   not author the fix.
+   `BLOCKED` ("max_review_rounds exhausted - human review") - do not keep re-trying.
+2. **Diagnose.** Route the failure to `odoo-debug` via the Skill tool, passing the failing
+   check log/summary and the PR/branch context. `odoo-debug` does not author the fix.
 3. **Fix.** When the root cause is known, route the fix to `odoo-coding` via the Skill tool. Per the
    integration-loop contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`), the fix
    is authored + committed INSIDE a dedicated worktree on the PR's integration branch - never on the
-   principal checkout (S9). `odoo-coding` owns its own coder count + model (Decision X); this skill
-   chooses neither.
+   principal checkout (S9). Choose neither coder count nor model.
 4. **Re-push is HUMAN-GATED (X2).** The poller PREPARES the fix in the worktree and SURFACES it -
    it NEVER pushes from the unattended poll. Present the proposed change (what failed, the proven
    root cause, the fix diff summary, the target branch) and WAIT for explicit human approval. Only
-   after approval is the push delegated to `git-ops` (a human-confirm-gated destructive op;
-   git-toolkit enforces the confirm gate as a backstop). An unattended `/schedule` poll that hits a
+   after approval is the push delegated to `git-ops`. An unattended `/schedule` poll that hits a
    failure does NOT push - it parks the proposal and waits for a human at the next attended turn.
-5. **Out-of-plan fix -> re-plan, do not silently expand scope (CG-2).** If the fix needs a
-   node NOT in the approved plan, do not widen scope (that would bypass the L2 source-writing
-   gate). Emit a re-plan request back to `odoo-planning` (a new gated plan), still bounded by
-   `max_review_rounds`.
+5. **Out-of-plan fix -> re-plan (CG-2).** A fix that needs a node NOT in the approved plan
+   re-plans per `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate
+   per request, rule 7, still bounded by `max_review_rounds`.
 6. After an approved re-push, return to Phase 2 (poll the re-triggered CI).
 
 ## Phase 4 - Dispatched as `merge`: the merge approval gate -> merge -> cleanup
 
-1. **Present the merge approval gate (always human).** The merge is irreversible/outward (git merge to the
-   principal branch), so it is a human gate the autonomy dial can NEVER lower
+1. **Present the merge approval gate (always human).** The autonomy dial can NEVER lower this gate
    (`plan-mode-schema.md` § Running the plan, step 7). Present a tight summary - PR URL, CI green,
    review approved, squashed SHA + tree-identity result from the `integrate` node - and WAIT for
    human approval. Write the gate in the USER'S LANGUAGE
    (translate labels/prose; keep PR URL, branch, SHA, and module names verbatim).
 2. **Merge.** On approval, invoke `git-ops` to merge (pass the human approval through
-   as `confirmed: yes - <quote>`). This is the only place this skill triggers the merge; there is no
-   auto-merge and no CI-triggered merge.
+   as `confirmed: yes - <quote>`). There is no auto-merge and no CI-triggered merge.
 3. **Post-merge cleanup.** After the merge is confirmed on the remote, invoke `git-ops` to run the
    cleanup in one brief (`op=integration-cleanup`): remove every node worktree and the
    run-integration worktree, delete the per-node branches and the run-integration branch, delete
@@ -201,48 +162,29 @@ NEVER pushed autonomously.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 <!-- END GENERATED TOOLS -->
 
-> **OSM-first precedence.** Odoo Semantic MCP (OSM) is the PRIMARY source for Odoo source/structure
-> (indexed, cross-version, inheritance-resolved, checkout-free); reading the codebase with Read/Grep
-> is the FALLBACK, only when OSM is incomplete or unreachable. OSM is STATIC (no live records). This
-> skill barely touches OSM: it pins the run's target Odoo series once at attach (doubling as the
-> reachability probe) so the version-pinned context travels with any D3 hand-off. All PR/CI/review
-> reads are GitHub-API ops delegated to `git-ops`; deep source grounding happens inside
-> `odoo-debug` / `odoo-coding`, not here.
-
 ## Concurrency + handoff
 
-This skill dispatches strictly SERIALLY - one poll, then at most one route (`odoo-debug` then
-`odoo-coding`) or one merge per tick. It runs no fan-out (the Mode-A/Mode-B budgets in
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` are never exercised; that SSOT still
-governs any subagent it cold-spawns). Every delegate (`git-ops`, `odoo-debug`, `odoo-coding`) is
-invoked fresh each turn (Tier-C baseline), so the watch resumes correctly across a session boundary
-by re-reading `run-<id>.json` + the poll-state note. When composing the dispatch prompt for any
+Dispatch strictly SERIALLY - one poll, then at most one route (`odoo-debug` then `odoo-coding`) or
+one merge per tick, no fan-out. Invoke every delegate fresh each turn; resume across a session
+boundary by re-reading `run-<id>.json` + the poll-state note. When composing the dispatch prompt for any
 specialist agent you dispatch, fill the caller-side skeleton in
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
 family delta; never inline that file verbatim into a hard-leaf brief.
 
 ## Out of Scope
 
-- **Opening or squashing the PR** -> the plan's `integrate` node owns that (ONE PR per repo,
-  opened once that repo's last verification node closes green) and STOPS at "PR opened"; this
-  skill starts after.
+- **Opening or squashing the PR** -> the plan's `integrate` node.
 - **Writing a fix** -> `odoo-coding` (backend + frontend); **diagnosing a failure** -> `odoo-debug`
   (root-cause first). This skill only ROUTES to them and gates the re-push.
-- **Any inline git / GitHub-API op** -> delegated to git-toolkit via the `git-ops` skill (PR read +
-  merge, the re-push, and post-merge cleanup; git-ops routes each to the right leaf). This skill
-  never runs `gh`, a GitHub MCP call, or an inline git mutation.
-- **Re-planning scope** -> `odoo-planning` (when a fix needs a node outside the approved
-  plan, CG-2). This skill never silently expands scope.
-- **Autonomous merge or autonomous re-push** -> both are L2 and human-gated; an unattended poll
-  never merges and never pushes.
+- **Any inline git / GitHub-API op** -> `git-toolkit:git-ops` (PR read, merge, re-push, cleanup).
+- **Re-planning scope** -> `odoo-planning` (a fix needing a node outside the approved plan, CG-2).
+- **Autonomous merge or autonomous re-push** -> never from an unattended poll.
 
 ## Standalone-first fallback
 
 Two start modes: (a) inside a run - re-attach via the PR URL in `run-<id>.json`; (b) standalone -
-a user names "watch PR #N" directly and the watch runs on that PR with no run file. OSM is optional:
-when the odoo-semantic-mcp server is unreachable the watch still runs (PR/CI reads go through
-`git-ops`, which needs no OSM), and any D3 hand-off degrades to `odoo-debug`'s own disk
-fallback (`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`). If the PR handle itself
+a user names "watch PR #N" directly and the watch runs on that PR with no run file. When OSM is unreachable the watch still runs, and any D3 hand-off degrades to `odoo-debug`'s own
+disk fallback (`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`). If the PR handle itself
 cannot be resolved, STOP and report `NEEDS_CONTEXT` - never fabricate a PR.
 
 ## Continuation Contract
@@ -257,12 +199,9 @@ state), append a Continuation Contract block per
 - **Failure routed (D3)** -> `status: NEEDS_NEXT` with `next` to `odoo-debug` then `odoo-coding`; the
   re-push stays human-gated (X2).
 - **Green + approved + mergeable, dispatched as `monitor`** -> `status: DONE`. Never emit a `next[]`
-  entry for the merge here - the plan's separate `merge` node (`depends_on: monitor`) is what
-  the runner launches next; this skill does not materialize it.
+  entry for the merge here.
 - **Dispatched as `merge`, gate awaiting the human** -> `status: NEEDS_NEXT` with the merge approval
   gate as the next step; after a confirmed merge + cleanup -> `status: DONE` with the merged PR URL
   and the cleanup result in `produced`.
 - **Bounded out / blocked** -> `status: BLOCKED` with `blocked_reason` (e.g. "max_review_rounds
   exhausted - human review") or `NEEDS_CONTEXT` when the PR handle is missing.
-
-The block is additive; advancing on `next[]` is the runner's job, never this skill's.

@@ -56,8 +56,6 @@ traceability from requirement to evidence to budget line.
 - `Available-in-Viindoo` - NOT in odoo profile, IS in `standard_viindoo_<version>` (or OEEL-1 license notice)
 - `Custom` - not in either profile; effort_tier sub-tiers: Extension-M/L (inherit point exists) or Custom-XL (new build)
 
-Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), deterministic cost from `cost-config.json` only (4), public-repo safety / abstract customer labels (3).
-
 ## Instructions
 
 ### Phase 0 - INGEST + BOOTSTRAP
@@ -67,60 +65,39 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
    If the input is a source requirement document (RFP / spec / list) rather than free-form, apply
    `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - extract each requirement faithfully, not inferred.
 
-2. **Write internal state** (before GATE 0):
+2. **Write internal state:**
    - `<SHARE_DIR>/brl/<job-id>/manifest.json` - job metadata (see `reference/schema.md` §manifest)
    - `<SHARE_DIR>/brl/<job-id>/input.jsonl` - 1 line per requirement
-   - `<SHARE_DIR>/brl/<job-id>/chunkplan.json` - chunk split (default 50/chunk, user can override)
+   - `<SHARE_DIR>/brl/<job-id>/chunkplan.json` - chunk split (default 50/chunk, overridable by the request)
 
    `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>` (e.g. `Customer-A-20260531-9f3a`).
    Use abstract label for CUSTOMER_LABEL. Never use real company name.
 
-3. **Resolve the project facts** (before any prompt to the user): work the rungs of
+3. **Resolve the project facts:** work the rungs of
    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order and stop at the first that
    answers the series and the profile. Rung 2 returns the exact declared profile name; rung 3 derives
-   the series from the checkout. Present a `list_available_versions` menu only when every rung left
-   the series unresolved.
+   the series from the checkout. Return `status: NEEDS_CONTEXT` naming the series when every rung left
+   it unresolved.
 
 4. **MCP bootstrap** (once per session, on the values step 3 resolved):
    - `set_active_version(odoo_version=<resolved series>)` -> pin for session
    - `set_active_profile(profile_name=<resolved profile>)` -> base profile. Use the resolved name
      verbatim, or confirm one against `list_available_profiles` when no rung supplied it - never
-     hard-code a hyphenated or unversioned name, and never assume a profile family covers only
-     the series you have seen it on: that call is the only authority on which names exist.
+     hard-code a hyphenated or unversioned name.
    - `profile_inspect(method='summary', name=<resolved profile>, odoo_version=<resolved series>)`
-     -> confirm the profile's composition before GATE 0. When no `[[instance]]` covers this repo,
+     -> confirm the profile's composition. When no `[[instance]]` covers this repo,
      offer `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; BRL proceeds
      on the resolved values regardless.
 
-5. **GATE 0:** Present plan before any classification work:
-
-   ```
-   ## BRL Analysis Plan
-   Customer label : <CUSTOMER_LABEL>
-   Odoo version   : <version>
-   Profiles       : odoo_<version> (CE/EE) + standard_viindoo_<version>
-   Requirements   : <N> items
-   Chunks         : <M> chunks x <chunk_size> items/chunk
-   Est. MCP calls : ~<estimate> (with cache de-duplication)
-   Est. cost band : classification only - no charge; cost estimate computed from config
-   Artifacts      : <SHARE_DIR>/brl/<job-id>/
-
-   Options:
-     approve          - start classification pipeline
-     refine: <param>  - adjust chunk_size / version / rate_region / risk_profile
-     cancel           - abort
-   ```
-
-   Do NOT proceed to Phase A until the user sends `approve` (or equivalent positive confirmation).
+5. Proceed to Phase A.
 
 ### Seed + cross-check from a prior gap-analysis (optional)
 
-At Phase 0 (before GATE 0), glob `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` (newest dir wins). If one
+At Phase 0, glob `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` (newest dir wins). If one
 exists, BRL MAY consume it as a PRIOR - never ground truth - to seed and cross-check the fit-gap of
-its RTM. BRL does NOT delegate to the gap-analyzer; it stays the standalone classifier and only reads
-the artifact:
+its RTM. BRL only reads the artifact; it never delegates to the gap-analyzer:
 
-- **Seed (cuts MCP calls):** match each BRL `req_id` / requirement text to a gap-matrix row; prefill
+- **Seed:** match each BRL `req_id` / requirement text to a gap-matrix row; prefill
   the candidate `module` (warm `cache.json`) and map the gap row's `classification`
   (`standard|config|extension|custom`) onto BRL's `effort_tier` family
   (Standard / Config / Extension-M|L / Custom-XL). A gap row's `module` / `coverage` is a candidate,
@@ -131,11 +108,9 @@ the artifact:
   a divergence, BRL's OSM-grounded verdict wins; record it in `notes`
   (`gap-matrix said <x>; OSM confirms <y>`). A `grounded: unknown` gap row is treated as unseeded.
 
-**Stay format-compatible (downstream design reads EITHER source).** `odoo-solution-design` accepts a
-gap-matrix OR a BRL results dir (`<SHARE_DIR>/brl/<job-id>/`). Keep BRL's per-req rows carrying the same
-recognizable keys (`req_id`, `requirement`, `module`, an effort axis, `notes`) and keep the
-§ Continuation Contract handoff to `odoo-solution-design` in the same shape as a gap-analysis handoff
-(`{<deliverable path>, items: [REQ-…]}`), so the architect reads either interchangeably.
+**Stay format-compatible with gap-analysis.** Keep BRL's per-req rows carrying the keys `req_id`,
+`requirement`, `module`, an effort axis, `notes`, and keep the § Continuation Contract handoff to
+`odoo-solution-design` in the shape of a gap-analysis handoff (`{<deliverable path>, items: [REQ-…]}`).
 
 ### Phase A - CLASSIFY (outer sequential per chunk, inner <=3 parallel MCP)
 
@@ -161,7 +136,6 @@ Use training knowledge to generate <=3 candidate module names per requirement. H
 
 **A1 - Cache lookup:** Check `cache.json` for each `(candidate_module, odoo_version)` pair.
 Keys: `"odoo:<module>:<version>"` and `"viin:<module>:<version>"`. HIT -> use stored verdict.
-This eliminates 60-80% of calls when requirements share modules.
 
 **A2 - Double-profile MCP (parallel within item, <=3 concurrent total across chunk):**
 For each candidate NOT in cache, call in parallel:
@@ -207,7 +181,6 @@ re-run bootstrap and update `session_pinned_at`.
 
 **Retry policy:** Exponential backoff: 1s, 2s, 4s (max 3 attempts). On persistent failure:
 mark item `classification_source="osm-error"`, `risk_flag="mcp-fail"`, continue.
-Inner concurrency already capped at 3 - this is the primary rate-limit guard.
 
 ### Phase B - COST (pure lookup, 0 MCP calls)
 
@@ -292,33 +265,24 @@ Assign each requirement `cluster_key = (module_family, business_domain)`. Target
 `module_family` = root module from classification (Custom items -> `"custom"`).
 `business_domain` = LLM tag from `req_category`/`req_text`.
 
-Clusters are never capped or split by size: the pairwise reasoning in D3 stays within one cluster,
-so Phase D scales with the number of clusters, not with the size of the list.
+Never cap or split a cluster by size.
 
 **D3 - Intra-cluster reasoning (per cluster):**
 Reason about business-logic + data-flow edges INSIDE each cluster only.
 Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason}]}` JSON).
 
 - Default: reason **inline** in main context, one cluster at a time.
-- Optimization (parallelism only): when there are enough clusters that running them concurrently saves
-  wall-clock time, launch **one subagent per cluster** using CHP Tier-B `subagent_type: "fork"` (see
-  `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). A fork inherits the
-  parent's full context (loaded requirements, cluster JSON, job-id, version pin) and skips the
-  cold-start cost. The cluster JSON snapshot passed by prompt remains the authoritative
-  input for that worker. Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch
-  a fresh `general-purpose` spawn with an explicit brief containing the cluster JSON. Tier C
-  is always correct; the worklog is always written regardless of tier.
-  Tier per cluster: `sonnet`; `opus` only for a cluster whose `business_domain` is on the
-  specialist list in `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md` (SSOT:
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection).
+- Only under Hard rule 1's condition: launch **one subagent per cluster** using CHP Tier-B
+  `subagent_type: "fork"` (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B).
+  The cluster JSON snapshot passed by prompt is the authoritative input for that worker. If
+  `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose` spawn with an explicit
+  brief containing the cluster JSON (Tier C). Write the worklog regardless of tier.
+  Model per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection.
   Fill the cluster subagent's prompt from the caller-side skeleton in
-  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
-  family delta; never inline that file verbatim into a hard-leaf brief.
-  Subagent prompt MUST contain the existing leaf restrictions regardless of tier:
-  `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
+  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the
+  target agent's family delta; never inline that file verbatim into a hard-leaf brief.
+  Subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
   Each subagent returns only its cluster's edges JSON (<=2k); main context merges them.
-
-Work is `O(Σ k_c^2)` not `O(n^2)` - only intra-cluster pairs considered.
 
 **D4 - Inter-cluster edges (rule-based + business-affinity for Custom):**
 
@@ -356,7 +320,7 @@ while queue: pop n -> append to order; for each successor m: in_degree[m]-=1; if
 if len(order) != len(requirements): CYCLE detected
 ```
 - Success: assign `phases` (each in-degree-0 peel layer = one phase). Write `impl_phase` back to every `results.jsonl` row.
-- Cycle: identify members never emitted. Report in `dag.json.cycles` AND GATE E summary with three resolution options:
+- Cycle: identify members never emitted. Report in `dag.json.cycles` AND the report.md summary with three resolution options:
   1. **split** - break requirement into phase-A + phase-B parts
   2. **manual** - mark cycle members for manual implementor ordering
   3. **shared-prereq** - introduce a new shared prerequisite both depend on
@@ -370,46 +334,21 @@ critical_path = backtrace from max-EFT node
 critical_path_days = max EFT
 ```
 
-**Output artifacts** (write after GATE E approve):
+**Output artifacts** (written in Phase E):
 - `dag.json` - `nodes`, `edges` (`{from,to,type,reason}`), `topological_order`, `phases`, `cycles`,
   `critical_path`, `critical_path_days`, `meta`. Schema: `reference/schema.md` §dag.json.
   Edge `type` ∈ `technical | business-logic | data-flow`.
 - `dag.mermaid` - template and style in `reference/deliverable-templates.md` §dag.mermaid style.
 
-**Do NOT use `impact_analysis`** in Phase D (reverse direction, wrong for forward planning).
+**Do NOT use `impact_analysis`** in Phase D.
 
-**Standalone (OSM down):** if D1 `module_inspect` is unreachable, skip technical edges (D1/D4),
-still run D2/D3/D5/D6, and flag `dag.json.meta.technical_edges = "skipped-osm-unreachable"`.
+OSM down: § Standalone-first fallback item 3.
 
 ### Phase E - DELIVERABLES (pure write, 0 MCP calls)
 
-**GATE E:** Present summary before writing deliverables:
+When the DAG has cycles, list each cycle's members and its three resolution options in `report.md` - never hide a cycle.
 
-```
-## BRL Analysis Summary - <job-id>
-Requirements analyzed : <N>
-Classification mix    :
-  Available-in-Odoo-CE   : <N> (<pct>%)
-  Available-in-Odoo-EE   : <N> (<pct>%)
-  Available-in-Viindoo   : <N> (<pct>%)
-  Custom                 : <N> (<pct>%)
-Errors / flagged       : <N> (see errors.jsonl)
-Base effort            : <min_days> - <max_days> man-days
-Budget estimate (blended vn): $<min> - $<max>
-Dependency DAG         :
-  Implementation phases : <P> phases
-  Critical path         : <K> requirements, <critical_path_days> days
-  Cycles detected       : <C>  (<list cycle members + resolution options if C > 0>)
-
-Options:
-  approve  - write deliverables
-  refine   - re-run Phase D (DAG) or Phase E roll-up (rate_region / risk_profile)
-  cancel   - discard deliverables (internal state preserved for resume)
-```
-
-When `Cycles detected > 0`, list each cycle's members and its three resolution options inline - never hide a cycle.
-
-On `approve`, write ALL deliverables atomically:
+Write ALL deliverables atomically:
 
 1. **`results.jsonl`** - rebuild by concatenating `chunks/chunk-*.merged.jsonl` in order (one row per req_id,
    no duplicates). Back-fill `dependencies` and `impl_phase` from Phase D. Schema: `reference/schema.md` §results.
@@ -431,8 +370,8 @@ On `approve`, write ALL deliverables atomically:
    # OPTIONAL: job-level risk multiplier (from cost-config.json `risk_multipliers`).
    # If the manifest or job context sets a risk profile (e.g. manufacturing, first_erp,
    # multi_site), read the corresponding factor from risk_multipliers.  When multiple
-   # risk factors apply, use the SINGLE highest factor (do NOT multiply factors together
-   # - this matches the cost-config.json `_note`).  Default = 1.0 (no adjustment).
+   # risk factors apply, use the SINGLE highest factor (never multiply factors together).
+   # Default = 1.0 (no adjustment).
    risk_multiplier = max(risk_multipliers[f] for f in applicable_risk_flags) or 1.0
 
    project_effort_min = base_effort_min * customization_coefficient * (1 + cross_module_factor) * risk_multiplier
@@ -441,8 +380,7 @@ On `approve`, write ALL deliverables atomically:
    budget_max = project_effort_max * blended_rate * (1 + contingency[risk_profile])
    # phase_breakdown partitions the FINAL budget (contingency already included).
    # phase_distribution sums to exactly 1.0 -> the 7 lines reconcile to budget_max.
-   # Do NOT add a separate contingency line here: contingency is already inside budget
-   # (the (1 + contingency) multiplier) - listing it again would double-count.
+   # Do NOT add a separate contingency line.
    phase_breakdown[phase] = budget_max * phase_distribution[phase]  (7 lines, sum == budget_max)
    annual_maintenance = budget_max * annual_maintenance_pct   # 0.10 from config
    ```
@@ -466,12 +404,11 @@ On `approve`, write ALL deliverables atomically:
    If missing: stop and report "cost-config.json not found - cannot compute deterministic cost."
 5. **OEEL-1 no-retry:** When check_module_exists returns a license notice, classify as
    Available-in-Viindoo and stop. Do NOT retry, do NOT call model_inspect on OEEL-1 modules.
-6. **Project facts:** Series and profile come from `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, worked in rung order. Ask only for what every rung left unresolved.
+6. **Project facts:** Series and profile come from `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, worked in rung order. Return `status: NEEDS_CONTEXT` naming what every rung left unresolved.
 7. **Principal-branch-lock:** Read-only on the project repo. Only write within the machine-global
    `$ODOO_AI_HOME` state root (two-axis convention: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) - never a source file in the project repo.
 8. **Sequential outer:** Never fan-out chunks to parallel subagents. Inner <=3 MCP parallel per chunk
-   is the only concurrency. Rationale: MCP-I/O-bound not CPU-bound; subagent fan-out risks OOM and
-   rate-limit spikes (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
+   is the only concurrency (Mode A - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
 
 ## Standalone-first fallback
 
@@ -488,49 +425,19 @@ When OSM is unreachable (bootstrap fails or `check_module_exists` returns repeat
 6. **Resume-friendly:** When OSM returns, re-run only items with `classification_source = "unverified-llm"`.
    Re-classify and update `results.jsonl` + `rtm.csv` in place.
 
-## Examples
-
-> Full worked examples: `reference/deliverable-templates.md`. Summary dispatches below.
-
-**Example 1 - Standard dispatch:**
-Prompt: "800 requirements from a manufacturing client RFP - classify, cost, give us the RTM."
-Action: Fire odoo-brl. GATE 0 plan: 800 items / 16 chunks / ~1600 MCP calls with cache. After approve,
-runs Phase 0-A-B-C-D-E. Produces rtm.csv + cost.json + report.md in `<SHARE_DIR>/brl/Customer-A-YYYYMMDD-<hex>/`.
-
-**Example 2 - Resume after interruption:**
-Prompt: "The BRL job from yesterday got interrupted at chunk 7 - resume?"
-Action: Read checkpoint.json, find `last_completed_chunk=6`, resume at chunk 7. Report:
-"Resuming from chunk 7/16. 350/800 requirements already classified."
-
-**Example 3 - OSM down:**
-Prompt: "Classify this 200-item BRL but the OSM server seems down."
-Action: Degrade to unverified-llm. Mark all `risk_flag=osm-unreachable`. Complete cost.json + report.md.
-Banner warning in report. Offer resume when server returns.
-
-**Example 4 - Dependency sequencing + cycle:**
-Prompt: "We have the classified BRL - now give us the implementation order and flag circular dependencies."
-Action: Run Phase D. Module bootstrap, cluster-cut (~12 clusters), intra-cluster
-reasoning, rule-based inter-cluster edges, Kahn topo-sort. If a cycle is found (e.g. REQ-0042 <-> REQ-0061),
-report it explicitly in GATE E with three resolution options (split / manual / shared-prereq) and still
-emit a partial order + dag.mermaid for the acyclic remainder.
-
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the plan runner.
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 
 **Hand off to planning/design before coding.** Set `status: NEEDS_NEXT`:
-- Any Extension-L or Custom-XL item → `next: odoo-solution-design` (designed + approved before code),
+- Any Extension-L or Custom-XL item → `next: odoo-solution-design` 
   inputs `{rtm: <path>, items: [REQ-…]}`.
 - Standard/Config/Extension-M only (no L/XL) → route to `odoo-planning` instead of `odoo-coding`
   directly - `next: odoo-planning`, inputs `{rtm: <path>, items: [REQ-…]}`.
 
-BRL is a front-door admission gate: it NEVER hands a requirement straight to an executor - it
-establishes the plan (`odoo-planning`, or `odoo-solution-design` first for L/XL) before any code.
-Planning is mandatory for all code-writing work, no size-based bypass
-(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule); even one
-small Standard/Config item gets the minimal
-`[code, verify, review, integrate, monitor, merge]` plan. BRL is terminal
+Never hand a requirement straight to an executor: establish the plan (`odoo-planning`, or
+`odoo-solution-design` first for L/XL) before any code
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule). BRL is terminal
 (`status: DONE`, `next: []`) ONLY when every item is fully covered with zero custom dev
 (Available-in-Odoo-CE / -EE / -Viindoo, no Extension/Custom item).

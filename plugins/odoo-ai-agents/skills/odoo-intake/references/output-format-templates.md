@@ -1,6 +1,6 @@
 # Output Format Templates
 
-Supplementary templates for intake's § Output Format. The SSOT for the fast-path gate is § Pro fast-path; the SSOT for the Proposed Plan block is § Soft plan gate. Only the collision and non-Odoo templates live here.
+Supplementary templates for intake's § Output Format. The SSOT for the hand-off line and the approach question is § Approach question and hand-off. Only the collision and non-Odoo templates live here.
 
 ## Collision / ambiguous - ask user
 

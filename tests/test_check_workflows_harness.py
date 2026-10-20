@@ -131,3 +131,34 @@ def test_no_driver_required_warnings_on_real_repo():
         "references a workflow with on_complete but lacks the engages-run "
         f"sentinel:\n" + "\n".join(warnings)
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 2: the workflow plan phase (rule 12)
+# ---------------------------------------------------------------------------
+
+
+def _phases(*specs):
+    return [dict(id=f"p{i}", inline=True, model_tier="inherit", **spec) for i, spec in enumerate(specs)]
+
+
+def test_a_gate_before_the_plan_is_decided_is_rejected():
+    mod = _load()
+    errors = mod._validate_plan_phase(
+        _phases({"gate": "approve / skip / cancel"}, {"plan": True}, {}), "wf.workflow.yaml"
+    )
+    assert errors and "phases[0]" in errors[0]
+
+
+def test_two_plan_phases_are_rejected():
+    mod = _load()
+    errors = mod._validate_plan_phase(_phases({"plan": True}, {"plan": True}), "wf.workflow.yaml")
+    assert any("at most one" in e for e in errors)
+
+
+def test_one_plan_phase_with_a_later_outward_gate_is_accepted():
+    mod = _load()
+    errors = mod._validate_plan_phase(
+        _phases({}, {"plan": True}, {"gate": "approve / skip / cancel"}), "wf.workflow.yaml"
+    )
+    assert errors == []

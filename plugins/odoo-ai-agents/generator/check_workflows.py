@@ -15,6 +15,8 @@ Hard rules enforced (always fatal - exit 1 on any violation):
   8. `name` matches the file stem.
   9. `description` does not end with '.', '!', or '?'.
  10. Phases with `skill` or `agent` (not inline) must have a non-empty `nl_trigger`.
+ 12. `plan` is a boolean set `true` on at most one phase; that phase and every earlier phase
+     carry no `gate`.
 
 WARN-FIRST rule (V-32 class - print a finding, but do not fail the build unless
 --strict / WORKFLOWS_STRICT=1 is set; see "Main" below):
@@ -255,6 +257,31 @@ def _workflow_stem(path: pathlib.Path) -> str:
     return path.stem
 
 
+def _validate_plan_phase(phases: list, filename: str) -> list[str]:
+    """Rule 12. `plan` is a bool; at most ONE phase sets `plan: true`; that phase and every phase
+    before it carry no `gate` - they run before the workflow plan is decided (_schema.md)."""
+    errors: list[str] = []
+    plan_idx = []
+    for idx, phase in enumerate(phases):
+        if not isinstance(phase, dict) or "plan" not in phase:
+            continue
+        if not isinstance(phase["plan"], bool):
+            errors.append(f"File '{filename}': phases[{idx}] 'plan' must be a boolean")
+        elif phase["plan"]:
+            plan_idx.append(idx)
+    if len(plan_idx) > 1:
+        errors.append(f"File '{filename}': at most one phase may set 'plan: true' (found {len(plan_idx)})")
+    if plan_idx:
+        for idx in range(plan_idx[0] + 1):
+            phase = phases[idx]
+            if isinstance(phase, dict) and phase.get("gate"):
+                errors.append(
+                    f"File '{filename}': phases[{idx}] runs before the workflow plan is decided "
+                    f"('plan: true' at phases[{plan_idx[0]}]) and must carry no 'gate'"
+                )
+    return errors
+
+
 def _validate_workflow(path: pathlib.Path) -> tuple[list[str], list[str]]:
     """Returns (fatal_errors, warn_first_findings) - see the module docstring for which rule
     lands in which bucket. `warn_first_findings` never affects the return value on its own;
@@ -331,6 +358,7 @@ def _validate_workflow(path: pathlib.Path) -> tuple[list[str], list[str]]:
                 )
                 continue
             errors.extend(_validate_phase(phase, idx, name or stem))
+        errors.extend(_validate_plan_phase(phases, path.name))
     elif phases is not None:
         errors.append(f"File '{path.name}': 'phases' must be a list")
 

@@ -2,20 +2,16 @@ name: research-multiphase
 domain: consultant
 team_pattern: Fan-out
 description: |
-  Multi-phase, multi-model research over an Odoo question - the reference dogfood proving the
-  harness can run "grounded survey → deep analysis → single high-tier synthesis" with model_tier
-  scaled to phase complexity (the survey is a haiku lookup, the deep-dive is sonnet, and only
-  synthesis steps up to opus; tiers per `_schema.md` §6). Phase count is flexible
-  (this 3-phase shape is just the canonical example; fewer or more phases are fine for a given
-  job). Reference/dogfood workflow, not a front door - invoked by explicit id via
-  `workflow-chaining`, not NL-triggered from `odoo-intake`
+  Multi-phase research over an Odoo question: grounded survey (one worker per candidate angle),
+  deep analysis of the promising angles, then one synthesis. Phase count is flexible.
+  Reference workflow, not a front door - invoked by explicit id via `workflow-chaining`, not
+  NL-triggered from `odoo-intake`
 output_dir: .odoo-ai/research
 inputs:
   - research_question
   - candidate_angles
 
 phases:
-  # Phase 1 - broad survey: haiku workers, one per candidate angle, locate the scope.
   - id: survey
     skill: odoo-feature-check
     fanout: true
@@ -26,9 +22,7 @@ phases:
       (Promising / Partial / Not-relevant) with a pointer to the module/model, so the next phase
       knows which angles are worth a deep dive.
     model_tier: haiku
-    gate: "approve / refine: [feedback] / cancel"
 
-  # Phase 2 - deep dive: fewer sonnet workers on the angles the survey marked promising.
   - id: deep-dive
     skill: odoo-gap-analysis
     fanout: true
@@ -38,13 +32,10 @@ phases:
       (Standard/Config/Extension/Custom with sizing) and the evidence behind it, ready to fold
       into a synthesis.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
-  # Phase 3 - synthesis: one pass unifying all deep-dive outputs into one brief.
   - id: synthesize
     inline: true
     model_tier: sonnet
-    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
 
 resume: true
 fallback: standalone

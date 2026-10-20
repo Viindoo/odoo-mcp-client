@@ -1,15 +1,11 @@
 # Concurrency guard - the OOM envelope for agent fan-out (SSOT)
 
-The guard has two modes; every fan-out skill references this file instead of restating the numbers.
+## Choosing Mode A vs Mode B
 
-## Choosing Mode A vs Mode B (decision rule for a NEW fan-out skill)
-
-Choose **Mode B** (per-worker ledger + disjoint-file partition) when the skill fans out MORE THAN
-ONE worker that WRITE to a shared module/worktree - the model-weighted budget below, combined with
-each worker owning a DISJOINT file set and the cross-run coordination ledger
-(`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`), is what keeps concurrent writers
-from colliding. Otherwise use **Mode A**. Apply this rule first; the "Used by" lists under each
-mode below are EXAMPLES of skills that already resolve to one side of the rule, not the definition.
+Use **Mode B** (model-weighted budget, per-worker ledger, disjoint-file partition) when the skill
+fans out MORE THAN ONE worker that WRITES to a shared module/worktree: each worker owns a DISJOINT
+file set and records it in the coordination ledger
+(`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`). Otherwise use **Mode A**.
 
 ## Mode A - subagent batching
 
@@ -28,8 +24,6 @@ for more work, batch in groups of <=3 (fire <=3, wait, fire the next <=3).
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget (worst case 2 opus).
 
-If an OOM recurs under Mode B, lower BUDGET to 6 here (one place), never in individual skills.
-
 ## Model-tier selection - the kind of reasoning drives the tier (SSOT)
 
 Every launch passes `model` explicitly. Pick the LOWEST tier whose row matches the kind of
@@ -45,7 +39,7 @@ radius do not move a tier.
 
 ### 5.1 Haiku checklist for a build node
 
-The architect fills it when writing `build_tier_hint`; the launcher checks presence, not quality.
+The architect fills it when writing `build_tier_hint`; the launcher checks presence only.
 All six present in the node's design block -> `haiku`. One missing -> `sonnet`. Node meets 5.2 ->
 `opus`.
 
@@ -60,18 +54,22 @@ All six present in the node's design block -> `haiku`. One missing -> `sonnet`. 
 
 ### 5.2 Opus conditions for a node
 
-Read from the taxonomy and `recon.md`, never judged. Either holds:
+Read from the taxonomy and `recon.md`. Either holds:
 (a) the node's `business_function` is on the specialist list; or
 (b) the node has two or more `business_function` values AND recon records, for a method the node
 changes, an override chain of at least `OVERRIDE_CHAIN_MIN` entries or at least `DEPENDENTS_MIN`
 dependent modules.
 
-`OVERRIDE_CHAIN_MIN = 3`, `DEPENDENTS_MIN = 5` - edit the two numbers here only.
+`OVERRIDE_CHAIN_MIN = 3`, `DEPENDENTS_MIN = 5`.
 
 ### Escalation
 
 On `BLOCKED`, a `NEEDS_JUDGEMENT` line, or a failed own gate: relaunch ONCE, one tier up, passing
 the previous attempt's artifacts. Never two tiers at once.
+
+Inside an approved scope the launcher chooses every tier itself, escalation included, and never
+asks the human about a tier. `fable` alone needs the human's text confirmation
+(`approve / skip / cancel`) before it launches; on `skip` the work stays at `opus`.
 
 ### Launch economics - every launcher (main, architect, coder) pays for a launch with its reason
 
@@ -105,33 +103,20 @@ the rule of its own: launch `odoo-instance-ops` at haiku, inline only in that sk
 
 ## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
-Both pins are server-side state shared per **(api_key_id, mcp_session_id)** - i.e. per MCP
-session, last-write-wins. Two INDEPENDENT sessions never interfere with each other. The hazard
-is MULTIPLE ACTORS inside ONE session: a parent agent and any subagent it dispatches share that
-same session, so one actor's pin silently clobbers another's - confirmed empirically (a
-dispatched subagent's `odoo_version='auto'` resolved to the parent's already-set pin, then the
-subagent's own pin silently overrode the parent's - no error, no warning either way).
+Both pins are server-side state shared per MCP session, last-write-wins: a parent agent and the
+subagents it dispatches share one session, so one actor's pin clobbers another's.
 
-Rule for every agent and skill in this plugin, stated as a BAN so it is checkable: in every
-example call and every instruction, `odoo_version` carries a CONCRETE version and
-`profile_name` carries a concrete profile. The sentinel `'auto'` and a bare omission are BOTH
-forbidden - not discouraged.
-Still call `set_active_version` (and `set_active_profile` where a tenant profile applies) once
-at bootstrap: they are the reachability probe and keep the server-side default sane, and that is
-their ONLY sanctioned use. Never rely on their ambient state afterwards. Multi-version and
+In every call, `odoo_version` carries a CONCRETE version and `profile_name` carries a concrete
+profile. The sentinel `'auto'` and a bare omission are BOTH forbidden.
+Call `set_active_version` (and `set_active_profile` where a tenant profile applies) once at
+bootstrap as the reachability probe, and only then. Never rely on their ambient state afterwards. Multi-version and
 multi-profile flows (migrations, cross-version diffs, cross-profile deployments) pass the
 explicit concrete value per call - never the pin. A genuinely unknown version is a
 `NEEDS_CONTEXT`, never a licence to pass `'auto'`.
 
-A `set_active_profile` clobber is authz-safe regardless of the above: the pinned profile is
-re-validated at read time through a narrowing-only, fail-closed tenant check, so a clobber can
-only narrow a view - never widen it or leak data - though it can still silently return a
-narrower-than-intended result, which is reason enough to keep passing `profile_name` explicitly.
-
 ## Odoo instance allocation (DB / port)
 
-The OSM rule above protects the static index; this protects LIVE instances. Under concurrency,
-never reuse the declared database or port for a MUTATION (tests, `init` / `update`, a throwaway
+Under concurrency, never reuse the declared database or port for a MUTATION (tests, `init` / `update`, a throwaway
 server): another agent or session may hold it. Isolation comes from `lease_acquire` mode
 `ephemeral` - a unique database and pooled ports owned by your `run_id`; mode `exclusive` gives up
 isolation (say so in your report), and a read-only attach needs no lease. A refused acquire is
@@ -146,10 +131,7 @@ Browser-driving agents (odoo-ui-debugger / odoo-ui-reviewer) are EXCLUSIVE-seria
 family** - never two drivers on the SAME family (chrome-devtools, playwright, pagecast; headed
 and headless each count as their own family) at once. Distinct families MAY run in parallel, up
 to the pool cap **`W` = the number of distinct browser server families available (2 headless;
-optionally +2 headed when a headed variant is also in play), RAM permitting** -
-state-mutating (CRUD-heavy) drives stay <= 2 simultaneous regardless of family mix. THIS file is
-the SSOT for the `W` number; other files cite it here rather than restate it. Full rule
-(exclusivity rationale + the RAM-guardrail note) + close-before-done:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. This file governs OSM-only
-fan-out and owns the `W` browser pool-cap number; it does not own the browser exclusivity rule's
-rationale - that lives in T2.
+optionally +2 headed when a headed variant is also in play), RAM permitting**;
+state-mutating (CRUD-heavy) drives stay <= 2 simultaneous regardless of family mix.
+Exclusivity rule and close-before-done:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
