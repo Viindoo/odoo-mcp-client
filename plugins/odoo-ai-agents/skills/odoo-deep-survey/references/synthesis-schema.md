@@ -5,8 +5,7 @@
 
 # Deep-Survey Synthesis Schema (synthesis.md output contract)
 
-Each section is few-token and agent-readable - this is a hand-off to an execute agent, not a
-human architecture document. Every finding carries a `file:line` or an OSM citation and is marked
+Each section is few-token and agent-readable. Every finding carries a `file:line` or an OSM citation and is marked
 `RESOLVED` / `UNRESOLVED`.
 
 ## Grounding vocabulary (carried on every section / finding)
@@ -15,8 +14,6 @@ human architecture document. Every finding carries a `file:line` or an OSM citat
 - `grounded: hybrid` - OSM + a local-source read (custom code OSM cannot fully resolve).
 - `grounded: local-source` - disk read only (OSM unreachable, or the fact is not OSM-indexed -
   e.g. the framework-validation test classes).
-
-(Maps to the upg P1d labels `osm` / `hybrid` / `local-source`.)
 
 ## Sections (in order)
 
@@ -32,8 +29,8 @@ human architecture document. Every finding carries a `file:line` or an OSM citat
 7. **prior_art** - existing overrides / patterns / tests that already solve this (lens L7), each
    with `file:line` + which one to ADAPT. Header line: "Read this BEFORE coding - do not reinvent."
 8. **tests_protecting** - the three-tier test-protection map (own-module / dependency / framework
-   gates), each test with its path or "framework gate, verify live". This SUBSUMES the old "test
-   coverage gaps" bullet: a zero-coverage hot-spot is the gap, surfaced as a flagged row here.
+   gates), each test with its path or "framework gate, verify live"; a zero-coverage hot-spot is a
+   flagged row.
 9. **side_effects** - per hot-spot Odoo side-effects (lens L5).
 10. **tech_debt** - flagged pre-existing smells (lens L8). FLAG-ONLY, not a fix list.
 11. **cross_cutting** - `groups=` / `sudo()` / `@api.constrains` seams flagged (lens L6),
@@ -46,10 +43,9 @@ human architecture document. Every finding carries a `file:line` or an OSM citat
     OSM/source wins and the web claim is dropped or kept only as a flagged discrepancy. Absent
     entirely for a pure in-codebase/OSM survey (Phase W skipped).
 13. **essential_reading** - the 5-10 files MAX a downstream agent must read to UNDERSTAND the scope
-    (distinct from "files to change"), each + one line "why" + `file:line`. Example:
-    `models/sale_order.py:245 - override of action_confirm, the main entry point`.
+    (distinct from "files to change"), each + one line "why" + `file:line`.
 14. **open_questions** - anything still `UNRESOLVED` (so intake flags it honestly).
-15. **recommended_approach_delta** - how the first Proposed Plan should change given what was found.
+15. **recommended_approach_delta** - how the recommended approach should change given what was found.
 16. **upgrade_symbol_gaps** (OPTIONAL - upgrade-adjacent intent only) - non-SURVIVED symbols from the
     dependency-closure drill grounded at the TARGET version (RENAMED / REMOVED / TYPE_CHANGED), in
     the `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md` § 4 output shape.
@@ -65,6 +61,3 @@ human architecture document. Every finding carries a `file:line` or an OSM citat
 - For **tests_protecting** tier (iii), call `test_coverage_audit` once per surveyed module before
   writing, AND list the framework gates from the runbot-parity-checklist cross-ref - the latter are
   `grounded: local-source` because OSM does not index them.
-- Hand back to intake: the path to `synthesis.md` + 3-5 bullets naming what changed versus the first
-  plan; intake fills its `Survey:` field and re-proposes. Downstream skills read `synthesis.md` (and
-  the worklog) to inherit this survey instead of re-deriving it.

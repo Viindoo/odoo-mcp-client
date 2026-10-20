@@ -42,14 +42,11 @@ recording (which menus, which records, what to type) so the take is smooth and r
 - `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 <!-- END GENERATED TOOLS -->
 
-OSM use is light here - only to plan the click path: `module_inspect(name=<module>, method='views', odoo_version='<version>')` tells you which views/menus exist; `model_inspect(model=<model>, method='summary', odoo_version='<version>')` confirms fields/records the demo will touch; `check_module_exists` confirms the demo module is installed; `find_examples` surfaces the canonical flow for the feature.
-
 ## Browser tools
 
 Each family is its own browser: the family that records a take is the family that drives it. Pick
 ONE path per take. Each family has a **headless default** and a **headed** (`-headed`) variant -
-default to headless (recording works headless; only safe choice on no-display hosts); use headed
-only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch brief)
+default to headless; use headed only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch brief)
 - call the `-headed` tool directly when needed.
 
 - **pagecast (OPT-IN) - records its own private browser.** `record_page` (`url`, `width`,
@@ -92,10 +89,8 @@ Ask the user only for what no SSOT above supplies (plus the workflow to record, 
 length) in a single message. Do not guess.
 
 Once the series is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
-pass that concrete version on every Round 1 OSM call - the pin is session-scoped and racy when
-actors share a session (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM
-session-pin race); without explicit passing the click path may target the wrong version's view
-names and URL scheme (`/odoo` vs `/web`, which differ by version).
+pass that concrete version on every Round 1 OSM call (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+§ OSM session-pin race).
 
 ### Round 1 - Plan the click path (parallel, OSM)
 
@@ -155,16 +150,11 @@ role of `<intent-slug>`); SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-
 Clause 1. Reuse the SAME minted value for every artifact path this run touches - see
 `## Narrated evidence mode` § Matched-pair filenames below for the before/after case.
 
-**Orphan sweep (do this every run, BEFORE saving THIS run's artifact below).** Nothing deletes an
-old recording today, so `visual/videos/` leaks one file per run forever:
+**Orphan sweep (every run, BEFORE saving THIS run's artifact below).** Run:
 
 `find <ISOLATE_DIR>/visual/videos/ -maxdepth 1 -type f -mmin +43200 -exec rm -rf {} +`
 
-(any sibling
-`<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` untouched for over 30 days is presumed consumed -
-this run's own file cannot match since it does not exist yet). Full rule + bound rationale:
-`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
-executes `odoo-demo-recording` next, unconditionally, every run.
+Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 
 **Produce the file.** pagecast `convert_to_mp4` / `convert_to_gif` each convert ONE `.webm`
 (`webmPath` = its absolute path under `<ISOLATE_DIR>`); a GIF's `width` is the size it is shown
@@ -207,7 +197,7 @@ verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rou
 - A caption line per Round 1 step-list entry - one short present-tense sentence per menu/record/
   field/action, in the operator's language.
 
-### Overlay mechanism (verified capability - do not exceed it)
+### Overlay mechanism
 
 - Caption bar, corner badge, and end-card are ONE self-contained DOM-overlay bundle (inline HTML/
   CSS/JS, no CDN, no external fetch - CSP-safe by construction) injected via a script-execution
@@ -223,16 +213,11 @@ verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rou
 - **playwright (if wired):** `browser_navigate` has no `initScript`-equivalent parameter - call
   `browser_evaluate` with the bundle immediately after every `browser_navigate`, then again to
   call `__setCaption` / `__setBadge` / `__endCard` between steps. Its native `browser_start_video` /
-  `browser_stop_video` records the SAME page the bundle draws on in real time (a continuous take,
-  no frame assembly needed). Its native `browser_video_chapter` MAY supplement as a scene marker
-  but does not substitute for the end-card - that tool has no color parameter, so it cannot carry
-  the required red/green verdict color; the DOM overlay's own end-card owns that.
-- **pagecast is NOT a narrated-mode driver.** Verified against its declared schema: `record_page`
-  accepts only `url`/`width`/`height`, and `interact_page`'s action set (`wait/scroll/click/hover/
-  type/press/select/navigate`) has no script-injection or evaluate action - pagecast cannot render
-  the overlay into its own recording. If pagecast is the only recorder family wired, drive this
-  mode via chrome-devtools instead (next section) - never present a silent, unnarrated pagecast
-  clip as narrated.
+  `browser_stop_video` records the SAME page the bundle draws on (a continuous take). Its native
+  `browser_video_chapter` MAY supplement as a scene marker but never replaces the end-card.
+- **pagecast is NOT a narrated-mode driver** (no script-injection action). If pagecast is the only
+  recorder family wired, drive this mode via chrome-devtools instead (next section) - never present
+  an unnarrated pagecast clip as narrated.
 
 ### Capture, by path
 
@@ -240,17 +225,13 @@ verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rou
   `browser_click` / `browser_fill_form` / `browser_type`, updating the caption via
   `browser_evaluate` immediately before each action; hold the end-card on screen >= 2s before
   `browser_stop_video` (the start call names an absolute `filename` under
-  `<ISOLATE_DIR>/visual/videos/` per Round 3). Convert the result with pagecast's `convert_to_mp4` / `convert_to_gif` -
-  a pure file-format conversion (both take a file path, not a live session), so this cross-family
-  reuse needs no new capability.
+  `<ISOLATE_DIR>/visual/videos/` per Round 3). Convert the result with pagecast's `convert_to_mp4` /
+  `convert_to_gif` (file-format conversion only).
 - **chrome-devtools only:** `take_screenshot` one frame per step AFTER the caption update and the
   action complete (the frame must show the rendered result, not the pending state - see Grounding
   rule below), plus one final frame of the held end-card; each frame goes to
-  `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png` per Round 3. This is the SAME screenshot-frame path
-  the base flow already uses when the recorder is unreachable (`## Standalone-first fallback`
-  below) - reused deliberately here, not a second assembly path. If `ffmpeg` is not on PATH (Round 4),
-  the ordered PNG sequence itself IS the deliverable - report it as
-  such (Output format) rather than claiming an MP4 the tool surface did not produce.
+  `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png` per Round 3. If `ffmpeg` is not on PATH
+  (Round 4), the ordered PNG sequence itself IS the deliverable - report it as such (Output format).
 
 ### Grounding rule
 
@@ -264,9 +245,7 @@ the field stays empty) is the exact defect this mode exists to make visible.
 
 Both takes of a before/after pair share the SAME `<feature>-<YYYYMMDD>-<4 random chars>` slug
 (mint it ONCE, per Round 4's slug-mint step above, and reuse it for both invocations) plus the
-`LABEL` suffix, landing in the SAME `visual/videos/` path Round 4 already uses - no new directory,
-no new retention row; the existing orphan sweep and 30-day bound (Round 4, above) already cover
-any file here regardless of suffix:
+`LABEL` suffix, in the SAME `visual/videos/` path:
 
 ```
 <ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>-before.{mp4,gif}
@@ -279,14 +258,12 @@ any file here regardless of suffix:
   capable family exists. Emit `BLOCKED(narrated mode needs chrome-devtools or playwright for
   overlay injection; only pagecast is reachable)`. Do not silently produce an unnarrated pagecast
   clip and call it narrated.
-- **chrome-devtools is reachable (it always is - eager, bundled) but `ffmpeg` is not on PATH and
-  playwright is not wired:** produce the PNG frame sequence (each frame
+- **`ffmpeg` is not on PATH and playwright is not wired:** produce the PNG frame sequence (each frame
   overlay-correct) and return `status: DONE` with a `concerns:` entry naming the missing
-  `ffmpeg` and the sequence path, rather than promising an MP4/GIF the toolchain cannot produce.
+  `ffmpeg` and the sequence path.
 - Recorder single-flight (never two drivers on the same MCP family) and close-before-DONE still
-  apply unchanged - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser
-  exclusivity + `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2; this mode adds
-  no new exception.
+  apply - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity +
+  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
 
 ## Standalone-first fallback
 
@@ -299,7 +276,7 @@ any file here regardless of suffix:
       inputs: {operation: ensure-up, series: "<the resolved series>", modules: ["<modules required for workflow>"]}
       confidence: 0.9
   ```
-  so the caller provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
+  Return `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 
 ## Output format
 
@@ -327,20 +304,15 @@ Narrated evidence mode adds, to the same report:
 - Paired file: <ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>-<before|after>.{mp4,gif}
 ```
 
-Examples (sales order MP4 + portal GIF with recorder unavailable, plus a narrated before/after
-bug-evidence pair): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/examples.md`.
 Narrated-mode overlay bundle + calling convention:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/narrated-mode.md`.
 
 ## Notes / Integration
 
-- Videos/GIFs are written under `<ISOLATE_DIR>/visual/videos/`.
 - Use a consistent viewport and login for repeatable takes.
 - This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-coding`.
-- Narrated mode never fires unless explicitly requested (see `## Narrated evidence mode` §
-  Trigger) - the default flow above is unchanged.
 
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive plan-runner output, changes nothing above.
+(status / produced / next).

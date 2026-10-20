@@ -7,7 +7,7 @@ plugin `python3`. Every gate that takes the policy reads `<RUN_DIR>policy.json`.
 ## Gates
 
 Run in this order on each series worktree; fix and re-run until every gate is clean, at most 3
-rounds, then stop and ask the user.
+rounds, then stop and ask the user (text question).
 
 1. `build_compare.py` - builds the source language and every site language of the worktree and of
    its base commit in the same environment and compares them. The change must add no Sphinx
@@ -33,7 +33,7 @@ re-runs the gates its change touches. A finding goes to the writer as `FINDINGS`
   `per-area`: one per area. The subject follows the style of the `commit_subject_samples` that `repo_facts.py --page <first planned page>` returns.
 - Push to `fork_remote` with a lease; open the PR against the series branch of `remote`. A taken-over
   bot branch lands as `port.md` § Landing a taken-over branch says.
-- PR body: pages added, updated and removed with their site URLs; how it was built and against
+- PR body: the page plan; pages added, updated and removed with their site URLs; how it was built and against
   which base commit; the gates and the browser acceptance with their result; what is left (`UNVERIFIED` items, findings).
   Never an absolute warning count.
 

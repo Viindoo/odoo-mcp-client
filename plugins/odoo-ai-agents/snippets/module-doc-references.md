@@ -3,9 +3,6 @@
 
 # Module doc references (images, manifest images, links to other modules)
 
-A module's docs are published to app stores, away from the module tree. Each form below is the
-one the stores resolve; the gate (§ Reference gate) checks it.
-
 ## Images
 
 - The root of `static/description/` holds only `icon.png` (`icon.svg`), `index*.html` and the
@@ -22,17 +19,15 @@ one the stores resolve; the gate (§ Reference gate) checks it.
 - A non-module image (e.g. a vendor logo) may be a public `https://` URL pinned to an immutable
   revision (unchecked). Never `http://`, `data:`, `file:`, a leading `/` or `//`, a local or
   reserved host, or an instance URL.
-- **Fit on the stores.** Stores load Bootstrap 5 and size an RST image by its file's pixels, and
-  doc screenshots are captured at device pixel ratio 2 (pixel width = 2x the intended CSS width).
-  For every image in a module's `.rst` the stores publish (the gate checks `doc/*.rst` and
+- **Fit on the stores.** Doc screenshots are captured at device pixel ratio 2 (pixel width = 2x the
+  intended CSS width). For every image in a module's `.rst` the stores publish (the gate checks `doc/*.rst` and
   `README.rst`; a docs site has its own rules):
   1. A block image (`.. image::`, `.. figure::`) carries `:class: img-fluid d-block mx-auto`.
   2. An inline substitution image (`.. |x| image::`) carries `:class: img-fluid` only (`d-block`
      breaks the line).
   3. A module image file carries `:width: <N>px`: N = the intended CSS width (pixel width / 2 for a
      DPR-2 capture), never above the file's pixel width.
-  4. Never `:width:` in %, class `w-100`, `:scale:`, `:height:` or `:align:` - they enlarge a small
-     image, distort it, or do nothing on the stores.
+  4. Never `:width:` in %, class `w-100`, `:scale:`, `:height:` or `:align:`.
   5. An external `https://` image needs only the class part.
 
   `:alt:` describes the image; it never replaces the class and the width.

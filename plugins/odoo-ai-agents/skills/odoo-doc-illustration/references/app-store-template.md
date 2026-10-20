@@ -1,17 +1,15 @@
 # App Store Template Reference
 
-Runtime reference for assembling `static/description/index.html` and related assets for
-an Odoo App Store listing. Brand-agnostic - the PALETTE placeholder resolves from
-`<SHARE_DIR>/brand-tokens.json` when that file exists, else from user input; absent both, the
-default is the Odoo palette `#714B67`. That file is a map of CSS custom-property NAME -> COLOUR
+Assembly reference for `static/description/index.html` and related assets of an Odoo App Store
+listing. The PALETTE placeholder resolves from `<SHARE_DIR>/brand-tokens.json` when that file
+exists, else from user input; absent both, the default is the Odoo palette `#714B67`. That file is a map of CSS custom-property NAME -> COLOUR
 (e.g. `{ "--primary": "#1E88E5" }`; schema SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Brand-token fidelity), so read it
 by VALUE: an unfamiliar token NAME is NEVER a miss - take the colour that entry maps to instead of
 declaring the tier unresolved and shipping off-brand output.
 
-**A TYPEFACE never comes from that map, and this template has no font placeholder.** The sanitizer
-strips `<link>` / CDN / web-font loading, and `font-family` is absent from its safe inline-style set,
-so typography is Bootstrap-5 classes plus safe inline `font-weight` / `font-size` only.
+**A TYPEFACE never comes from that map, and this template has no font placeholder.** Typography is
+Bootstrap-5 classes plus safe inline `font-weight` / `font-size` only.
 
 `brand-tokens.json` is Tier-2 SHARE; resolve `<SHARE_DIR>`
 via the resolve-capture-substitute protocol in
@@ -24,8 +22,8 @@ into every Read - never the placeholder or a bare `.odoo-ai/`.
 
 | Rule | Detail |
 |---|---|
-| Fragment only | Start at `<section>`. NO `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`. The store injects the file into its own Jinja template. |
-| No JavaScript | No `<script>` tags, no inline event handlers (`onclick`, `onmouseover`, etc.). CSP strips all JS. |
+| Fragment only | Start at `<section>`. NO `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`. |
+| No JavaScript | No `<script>` tags, no inline event handlers (`onclick`, `onmouseover`, etc.). |
 | No external CDN links | No `<link>` tags (Bootstrap CDN, Google Fonts, Font Awesome CDN). The store pre-loads Bootstrap 5 - use its classes directly. Permitted embeds: YouTube `youtube.com/embed/`, `mailto:`, `skype:` |
 | Bootstrap 5 for flexbox | Use `d-flex align-items-center justify-content-between gap-3`, `row`/`col-*` grid. Do NOT use inline `display:flex`, `align-items`, `justify-content`, `flex-wrap`, `flex-direction`, `gap` - all stripped. |
 | Hex colors only | `background-color:#714B67`, `color:#ffffff`. No `rgba()`, no `linear-gradient` (both stripped). |
@@ -34,12 +32,9 @@ into every Read - never the placeholder or a bare `.odoo-ai/`.
 | Safe inline styles | `background-color`, `color`, `font-weight`, `font-size`, `line-height`, `padding`, `margin`, `border`, `border-radius`, `width`, `height`, `max-width`, `text-align` survive. |
 | Legacy oe_* classes | Still accepted. Use for OCA-style modules. New modules: prefer Bootstrap 5. Do not mix both in the same file. |
 
-> **Caveat - the "Safe inline styles" set is store-accepted but a known-incomplete list.** It is
-> empirically derived from accepted listings, not from a published store allowlist; treat it as a
-> minimum-safe set. Prefer Bootstrap 5 utility classes over inline styles wherever a class exists
-> (e.g. `gap-*`, `ratio`, `overflow-hidden`, `mb-3`) - the skeleton below uses inline `max-width`
-> only where no Bootstrap utility maps cleanly. Do NOT add inline flexbox/`gap`/`position`/`display:flex`
-> (all stripped); those are the rows above.
+> **The "Safe inline styles" set is a minimum-safe set, not a store allowlist.** Prefer Bootstrap 5
+> utility classes over inline styles wherever a class exists (e.g. `gap-*`, `ratio`,
+> `overflow-hidden`, `mb-3`). Do NOT add inline flexbox/`gap`/`position`/`display:flex`.
 
 ---
 
@@ -238,10 +233,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 </section>
 
 <!-- Tab block: SCREENS / DEMO / FAQ / SUPPORT / TECH-REQUIREMENTS / CHANGELOG.
-  nav-tabs rely on Bootstrap 5 JS. `data-bs-toggle="tab"` is a JS-driven behavior, NOT pure
-  CSS - it does NOT work without Bootstrap JS. It works here only because the store PRELOADS
-  Bootstrap JS (verified on live listings); you still ship NO <script> of your own (CSP strips it).
-  Drop the nav item of every tab section you omit. -->
+  Ship NO <script> of your own. Drop the nav item of every tab section you omit. -->
 <div id="tabs" class="container px-0">
   <ul class="nav nav-tabs justify-content-center bg-white py-2"
       id="moduleTab" role="tablist"
@@ -309,9 +301,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
             See {{MODULE_DISPLAY_NAME}} in Action
           </h3>
           <!-- YouTube embed only (permitted CDN). Replace VIDEO_ID. -->
-          <!-- Bootstrap 5 `.ratio` supplies the 16:9 box; position/padding-top/overflow/inset
-               are handled by Bootstrap classes (`.ratio > *` is sized automatically), NOT by
-               stripped inline flex/position styles. -->
+          <!-- Bootstrap 5 `.ratio` supplies the 16:9 box; no inline position/padding-top styles. -->
           <div class="ratio ratio-16x9 overflow-hidden mb-3" style="border-radius:14px;">
             <iframe src="https://www.youtube.com/embed/{{VIDEO_ID}}"
                     title="Demo video" frameborder="0"
@@ -489,8 +479,7 @@ even if the registry omits it.
 | `doc/index.rst` | English canonical - Documentation tab | No locale suffix. Tab appears on listing only when this file exists. |
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
-**Language resolver order.** SSOT: `odoo-doc-illustration` § Language resolution - do not
-restate the tier order or the disk-union rule here.
+**Language resolver order.** `odoo-doc-illustration` § Language resolution.
 
 **Screenshot localization**: per-locale screenshots are captured separately; their location,
 their names and which one a localized page shows follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`

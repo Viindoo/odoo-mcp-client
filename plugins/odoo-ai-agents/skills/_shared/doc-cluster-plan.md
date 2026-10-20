@@ -1,23 +1,19 @@
 # Doc-cluster planning algorithm - schedule multi-module documentation by DAG shape (SSOT)
 
-A multi-module documentation package (user-guide `doc/index.rst` + marketing landing
-`static/description/index.html`) is planned, not fanned out flat. This file is the single algorithm that turns an in-scope module set into a `doc-plan.yaml`: dependency
-CLUSTERS, instance allocation by DAG SHAPE, incremental leaf-first install order, cross-module
-dedup, and an inter-instance parallelism schedule.
+This file turns an in-scope module set (user-guide `doc/index.rst` + marketing landing
+`static/description/index.html`) into a `doc-plan.yaml`: dependency CLUSTERS, instance allocation
+by DAG SHAPE, incremental leaf-first install order, cross-module dedup, and an inter-instance
+parallelism schedule.
 
-**Consumers (reference this file, do not restate it):**
+**Consumers:**
 - `odoo-doc-illustration` step 2 - computes the plan inline for a multi-module target.
 - `module-packaging.workflow.yaml` `doc-plan` phase - computes it inline the same way.
 - A plan node of kind documentation that covers several modules - the main agent computes it
   inline before launching the writers.
 
-**Reuse, do not re-derive.** The module-DAG primitive lives in
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` (OSM
-`module_inspect(name=..., method='dependencies', odoo_version=...)` primary, disk descriptor `depends` fallback,
-topological sort). This file only adds what to DO with that graph for documentation - the
-scheduling semantics are INVERTED versus code-build: code dispatches independent DAG nodes in
-parallel, ordered only by `depends_on`; doc runs SEQUENTIAL within a dependency path (incremental
-install on one instance) and PARALLEL across independent branches and clusters.
+The module-DAG primitive is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` (OSM
+`module_inspect(name=..., method='dependencies', odoo_version=...)` primary, disk descriptor
+`depends` fallback, topological sort).
 
 **Edge direction convention (same as `odoo-module-graph.md`).** "`X depends Y`" means X requires
 Y; Y is the deeper leaf-dependency and is installed FIRST. Leaf-dependency-first throughout.
@@ -53,9 +49,8 @@ same fields (a plan node after a build). Output = `doc-plan.yaml`.
 
 Restrict edges to the in-scope set (`depends_in_scope`); out-of-scope edges are upstream context,
 never ordering edges. Compute per `odoo-module-graph.md`. OSM-verify the disk
-edges opportunistically (trust-but-verify) with the CONCRETE Odoo version - never `'auto'` (the pin
-is per-session and racy under a shared session, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
-session-pin race").
+edges opportunistically (trust-but-verify) with the CONCRETE Odoo version - never `'auto'`
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM session-pin race").
 
 ### 2. Connected components = CLUSTERS
 
@@ -75,17 +70,14 @@ Allocate instances by the SHAPE of the sub-graph. Three rules compose (default
 - **(a) Linear chain -> ONE instance, incremental.** A path `mod_c <- mod_b <- mod_a` (each extends
   the previous) installs on ONE persistent instance leaf-first: install mod_c, doc mod_c ({mod_c});
   install mod_b, doc mod_b ({mod_c,mod_b}); install mod_a, doc mod_a. At each doc step ONLY the
-  module + its deps are installed - no reverse-dependent yet -> pure. Base reused, never
+  module + its deps are installed. Base reused, never
   re-installed.
 - **(b) Independent branches -> SEPARATE instance each (STRICT purity).** When a node depends on two
-  or more MUTUALLY-INDEPENDENT modules, each independent branch gets its OWN instance so its docs are
-  captured on a pure `{branch + its deps}` DB - a sibling branch's menus never leak into the other's
-  screenshots. Do NOT co-install independent siblings just because they share a cluster.
+  or more MUTUALLY-INDEPENDENT modules, each independent branch gets its OWN instance (a pure `{branch + its deps}` DB). Do NOT co-install independent siblings just because they share a cluster.
 - **(c) Convergence node -> REUSE one branch instance + install the FILL.** The node that depends on
   several branches reuses ONE of its branch instances (the one already holding that branch's
   modules) and installs ONLY the still-missing modules (the other branches + the node itself), then
-  docs the node on the now-complete DB. The node legitimately needs all its branches, so this is
-  pure for the node.
+  docs the node on the now-complete DB.
 
 Deeper trees and diamonds recurse: one instance per independent leaf-path, inner joins by reuse+fill. `MAX_CLUSTER_MODULES` (knob, default ~6) bounds how large a component may grow
 before the plan splits a shared low-level dep for extra parallelism (triggering dedup, step 5).
@@ -113,24 +105,19 @@ instance. Three cases force `doc:false` (install as a dep, do not re-doc):
 - **Within a dependency path: SEQUENTIAL** (incremental install on one live instance).
 - **Across independent branches and clusters: PARALLEL up to W**, each path on its OWN instance +
   OWN browser family. `W = min(#independent instance-paths, browser-family pool, ephemeral instance
-  cap)`. The browser families are exclusive-serial per family (never two workers on one family;
-  headless pool vs DISPLAY pool), and the fan-out envelope + instance-lease caps are the
-  `concurrency-guard.md` SSOT - reference it, do not restate the numbers. Full exclusivity rule +
-  rationale (why same-family is serial, why distinct families may run concurrently):
-  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - reference it, do not restate
-  it. When W=1, all paths serialize; the plan records that and the run reports
+  cap)`. The browser-family exclusivity rule is `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+  T2; the fan-out envelope and instance-lease caps are in `concurrency-guard.md`. When W=1, all paths serialize; the plan records that and the run reports
   `status: DONE` with `concerns: [W=1: serialized]`.
 
 ### 7. Build inputs per install step
 
 Every install step is an `instance_build` op `init` carrying the same three inputs:
 
-- **`demo` `on`** - so scenario/screenshot data exists; the tool spells the series' own flag.
-- **`languages`** = every resolved locale, so the UI renders per-locale (the tool adds `en_US`, the
-  mandatory canonical locale, itself).
+- **`demo` `on`** - the tool spells the series' own flag.
+- **`languages`** = every resolved locale (the tool adds `en_US` itself).
 - **skip-auto-install** in `extra_args`, spelled per the series' OSM `cli_help` (never hardcoded) -
   install ONLY the target + its declared deps; do not let Odoo pull in `auto_install=True` modules
-  whose menus/fields would pollute the doc (see `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`
+  (see `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`
   for demo seeding; a legitimately-required auto-install bridge is added EXPLICITLY to `modules`,
   never by re-enabling auto-install wholesale).
 
@@ -198,16 +185,3 @@ provision_cadence:
   loop: "per instance: for step in install_doc_sequence: install_delta -> doc(if doc:true) -> verify -> commit; then convergence: reuse -> install_fill -> doc"
 purity: strict-branch                    # (default) linear paths share; independent branches split; convergence reuses+fills. Override: fresh-per-module
 ```
-
----
-
-## Worked examples
-
-- **Linear `A -> B -> C`** (A depends B depends C): 1 instance; install and doc C, then B, then A.
-- **Branch `A -> {B, C}`** (A depends on B and C; B, C independent): 2 instances.
-  `inst-1` install B -> doc B on {B}; `inst-2` install C -> doc C on {C} (parallel with inst-1 up to
-  W). Convergence: REUSE `inst-1` (holds B) -> install fill `[C, A]` -> DB `{B, C, A}` -> doc A.
-  Result: 2 instances for 3 modules; B/C pure and parallel; A once.
-- **Dedup `X -> Y -> B`** where B already carries on-disk doc (`has_ondisk_doc`): B is `doc:false`
-  (install-only) - only Y and X are doc'd. With `change: whole` on B, B is doc'd again; with a
-  feature list on B, only the sections that list affects are rewritten.

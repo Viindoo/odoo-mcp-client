@@ -4,8 +4,8 @@
 
 # Instance Handle Contract
 
-`INSTANCE_HANDLE` is the canonical, run-scoped descriptor of the ONE live Odoo instance a
-multi-agent run shares. It carries exactly:
+`INSTANCE_HANDLE` is the run-scoped descriptor of the ONE live Odoo instance a multi-agent run
+shares. It carries exactly:
 
 - `db_name` - the database the run operates against
 - `http_port` - the bound HTTP port (null for a build that does not listen)
@@ -23,11 +23,8 @@ multi-agent run shares. It carries exactly:
 - `run_id` - the run that owns the lease
 - `server_pid` (optional) - the server's process-group id; null for a build that does not listen
 
-Field names are the producer's SSOT: `odoo-instance-ops`'s `instance-ops` output block, relayed
-verbatim by `odoo-instance` - rename in both or neither. Copy every field from the latest
-`instance_handle` a tool returned (after a build, the final `job_wait`'s). `demo` and
-`languages_loaded` are facts of the database, whichever lease built it; the tools enforce them
-from the database too.
+Copy every field from the latest `instance_handle` a tool returned (after a build, the final
+`job_wait`'s).
 
 ## Provision once, forward everywhere
 
@@ -53,25 +50,20 @@ owns; give it its own port, database, config and log.
 
 ### Worktree-addons carve-out (the ONE sanctioned self-provision under a handle)
 
-A verification instance must load the tree the work was written in. A catalog-default lease carries
-the catalog's `addons_path`, which points at the principal checkout, so it does not cover a node's
-own worktree. Exactly one rule releases the paragraph above, DISPATCHER-declared, never
-receiver-inferred:
+A verification instance must load the tree the work was written in. Exactly one rule releases the
+paragraph above, DISPATCHER-declared, never receiver-inferred:
 
 - **Dispatcher, node coding fan-out.** When dispatching a node's coder against its own
   worktree, do NOT forward an `INSTANCE_HANDLE`; instead set the brief field
-  `SELF_PROVISION: worktree-addons`. A node gets ONE instance for its whole module set - never one
-  instance per module. Never send both: a brief carrying a handle AND the token is malformed, and
-  the receiver treats it as the handle case, returning `NEEDS_CONTEXT`.
+  `SELF_PROVISION: worktree-addons`. A node gets ONE instance for its whole module set. Never send
+  both a handle and the token.
 - **Dispatcher, every other receiver.** Acquire the lease with `cwd` = the ONE target worktree and
   `addons_path` covering it, and state the resulting value in the brief as
   `ADDONS_PATH: <comma-joined dirs>`.
 - **Receiver.** `SELF_PROVISION: worktree-addons` present (and no handle) -> self-provision as
   authorized. `INSTANCE_HANDLE` present -> use it, after the coverage assertion below.
   Never self-provision on your own judgment.
-- **The authorized self-provision goes through `Skill(odoo-instance)`**, which applies its own
-  launch rule. Pass `WORKTREE_PATH` (the lease's `cwd` and `addons_path` name it;
-  `lease_acquire` refuses a worktree `cwd` without one: `ADDONS_PATH_WORKTREE_MISMATCH`). The
+- **The authorized self-provision goes through `Skill(odoo-instance)`.** Pass `WORKTREE_PATH`. The
   `INSTANCE_HANDLE` it returns is yours; what you acquire here you release before your terminal
   status.
 
@@ -81,8 +73,7 @@ Before any Odoo run that decides a verdict (`test`, an i18n export, a doc captur
 resolved addons list contains a directory `D` such that `D/<module>/__manifest__.py` exists AND `D`
 is inside the tree you were told to work in (`WORKTREE_PATH` when named, else the catalog tree;
 compare `pwd -P`-normalized absolute paths, a prefix match is sufficient). On a miss, STOP with
-`BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH> - a green result
-here would prove nothing)` - never run the operation "to see what happens". For a served instance,
+`BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH>)`. For a served instance,
 assert it against `instance_serve`'s `served_addons_path`.
 
 This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
@@ -92,7 +83,7 @@ stale.
 
 ## Test build on a forwarded handle (ONE rule, every consumer points here)
 
-A test build binds an HTTP port, so a consumer that RUNS tests on a forwarded `INSTANCE_HANDLE`
+A consumer that RUNS tests on a forwarded `INSTANCE_HANDLE`
 (`odoo-test-writer`'s break-checks, a verify run) judges by the handle's port: when no server listens
 on it, build on the handle's own `lease_token`; otherwise take ONE small lease of your own on the
 handle's database (`lease_acquire` mode `exclusive`, `no_create` true, `ports` 1, the handle's
@@ -108,11 +99,10 @@ release or park a lease you do not own to free the database.
 
 ## Prefork (`--workers>0`) needs a second port
 
-The default threaded mode (`workers=0`) needs one port. Prefork (`--workers>0`) MUST acquire with
-`ports` 2; `instance_serve` derives both conf keys from the series. Prefork stays OPT-IN.
+Threaded mode (`workers=0`) needs one port. Prefork (`--workers>0`) MUST acquire with
+`ports` 2. Prefork stays OPT-IN.
 
 ## Lifecycle
 
-One instance per run. Who releases it, when, and what "released" means is owned by
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1 - edit the lifecycle rule there,
-not here. `lease_release` / `lease_park` take the handle's `lease_token` + `run_id`.
+One instance per run. Release rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
+`lease_release` / `lease_park` take the handle's `lease_token` + `run_id`.

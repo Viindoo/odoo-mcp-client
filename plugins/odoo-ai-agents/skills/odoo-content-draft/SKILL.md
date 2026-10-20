@@ -51,8 +51,6 @@ GTM marketer for Odoo or a custom distribution. Audience: the buying committee i
 
 1. **Tone**: confident and credible, never condescending. Expert guide, not pushy vendor.
 2. **Outcome-first**: lead with business outcome, not feature.
-   - BAD: "The system has an MRP module with multi-level BOM."
-   - GOOD: "Manage materials for 200+ SKUs without stockouts - MRP raises the alert automatically."
 3. **Specifics, not vague claims**: cite verified numbers or use relative language ("down from 3 days to a few hours") / abstract templates ("Company X in industry Y reported..."). Never invent hard numbers.
 4. **Language**: default to English unless user specifies. Vietnamese output → full diacritics. Product names, module names, UI labels stay in English regardless of language.
 5. **Vocabulary discipline**:
@@ -76,8 +74,6 @@ Runs for every landing page, and for any other channel whose brief names no audi
 ### Round 1 - Optional MCP grounding
 
 If topic names a specific module AND OSM is reachable: call `check_module_exists(name=<name>, odoo_version='<version>')` + `find_examples(query=<feature context>, limit=2, odoo_version='<version>')`. Use as background - do not paste raw code into marketing copy.
-
-Skip if: topic is generic, OSM unreachable, or user already provided all feature details.
 
 ### Round 2 - Apply channel template
 
@@ -110,9 +106,8 @@ with its `## Buyer profile` block; the caller saves it as `buyer-profile.md` nex
 - **Blog article**: full Markdown with H1 title, H2 section headers, paragraph body, and
   `[CTA button: ...]` placeholder at end.
 - **YouTube script**: structured with timestamp markers in bold (`**0:00-0:15 Hook**`) and
-  `[NOTE: show screen of X]` cues for the editor. The script + timestamps can be handed to
-  `odoo-demo-recording` to capture a real Odoo screencast for the `[NOTE: show screen]` cues
-  instead of sourcing footage separately (forward suggestion only - this skill stays text).
+  `[NOTE: show screen of X]` cues for the editor. Suggest handing the script + timestamps to
+  `odoo-demo-recording` for a real screencast; this skill stays text.
 - **Email sequence**: numbered emails, each with Subject line, Preview text (45 chars),
   Body, and CTA link placeholder `[LINK: ...]`.
 - **Landing page copy**: the `## Buyer profile` block Round 0.5 built (none when the brief
@@ -128,20 +123,15 @@ refinement ideas, A/B variants to test, or which OSM tool to call for deeper gro
 
 When OSM is unreachable: do NOT block. Draft using user description, training knowledge, and abstract SME examples. Insert `<TBD: verify Odoo has feature X>` for unverified specific module claims. Add a footer: _Note: `<TBD: ...>` placeholders should be verified before publishing. Use `check_module_exists` when OSM is available._
 
-## Examples
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for 2 worked examples (LinkedIn post / manufacturing, blog opener / Vietnam ERP localization).
-
 ## Notes
 
-- **Brand assets**: if copy must describe visual elements, use `<SHARE_DIR>/brand-tokens.json` when that file exists (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read), else any brand style guide the caller provides; absent both, skip brand-specific description silently and never assume a fixed in-repo path. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
+- **Brand assets**: if copy must describe visual elements, use `<SHARE_DIR>/brand-tokens.json` when that file exists (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read), else any brand style guide the caller provides; absent both, skip brand-specific description silently and never assume a fixed in-repo path.
 - **Leaf skill.** Does NOT invoke other skills or spawn subagents.
-- **Localization**: Vietnamese final deliverable → full diacritics. Workflow notes/placeholders in this file may be ASCII-only.
 
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive plan-runner output, changes nothing above.
+(status / produced / next).
 
 If the produced draft contains one or more `[Image: ...]` placeholders (image slots emitted in Round 3), set `status: NEEDS_NEXT` and include in the `next` field:
 - skill: odoo-doc-illustration

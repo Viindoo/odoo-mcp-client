@@ -22,7 +22,7 @@ paths. No browser, no instance, no test execution. NOT an auditor of custom code
 - **Single feature yes/no** (does module X have Y?) -> `odoo-feature-check`
 - **Marketing highlights for a version release** (what is new in v18?) -> `odoo-feature-highlights`
 - **Executive audit of CUSTOM code in a client instance** -> `odoo-customization-inventory`
-- **The user guide or the App Store page** -> `odoo-doc-illustration`; **landing copy** -> `odoo-content-draft`
+- **The user guide or the App Store page** -> `odoo-doc-illustration`
 - **Executable test code** (tours, HttpCase, pytest) -> `odoo-test-writing`
 - **Live UI acceptance with a PASS/FAIL verdict**, or negative and permission-violation scenarios
   -> `odoo-acceptance` / `odoo-qa-suite`
@@ -69,7 +69,7 @@ paths. No browser, no instance, no test execution. NOT an auditor of custom code
 ## Standalone-first fallback
 
 OSM unreachable: the writer grounds from the module tree, labels the files `local-source` and
-says so in its report. No browser and no instance are ever needed here.
+says so in its report.
 
 ## Agent-managed tools
 
