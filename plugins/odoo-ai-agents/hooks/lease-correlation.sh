@@ -73,6 +73,11 @@
 # launch result's TEXT is excluded on purpose: it echoes the PROMPT this agent sent DOWN, and a
 # token forwarded down to a grandchild is still not this agent's.
 #
+# WHAT THE TEARDOWN GATES HOLD THE AGENT TO (_lease_held_tokens): the leases it obtained plus the tokens a
+# child handed UP to it (the `lease_token` fields of _lease_handed_up_text), less any token forwarded DOWN
+# to it. Same semantics as an obtained lease: released, parked or forwarded in its own closed
+# continuation fence, else the SubagentStop and SubagentHandback gates deny.
+#
 # WHAT COUNTS AS FORWARDED DOWN (_lease_brief_text) - the user-role text this agent was GIVEN: its
 # dispatch brief and any later message from its caller, including a peer message (either record
 # shape above) from anyone who is NOT a child it dispatched (never a tool_result, never a
@@ -249,6 +254,39 @@ _lease_token_view() {
   [[ -n "$transcript" && -r "$transcript" && -n "$tok" ]] || return 0
   _tool_call_lines "$transcript" "$tok" "${_LEASE_OBTAIN_KEYS[@]}" '"Agent"' '"Task"' \
     odoo-local__lease_find
+}
+
+# The lease tokens a CHILD this agent dispatched handed back UP in a report: every `lease_token`
+# field (an `instance-ops` block, an INSTANCE_HANDLE, a JSON handle) in `_lease_handed_up_text`,
+# one token per line. The lines read are the Agent/Task calls and every line naming a lease_token.
+_lease_handed_up_tokens() {
+  local transcript="$1" view
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -n "$transcript" && -r "$transcript" ]] || return 0
+  view="$(_tool_call_lines "$transcript" '"Agent"' '"Task"' 'lease_token')"
+  [[ -n "$view" ]] || return 0
+  _lease_handed_up_text <(printf '%s\n' "$view") \
+    | grep -oE "lease_token[\"']?[[:space:]]*[:=][[:space:]]*[\"']?[A-Za-z0-9_-]{8,}" \
+    | sed -E 's/.*[^A-Za-z0-9_-]([A-Za-z0-9_-]{8,})$/\1/' | sort -u || true
+}
+
+# The leases this agent must give back before it ends or hands back: the ones it OBTAINED
+# (_lease_owned_tokens) plus the ones a child it dispatched handed UP (_lease_handed_up_tokens),
+# minus any token its own brief or a later message from its caller forwarded DOWN - a child that
+# reports a forwarded handle unchanged does not make it this agent's. The two teardown gates
+# (enforce-teardown.sh, block-handback-with-live-lease.sh) read this set; the mutation gate
+# (block-unowned-lease-mutation.sh) keeps judging release, park and adopt by its own arm A4.
+_lease_held_tokens() {
+  local transcript="$1" tok view
+  {
+    _lease_owned_tokens "$transcript"
+    while IFS= read -r tok; do
+      [[ -n "$tok" ]] || continue
+      view="$(_lease_token_view "$transcript" "$tok")"
+      _lease_brief_text <(printf '%s\n' "$view") | grep -qF -- "$tok" && continue
+      printf '%s\n' "$tok"
+    done < <(_lease_handed_up_tokens "$transcript")
+  } | sort -u
 }
 
 # The transcript of the agent a PreToolUse payload comes from. `agent_transcript_path` when the

@@ -221,8 +221,8 @@ _add_note() { if [[ -n "$BROWSER_MSG" ]]; then BROWSER_MSG="$BROWSER_MSG; $1"; e
 [[ "$RECORD" -gt "$STOP_REC" ]] && \
   _add_note "$RECORD record_page vs $STOP_REC stop_recording - stop the pagecast recording before your terminal status"
 
-# --- Token correlation (ONLY leases THIS subagent itself obtained) ----------------------------
-# "Which leases did THIS dispatch obtain?" is answered by hooks/lease-correlation.sh, the ONE
+# --- Token correlation (ONLY leases THIS subagent holds: obtained itself, or handed back UP to it) ----------------------------
+# "Which leases does THIS dispatch hold?" is answered by hooks/lease-correlation.sh, the ONE
 # implementation this gate shares with block-unowned-lease-mutation.sh (read its header for exactly
 # which calls count, and why serving or resuming a forwarded token and a time window never do). A
 # shared copy is what keeps the two gates from disagreeing: this gate orders a release that the
@@ -235,7 +235,7 @@ _add_note() { if [[ -n "$BROWSER_MSG" ]]; then BROWSER_MSG="$BROWSER_MSG; $1"; e
 OWN_TOKENS=""; REPORT=""; CONT_BLOCK=""; STATUS=""; STATUS_KEY=""; AGENT_ID=""; HANDED_BACK=0
 UNFWD_TOKENS=""
 if [[ "$EVENT" == "SubagentStop" ]]; then
-  declare -F _lease_owned_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
+  declare -F _lease_held_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_held_tokens "$TRANSCRIPT")"
 fi
 if [[ -n "$OWN_TOKENS" ]]; then
   # --- Continuation status + INSTANCE_HANDLE forwarding (the REPORT only) --------------------

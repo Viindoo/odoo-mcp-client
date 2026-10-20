@@ -129,7 +129,7 @@ OSM unreachable: the module graph comes from the descriptors on disk (`__manifes
 This skill launches `odoo-coder` only. The coder launches `odoo-impact-recon` when it has no
 recon, a second `odoo-coder` only for a part that exceeds one agent's output budget, and
 `odoo-frontend-coder` only for a frontend part with new JS or OWL files disjoint from the backend
-files; it invokes `odoo-test-writing` and `odoo-instance` inline.
+files; it invokes `odoo-test-writing` inline and `odoo-instance` for every instance run.
 
 ## Continuation Contract
 

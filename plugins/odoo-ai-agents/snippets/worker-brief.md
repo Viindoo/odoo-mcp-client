@@ -26,7 +26,7 @@ the read-only case: it launches grounding workers only, writes no source, and ru
 `odoo-coder` is the WRITING case: it writes its node's code and tests itself, and launches a
 leaf only for a frontend part with new JS or OWL files, a second part past its output budget, or
 the recon it was not handed - per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`); it tests the whole node
-via `Skill(odoo-instance)` inline, and - once the integrated test is green - COMMITS its node by
+via `Skill(odoo-instance)`, and - once the integrated test is green - COMMITS its node by
 invoking `git-toolkit:git-ops` via the Skill tool and returns the node's commit range to
 `odoo-coding`, which never re-commits (under `COMMIT: caller` it commits nothing and returns the
 file list).
@@ -64,9 +64,8 @@ file list).
   principal checkout; do NOT call `lease_acquire` + `instance_build` bare, which would bypass all
   of that. A provided `INSTANCE_HANDLE` always wins: consume it, never re-provision - unless your brief
   carries `SELF_PROVISION: worktree-addons`
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Because
-  you are a declared HARD LEAF, `odoo-instance` runs INLINE for you (never launches
-  `odoo-instance-ops`) - this is a MUST, not a judgment call. `odoo-frontend-coder` is
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). As a
+  declared HARD LEAF you launch nothing: `odoo-instance` runs INLINE for you. `odoo-frontend-coder` is
   INSTANCE-FREE - it never self-provisions and runs only its static `verify-frontend.sh` gate; every
   live check is owned by `odoo-coder`'s whole-node test, and the lint-class gate runs ONCE at the
   plan's pre-PR lint gate, never inside a leaf. `odoo-test-writer` never self-provisions:
