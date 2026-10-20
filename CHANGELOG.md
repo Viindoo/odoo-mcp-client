@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.8.1] - 2026-10-20
+
+### Fixed
+
+- `odoo-ai-agents` - **auto mode no longer names a read-only upstream as a fork.** The auto-mode
+  step counted the owner of every remote other than `origin` as a fork the agent pushes to, so
+  an upstream a fork was made from (fetched only) was written into the `autoMode` allow and
+  environment text as a push target, and the SessionStart hook kept re-applying it. A remote now
+  counts as a fork only with local evidence of a push: a push entry in its remote-tracking
+  reflog, `remote.pushDefault` / `branch.<b>.pushRemote` naming it, or a branch `git push -u`
+  bound to one of its non-protected branches. Re-run `/odoo-ai-agents:odoo-setup auto-mode` to
+  replace entries written by an earlier version.
+- `odoo-ai-agents` - **`/odoo-ai-agents:odoo-setup --reset` runs again.** The reset step shipped
+  without its executable bit and setup runs each step directly, so it failed with "Permission
+  denied"; a test now requires every setup step to be executable.
+
 ## [7.8.0] - 2026-10-19
 
 ### Added
