@@ -1,59 +1,33 @@
 # Intake - Notes for future maintainers
 
-Background and design rationale for the intake router. Not needed at routing time - read it
-when changing intake's structure, the routing table, or the harness wiring.
+Human reference for the intake router; read it when changing intake's structure, the routing
+table, or the harness wiring. Not loaded at routing time.
 
-- **5-phase flow**: Phase 0 (Context, Detect & Clarify - closes the intent/purpose/outcomes
-  gate + 4 detect branches) → **Phase R (Recon, read-only)** → Proposed Plan
-  (context-rich) → Plan Mode (workitem + DAG + assignment) → Execute. Phase R dispatches
-  ≤1-2 read-only agents (leaf subagents, no writes, no spawn) to survey current state before the plan
-  is written.
-- **Inventory discovery is hybrid, SSOT-respecting**: skill/agent/command existence + description
-  come from runtime context; `output_mode` from the explicit `orchestration.<skill>.output_mode`
-  field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack` derivation - §4.7/§8.4); **`model_tier`
-  is read from each candidate's own frontmatter (`model:`, absent ⇒ `inherit`) - NEVER copied into a registry**; and
-  `effort` (S/M/L/XL) is a per-task property reasoned via the gap-analysis legend, also not
-  registered.
-- **Plan Mode Content Schema**: a `writes-files` Approach requires 3 blocks in the Plan-Mode
-  plan - Node list (a node MAY span several modules, a module MAY be covered by several nodes,
-  disjoint `files-in-scope`), Dependency graph (`nodes` + `edges` with edge types + a
-  `topological_order` + `critical_path` + `cycles` - `depends_on` is the ONLY ordering statement a
-  plan makes; no field, header, or grouping construct may batch nodes together), and Assignment
-  (node → agent + mode + model, or skill/workflow, + effort + est_agents (advisory) + verify).
-  A chat-only Approach skips Plan Mode (decision tree at the top of § Plan Mode). Full schema:
-  `references/plan-mode-schema.md`.
-- The run rules, the node brief and the run file schema live in `references/plan-mode-schema.md`;
-  the BRL DAG and the gap-analysis effort legend in their own skills.
-- **Dispatch mechanism rationale** (why the Skill tool, not a direct agent launch - § Dispatch mechanism
-  keeps only the rule + table): a skill is not an agentType, so launching an agent by a skill *name* fails;
-  launching the bare underlying agent directly launches it but **bypasses the skill's own orchestration**
-  (topology, fan-out, synthesis - e.g. `odoo-code-review`'s module-count topology + fan-out +
-  synthesis), forcing the read-and-imitate anti-pattern. A `spawner-agent` skill must run in the main
-  context so the Skill tool loads it there and lets it launch subagents (`odoo-code-reviewer`,
-  `odoo-coder`, …). The main agent MAY call the Skill tool; the "never the Skill tool" rule binds
-  subagents/fork-workers only (a subagent calling it on a spawner skill creates uncontrolled nesting).
-- Routing table currently lists 63 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
-  sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
-  rows 33-40 = Phase E+ BRL flagship + workflow domains + parallel delivery (row 40 -> `odoo-planning`;
-  the main agent runs the plan it writes); rows 41-49 =
-  solution-design, implement-feature, frontend-design, doc-illustration, git-rebase, modules-upgrade,
-  acceptance, planning, pr-monitoring; rows 50-54 = icon-design, doc-feature-map, doc-site,
-  module-packaging, docs-only plan (TARGET both); rows 55-63 = coverage rows so every user-facing
-  front-door skill is reachable - perf-audit, security-audit, data-migration, customer-health, i18n,
-  pricing-proposal, rfp-response, test-writing, instance). `odoo-deep-survey` stays out of the table
-  by design (opt-in only); `workflow-chaining` is internal machinery, not a routing target.
-  Update both the table AND `references/collision-zones.md` when adding entries.
-- **Deep survey gate (opt-in)**: after the Proposed Plan, a SEPARATE offer line under the plan asks
-  whether to run a deep survey on *large* jobs - the heavy alternative to light Phase R recon. The
-  offer is a question, never a gate keyword: the user opts in with `refine: deep-survey` on the PLAN
-  reply set (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`), where `deep-survey` is the
-  feedback text. `odoo-deep-survey` (a `spawner-agent`,
-  invoked via the Skill tool from the main context) fans out broad-haiku → narrow-sonnet →
-  optional-opus workers and returns a `synthesis.md` that intake folds into the `Survey:` field and
-  a re-proposed plan. It is the ONE `writes-files` skill intake dispatches WITHOUT Plan Mode: it
-  writes only `<SHARE_DIR>/survey/` analysis (resolve `<SHARE_DIR>` via the resolve-capture-substitute
-  protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) (not the routed deliverable),
-  and that opt-in reply is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
-  Deliberately NOT a routing-table row - never intent-routed, only opt-in. The re-proposed plan
-  drops the offer line so the survey runs at most once.
-- This skill carries the standard `odoo-` prefix as `odoo-intake`. The unprefixed `intake` namespace is reserved for a future domain-agnostic front door (general ERP, strategy, etc.) that may route to `odoo-intake` on detecting Odoo intent - keeping Odoo-specific and domain-agnostic responsibilities separate.
+- **Flow**: Phase 0 (Context, Detect & Clarify - closes the intent/purpose/outcomes gate, 3 detect
+  branches) -> Phase R (Recon, read-only) -> approach question (text, only while unsettled) ->
+  hand-off to the plan owner, whose Plan-Mode approval is the request's one gate -> execute.
+- **Inventory discovery**: skill/agent/command existence and description come from runtime context;
+  `output_mode` from `orchestration.<skill>.output_mode` in `skill_tool_deps.json`; `model_tier`
+  from each candidate's own frontmatter (`model:`, absent = `inherit`), never copied into a
+  registry; `effort` is a per-task property owned by `odoo-gap-analysis`, also not registered.
+- **Plan schema, run rules, node brief, run file**: `references/plan-mode-schema.md`. The BRL DAG
+  and the gap-analysis effort legend live in their own skills.
+- **Dispatch mechanism**: a skill is not an agentType, so launching an agent by a skill name fails;
+  launching the bare underlying agent bypasses the skill's own orchestration (topology, fan-out,
+  synthesis). A `spawner-agent` skill must run in the main context so the Skill tool loads it
+  there and it can launch subagents. The main agent MAY call the Skill tool; subagents never do.
+- **Routing table**: 63 rows. Rows 1-13 core specialists; 14-21 sales, marketing and engineering;
+  22-27 commands; 28-32 visual; 33-40 BRL, workflows and parallel delivery (row 40 routes to
+  `odoo-planning`); 41-49 solution-design, implement-feature, frontend-design, doc-illustration,
+  git-rebase, modules-upgrade, acceptance, planning, pr-monitoring; 50-54 icon-design,
+  doc-feature-map, doc-site, module-packaging, docs-only plan (TARGET `both`); 55-63 perf-audit,
+  security-audit, data-migration, customer-health, i18n, pricing-proposal, rfp-response,
+  test-writing, instance. `odoo-deep-survey` is not a row (opt-in only) and `workflow-chaining` is
+  internal machinery. Update the table AND `references/collision-zones.md` together.
+- **Deep survey (opt-in)**: the approach question offers it on large jobs as a SEPARATE line, never a
+  gate keyword; the user opts in with `refine: deep-survey` (the `refine:` feedback text).
+  `odoo-deep-survey` (a `spawner-agent`, invoked via the Skill tool) returns a `synthesis.md` that
+  intake carries in the hand-off brief; it writes only under `<SHARE_DIR>/survey/`. The sharpened
+  approach question drops the offer so the survey runs at most once.
+- **Naming**: the unprefixed `intake` namespace is reserved for a future domain-agnostic front door
+  that may route to `odoo-intake` on detecting Odoo intent.

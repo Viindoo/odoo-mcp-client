@@ -27,8 +27,7 @@ planning.
 
 ## Algorithm (cluster-cut heuristic)
 
-Pairwise reasoning is O(n^2) (1000 items ~= 500k pairs) - infeasible. Phase D bounds the work
-by grouping requirements into clusters and reasoning only **inside** each cluster.
+Group requirements into clusters and reason only **inside** each cluster.
 
 ```
 D1. Technical bootstrap (deterministic, parallel MCP <=3):
@@ -53,8 +52,8 @@ D3. Intra-cluster reasoning (per cluster):
     For each cluster, run the cluster prompt below (input = that cluster's req-list,
     output = {edges:[{from,to,type,reason}]} JSON, edges only WITHIN the cluster).
     - Default: inline, sequential, one cluster at a time.
-    - For parallelism only (many clusters): launch one subagent per cluster (tier per SKILL.md D3);
-      subagent prompt MUST carry the hard-rules line. Each returns ONLY its edges JSON (<=2k).
+    - Only under SKILL.md Hard rule 1's condition: launch one subagent per cluster (model and
+      launch per SKILL.md D3); subagent prompt MUST carry the hard-rules line. Each returns ONLY its edges JSON (<=2k).
 
 D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
 
@@ -68,17 +67,12 @@ D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
 
     Part B - Business-domain affinity for Custom clusters (LLM-reasoned, bounded):
     Custom items carry module_family="custom" and produce NO technical edges from Part A.
-    To avoid silently dropping their cross-cluster dependencies:
 
     custom_clusters = [c for c in clusters if c.module_family == "custom"]
     for each custom_cluster C:
         # Reason at the CLUSTER level (not item level) about which non-custom clusters
         # C's requirements most plausibly depend on for their business context.
         # Use req_text + business_domain tag of C's items as input.
-        # Example: "custom-Sales" cluster with loyalty / discount requirements
-        #          -> depends on "sale-Sales" cluster (base SO flow must exist first).
-        # Example: "custom-Finance" cluster with VN tax reporting
-        #          -> depends on "account-Finance" cluster (chart of accounts + tax setup).
         dependent_on = LLM_reason(C, non_custom_clusters)  # list of (source_cluster, reason)
         BOUND: emit at most ONE edge per (C, source_cluster) pair.
         for each (S, reason_str) in dependent_on:
@@ -86,11 +80,8 @@ D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
             type="business-logic"
             reason="custom cluster '{C.id}' requires '{S.id}' domain first: {reason_str}"
 
-    Heuristic bound: O(|custom_clusters| x |non_custom_clusters|) cluster-level inferences
-    (not O(n^2) item pairs). A custom cluster with no clear domain affinity emits zero edges.
+    A custom cluster with no clear domain affinity emits zero edges.
     Record D4-B edge count in dag.json.meta.custom_affinity_edges.
-
-    (one representative edge per ordered cluster pair -> O(C^2), DAG stays sparse)
 
 D5. Kahn topological sort + cycle detection on union(intra ∪ inter ∪ technical).
     -> topological_order, phases (in-degree-0 peel layers), cycles[].
@@ -98,9 +89,6 @@ D5. Kahn topological sort + cycle detection on union(intra ∪ inter ∪ technic
 
 D6. Critical path: EST/EFT over effort_days_max -> critical_path[] + critical_path_days.
 ```
-
-Work reduces from O(n^2) global to O(Σ k_c^2) intra-cluster + O(C^2) inter-cluster
-representative. For 1000 items / 15 clusters: ~37k intra + 225 inter ≈ 7% of full pairwise.
 
 ---
 
@@ -136,7 +124,7 @@ OUTPUT FORMAT (JSON only, no prose, no markdown fence):
 If there are no intra-cluster dependencies, output: {"cluster_id": "...", "edges": []}
 
 CONSTRAINTS (when this runs as a subagent):
-- KHÔNG spawn sub-agent. KHÔNG invoke Skill tool. CHỈ Read/Grep/Glob/Write.
+- Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.
 - Output ONLY the JSON object. No surrounding text.
 
 REQUIREMENTS IN THIS CLUSTER:
@@ -187,7 +175,7 @@ def kahn(requirements, edges):
 
 If `cycle_members` is non-empty, a circular dependency exists. The engine MUST:
 
-1. Record the cycle members in `dag.json.cycles` (and surface them in the GATE E summary).
+1. Record the cycle members in `dag.json.cycles` (and surface them in the report.md summary).
 2. Present THREE resolution options for the implementor to choose - never silently drop an edge:
    - **split** - break a requirement into a phase-A part (done early) and a phase-B part (later),
      cutting the back-edge.

@@ -216,14 +216,14 @@ def test_frontmatter_model_key_is_out_of_scope():
 
 
 def test_file_bodies_carrying_tier_tokens_are_out_of_scope():
-    """`odoo-coding`'s tier table and `odoo-instance`'s gate prose are the legitimate internal uses.
+    """`odoo-coding`'s tier table and `odoo-deep-survey`'s lens labels are legitimate internal uses.
 
     Premise first: both bodies really do carry the tokens. Then: neither file yields a finding,
     because only its frontmatter `description` is read.
     """
     coding = PLUGIN / "skills" / "odoo-coding" / "SKILL.md"
-    instance = PLUGIN / "skills" / "odoo-instance" / "SKILL.md"
-    for f, pattern in ((coding, VENDOR_MODEL_RE), (instance, GATE_TIER_RE)):
+    survey = PLUGIN / "skills" / "odoo-deep-survey" / "SKILL.md"
+    for f, pattern in ((coding, VENDOR_MODEL_RE), (survey, GATE_TIER_RE)):
         assert f.is_file(), f"premise: {f} must exist"
         text = f.read_text(encoding="utf-8")
         body = text.split("\n---\n", 2)[-1]

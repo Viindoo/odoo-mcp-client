@@ -13,7 +13,7 @@ any plugin and outside this repo's authority.
 
 There is therefore NO frontmatter lever a plugin agent has to influence its own permission mode
 (see docs/authoring-skills-and-agents.md § Agent authoring and
-snippets/planning-gate-contract.md § Plan-Mode enter/exit for the behavioral fix this motivated -
+snippets/planning-gate-contract.md § One Plan-Mode gate per request for the behavioral fix this motivated -
 P3: do not dispatch a state-root-writing agent while a Plan Mode window is open). This test
 guards against a future author reintroducing one of these dead fields under the mistaken belief
 it changes runtime enforcement.

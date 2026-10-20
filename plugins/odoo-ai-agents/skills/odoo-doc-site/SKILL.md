@@ -9,12 +9,8 @@ description: >-
 
 Front door for writing or updating the pages of a product documentation site kept in its own
 repository: one branch, one worktree and one pull request per series. Audience: the site's readers
-(roles and audience come from the site row). It resolves the site, finds what the site already
-says before anything is written, plans the pages with a human gate, provisions the capture
-instance, launches `odoo-doc-site-writer` per disjoint page group, runs the content gates, accepts
-the built pages in a browser, lands the change as its own pull request and reads its CI. The
-writer owns the pages; this skill owns the site row, the worktrees, the plan, the instance, the
-gates and the landing.
+(roles and audience come from the site row). It launches `odoo-doc-site-writer` per disjoint page
+group.
 
 ## Out of Scope
 
@@ -48,18 +44,23 @@ plan that runs it follows it with monitor and merge only.
 `RUN_DIR` = `<ISOLATE_DIR>/docs-site/<RUN_ID>/`. Plugin scripts run with `python3`;
 `build_compare.py`, `po_sync.py` and `images.py install` run with `DOCS PYTHON`.
 
-0. **Resolve** (`references/site-row.md`).
+The check-shot approval and every "stop and ask" below are text questions with the reply words
+`approve / refine: [feedback] / cancel`.
+
+0. **Resolve** (`references/site-row.md`). Read-only until the page plan of step 1 is decided: no
+   worktree, branch or file in the repository before then.
    - Read the site row; none for the repo -> `NEEDS_CONTEXT`: run `/odoo-ai-agents:odoo-setup
      docs-site`.
    - Per series, the local repo to branch from is the series' `clone`, else any other `clone` of the
      row, else stop `NEEDS_CONTEXT`
      and print the command that clones `remote` into a directory beside the user's other clones, for
      the user to run; never clone.
-   - Per series, take the worktree path from `project_dir` (axis `worktree`, `cwd` = that repo,
-     `name` = the branch slug) and invoke `git-toolkit:git-ops` to fetch and create the worktree
-     plus a new branch from the series' upstream branch there; the clone path is never written.
-   - Then capture `SHARE_DIR` and `ISOLATE_DIR` per series worktree once with `project_dir` and
-     pass the same literals everywhere.
+   - Capture `SHARE_DIR` once with `project_dir` (axis `share`, `cwd` = that repo).
+   - After step 1, per series: take the worktree path from `project_dir` (axis
+     `worktree`, `cwd` = that repo, `name` = the branch slug) and invoke `git-toolkit:git-ops` to
+     fetch and create the worktree plus a new branch from the series' upstream branch there; the
+     clone path is never written. Then capture `ISOLATE_DIR` per series worktree with
+     `project_dir` and pass the same literals everywhere.
    - Docs venv: `uv venv <SHARE_DIR>/docs-site/<site>/<series>/venv`, then `uv pip install
      --python <venv>/bin/python -r <worktree>/requirements.txt`. Record `<venv>/bin/python` as
      `DOCS PYTHON`.
@@ -74,9 +75,9 @@ plan that runs it follows it with monitor and merge only.
      on it, then the server is stopped.
 1. **Find existing content before writing** (`references/page-plan.md`) - mandatory, per series.
    Map the area to modules, search the branch and the open pull requests, write the page plan
-   (`update | new | skip` per page), show it and wait: `approve / refine: [feedback] / cancel`.
-   `cancel` removes the worktrees through `git-toolkit:git-ops` and stops. With `PORT FROM`, the
-   starting point, the order of targets and the plan rows follow `references/port.md`.
+   (`update | new | skip` per page), then decide it per `references/page-plan.md` § 4. With
+   `PORT FROM`, the starting point, the order of targets and the plan rows follow
+   `references/port.md`.
 2. **Facts.** Per module of the plan without a catalog: invoke `odoo-doc-feature-map`. Each page
    group has its own facts file `<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`,
    written by that group's writer (`file:symbol` citations); a live-UI difference is a finding.
@@ -87,26 +88,22 @@ plan that runs it follows it with monitor and merge only.
      documented modules plus the row's `extra_modules` plus the bridge modules matching
      `module_bridge_patterns` for every app the plan shows (one build, one instance, one lease per
      series), `demo: on`, `languages` = every site language, `persist: exclusive-running`,
-     `WORKTREE_PATH` = `CODE_WORKTREE` when given, `run_id` = `RUN_ID`. Have it launch
-     `odoo-instance-ops` rather than provision in this context (launch reason (d) of
-     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Launch economics). Keep the
+     `WORKTREE_PATH` = `CODE_WORKTREE` when given, `run_id` = `RUN_ID`. Keep the
      returned block verbatim as `INSTANCE_HANDLE`. Build, update and reinstall decisions follow
      `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree.
    - Login: on the database this step built, the login is `admin` and the writer reads the password
      from the checkout (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § 15); this
      skill passes no password. On any other database, pass `LOGIN` and take the password from
      `ODOO_DOC_PASSWORD`, else `NEEDS_CONTEXT(PASSWORD)`.
-   - Capture mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § Docs-site
-     writer. The
-     check-shot launch also measures the content width on the served build; stop the server once it
-     is recorded. This skill writes `approval.json` from the `reference_viewport` and
+   - The check-shot launch also measures the content width on the served build; stop the server
+     once it is recorded. This skill writes `approval.json` from the `reference_viewport` and
      `content_width` the writer returns.
 4. **Write.** Launch `odoo-doc-site-writer` per disjoint page group (`references/writer-brief.md`).
    Model tier per `references/writer-brief.md`. Groups run in parallel only up to `W` of
    § Browser exclusivity of that file, each on its own browser family. A fix round goes to the same
    writer with `SendMessage`.
 5. **Gates** (`references/gates-and-landing.md` § Gates). Fix and re-run until clean, at most 3
-   rounds; then stop and ask the user. An `UNVERIFIED` item is reported, never hidden.
+   rounds; then stop and ask the user (text question). An `UNVERIFIED` item is reported, never hidden.
 6. **Browser acceptance** (`references/acceptance.md`). Serve the candidate build of every language
    with `build_compare.py serve` and launch `odoo-qa-tester` with `MODE: DOCS`, independent of the
    writer: it gets the served URLs, the page plan, the checklist and the banned terms of the
@@ -131,7 +128,7 @@ plan that runs it follows it with monitor and merge only.
 
 ## Return
 
-Per series: worktree, branch, PR URL, pages added / updated / removed with their site URLs, the
+Per series: worktree, branch, PR URL, the page plan, pages added / updated / removed with their site URLs, the
 gate and acceptance results with their `UNVERIFIED` items, the CI verdict, findings (code versus description,
 branding gaps for the branding owner), what is left. Never an absolute warning count.
 

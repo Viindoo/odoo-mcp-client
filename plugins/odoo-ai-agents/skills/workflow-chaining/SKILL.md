@@ -11,10 +11,9 @@ model: inherit
 
 ## Role
 
-Neutral orchestration engine: reads the YAML, announces each phase, gates on user approval,
-dispatches specialists via the Skill tool (NL description-match as fallback), writes checkpoints. No domain knowledge - that lives in the
-`.workflow.yaml` and the specialist skills. Invoked by `odoo-intake` after
-a user approves a multi-step workflow plan at the soft-plan-gate.
+Read the YAML, decide the workflow plan once, announce each phase, dispatch specialists via the Skill
+tool (NL description-match as fallback), write checkpoints. Invoked by `odoo-intake`, a workflow
+command, or a plan's workflow node.
 
 ## Hard rules
 
@@ -23,11 +22,12 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    only exception, ≤3 concurrent workers with the mandatory worker-brief preamble).
 3. **No recursion.** Fork workers are leaf agents and carry:
    "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash."
-4. **No execution before gate.** Emit a gate before each phase; wait for approval.
+4. **One plan decision, then no stops.** No phase runs before the workflow plan is decided
+   (Phase 0 step 6). Phases then run without stopping; a phase `gate` is a text confirmation
+   before that phase's outward or irreversible action, and the only one.
 5. **Resume from checkpoint.** If `resume: true` and `<output_dir>/<slug>-state.json` exists
-   (`output_dir` is the full `.odoo-ai/...` path from the YAML - see Phase 0 step 2 for how it
-   resolves to a real location), load it and skip done phases.
-6. **SSOT for schema** → `workflows/_schema.md`. This body describes behavior, not schema.
+   (`output_dir` resolves per Phase 0 step 2), load it and skip done phases.
+6. **Schema** → `workflows/_schema.md`.
 7. **on_complete EMITs, never dispatches.** Matched transitions go to Continuation Contract
    `next[]` for the plan runner (the main agent) - this skill never fires a spawner itself.
 
@@ -41,53 +41,58 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    RUNTIME - never write to the bare project-relative `.odoo-ai/<name>` path. Resolve
    series + profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 3. **Orphan sweep (do this every invocation, before the resume check below).** Run `find <resolved
-   ISOLATE output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any
-   sibling `<slug>-*/` or `<slug>-state.json` untouched for over 30 days is presumed consumed; a
-   still-active run keeps writing its own state file/phase artifacts, so its mtime never ages
-   past the threshold). It sweeps whatever `output_dir` THIS workflow declares, so no
-   per-workflow sweep instruction exists. Full rule + bound:
-   `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer:
-   whoever invokes this runner next, unconditionally, every run - not a separate cleanup agent or
-   cron.
-4. If `resume: true`, check for `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir
-   (the captured absolute path substitutes for the `output_dir` prefix from the YAML); if found,
-   load it and determine the last completed phase.
+   ISOLATE output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (it removes
+   whatever `output_dir` THIS workflow declares that was untouched for over 30 days). Full rule +
+   bound: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` § Clause 3. Run it
+   unconditionally, every run.
+4. If `resume: true`, check for `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir; if
+   found, load it and determine the last completed phase.
 5. Collect any missing `inputs[]` from the user (one question per missing input).
-6. Emit the **soft-plan-gate** header before any phase runs:
+6. **Decide the workflow plan** (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`
+   § One Plan-Mode gate per request):
+   - A phase with `plan: true` computes the plan: run the phases up to and including it first
+     (they write only under the state root), and present its output as the plan.
+   - The workflow owns the request (invoked by `odoo-intake`, a command, or the user): call
+     `EnterPlanMode`, present the block below, `ExitPlanMode` on `approve`; `refine: [feedback]`
+     re-plans, `cancel` stops.
+   - Every `on_complete` entry of the workflow hands the request to `odoo-solution-design` or
+     `odoo-planning` (the workflow only scopes): that skill holds the request's Plan-Mode gate.
+     State the chain in one line and run.
+   - A node of an approved plan: present nothing and run.
 
 ```
-## Proposed Plan
+## Workflow plan
 Domain:       <domain>
 Workflow:     <name>
 Pattern:      <team_pattern>
 Chain:        <phase-1.id> → <phase-2.id> → ... → <phase-N.id>
+Plan:         <the plan phase's output, when a phase has plan: true>
+Confirms:     <each phase whose gate confirms an outward or irreversible action | none>
 Output:       <output_dir>/
-Est. effort:  <count> phase(s), gates between each
 
-Gate: approve / refine: [feedback] / cancel
+Approve plan? (approve / refine: [feedback] / cancel)
 ```
 
-Wait for user response before proceeding to Phase 1. Write this block in the USER'S language
-(translate labels and prose; keep phase ids, workflow/skill names, file paths, and the reply
-keywords verbatim - SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+Write this block in the USER'S language (translate labels and prose; keep phase ids,
+workflow/skill names, file paths, and the reply keywords verbatim - SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ## Live task list
 
 Per `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`, create and keep current a
 live task list of this workflow's phases (one item per phase id) as execution proceeds - mark a
 phase in-progress when dispatched, done when its output is written, and add any phase inserted via
-`on_complete` or a dynamic transition as a new item. This mirrors `<slug>-state.json`'s
-`phases_done` / `last_completed_phase` for human visibility - it does not replace that checkpoint.
-Fires whenever a task-list tool is available, gated on nothing else.
+`on_complete` or a dynamic transition as a new item. This does not replace the
+`<slug>-state.json` checkpoint. Applies whenever a task-list tool is available.
 
 ## Phase execution - pattern dispatch
 
-### Pipeline (sequential, gate between each)
+### Pipeline (sequential)
 
 Run phases in order. Before each phase:
 1. Announce: "## Phase <id> - <description from nl_trigger>"
-2. If `when:` predicate is false, **skip entirely** (no gate, no dispatch, no output).
-3. If `gate` is set, emit gate and wait for approval.
+2. If `when:` predicate is false, **skip entirely** (no dispatch, no output).
+3. If `gate` is set, ask it as a text question before the phase's outward action and wait.
 4. Dispatch via the Skill tool (NL description-match as fallback); for `inline: true` phases, handle in-line.
 5. Write output to `output_dir` and update the state checkpoint.
 
@@ -129,7 +134,7 @@ If no predicate matches, fall through to the `fallback` specialist if declared.
 ### Producer-Reviewer (produce + review pair)
 
 Dispatch producer first via the Skill tool (NL description-match as fallback). Then dispatch reviewer with: "review the output for correctness -
-report findings, do not fix". Gate between produce and review.
+report findings, do not fix".
 
 ### Supervisor (inline distribution)
 
@@ -152,9 +157,8 @@ For `inline: true` phases, the runner performs the work itself:
 
 After each phase completes successfully:
 1. Write or update `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir from Phase 0
-   step 2 (`output_dir` already starts with `.odoo-ai/` in the YAML - do not prepend it again;
-   substitute the captured ISOLATE literal for that prefix, never a bare `.odoo-ai/...` path in
-   the actual Read/Write/Edit call):
+   step 2 (substitute the captured ISOLATE literal for the `.odoo-ai/` prefix, never a bare
+   `.odoo-ai/...` path in a Read/Write/Edit call):
    ```json
    {
      "workflow": "<name>",
@@ -179,15 +183,15 @@ Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
 invoke a spawner - the plan runner dispatches it.
 If no `on_complete` is declared, or none matches, finish normally.
 
-**No run above - degrade honestly.** If running WITHOUT an active run file (e.g. invoked
-directly, not through intake Phase P), emit the contract AND state plainly: "on_complete
-suggests `<next>` - auto-chaining needs a run; run `/odoo-intake` to open one, or
-trigger `<next>` manually." Never silently drop. (To AUTO-chain, enter via intake Phase P.)
+**No run above.** If running WITHOUT an active run file (not through intake Phase P), emit the
+contract AND state plainly: "on_complete suggests `<next>` - auto-chaining needs a run; run
+`/odoo-intake` to open one, or trigger `<next>` manually." Never silently drop.
 
 ## Gate handling
 
-Present the options from the YAML `gate` field verbatim. A `gate` is always ONE of the two
-declared reply sets (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`), never a third:
+A `gate` confirms an outward or irreversible action (send, publish, merge, push, delete) and
+nothing else. Present the options from the YAML `gate` field verbatim; it is ONE of the two reply
+sets of `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`, never a third:
 
 - PLAN set - `approve / refine: [feedback] / cancel`: `approve` proceeds, `refine: [feedback]`
   incorporates the feedback and re-proposes, `cancel` stops.
@@ -203,8 +207,7 @@ paths, skill names, and the reply keywords verbatim - SSOT:
 ## Out of Scope
 
 - Domain-specific logic → lives in the specialist skill or `.workflow.yaml`.
-- BRL chunk orchestration → `odoo-brl` has its own gating.
-- Creating or editing `.workflow.yaml` files (data files, not runtime artifacts).
+- BRL chunk orchestration → `odoo-brl`.
 - Direct user invocation → use `odoo-intake`.
 
 ## Standalone-first fallback
@@ -223,5 +226,4 @@ Tier 3, and training memory IS Tier 3 - a last resort, never a co-equal option.
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the plan runner - it does not change anything produced above.
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).

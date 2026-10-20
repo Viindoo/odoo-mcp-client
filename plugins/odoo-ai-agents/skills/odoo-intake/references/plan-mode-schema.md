@@ -4,10 +4,9 @@
 agent from the default tail for a one-node change).
 
 Load this when the approved Approach has `output_mode = writes-files`. The plan has three blocks
-and a run header; the main agent runs it by § Running the plan. **The plan is the only place a
-run decision is made**: the runner executes what is written here and computes nothing this file
-could have stated. `nodes` and `edges` are the ONLY ordering statement a plan makes: no field,
-header, annotation or grouping construct batches nodes together.
+and a run header; the main agent runs it by § Running the plan. `nodes` and `edges` are the ONLY
+ordering statement a plan makes: no field, header, annotation or grouping construct batches nodes
+together.
 
 **Run header** (above Block 1): `odoo_version: <concrete series>`; optional
 `osm_profile: <name|none>`, `grounded: osm | hybrid | local-source | ungrounded`. Resolve
@@ -38,8 +37,7 @@ must land separately. Each node carries:
 **A node's module set is closed under "same landing moment":** two modules belong in ONE node
 when no other node depends on one without the other, neither needs independent revert, and
 neither needs deeper reasoning than the other. Any of the three fails -> two nodes ordered by
-`depends_on`. Odoo installs and tests a comma-separated module list in ONE run on every series,
-so a multi-module node costs one database and one suite pass.
+`depends_on`.
 
 For a multi-repo delivery, one Repo Capability Card per repo (`repos[]` below).
 
@@ -289,10 +287,11 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    verification recorded with the live tip (a bounded `git-ops` read); they differ -> re-run that
    verification node on the new tip. A `.po` or `.pot` change alone does not change behaviour and
    does not trigger it.
-7. **Human gates** are exactly: the SRS, the design, the plan (two or more nodes), `merge`, and
-   any outward or irreversible operation. At a gate: write the state to the run file, ask with a
-   closed question (`approve / refine: <text> / cancel`), end the turn; on the reply read the run
-   file and continue. A finished node is never a reason to stop.
+7. **Human gates** under the approved plan are exactly `merge` and any other outward or
+   irreversible operation (send, publish, push, delete), each a text question. At a gate: write
+   the state to the run file, ask (`approve / skip / cancel`), end the turn; on the reply read the
+   run file and continue. Nothing under the plan enters Plan Mode, and a node's skill presents no
+   plan of its own (it writes its plan into its report). A finished node is never a reason to stop.
 8. The run file is the truth for resuming after a broken session: a node left `RUNNING` is
    reconciled against the worktree and the worklog before any re-launch. Workers write detail to
    `ISOLATE_DIR` and return a short report (status, paths, numbers).
@@ -309,7 +308,7 @@ materialized twice.
 
 ## Node brief
 
-Inputs only; the agent's body owns the procedure. A build node gets the fields of
+A build node gets the fields of
 `odoo-coder` § You receive, filled from the plan: `NODE`, `REQUEST` (= `inputs.objective`, then
 "Done when:" and `inputs.acceptance` verbatim), `MODULES` (`name @ path`, dependency order),
 `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID`, `WORKLOG`,
@@ -341,6 +340,6 @@ the first ready node in topological order.
 
 ## Rejection flow
 
-A `refine` or `cancel` at the plan gate loops back to the planner, never to execution: adjust the
-nodes (objective, acceptance, scope, files, assignment, effort) and re-present. Never launch a
-writes-files node off a rejected plan.
+A `refine` at the plan gate loops back to the planner, never to execution: adjust the nodes
+(objective, acceptance, scope, files, assignment, effort) and re-present in Plan Mode. `cancel`
+stops. Never launch a writes-files node off a rejected plan.

@@ -29,21 +29,13 @@ Use when you already want discovery synthesis and want to skip natural-language 
    - The natural-language prompt auto-fires the `odoo-discovery-summary` skill.
    - The skill outputs a structured markdown profile with sections: summary, business context, pain points, goals, product fit, recommended next step.
 
-3. **Phase 2: Show output**
-   - Display the skill's output to the user.
-   - Ask: "Save this profile? (approve / skip / cancel)" - the STEP gate set
-     (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`). `approve` saves it; a filename
-     supplied alongside `approve` overrides the default name; `skip` leaves it unsaved.
-   - If the user provides a custom filename, use it. Otherwise, default to
+3. **Phase 2: Write and show output**
+   - Write the profile with the `Write` tool to the filename the user supplied, else to
      `<ISOLATE_DIR>/discovery/<label>-<date>.md` where `<date>` is YYYY-MM-DD (resolve
      `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
      substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into
      a Read/Write/Edit).
-
-4. **Phase 3: Write file (optional)**
-   - If the user answers `approve`, write the profile to the file using the `Write` tool.
-   - Confirm: "`✓ Profile saved to <ISOLATE_DIR>/discovery/<filename>.md`"
-   - If the user answers `skip` or `cancel`, stop. Do not write.
+   - Display the skill's output to the user and report the saved path.
 
 ## Hard rules
 
@@ -81,22 +73,18 @@ Skill output:
   **Recommended product fit:** Odoo Accounting + Invoice Automation...
   **Next step:** Demo accounts module, pricing discussion...
 
-Agent: Save to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md? (approve / skip / cancel)
-
-User: approve
-
 Agent: ✓ Profile saved to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md
 ```
 
 ## Standalone fallback
 
-If `odoo-discovery-summary` is unavailable (OSM offline, network error), synthesize the profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back. Mark each synthesized field `[source: LLM-unverified]` (not blank `<TBD>`); the profile stays useful and can be cross-checked when OSM returns. Continue per the `approve / skip / cancel` gate above. Ask the user only for facts the notes genuinely do not contain.
+If `odoo-discovery-summary` is unavailable (OSM offline, network error), synthesize the profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back. Mark each synthesized field `[source: LLM-unverified]` (not blank `<TBD>`); the profile stays useful and can be cross-checked when OSM returns. Ask the user only for facts the notes genuinely do not contain.
 
 ## What this command does NOT do
 
 - Does **not** perform gap analysis (use `/odoo-ai-agents:odoo-gap-analysis` for that).
 - Does **not** draft a proposal or response (use `/odoo-respond-bid` for the full chain).
-- Does **not** call MCP write tools directly - only `Write` via the agent after user confirmation.
+- Does **not** call MCP write tools directly - only `Write` via the agent.
 - Does **not** commit or push files to Git.
 
 ## See also

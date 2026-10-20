@@ -1,7 +1,3 @@
-# sales-closing-cycle.workflow.yaml
-# Declarative SSOT for the sales closing cycle workflow.
-# Runner: skills/workflow-chaining - auto-discovered at runtime.
-# Pattern: Pipeline - assess deal health, draft re-engagement, plan concrete next steps.
 name: sales-closing-cycle
 domain: sales
 team_pattern: Pipeline
@@ -21,9 +17,6 @@ resume: false
 fallback: standalone
 
 phases:
-  # ------------------------------------------------------------------
-  # Phase 0 - Collect deal context (inline: runner handles)
-  # ------------------------------------------------------------------
   - id: collect-context
     inline: true
     model_tier: inherit
@@ -31,20 +24,13 @@ phases:
     # prior commitments or quotes sent, deal value band, any email/note thread.
     # Enforces confidentiality: abstract labels only; no real customer names in artifacts.
 
-  # ------------------------------------------------------------------
-  # Phase 1 - Assess deal health (inline: classify + risk score)
-  # ------------------------------------------------------------------
   - id: assess-deal-health
     inline: true
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
     # Runner evaluates: risk score (red/yellow/green), primary blocker category
     # (price / timing / competition / technical / internal / silent), confidence band,
     # and one-line rationale. Output written inline as a structured block.
 
-  # ------------------------------------------------------------------
-  # Phase 2 - Re-engagement draft via odoo-deal-followup
-  # ------------------------------------------------------------------
   - id: re-engagement-draft
     skill: odoo-deal-followup
     nl_trigger: >
@@ -56,20 +42,13 @@ phases:
       Flag any blockers that require escalation or a new internal alignment before
       contacting the customer.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
-  # ------------------------------------------------------------------
-  # Phase 3 - Next-step action plan (inline assembly)
-  # ------------------------------------------------------------------
   - id: next-step-plan
     inline: true
     model_tier: sonnet
-    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner assembles the final closing plan:
     #   1. Deal health summary (risk score + blocker)
     #   2. Recommended sequence of closing actions with owner and deadline band
     #   3. Re-engagement draft from Phase 2 (ready to send)
     #   4. "If no reply in X days" contingency action
     # Writes to .odoo-ai/sales/<customer-label>-<YYYY-MM-DD>-closing-plan.md
-    # Reminder: .odoo-ai/sales/... above resolves to the per-worktree ISOLATE dir under
-    # $ODOO_AI_HOME at runtime, outside the repo - artifacts are never committed.

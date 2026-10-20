@@ -8,43 +8,28 @@
 
 # i18n mandate contract (SSOT)
 
-Across a major Odoo series the `.pot`/`.po` TOOLING changes independently of content: the export
-command line moves and `ir.translation` disappears. A module carried across that boundary needs its
-catalog re-exported and reconciled on the TARGET series once, whether or not its own strings
-changed. The export goes through `instance_i18n_export`, which spells the target series' export
-itself. A content predicate ("did the diff touch a label?") is
-therefore the wrong shape for this gate, and it under-fires silently.
+A module carried across a major Odoo series needs its catalog re-exported and reconciled on the
+TARGET series once, whether or not its own strings changed. The export goes through
+`instance_i18n_export`.
 
 ## The mandate
 
 Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The run is not DONE until
 `odoo-i18n` returns a per-module result or a RECORDED escape from the table below.
 
-**Caller obligations (all five, or the mandate is unsound):**
-1. Pass `WORKTREE_PATH` - the worktree the adapt wrote. `.po`/`.pot` are git-tracked and
-   `odoo-translator` is a separate agent context that does not inherit cwd.
+**Caller obligations (all five):**
+1. Pass `WORKTREE_PATH` - the worktree the adapt wrote.
 2. Pass an `INSTANCE_HANDLE` (or `SELF_PROVISION: worktree-addons`) whose addons path covers that
    worktree, so the export reads POST-ADAPT code
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion). An
-   instance on the principal checkout makes a worktree-only `msgid` surface as nothing and the loss is
-   committed unseen.
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion).
 3. Pass explicit `TARGET LANGUAGES` whenever you already have one - never withhold a resolvable list.
-   When you genuinely have none (nothing configured, nothing inferable on your side), OMIT the field
-   rather than fabricate one: `odoo-i18n` P0 still runs its OWN tiers 2-4 (machine-global registry,
-   `.po`-filename inference, live `res.lang` query) against whatever IS available, and only records
-   escape E3 once ALL of tiers 1-4 come up empty. `odoo-i18n` has no hardcoded target-language
-   default to fall back on - omitting the field never triggers one, inside a mandate or outside
-   it; it only ever reaches escape E3 above.
-4. Present the returned result at YOUR OWN existing human gate - do NOT let `odoo-i18n` open a separate
-   STOP per invocation. A mandated step that always stops is a deadlock.
+   When you have none, OMIT the field rather than fabricate one; `odoo-i18n` P0 runs its OWN tiers
+   2-4 and records escape E3 only once ALL of tiers 1-4 come up empty.
+4. Present the returned result in your own report.
 5. Hand over an instance BUILT FOR EXPORT - installed WITH DEMO DATA, `en_US` plus the target
    languages active - or hand over none and let `odoo-i18n` build its own
-   (`SELF_PROVISION: worktree-addons`). Reusing a lease you happen to hold (a test DB, a review
-   instance, anything `demo=off`) truncates the catalog: demo-owned records carry translatable terms,
-   and re-exporting a maintained `.po` from a demo-less build drops entries the committed file
-   already holds, which then read as accidental losses. Demo loads at `-i` only, so it cannot be
-   added afterwards. The wrong instance is worse than none - none BLOCKS loudly, the wrong one
-   succeeds quietly. Rule:
+   (`SELF_PROVISION: worktree-addons`). Never reuse a lease you happen to hold (a test DB, a review
+   instance, anything `demo=off`). Rule:
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4/KT5.
 
 ## Escape hatches (ENUMERATED - no others; every skip RECORDED, never silent)
@@ -64,33 +49,29 @@ BOTH conditions.
 
 ## Orchestrator obligations - what a CALLER must never instruct
 
-A caller need not know how translation works, but it must not instruct AGAINST it: a leaf told one
-thing by its contract and another by its brief follows the brief. These four are the instructions
-that actually get given. Each row names the SSOT that owns the fact; none is restated here.
+A caller never instructs against the i18n leaf's contract. Each row names the SSOT that owns the fact.
 
-| Never instruct | Why it is wrong | Owner of the fact |
-|---|---|---|
-| "skip demo / reuse the test DB / build it fast" | Demo-owned records carry translatable terms, so a demo-less build ships a truncated catalog AND turns committed entries into phantom removals | `skills/odoo-i18n/references/i18n-recipe.md` KT4 |
-| "get the untranslated count to zero" | Odoo stores a translation equal to its source EMPTY, so such a blank is DONE; a zero-blank target orders the leaf to write the `msgid` into it | `snippets/po-entry-semantics.md` § An empty `msgstr` |
-| "export just the `.pot`" / a fresh instance per language | Every artifact of one run must come from ONE build, or the reconcile compares different term inventories and its rulings are void | `skills/odoo-i18n/references/i18n-recipe.md` KT5 |
-| "test that the translation is right / the catalog complete" | That wording is improved continuously, so the test fails on an improvement; the catalog is gated by this pipeline, never by the suite | `snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY text |
+| Never instruct | Owner of the fact |
+|---|---|
+| "skip demo / reuse the test DB / build it fast" | `skills/odoo-i18n/references/i18n-recipe.md` KT4 |
+| "get the untranslated count to zero" | `snippets/po-entry-semantics.md` § An empty `msgstr` |
+| "export just the `.pot`" / a fresh instance per language | `skills/odoo-i18n/references/i18n-recipe.md` KT5 |
+| "test that the translation is right / the catalog complete" | `snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY text |
 
-Positive form, short enough to carry: **dispatch `odoo-i18n`, give it a worktree plus either a
+Positive form: **dispatch `odoo-i18n`, give it a worktree plus either a
 demo-loaded instance or permission to build one, name the languages if you know them, and let it
 decide what counts as translated.**
 
 ## Catalog-presence check (E2 clause 1 - mechanical, decidable by BOTH flows)
 
-"Ships an `i18n/` directory" is decided the SAME way regardless of which pipeline is asking - defined
-ONCE here; neither caller restates it.
+
 
 - **What is read:** whether `<module>/i18n/` exists AND holds at least one `*.po` or `*.pot` file. An
   absent directory and a present-but-empty directory both count as "no catalog."
 - **Which tree:** `WORKTREE_PATH` - the SAME worktree caller obligation 1 already requires, at its
   current on-disk state (this run's adapt has already landed there).
 - **Which ref:** none - a plain FILESYSTEM read of the worktree as it stands, never a git-history read
-  and never Odoo Semantic MCP. OSM does NOT index `i18n/*.po`/`*.pot` (`module_inspect`,
-  `describe_module`, `check_module_exists` return no such listing) - disk read is the only path.
+  and never Odoo Semantic MCP.
 - **The two outcomes:**
   - `<module>/i18n/` exists and holds >=1 `.po`/`.pot` file -> catalog PRESENT -> E2 clause 1 FAILS
     (this module already ships a catalog; the mandate applies regardless of the trigger table).
@@ -112,21 +93,18 @@ Read `installable_false` from the module's row in `merge-log.md` - the verbatim 
 prober emitted, coerced to `yes`/`no`. `installable_false == no` -> the module is live at the target and
 the mandate applies. `== yes` -> E4. Categories 1-2 the orchestrator resolved itself without a probe:
 read the same `yes`/`no` it recorded. Neither present -> **BLOCK**; do not guess and do not re-probe.
-`installable_false` is the ONE field this condition reads - do not substitute any other field name
-(internal-only, prober-side values are never persisted and no consumer parses them by name).
+`installable_false` is the ONE field this condition reads.
 
 ## Trigger table - "touches translatable terms" (E2 clause 2 / condition 1 - BOTH flows)
 
-Scan the diff THIS RUN's own adapt produced for the module - never the module's whole history, only
-what this run changed. The scan target resolves per caller (same signal table, different source):
+Scan the diff THIS RUN's own adapt produced for the module. The scan target resolves per caller:
 
 - **forward-port:** the ALREADY-MATERIALIZED per-commit dumps for this batch -
   `<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump` (full patch: message + diff).
 - **modules-upgrade:** the module's own P4 adapt diff - invoke `git-toolkit:git-ops` (read-only) for
   a full-patch diff of `<module>/` between `<work-base>` and `HEAD`, inside the module's worktree
   (`<path>/upg-<module>` when a child worktree was used, else `<path>/upg-integration` under the
-  collapse-first `n<=1` rule). No new dump file is needed; this reuses the SAME worktree + base already tracked for
-  the module's own commit.
+  collapse-first `n<=1` rule).
 - **the plan's i18n node:** the run-integration branch's aggregate diff (every module, across
   every node) - invoke `git-toolkit:git-ops` (read-only) for a full-patch diff of the run's changed
   modules between the run's base and `HEAD`, inside the `<path>/run-integration` worktree; per
@@ -134,9 +112,7 @@ what this run changed. The scan target resolves per caller (same signal table, d
   the fix round, on the stable tip), scanned ONCE for the whole run, never per module.
 
 Consider only CHANGED lines (leading `+` or `-`, excluding the `+++`/`---` file headers). A signal HITS
-on ANY match; record the fired set as a FIELD, never as raw grep output (discipline:
-`odoo-diff-comparator`'s `deferred_work_due` / `deferred_work_unanchored` fields are the shape
-to copy).
+on ANY match; record the fired set as a FIELD, never as raw grep output.
 
 | # | fires when a changed line ... |
 |---|---|
@@ -149,6 +125,4 @@ to copy).
 | S7 | sets `field_description`, `subject`, `body_html`, `body`, `note`, `description`, or `name` on a record (any `.xml` or `.csv`) |
 | S8 | is in `__manifest__.py` and touches the `name`, `summary`, or `description` key |
 
-Record `i18n_signals: [S1,S4]` (the fired ids) or `i18n_signals: none`. **Ambiguity counts as a HIT** -
-the asymmetry is deliberate: a false positive costs one reconcile pass that finds nothing, while a false
-negative ships a broken catalog. Do not re-derive that trade-off per call.
+Record `i18n_signals: [S1,S4]` (the fired ids) or `i18n_signals: none`. **Ambiguity counts as a HIT.**

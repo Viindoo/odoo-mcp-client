@@ -7,14 +7,8 @@ disable-model-invocation: true
 ---
 # /odoo-run-brl
 
-Thin dispatcher for the `odoo-brl` skill. Accepts an optional `$ARGUMENTS` token for
-the customer label (e.g. `/odoo-run-brl Customer-A`). All orchestration logic lives in the
-skill body - this command is a recipe shim only, following the 1-orchestration-SSOT rule.
-
-> Named `odoo-run-brl` (not `odoo-brl`) so the command name stays disjoint from the skill
-> name. The skill also auto-registers `/odoo-ai-agents:odoo-brl`; this command is the
-> convenience entry point taking a customer-label argument and dispatching to the same skill
-> body - one orchestration mechanism, two entry points.
+Thin dispatcher for the `odoo-brl` skill. Takes an optional customer label in `$ARGUMENTS`
+(e.g. `/odoo-run-brl Customer-A`). All orchestration logic lives in the skill body.
 
 ## When to use
 
@@ -31,31 +25,28 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-ai-agents:odoo
 
 ## Hard rules
 
-1. **Phase gate mandatory.** GATE 0 blocks all classification work; GATE E blocks all deliverable
-   writes. The command does NOT advance past either gate without explicit user confirmation.
-2. **Project facts.** At startup, resolve the Odoo series and OSM profile by working the rungs of
+1. **Project facts.** At startup, resolve the Odoo series and OSM profile by working the rungs of
    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order, stopping at the first that
-   answers; ask only for what every rung left unresolved. When no `[[instance]]` covers this repo,
+   answers; return `status: NEEDS_CONTEXT` naming what every rung left unresolved. When no `[[instance]]` covers this repo,
    offer `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition. Resolve
    `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
    before any state-root read or write; substitute the captured absolute path - never write the
    placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
-3. **Abstract labels.** Use the customer label from `$ARGUMENTS` or default "Customer-A".
+2. **Abstract labels.** Use the customer label from `$ARGUMENTS` or default "Customer-A".
    Never write real company names, VND figures, or internal pricing into any committed file.
-4. **Dispatch via the Skill tool.** This command fires the `odoo-brl` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.
-5. **Public repo safety.** All job artifacts go to `<SHARE_DIR>/brl/<job-id>/` which is gitignored.
+3. **Dispatch via the Skill tool.** This command fires the `odoo-brl` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.
+4. **Public repo safety.** All job artifacts go to `<SHARE_DIR>/brl/<job-id>/` which is gitignored.
    No deliverable is committed to the repo.
 
 ## Invocation
 
 ### Step 0 - Parse arguments + dispatch
 
-1. Extract customer label from `$ARGUMENTS`. If absent, use "Customer-A" as default or
-   ask the user in a single brief message.
+1. Extract customer label from `$ARGUMENTS`. If absent, use "Customer-A".
 2. **Resolve the BRL content yourself.** If `$ARGUMENTS` contains a file path (ends in
    `.csv`/`.md`/`.txt`/`.xlsx`, or passes a file-exists check), `Read` it and embed the actual
    content into the dispatch. If the BRL is already present in the invocation context, use that.
-   Only ask for a path or paste when no source is available.
+   When no source is available, return `status: NEEDS_CONTEXT` naming the requirement list.
 3. Fire the `odoo-brl` skill via the Skill tool (substitute the real BRL content, never leave a
    placeholder):
 
@@ -65,8 +56,6 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-ai-agents:odoo
 > a full RTM (rtm.csv + results.jsonl) and executive report (report.md) in
 > <SHARE_DIR>/brl/[CUSTOMER_LABEL]-[DATE]-[HEX]/. Input: [embed the BRL content read above; if a
 > file_path was given, use the Read output]."
-
-The skill handles all phases (INGEST, GATE 0, Phase A-B-C-E, GATE E) with checkpoint/resume.
 
 ## Resume
 
@@ -78,28 +67,5 @@ The skill reads `checkpoint.json` and resumes at `last_completed_chunk + 1`.
 
 ## Standalone fallback
 
-If OSM is unreachable, the skill degrades gracefully: LLM-based classification
-(marked `unverified-llm`), cost computation still runs from config. See skill body
-`## Standalone-first fallback` section.
-
-## Examples
-
-```
-/odoo-run-brl Customer-A
-```
-Starts BRL pipeline for Customer-A. The command reads the BRL from a file path in `$ARGUMENTS`
-or from the invocation context (paste is the last resort). GATE 0 presents plan. After
-approval: classify -> cost -> evidence -> DAG -> GATE E -> deliverables.
-
-```
-/odoo-run-brl
-```
-Defaults to Customer-A label. Same flow.
-
-## What this command does NOT do
-
-- Does NOT send emails or upload files
-- Does NOT commit anything to the repo (all artifacts in `<SHARE_DIR>/brl/`)
-- Does NOT guarantee OSM availability - degrades gracefully when unreachable
-- Does NOT externalize cost estimates without passing GATE E (the approval gate safeguards
-  any deliverable shared, whether the caller is a human or an orchestrator)
+If OSM is unreachable, the skill classifies by LLM (marked `unverified-llm`) and cost still runs
+from config (skill body `## Standalone-first fallback`).

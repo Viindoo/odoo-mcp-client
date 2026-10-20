@@ -1,8 +1,3 @@
-# ui-debug-session.workflow.yaml
-# Declarative SSOT for the long-running UI debug session workflow.
-# Runner: skills/workflow-chaining - auto-discovered at runtime.
-# Pattern: Pipeline with resume: true - each phase writes state so a multi-hour
-# debug session can be interrupted and continued without losing context.
 name: ui-debug-session
 domain: engineering
 team_pattern: Pipeline
@@ -24,34 +19,23 @@ resume: true
 fallback: standalone
 
 phases:
-  # ------------------------------------------------------------------
-  # Phase 0 - Collect symptom + environment (inline)
-  # ------------------------------------------------------------------
   - id: collect-symptom
     inline: true
     model_tier: inherit
     # Runner collects: symptom description, Odoo version, affected module/menu,
     # browser and JS console errors (pasted), network request failures (optional),
-    # reproduction steps. Writes .odoo-ai/debug/<slug>-symptom.md - the concrete,
-    # named artifact every later phase reads back from disk rather than trusting
-    # conversation context (this is what makes the resume promise below actually true).
+    # reproduction steps. Writes .odoo-ai/debug/<slug>-symptom.md - every later phase reads it
+    # back from disk, not from conversation context.
 
-  # ------------------------------------------------------------------
-  # Phase 1 - Reproduce the symptom (inline)
-  # ------------------------------------------------------------------
   - id: reproduce
     inline: true
     model_tier: haiku
-    gate: "approve / refine: [feedback] / cancel"   # refine: [notes] also carries "I cannot reproduce it" - the notes say so
     # Runner analyzes the symptom card and produces:
     #   1. Minimal reproduction path (menu / action sequence)
     #   2. Expected vs actual behavior statement
     #   3. Confidence that this is reproducible (high/medium/low)
     # Writes .odoo-ai/debug/<slug>-reproduce.md
 
-  # ------------------------------------------------------------------
-  # Phase 2 - Inspect root cause via inline UI diagnosis (debug-method)
-  # ------------------------------------------------------------------
   - id: inspect
     inline: true
     nl_trigger: >
@@ -59,9 +43,7 @@ phases:
       and the UI rows of ${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md; fill the
       Output Contract.
       Before diagnosing, read back .odoo-ai/debug/<slug>-symptom.md and
-      .odoo-ai/debug/<slug>-reproduce.md from disk - do not rely on this session's own
-      conversation context for their content, since a resumed multi-hour session may
-      continue in a fresh context that never saw the earlier phases run. Investigate the
+      .odoo-ai/debug/<slug>-reproduce.md from disk - not from conversation context. Investigate the
       Odoo UI issue recorded in those two artifacts. Identify the ROOT CAUSE of the misbehavior -
       console errors, failed network requests, blank OWL renders, broken widget state,
       wrong computed values, or CSS overrides not applying. Provide: (a) the exact root
@@ -70,45 +52,30 @@ phases:
       contributing factors. Do not write the fix yet - focus on diagnosis.
       This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence in the two read-back artifacts above; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
 
-  # ------------------------------------------------------------------
-  # Phase 3 - Hypothesize fix options (inline)
-  # ------------------------------------------------------------------
   - id: hypothesize
     inline: true
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"   # approve = take the recommended option; refine: [option B] = pick another
     # Runner takes the root cause from the inspect phase and produces 2-3 fix hypotheses:
     #   - Option A: minimal patch (low risk, targeted)
     #   - Option B: proper override (medium effort, correct pattern)
     #   - Option C: upstream fix or skip (if root cause is a core bug)
     # Each option includes: approach, files to change, effort estimate (S/M/L),
-    # risk level, and whether it survives an Odoo upgrade.
+    # risk level, and whether it survives an Odoo upgrade. Mark one option recommended.
 
-  # ------------------------------------------------------------------
-  # Phase 4 - Fix guidance (inline)
-  # ------------------------------------------------------------------
   - id: fix-guidance
     inline: true
     model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
-    # Runner generates concrete fix guidance for the selected hypothesis:
+    # Runner generates concrete fix guidance for the recommended hypothesis:
     #   1. Step-by-step instructions with exact file paths and code changes
     #   2. Any migration or manifest changes needed
     #   3. Odoo-version-safe patterns (inherit_id, xpath, OWL component override)
     # Writes .odoo-ai/debug/<slug>-fix-guidance.md
 
-  # ------------------------------------------------------------------
-  # Phase 5 - Verify outcome (inline)
-  # ------------------------------------------------------------------
   - id: verify
     inline: true
     model_tier: inherit
-    gate: "approve / refine: [feedback] / cancel"   # approve = fixed; refine: [notes] = still failing, loops back to inspect
     # Runner prompts user to apply the fix and report back:
     #   - If resolved: writes a closure summary with root cause + fix applied
     #   - If still failing: loops back to inspect with updated symptom card (resume)
     # Final artifact: .odoo-ai/debug/<slug>-session-summary.md
-    # Reminder: .odoo-ai/debug/... above resolves to the per-worktree ISOLATE dir under
-    # $ODOO_AI_HOME at runtime, outside the repo - debug artifacts are never committed.

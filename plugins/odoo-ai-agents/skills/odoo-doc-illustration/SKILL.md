@@ -13,7 +13,6 @@ site kept in its own repository is `odoo-doc-site`. It settles the tree the docs
 in, plans the instances a multi-module package needs, provisions each instance, launches ONE
 `odoo-doc-writer` per module (`MODE: full` for the user guide, resumed with `MODE: landing` for
 the App Store page), verifies the references, commits per module and releases what it leased.
-The writer owns the documents; this skill owns the tree, the instances and the order.
 
 ## Out of Scope
 
@@ -37,23 +36,20 @@ line per added, changed or removed user-visible feature with its module and UI l
 module's feature list is the lines of that file that name the module. `CHANGE` is the one update input: with a feature list
 the writer rewrites only the affected sections and recaptures only the affected screens; `whole`
 documents the module again from scratch; absent, a module that already ships docs is left alone
-(step 2). A caller may supply per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`,
+(`doc:false`, step 3). A caller may supply per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`,
 `MARKETING COPY`, `BUYER PROFILE`; each is forwarded and never rebuilt.
 
 ## Steps
 
-1. **The tree.** `doc_root` = the worktree the caller names (`WORKTREE_PATH`, `worktree:`), else
-   the top level of the repo holding the module. One bounded read tells the kinds apart
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read allowlist):
-   `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`. Two paths: a
-   linked worktree, used as is. The same path twice: a principal checkout, which never takes a
-   write - run `git -C <doc_root> status --porcelain -- <each module path and its in-repo
-   dependencies>`; when it lists anything, ask once (commit first, or document HEAD without it)
-   as part of the gate of step 3; then invoke `git-toolkit:git-ops` to create a docs worktree and
-   branch at HEAD under `worktree_root` = `project_dir` (axis `worktree`, `name` = `docs-<slug>`),
-   and re-root every module path into it. Not under git: use it as is, nothing to commit. Then
-   capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir` (`cwd` = `doc_root`, axes
-   `share` and `isolate`) and pass the same literals to every launch and to step 7.
+1. **The tree** (read-only until the plan of step 3 is decided). `doc_root` = the worktree the caller names
+   (`WORKTREE_PATH`, `worktree:`), else the top level of the repo holding the module. One bounded
+   read tells the kinds apart (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read
+   allowlist): `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`. Two
+   paths: a linked worktree, used as is. The same path twice: a principal checkout, which never
+   takes a write - run `git -C <doc_root> status --porcelain -- <each module path and its in-repo
+   dependencies>`; when it lists anything, ask once as a text question (commit first, or document
+   HEAD without it) before the plan is presented. Not under git: use it as is, nothing to commit.
+   Capture `SHARE_DIR` once with `project_dir` (`cwd` = `doc_root`, axis `share`).
 2. **Scope and plan (inline, no launch).** Per module: `abs_path`, `version`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), `languages` (§ Language
    resolution), `doc_layer`, `has_demo`, `depends_in_scope`, `has_ondisk_doc`, `change`, `target_market`
@@ -61,21 +57,30 @@ documents the module again from scratch; absent, a module that already ships doc
    § Target market) - field rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`
    § Input. One module: one instance, one step. Several: compute `doc-plan.yaml` per that file's
    algorithm (clusters, branch-aware instances, leaf-first order, dedup, `W`) and write it to
-   `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`.
-3. **One gate.** Present the whole plan - modules, instances and order, `doc:false` modules with
-   their reason (a module with docs on disk and no `change` is listed here; `refine: redo <module>`
-   sets its `change` to `whole`), `W`, one `TARGET MARKET` row per appstore module, the
-   uncommitted-changes question of step 1 - for one `approve / refine: [feedback] / cancel`. `refine` recomputes the
-   plan; `cancel` leaves nothing behind. A single module with every input resolved skips the gate
-   except the target-market and uncommitted-changes questions and, for a module with docs on disk
-   and no `change`, the question "redo from scratch, or give the change", asked once.
+   `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`. Per module also list the sections of
+   its guide and App Store page the run will write or recapture and the screens it will capture:
+   with `change`, the ones the change file's lines name; otherwise every section and screen of the
+   module (`module_inspect`).
+3. **Plan decision - always, also for one module with every input resolved.** When this skill
+   owns the request, present the whole plan through Plan Mode
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request):
+   `EnterPlanMode`, show modules, instances and order, the sections and screens per module,
+   `doc:false` modules with their reason (a module with docs on disk and no `change` is listed;
+   `refine: redo <module>` sets its `change` to `whole`), `W`, one `TARGET MARKET` row per appstore
+   module for the user to correct, then `ExitPlanMode` on approve. `refine: [feedback]` recomputes
+   the plan; `cancel` leaves nothing behind. Under an approved plan - a plan node, a workflow
+   phase, the closing documentation of another run - present no gate: write the plan into the
+   return and continue with the proposed target markets. Once the plan is decided, a principal
+   checkout gets its docs worktree: invoke `git-toolkit:git-ops` to create a worktree and branch at
+   HEAD under `worktree_root` = `project_dir` (axis `worktree`, `name` = `docs-<slug>`) and re-root
+   every module path into it. Then capture `ISOLATE_DIR` with `project_dir` (`cwd` = `doc_root`,
+   axis `isolate`) and pass the same literals to every launch and to step 7.
 4. **Orphan sweep**, before any launch: remove abandoned staging of earlier runs -
 
    ```
    find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos ! -name adhoc -mmin +1440 -exec rm -rf {} +
    ```
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3; the eight
-   named children are other owners' trees).
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
 5. **Per instance path** (sequential within a path; paths in parallel up to `W`, each on its own
    browser family and instance - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
    § Browser exclusivity):
@@ -106,15 +111,15 @@ documents the module again from scratch; absent, a module that already ships doc
    `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`), then
    delete this run's staging only: `rm -rf <ISOLATE_DIR>/visual/<run_id>/` (never a bare
    `visual/`).
-7. **Return.** `doc-run-<run_id>/index.jsonl` listing every output path; the worktree and branch
-   when step 1 created them (this skill never merges or pushes); the `concerns` collected.
+7. **Return.** The plan of step 3; `doc-run-<run_id>/index.jsonl` listing every output path; the worktree and branch
+   when step 3 created them (this skill never merges or pushes); the `concerns` collected.
 
 ## Language resolution
 
 The locale list passed as `LANGUAGES` to every launch, first tier that yields a value: the
 brief's `LANGUAGES`; `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` `default_languages`; the module's
 `i18n/*.po` locales; `res.lang` active languages on the live instance. All four empty:
-`NEEDS_CONTEXT(documentation language)` - no built-in default, the same rule as `odoo-i18n`.
+`NEEDS_CONTEXT(documentation language)` - no built-in default.
 Then union with the locales already documented on disk (`index_<locale>.html`,
 `doc/index_<locale>.rst`) so no translation is dropped, and add `en_US`, the canonical suffix-less
 file.

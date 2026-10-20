@@ -1,17 +1,12 @@
-<!-- Reference for `odoo-forward-port` § The pipeline. Loaded as needed.
-     Per-phase git commands, dispatch-brief templates, and worklog formats. The SKILL.md body
-     carries the contract; this file carries the verbatim commands and brief text. -->
+<!-- Reference for `odoo-forward-port` § The pipeline: per-phase git commands, dispatch-brief templates, worklog formats. -->
 
 # Forward-Port Pipeline - per-phase execution detail
 
 All paths are under the integration worktree unless noted. `<slug>` derives from the
 source/target series (`<source-series>-to-<target-series>`). Artifacts live under
 `<ISOLATE_DIR>/forward-port/<slug>/` (gitignored; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
-never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Every Odoo Semantic call passes a concrete
-`odoo_version=` (never a default; the pin is session-scoped state any other actor sharing this
-session can overwrite - SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` §
-OSM session-pin race).
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path). Every Odoo Semantic call passes a concrete
+`odoo_version=` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race).
 
 ---
 
@@ -40,65 +35,48 @@ or under an addons subdir, e.g. `addons/l10n_vn/`).
 **Group by module first (R2a).** Invoke `git-toolkit:git-ops` (read-only) to list touched files
 per commit (`--name-only`) for every commit in the range, then map each touched path to its owning
 module (same resolution rule as `--scope` above). Build `module -> [ordered sha list]`
-(chronological, oldest first); a commit touching 3 modules appears in each of the 3 modules' lists
-(shared reference, never duplicated). This map is what P1 dispatches over.
+(chronological, oldest first); a commit touching 3 modules appears in each of the 3 modules' lists.
+This map is what P1 dispatches over.
 
 For each MODULE's commit bundle, triage the EXTRACT tier INLINE (`git show --stat <sha>` for every
 commit in the bundle; for an override-depth question, one `find_override_point` probe) per
 `references/fp-triage-table.md` Table 1 - the tier is the HIGHEST-priority row any commit in the
-bundle matches; the orchestrator triages the tier itself; never dispatch an agent to decide a
-dispatch.
+bundle matches; triage inline, never dispatch an agent to decide a dispatch.
 
-This is recon only. There is NO approval gate here, NO `plan.md` written, NO branch, NO worktree -
-the plan gate is P4 (Plan Mode), after intent + classify + design. Write the per-commit EXTRACT tier
+Recon only: NO gate, NO `plan.md`, NO branch, NO worktree. Write the per-commit EXTRACT tier
 and the range facts to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` (each commit's row carries the
-tier its module's bundle resolved to, per the module-bundle grouping above), then READ that file back at the
-start of P1 rather than relying on this phase's text still being in context - a resumed
-run must not re-triage the range.
+tier its module's bundle resolved to), then READ that file back at the start of P1; a resumed run
+must not re-triage the range.
 
 ---
 
 ## P1 - Intent extract (PARALLEL, READ-ONLY, MODULE-SCOPED)
 
 **BAN (R2b): dispatch ONE `odoo-intent-extractor` per MODULE, never per commit.** Walk the P0
-`module -> [ordered sha list]` map; for each module, launch exactly one subagent - real tool calls,
-never narrated - carrying that module's FULL ordered commit list. Set BOTH the `model` parameter
-(the module bundle's triaged EXTRACT tier, per `references/fp-triage-table.md` Table 1) and the
-brief. Concurrency: Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-- the budget counts MODULES in flight, not commits); rolling-window beyond the budget. No child
-worktree - extraction is read-only on git history + OSM. A second instance for a module already
-dispatched this run, WHILE the first is still live or already succeeded, is a defect; resume the
-SAME instance by the id its own launch returned (CHP Tier-A) for a failed or incomplete pass.
-**Tier-C (no recorded id, or it no longer resolves):** once the failed/incomplete instance's turn has fully ended, dispatch
-ONE superseding `general-purpose` worker carrying the SAME full `commit_dump_paths` plus `PRIOR
-ATTEMPT: <failure detail>` - a replacement, never a second concurrent instance. Full rule: `SKILL.md`
-§ P1.
+`module -> [ordered sha list]` map; for each module, launch exactly one subagent (real tool calls,
+never narrated) carrying that module's FULL ordered commit list. Set BOTH the `model` parameter
+(the module bundle's triaged EXTRACT tier, `references/fp-triage-table.md` Table 1) and the brief.
+Concurrency: Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`; the budget
+counts MODULES in flight, not commits). No child worktree. Retry rules (resume the SAME instance;
+Tier-C superseding replacement): `SKILL.md` § P1.
 
 Pre-step (once before the parallel dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
 in a batch pass to write per-commit dump files. For each commit SHA in the range:
 
 - op: full-patch commit show (full message + diff) for the sha
 - `output: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`
-- `repo: <main-checkout-root>` (cross-repo ports only; source commits live only in the main
-  checkout after the P0 source-remote add+fetch)
+- `repo: <main-checkout-root>`   (cross-repo ports only)
 
 Collect the `{ <sha>: <abs-path> }` map before dispatching any extractor, then group it BY MODULE
 using the P0 `module -> [ordered sha list]` map to build each module's `commit_dump_paths`. Every
-extractor brief MUST include `commit_dump_paths` (the module's ordered map) from this grouping;
-the extractor mandates this field for its P1 bulk-sweep use and never runs git itself.
+extractor brief MUST include `commit_dump_paths` (the module's ordered map).
 
-**SLUG is PER-MODULE here, never the bare run slug (closes the B2 shared-commit write race).** R2a's
-module map and R2b's per-module cap together mean a commit shared between modules A and B is
-intentionally dispatched to BOTH modules' single extractor instances - two independent instances
-legitimately process the identical SHA, and would otherwise both write the SAME `intents/<sha>.md`
-path with no owner or merge rule. Set this brief's `SLUG` field to `<slug>/<module>` (the run
-`<slug>` plus this module's own name) - the extractor's own write-path template then resolves
-per module automatically, no agent change needed. `commit_dump_paths` below is UNCHANGED - those are
-already-resolved absolute paths the orchestrator wrote ONCE (single writer, shared read-only),
-keyed by the run-level `<slug>`, never per-module.
+**SLUG is PER-MODULE here, never the bare run slug.** A commit shared between modules A and B is
+dispatched to BOTH modules' extractor instances. Set the brief's `SLUG` field to `<slug>/<module>`.
+`commit_dump_paths` stays keyed by the run-level `<slug>`.
 
-Brief (run-specific inputs only - the agent's system prompt owns every procedure):
+Brief (run-specific inputs only):
 
 ```
 DISPATCH MODEL: <extract-tier>            # the MODULE bundle's tier, per Table 1
@@ -106,17 +84,15 @@ MODULE: <module-name>
 commit_dump_paths:
   <sha1>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha1>.dump
   <sha2>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha2>.dump
-  # ... every sha touching this module, oldest first (run-level <slug> - shared, read-only, single writer)
-SOURCE SERIES: <e.g. 16.0>
-SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
+  # ... every sha touching this module, oldest first
+SOURCE SERIES: <source series>
+SLUG: <slug>/<module>              # PER-MODULE namespace for this extractor's intents/ writes
 TASK: Extract business intent + behavioral contract for every commit in commit_dump_paths
 USER LANGUAGE: <lang | omit when English>
 ```
 
 Aggregate every returned summary (`sha / intent_file / intent_one_liner / symbols /
-4_outcome_hint / grounded` - one per commit, all returned from the module's single dispatch;
-`intent_file` is that module's own module-scoped path per the SLUG substitution above, so
-P2/P3/8b read THAT returned path rather than reconstructing one from the bare run `<slug>`) into
+4_outcome_hint / grounded` - one per commit; P2/P3/8b read the returned `intent_file` path) into
 the P2 classify queue. Mark each commit `status=extracted` in `checkpoint.json`.
 
 ---
@@ -124,16 +100,15 @@ the P2 classify queue. Mark each commit `status=extracted` in `checkpoint.json`.
 ## P2 - Classify + installable-probe (module-first order, per-commit bucket, OSM)
 
 Walk modules in the SAME order the P0/P1 map established, and within each module walk its commits
-in that module's own order (R2a) - the bucket decision below stays per-commit.
+in that module's own order (R2a); the bucket decision stays per-commit.
 
 ```python
-set_active_version(odoo_version='17.0')                          # pin target; reachability probe
-api_version_diff(symbol='account.move._post', from_version='16.0', to_version='17.0')
-model_inspect(model='account.move', method='summary', odoo_version='17.0')
+set_active_version(odoo_version='<target_version>')              # pin target; reachability probe
+api_version_diff(symbol='account.move._post', from_version='<source_version>', to_version='<target_version>')
+model_inspect(model='account.move', method='summary', odoo_version='<target_version>')
 ```
 
-Assign exactly one bucket a/b/c/d per `[[fp-intent-4outcome]]` (read it - do not re-derive the
-definitions). Append one row per commit to `merge-log.md` (intent / bucket / reason / evidence -
+Assign exactly one bucket a/b/c/d per `[[fp-intent-4outcome]]`. Append one row per commit to `merge-log.md` (intent / bucket / reason / evidence -
 no blank Reason or Evidence cell). C3 escalations use the canonical row
 `<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`. `odoo-version-diff` forward-port mode supplies the per-symbol
 bucket suggestion when the diff is large. Refine the commit's ADAPT tier now that the bucket is
@@ -141,22 +116,18 @@ known (bucket a/d -> haiku, test-only).
 
 **Installable-probe (TARGET CLEAN-TIP rule).** For each touched module, resolve its `installable` flag
 at the target clean-tip (BEFORE merge) by reading `<module>/<tgt-descriptor>` at `target_ref` - written
-by git-ops (read-only) to `manifest_path` in the pre-step below, which now runs for EVERY touched
-module, not only before a dispatch. `<tgt-descriptor>` and `<src-descriptor>` are the per-side
-descriptor filenames SKILL.md Hard rule 11 resolved once (`__manifest__.py`, or `__openerp__.py` on
-v8.0-v9.0); they can differ across a v9.0 -> v10.0 port. An absent `installable` key means installable
-(Odoo convention); an absent FILE means the module is not on the clean tip - a conclusion only the
-side's OWN descriptor filename can support.
+by git-ops (read-only) to `manifest_path` in the pre-step below, which runs for EVERY touched
+module. `<tgt-descriptor>` and `<src-descriptor>` are the per-side descriptor filenames SKILL.md
+Hard rule 11 resolved once. An absent `installable` key means installable; an absent FILE means the
+module is not on the clean tip.
 
 DISPATCH the read-only haiku leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
-needed to disambiguate category 3 - the module's manifest was NOT touched by the forwarded commit range and
-its target state is unclear. Whether resolved directly (categories 1-2) or via the
-prober (category 3), record `installable_false=yes|no` in `merge-log.md` for the module - the ONE
-field any later phase reads for its installable state.
+needed to disambiguate category 3 (manifest NOT touched by the forwarded commit range and target
+state unclear). Record `installable_false=yes|no` in `merge-log.md` for the module - the ONE field
+any later phase reads for its installable state.
 
-Pre-step (unconditional - runs for EVERY touched module, not only before a dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files. For
-cross-repo ports include `repo: <main-checkout-root>` (source commits live only in the main
-checkout after P0 bootstrap):
+Pre-step (for EVERY touched module): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files. For
+cross-repo ports include `repo: <main-checkout-root>`:
 
 - `manifest_path`: read `<module>/<tgt-descriptor>` at `target_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`
@@ -164,8 +135,7 @@ checkout after P0 bootstrap):
   on `<module>/<src-descriptor>` - the SOURCE side's name) against `source_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`
 
-Assign the resulting absolute paths before launching the prober; the prober mandates both fields
-and never runs git itself.
+Assign the resulting absolute paths before launching the prober (both fields mandatory).
 
 Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
 
@@ -173,33 +143,25 @@ Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
 { module, repo_root, source_ref, target_ref, target_version, manifest_path, history_dump_path }
 ```
 
-- `repo_root` is the MAIN checkout root where git runs. The integration worktree does NOT exist
-  at P2 (it is created at P4) - never reference it here. For a same-repo forward-port `repo_root`
-  is the main clone of the repo holding both refs; for a cross-repo port it is the main clone that
-  has the source remote added + fetched in the P0 bootstrap step (git-ops adds the source remote
-  + fetches). The dispatcher populates `repo_root` deterministically from the P0-recorded checkout
-  root before launching the prober.
-- `source_ref` / `target_ref` are the source / target git refs (the same refs P0 enumerated).
+- `repo_root` is the MAIN checkout root where git runs (the integration worktree does not exist at
+  P2); populate it from the P0-recorded checkout root. For a cross-repo port it is the main clone
+  that has the source remote added + fetched in the P0 bootstrap.
+- `source_ref` / `target_ref` are the refs P0 enumerated.
 - `target_version` is the concrete target series for OSM grounding.
-- `manifest_path` / `history_dump_path` are absolute paths to the surveyor-written files (see
-  pre-step above).
+- `manifest_path` / `history_dump_path` are absolute paths to the pre-step files.
 
 The prober consumes those and returns BOTH:
 
 - `merge_log_line:` - a single-line verdict logged VERBATIM to `merge-log.md`.
-- a structured verdict block - `{ module, installable_false: yes|no, evidence }`. Read that field
-  by its own name and polarity; it is the single field any consumer reads, and there is no third
-  value - a probe that cannot resolve returns
-  `status: BLOCKED`, never a degraded verdict.
+- a structured verdict block - `{ module, installable_false: yes|no, evidence }`. A probe that
+  cannot resolve returns `status: BLOCKED`, never a degraded verdict.
 
-**merge-log row placement.** The prober verdict is its OWN row keyed by module, kept DISTINCT
-from the per-commit rows (intent / bucket / reason / evidence). Place it under a dedicated
-`## Installable probes` heading (one row per probed module) so a module-keyed verdict is never
-confused with a commit-keyed classification row.
+**merge-log row placement.** Place the prober verdict under a dedicated `## Installable probes`
+heading (one row per probed module), distinct from the per-commit rows.
 
 **Routing the verdict.** `installable_false: yes` means the module lands `installable: False` ->
-lint-only lane, SKIPping the extract/adapt logic tiers; `no` means it stays enabled and takes the
-normal lane. Do not restate the rule - SSOT: `[[fp-installable-false]]`. A `BLOCKED` probe is not
+lint-only lane, SKIPping the extract/adapt logic tiers; `no` means it takes the normal lane. SSOT:
+`[[fp-installable-false]]`. A `BLOCKED` probe is not
 a verdict: resolve the missing input (`manifest_path`) and re-probe, or carry the module to the P4
 plan gate as a FLAGGED row needing explicit human confirmation before its merge - never coerce it
 to yes or no.
@@ -209,15 +171,11 @@ to yes or no.
 ## P3 - Design (conditional route-out)
 
 A bucket-(c) "do now" commit that touches a NON-TRIVIAL module routes OUT to
-`odoo-solution-design` instead of being adapted blind. Reuse the SAME non-trivial criterion
-`odoo-solution-design` applies for its own dispatch - do NOT invent a second definition. A
-deferred or `installable:False` module needs no design - skip it.
+`odoo-solution-design` instead of being adapted blind (the non-trivial criterion
+`odoo-solution-design` applies). A deferred or `installable:False` module needs no design.
 
-Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the plan runner
-advances it):
-
-**This block is the SSOT for the P3 payload** - `SKILL.md` P3 and its Continuation Contract
-section both point here rather than restating it. Add a field only here.
+Emit the Continuation Contract and YIELD (the plan runner advances the hop). This block is the
+SSOT for the P3 payload:
 
 ```
 next: odoo-solution-design
@@ -227,58 +185,43 @@ inputs:
   target_version: <target>
   modules: [<module-name>, ...]
   intent_records: [<ISOLATE_DIR>/forward-port/<slug>/<module>/intents/<sha>.md, ...]
-    # one entry per module in `modules` above (§ P1 write path - each module's own
-    # intent perspective on this sha), never the bare run-slug intents/<sha>.md
+    # one entry per module in `modules` above (§ P1 write path), never the bare run-slug intents/<sha>.md
   classification: <bucket-(c) summary>
   design_proposals: [<verbatim finding line>, ...]
-    # every structural change this pipeline may PROPOSE but never decide, carried verbatim
-    # for the architect to accept or reject. Today exactly one producer: the P7 view-topology
-    # `VIEW-TOPOLOGY | ... | action: merge-into-base | ...` finding line (see P7 below).
-    # `[]` when there is none - the key is ALWAYS present, never omitted.
-    # A `NEEDS-HUMAN` view-topology line NEVER travels here: it is presented at the P12 human gate.
+    # structural changes this pipeline PROPOSES but never decides, carried verbatim: the P7
+    # view-topology `VIEW-TOPOLOGY | ... | action: merge-into-base | ...` finding line.
+    # `[]` when there is none - the key is ALWAYS present. A `NEEDS-HUMAN` view-topology line
+    # NEVER travels here: it is presented at the P12 human gate.
 ```
 
-**Routing a proposal when no commit routes to P3.** A `merge-into-base` line can be raised on a
-bucket-(b) commit that needs no design of its own. It still may not be applied unapproved: when
-this batch emits no P3 hop, raise one whose `classification` reads
+**Routing a proposal when no commit routes to P3.** A `merge-into-base` line raised on a bucket-(b)
+commit is never applied unapproved: when this batch emits no P3 hop, raise one whose `classification` reads
 `view-topology proposal only (no bucket-(c) design)` and whose `modules` is the proposing module -
 `design_proposals` is never dropped for want of a carrier.
 
 `<slug>` is the run slug (`<source-series>-to-<target-series>`); `<sha>` the short SHA of the
-routed commit. Together `design_slug_hint` gives the design agent a deterministic output path
-(`<slug>-fp-<sha>`), so forward-port re-entry locates it without scanning.
+routed commit.
 
-`odoo-solution-design` under `return_to` runs its own design + design-approval gate, then emits
-`next: odoo-forward-port` with `design_doc: <path>`; it does NOT enter a code Plan Mode and does
-NOT dispatch a coder. On
-re-entry, read `design_doc` from the returned contract's `inputs`, record it against the commit,
-set checkpoint `status=designed`, and proceed to the P4 plan gate with the design linked - do
-not re-run design. If `design_doc` is ABSENT from the returned inputs (design crashed before
-producing it), set the commit back to `status=extracted` and re-enter P3 next run rather than
-advancing to P4 with no design.
+`odoo-solution-design` under `return_to` emits `next: odoo-forward-port` with `design_doc: <path>`.
+On re-entry, read `design_doc` from the returned contract's `inputs`, record it against the commit,
+set checkpoint `status=designed`, and proceed to the P4 plan gate with the design linked - do not
+re-run design. If `design_doc` is ABSENT, set the commit back to `status=extracted` and re-enter P3
+next run.
 
 ---
 
 ## P4 - Plan gate (Plan Mode)
 
-The user approves here - AFTER intent + classify + design, so the plan carries the REAL triaged
-tiers and REAL buckets, never guesses. Forward-port runs from the MAIN context, so it MAY drive
-Plan Mode (a subagent cannot).
-
-Plan-Mode enter/exit is the SHARED SSOT
-`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit + plan_mode_active
-- forward-port REUSES it for this gate rather than defining its own: `EnterPlanMode` iff
-`plan_mode_active` is absent/false (skip iff a caller already opened Plan Mode), present the plan,
-`ExitPlanMode` on approve, user approves in the Plan Mode UI. The plan CONTENT authored here (NOT
-routed through `odoo-planning`) is MODULE-FIRST (R2a - this is the whole-picture gate a flat commit
-list cannot give): module topology (each module's own ordered commit list from the P0 map);
+The request's one Plan-Mode gate
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request):
+`EnterPlanMode`, present the plan, `ExitPlanMode` on approve. The plan CONTENT authored here (not
+routed through `odoo-planning`) is MODULE-FIRST: module topology (each module's own ordered commit list from the P0 map);
 per-module EXTRACT tier (the real triaged tier, `references/fp-triage-table.md` Table 1);
 per-commit bucket (the real classification) and
 ADAPT tier within that module; installable routing per module; design-doc link for any commit P3
-designed; merge batches.
+designed; merge batches; the `Docs:` line (the documentation target of the closing step).
 
-Red flags: a text-gate "approve" is NOT Plan Mode approval (two separate steps); `EnterPlanMode`
-MUST come before any branch, worktree, or file touch.
+`EnterPlanMode` MUST come before any branch, worktree, or file touch.
 
 After Plan Mode approval, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the
 JOB-tier integration worktree branched FROM B (Hard rule 1 - no branch before this point). Describe the op:
@@ -289,17 +232,15 @@ scope: branch fp/<slug>, base <target-branch>
 worktree: <path>/fp-integration
 ```
 
-THEN write `<ISOLATE_DIR>/forward-port/<slug>/plan.md` as the resume RECORD (not the gate - the gate
-is Plan Mode above). MODULE-FIRST: one block per touched module, that module's commits nested
-inside it in the module's own order (R2a - the whole-picture record). Later phases and the
-checkpoint/continuation read it:
+THEN write `<ISOLATE_DIR>/forward-port/<slug>/plan.md` as the resume RECORD. MODULE-FIRST: one
+block per touched module, that module's commits nested inside it in the module's own order:
 
 ```markdown
 # Forward-port plan: <source-series> -> <target-series> (<slug>)
 Absorption: <M> batch(es) -> <M> merge commit(s). Batch 1 = <src-first-SHA>..<src-tip-SHA> (<K> commits).
-  (Default is ONE batch for the whole range. The commit count NEVER sets the merge count -
-   SKILL.md Hard rule 2.)
+  (Default is ONE batch for the whole range; the commit count NEVER sets the merge count.)
 Integration worktree: <path>  (branched from <target-branch>, B untouched)
+Docs: <module | site | both | none> - <the facts that decided it>
 Modules (<N>, after --scope/--since filter):
 
 Outcome at target: (a) already in the target · (b) still needed, APIs compatible ·
@@ -335,74 +276,54 @@ For semantic conflicts use the stateless-resume recipe in that snippet.
 `<src-first-SHA>` = its first. Resolve both from the P0 range map before dispatching.
 
 ```
-# the ONLY shape - one merge of the range TIP; every earlier SHA in the range comes with it
+# one merge of the range TIP
 op: merge --no-ff --no-commit <src-tip-SHA>
 worktree: <path>/fp-integration
 ```
 
-To land only PART of a source branch, pass that sub-range's TIP as `<src-tip-SHA>`: the merge
-absorbs that commit and its ancestors and nothing else. A cherry-pick is never the answer here, at
-any granularity (`SKILL.md` Hard rule 2 - there is no mode flag that reinstates one).
+To land only PART of a source branch, pass that sub-range's TIP as `<src-tip-SHA>`. A cherry-pick is
+never the answer here (`SKILL.md` Hard rule 2).
 
-**Never iterate this phase per source commit** (`SKILL.md` Hard rule 2): one merge
-per commit mints N merge commits and re-resolves every shared hunk N times; a cherry-pick
-mints fresh SHAs and re-resolves every conflict on every future run. A batch merges its
-own range TIP once - the commit count never sets the merge count.
-
-Only one merge in flight (shared git index). Do NOT commit - the working tree is the absorption
-zone for the whole range through P9. Full protocol incl. absorption window order:
+**Never iterate this phase per source commit** (`SKILL.md` Hard rule 2). Only one merge in flight.
+Do NOT commit - the working tree is the absorption zone for the whole range through P9. Full protocol incl. absorption window order:
 `[[fp-merge-absorption]]`.
 
 ---
 
 ## P6 - Symbol-survival check (MUST, before adapt)
 
-**Dispatched, never run inline.** WHO may run this gate is the shared SSOT
-`[[fp-symbol-survival-check]]` § Who runs this check; this phase only sequences the dispatches and
-records what comes back. Do NOT run the conflict scan, the file enumeration, or the OSM grounding
-in the orchestrating context.
+**Dispatched, never run inline** (`[[fp-symbol-survival-check]]` § Who runs this check). Sequence
+the dispatches and record what comes back; do NOT run the conflict scan, the file enumeration, or
+the OSM grounding in this context.
 
 1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the conflict-marker scan AND the
    `<merge-base>..<src-SHA>` file list in ONE dispatch (--name-only; git-ops writes both to a
-   findings file, filtered to non-empty entries, and returns the path - those entries are the
-   merge-clean-but-source-touched autosilent-break candidates). For cross-repo ports include
-   `repo: <main-checkout-root>` (source commits live only in the main checkout after the P0
-   source-remote add+fetch).
+   findings file, filtered to non-empty entries, and returns the path). For cross-repo ports include
+   `repo: <main-checkout-root>`.
 2. Dispatch `Explore` (read-only, `model: haiku` on the launch) over that returned file list to ground every Odoo symbol it
    references (field / method / model / view ref / external-id / manifest depend / ORM chain)
-   against the TARGET version, per `[[fp-symbol-survival-check]]` sections 1-2.5. The OSM calls
-   belong to that delegate; the orchestrator never issues them here.
+   against the TARGET version, per `[[fp-symbol-survival-check]]` sections 1-2.5. Never issue the OSM
+   calls here.
 3. Record only what the delegate returns: any absent/changed symbol FORCES bucket b/c/d and bans
    leaving the auto-merged line unchanged; the `SYMBOL-BROKEN | <symbol> | <file>:<line> | bucket |
    evidence` finding list (an empty list `SYMBOL-SURVIVAL: clean` is a valid, desirable result); and
    the PASS/FAIL verdict. A non-empty list BLOCKS P8 on those files. Full contract:
    `[[fp-symbol-survival-check]]`.
 
-**Run on `tests/` files too** - test files auto-merge silently exactly like production code and
-crash at collection (base-class kwarg drift, broken import, dynamic `ref()`), never reaching
-P9 if collection itself fails. Do NOT re-derive the test-survival logic here - apply the
-seven auto-merge-silent symbol classes from `[[fp-symbol-survival-check]]` section 2.5 (it already
-states production AND `tests/` scope). The merge-clean-but-source-touched enumeration above
-already lists test files; feed them through the same section-2.5 grounding, do not filter them
-out.
+**Run on `tests/` files too.** Apply the seven auto-merge-silent symbol classes from
+`[[fp-symbol-survival-check]]` section 2.5; feed test files from the enumeration above through the
+same grounding, do not filter them out.
 
 ---
 
 ## P7 - Pre-adapt drift scan (MUST, before the behavioral loop)
 
-This gate is DISTINCT from the P6 TEST-survival sub-check:
-- **P6 TEST-survival** uses `tests_covering` / `test_coverage_audit` (OSM cross-version
-  symbol lookup) to detect test methods that REFERENCE a field/model removed at the target.
-  It operates at the OSM symbol-graph level and covers both production and test code.
-- **P7** uses the seven static symbol classes from `[[fp-symbol-survival-check]]` section 2.5
-  over two lanes: (d) python-import + (e) AST-pyflakes + (g) ORM create/write dict-key run over
-  ALL merged-touched `.py` (production AND `tests/`) - (d)(e) catch runtime NameError and (g)
-  catches an Invalid-field key (autosilent: pyflakes does NOT flag it) before P9; the remaining
-  classes (a)(b)(c)(f) and the collection ACCEPTANCE GATE apply to the `tests/` lane only.
-
-The two checks are COMPLEMENTARY: P6 catches symbol-graph breaks via OSM; P7 catches
-static grep / import / AST breaks and blocks entry to P8 when test collection itself would
-fail.
+P7 is distinct from the P6 TEST-survival sub-check (OSM `tests_covering` / `test_coverage_audit`).
+P7 uses the seven static symbol classes from `[[fp-symbol-survival-check]]` section 2.5 over two
+lanes: (d) python-import + (e) AST-pyflakes + (g) ORM create/write dict-key run over ALL
+merged-touched `.py` (production AND `tests/`); the remaining classes (a)(b)(c)(f) and the
+collection ACCEPTANCE GATE apply to the `tests/` lane only. P7 blocks entry to P8 when test
+collection itself would fail.
 
 **Enumerate scope - two lanes. Dispatched, never run inline** (`[[fp-symbol-survival-check]]`
 § Who runs this check):
@@ -414,118 +335,86 @@ cross-repo ports. From the returned list the delegate derives:
 - **Lane 1** - ALL merged-touched `.py` (production AND `tests/`): the `*.py` entries.
 - **Lane 2** - `tests/` only: the Lane-1 entries whose path contains `tests/`.
 
-Dispatch the gates as read-only delegates and record only their verdict. The delegate per class is
-assigned once in `[[fp-symbol-survival-check]]` § Who runs this check - do not pick one here: the
-git-ops dispatch above enumerates the files, and `Explore` (`model: haiku` on the launch) runs every static lane below. Lane 1
+Dispatch the gates as read-only delegates and record only their verdict (delegate per class:
+`[[fp-symbol-survival-check]]` § Who runs this check): the git-ops dispatch above enumerates the
+files, and `Explore` (`model: haiku` on the launch) runs every static lane below. Lane 1
 gets classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
 dict-key scan) over ALL .py - production AND tests; Lane 2 additionally gets (a) (b) (c) (f). Treat
-F821 on a production file as a runtime NameError that would crash module load, not a nit; treat a
-(g) dead key on a production call site the same way - it raises `Invalid field` at load/run yet
-pyflakes stays silent.
+F821 on a production file, and a (g) dead key on a production call site, as blockers.
 
 Record findings as `SYMBOL-BROKEN | <symbol/path> | <file>:<line> | <class> | evidence` and
 append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the P8 adapt brief.
 
 **ACCEPTANCE GATE (collection clean) - mandatory before P8 starts:**
 
-At P7 no instance DB has been acquired yet (the lease is taken at P9), so the gate is a
-`pytest --collect-only` run over the merged test files - it needs no DB and catches ImportError /
-missing-fixture breaks for ordinary test modules. Dispatch it to `Explore` (read-only, `model: haiku` on the launch), the delegate
+The gate is a `pytest --collect-only` run over the merged test files (no DB). Dispatch it to `Explore` (read-only, `model: haiku` on the launch), the delegate
 `[[fp-symbol-survival-check]]` § Who runs this check assigns to this class. Brief it with: the
 integration worktree path, the merged test file list Lane 2 produced, the exact command
 `python -m pytest --collect-only <those files>`, and the instruction to return ONLY `PASS`, or
 `FAIL` plus one line per collection error (`<file>::<node> | <error class> | <message>`) - never the
 raw log. Record that verdict; never run the command, or read its log, in the orchestrating context.
 
-**No ad hoc provisioning, in any phase** (SKILL.md P9's DELEGATE mandate is not scoped to P9 alone;
-a bare provisioning call from ANY non-leaf phase in this pipeline bypasses the SAME instance HARD
-RULES regardless of which phase issues it). When a `setUpClass` performs DB-dependent work that
-`--collect-only` cannot exercise (a TestCase subclass that touches the ORM during class setup), do
-NOT acquire an ad hoc DB here to work around it - the ONLY provisioning path this pipeline uses is
-P9's `odoo-instance` dispatch (`## P9` below). Record the residual (a `setUpClass`
-`--collect-only` cannot verify) as an open ACCEPTANCE GATE item on that test file's `merge-log.md`
-row, and treat P9's own collection/run-tests result for that file as the gate's true confirmation
-once the P9 instance exists. The `pytest --collect-only` verdict above is still mandatory and still
-blocks P8 for every OTHER file it covers.
+**No ad hoc provisioning, in any phase.** When a `setUpClass` performs DB-dependent work that
+`--collect-only` cannot exercise, do NOT acquire an ad hoc DB here - the ONLY provisioning path is
+P9's `odoo-instance` dispatch. Record the residual as an open ACCEPTANCE GATE item on that test
+file's `merge-log.md` row; P9's own run-tests result for that file is its true confirmation. The
+`--collect-only` verdict still blocks P8 for every OTHER file it covers.
 
-Memory-cap policy (applies at P9's instance dispatch, not here):
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
+A collection failure means the tests NEVER RAN - `0 failed, N error(s)` is NOT a passing result.
+Resolve every drift finding (P7 SYMBOL-BROKEN entries) before entering the P8 adapt loop.
 
-A collection failure (ImportError, setUpClass crash, missing fixture) means the tests NEVER
-RAN in P9 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
-crashed before any test method ran). Resolve every drift finding (P7 SYMBOL-BROKEN entries)
-before entering the P8 adapt loop.
-
-**View-topology sub-check (bucket-(b)/(c) same-module inherit stacks).** Different in TIMING from
-the checks above (P6/P7 run over the git-merged tree before any commit is re-implemented; this
-sub-check runs once a bucket-(b) OR bucket-(c) commit's own adapt step lands or modifies an
-`ir.ui.view` record - the bucket-(c) re-implement leg, or the bucket-(b) 3-way-merge-and-adapt leg
-INCLUDING a clean auto-merge that passed through with no conflict marker at all (e.g. an
-alias-preserving module fold at target that leaves the old base `xml_id` still resolving, so P6
-finds nothing broken and P2 classifies bucket-(b) instead of (c) even though the resulting view
-shape is identical to the canonical bucket-(c) defect) - at the same 8b adapt point those legs
-already pass through) but IDENTICAL in SHAPE
-(a finding line triaged into `merge-log.md`, confirmed before P10 commits). Buckets (a)/(d) land no
-new adapt content (Hard rule 7) and stay out of scope - only (b) and (c) can produce this shape.
-A HIT is a PROPOSAL only: the merge-and-delete outcome routes out through the P3 design gate to
-`odoo-solution-design` and is applied solely when the returned `design_doc` adopts it.
-Full predicate, the two
-non-defect exceptions, and the merge-unsafe escape: `references/fp-triage-table.md` § Bucket-(c)
-same-module inherit-view check.
+**View-topology sub-check (bucket-(b)/(c) same-module inherit stacks).** Runs once a bucket-(b) OR
+bucket-(c) commit's own adapt step lands or modifies an `ir.ui.view` record (INCLUDING a clean
+auto-merge with no conflict marker), at the 8b adapt point; a finding line is triaged into
+`merge-log.md` and confirmed before P10 commits. Buckets (a)/(d) are out of scope. A HIT is a
+PROPOSAL only: the merge-and-delete outcome routes out through the P3 design gate to
+`odoo-solution-design` and is applied solely when the returned `design_doc` adopts it. Full
+predicate, the two non-defect exceptions, and the merge-unsafe escape: `references/fp-triage-table.md`
+§ Bucket-(c) same-module inherit-view check.
 
 ---
 
 ## P8 - Adapt (code first, then tests; serial per-module; ALWAYS directly in the integration worktree)
 
-P5 already absorbed the batch's whole range into the working tree, so P8 adapts the MERGED RESULT module
-by module, driven by the per-commit intent records - it never re-opens, re-merges, or re-stages anything
-per source commit. Dispatch the adapt unit DIRECTLY in the integration worktree (`<path>/fp-integration`,
-the JOB-tier worktree created at P4) and process modules serially; a module touched by several commits is
-adapted ONCE, against the combined merged result. P8 NEVER creates a per-module child worktree
-(derivation: `SKILL.md` § Git topology "WORK tier - NOT used by P8 adapt").
+Adapt the MERGED RESULT module by module, driven by the per-commit intent records; never re-open,
+re-merge, or re-stage per source commit. Dispatch the adapt unit DIRECTLY in the integration
+worktree (`<path>/fp-integration`) and process modules serially; a module touched by several commits
+is adapted ONCE, against the combined merged result. Never create a per-module child worktree.
 
-**Open-merge window (unconditional).** From P5 (`--no-commit`) through P10 (`commit`) - the batch's whole
-P6/P7/P8/P9 - `MERGE_HEAD` is live in the integration worktree and git rejects a second merge there
-(`MERGE_HEAD exists`). Absorb-all has ONE window per batch, opened by P5 and closed only by P10, never a
-per-commit window (`SKILL.md` Hard rule 2). SSOT: `[[fp-merge-absorption]]` § Absorption window (inside the
-ONE no-commit merge).
+**Open-merge window.** From P5 (`--no-commit`) through P10 (`commit`), `MERGE_HEAD` is live in the
+integration worktree: ONE window per batch, opened by P5 and closed only by P10. SSOT:
+`[[fp-merge-absorption]]` § Absorption window (inside the ONE no-commit merge).
 
 **One `odoo-coding` invocation per module.** Code is adapted FIRST, then the node's single test leg
 forwards and adapts the module's source tests, proves each FP-delta test by breaking its rule, and
-confirms absorption for each bucket-(a) commit - all inside the one node `odoo-coding` runs
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). This skill launches no test author of
-its own.
+confirms absorption for each bucket-(a) commit
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). Launch no test author of your own.
 
 **8a - ground the adapt brief.** Resolve the test-leg enrichment lines BEFORE the invocation:
 
 ```python
-test_base_classes(odoo_version='18.0')                                      # BASE CLASS (target)
-find_test_examples(query='double-post guard on account.move', odoo_version='18.0')  # TARGET TEST EXAMPLES
+test_base_classes(odoo_version='<target_version>')                           # BASE CLASS (target)
+find_test_examples(query='double-post guard on account.move', odoo_version='<target_version>')  # TARGET TEST EXAMPLES
 ```
 
 `BROKEN TEST-SYMBOLS` is the subset of the P6 symbol-survival findings (plus any P7 drift finding) whose
 `<file>` is one of this module's test files - copy those rows in verbatim; omit the line when empty.
 
 **Bucket-(a) hunk map.** P5's merge keeps every cleanly-merged hunk of a bucket-(a) commit in the working
-tree (`[[fp-merge-absorption]]` § Skip-code-but-still-absorb rule), so running its source test on that tree
-would measure the forwarded code, not the target core - the test leg takes those hunks out of play first.
-For each bucket-(a) commit touching this module, dispatch `Explore` (read-only, `model: haiku` on the launch) with its commit dump
+tree (`[[fp-merge-absorption]]` § Skip-code-but-still-absorb rule); the test leg takes those hunks
+out of play first. For each bucket-(a) commit touching this module, dispatch `Explore` (read-only, `model: haiku` on the launch) with its commit dump
 (`<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`) and `<path>/fp-integration`; it returns each hunk
 as `<file>:<start>-<end>` in the merged tree, `conflicted` when the hunk sits inside conflict markers, or
 `absent` when the merge left no trace of it (the target already carried the identical change). Carry the
-result and the dump path on that commit's `BUCKET` line: the coders' edits can move the lines, and the
-dump lets the test leg find each hunk by its text.
+result and the dump path on that commit's `BUCKET` line.
 
 **8b - adapt the module** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
-FP-ENRICHED brief - it owns the node's coder (`odoo-coder`),
-model, synthesis and the node's test leg (never dispatch raw `odoo-coder` or `odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one coder per module across the WHOLE
-run: launch it once, record the id, resume it - an id your own launch returned.** On the module's FIRST
-invocation omit the field and record the coder's agent id `odoo-coding` reports in `plan.md`; on every LATER
-one carry it as `WORKER_AGENT_ID: <id>` - never a string anyone invented; `odoo-coding` resumes that id
-instead of cold-spawning (reasoning: `SKILL.md` § P8). Resuming has no effect on git topology (Hard rule 2):
-the batch's range is already absorbed by P5's single merge, so every adapt lands inside that ONE open
-window and closes as ONE merge commit. The brief is identical on a fresh launch or a resume, and the
-Worktree path never changes. The extra context a generic coder brief lacks:
+FP-ENRICHED brief (never raw `odoo-coder` or `odoo-frontend-coder`). **R2b at this leg: at most one
+coder per module across the WHOLE run.** On the module's FIRST invocation omit the field and record
+the coder's agent id `odoo-coding` reports in `plan.md`; on every LATER one carry it as
+`WORKER_AGENT_ID: <id>` - never a string anyone invented; `odoo-coding` resumes that id
+(`SKILL.md` § P8). The brief is identical on a fresh launch or a resume, and the Worktree path
+never changes:
 
 ```
 DISPATCH MODEL: <adapt-tier>
@@ -533,8 +422,7 @@ REQUEST: Adapt the forwarded intent to the target platform - code first, then th
       forwards the SOURCE TESTS below. On a re-adapt, append the P9 failure output.
 MODE: adapt
 INTENT: <ISOLATE_DIR>/forward-port/<slug>/<module>/intents/<sha>.md   (one path per source
-      commit in this batch touching the module - THIS module's own perspective on the sha, written
-      by its P1 extractor per § P1 write path - the why, build to this, not the source diff)
+      commit in this batch touching the module; build to this, not the source diff)
 BUCKET: <per sha: a (hunks <file>:<start>-<end>[ conflicted][, ...] | absent; dump <path>) - no
       adapt code: leave the clean hunks as merged, resolve a `conflicted` one to the TARGET side; the
       test leg runs the source test with the clean hunks out of play | b 3-way+adapt | c re-implement
@@ -552,22 +440,18 @@ TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo
 COMMIT: caller   (make NO commit - the batch's merge window stays open; return the file list and
       the test leg's report; P10 commits the batch)
 NEW MODULE: <yes | no>
-DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>   (P3's route-out
-      result, so 8b never adapts blind; `none` when P3 never routed this commit to design; same
-      sentinel shape `odoo-coding`'s own resolution already uses:
-      "DESIGN_DOC: <child TDD path | none>")
+DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>   (P3's route-out result)
 MODULE SCOPE: <name>
   READ/WRITE (in the integration worktree, no separate child worktree): <path>/fp-integration/<module>/
     (merged content; for bucket (b) 3-way+adapt start from these files - they hold the
      auto-merged or conflict-marked state - and write ALL output back here, in place)
 ODOO VERSION: <target>
-WORKTREE_PATH: <path>/fp-integration   (the integration worktree named in MODULE SCOPE - the ONE
-  root this dispatch works in; `odoo-coding` resolves the node's instance over it - pass no
+WORKTREE_PATH: <path>/fp-integration   (the ONE root this dispatch works in; pass no
   INSTANCE_HANDLE)
 RUN_ID: <this run's id>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT above was
-  built from; substitute it, never re-resolve from a worktree cwd>
+  built from; never re-resolve>
 WORKLOG: <slug> - read, then append.
 CONSTRAINTS: C1 keep the TARGET version on a descriptor conflict, never bump; C2 retarget or
   forward a migrations dir; C3 carry pre-existing source bugs faithfully, never inline-fix -
@@ -576,7 +460,7 @@ CONSTRAINTS: C1 keep the TARGET version on a descriptor conflict, never bump; C2
   [+ LINT-ONLY: the module is installable:False at the target - fix syntax/lint breakage only,
      adapt no business logic (8c-bis) - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
 WORKER_AGENT_ID: <id recorded for this module on its first invocation this run>   (omit on the
-      module's FIRST invocation - see above)
+      module's FIRST invocation)
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -592,7 +476,7 @@ re-set to False + re-comment `auto_install`/`application` with `# TODO: Uncommen
 module to production-ready status` breadcrumb - then lint-fix only. SSOT: `[[fp-installable-false]]`.
 
 **8c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
-for any module (new or pre-existing), confirm its target installable flag. Re-read
+for any module, confirm its target installable flag. Re-read
 `<module>/<tgt-descriptor>` at `target_ref` (via git-ops, read-only) only if the manifest was touched
 by the merge; otherwise reuse the value P2 already resolved from `manifest_path`. If
 `installable: False` at the target, brief
@@ -617,12 +501,11 @@ rule + `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`. After the ren
 migration body for source-series literals still in log strings or version constants:
 
 ```bash
-grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
+grep -rn '<src-series>' migrations/<tgt-series>/
 ```
 
-**8e - i18n: COMPUTE and RECORD; the dispatch happens at P9.5.** Do NOT dispatch `odoo-i18n` here -
-this phase has no instance, and `odoo-i18n` hard-BLOCKs without one. Evaluate both mandate conditions
-now, from artifacts that already exist, and record them on the module's `merge-log.md` row:
+**8e - i18n: COMPUTE and RECORD; the dispatch happens at P9.5.** Do NOT dispatch `odoo-i18n` here.
+Evaluate both mandate conditions now and record them on the module's `merge-log.md` row:
 
 1. **Condition 1 - translatable delta.** Run the 8-signal trigger table over this batch's
    `<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump` files. Record
@@ -631,74 +514,51 @@ now, from artifacts that already exist, and record them on the module's `merge-l
    `merge-log.md` row. Record `i18n_due: yes|no|escape:<E-id>`.
 
 Both conditions and the escape table: `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`.
-Carry `i18n_due` forward to P9.5. Recording it here and dispatching there is deliberate: the decision
-needs the diff (available now), the dispatch needs the instance (available at P9).
-
-No convergence or worktree removal step here: 8b already wrote directly into the integration
-worktree (no per-module child worktree exists to converge back or remove - `SKILL.md` § Git
-topology). Mark `status=adapted`.
+Carry `i18n_due` forward to P9.5. No convergence or worktree removal step here. Mark `status=adapted`.
 
 ---
 
 ## P9 - Verify by behavior (PER-BATCH, in integration)
 
-Resolve odoo-bin flags for the TARGET series via `cli_help` before dispatching - the lease
-reports version-agnostic port numbers; flags and bootstrap behavior differ per series (a
-namespace-package change alters bootstrap; always pass `odoo_version=<target>` to `cli_help`).
+Resolve odoo-bin flags for the TARGET series via `cli_help` (`odoo_version=<target>`) before
+dispatching. Conventions: `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`,
+`docs/reference/ODOO-TESTING.md`.
 
-Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`. Test invocation
-conventions: `docs/reference/ODOO-TESTING.md`.
+**DELEGATE - never a bare lease tool or `odoo-bin` recipe.** Dispatch the `odoo-instance` skill
+(via the Skill tool) for every step below; never a bare `lease_acquire` / `instance_build` /
+`odoo-bin` call. Everything from here to P10 is CONTENT for that dispatch brief and the
+adjudication you perform on the RETURNED `instance-ops` block.
 
-**DELEGATE - never a bare lease tool or `odoo-bin` recipe.** SKILL.md P9's rule is binding here
-too: this orchestrator dispatches the `odoo-instance` skill (via the Skill tool) for every step
-below. A bare `lease_acquire` / `instance_build` / `odoo-bin` call from this orchestration layer
-would both bypass the instance HARD RULES and skip the `WORKTREE_PATH` re-root below. Everything
-from here to P10 is CONTENT for that dispatch brief and the adjudication this
-orchestrator performs on the RETURNED `instance-ops` block, never a shell recipe run inline.
+**Env-bootstrap (before the first dispatch).** Resolve the CATALOG (principal-checkout) baseline
+from the declared catalog row covering this repo (`addons_path` and `python` from `catalog_locate`
+per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2) as a baseline only;
+interpreter discovery and addons-path assembly are `odoo-instance-ops`'s job. A multi-repo stack
+needs EVERY repo on disk: confirm every root in that entry's `addons_path` exists before
+dispatching; a missing repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
 
-**Env-bootstrap (informational, before the first dispatch).** Resolve the CATALOG
-(principal-checkout) baseline from the declared catalog row covering this repo - its
-`addons_path` and `python` from `catalog_locate` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2. That is a baseline only:
-venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
-own job, never hand-built or hand-verified
-here. A multi-repo stack needs EVERY repo on disk - a missing
-repo makes a module invisible (silent ImportError / "module not found") to the dispatched instance.
-Confirm every root in that entry's `addons_path` list exists on disk before dispatching; a missing
-repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
-
-**Worktree re-root (MANDATORY, after the CATALOG baseline above, before it is treated as final).**
-The block above resolves the CATALOG (principal-checkout) baseline only - it is NEVER the addons_path
-this phase actually verifies against. This batch adapted `<path>/fp-integration` (the P4 JOB-tier
-integration worktree), so re-root the baseline onto it via the SAME mechanism every other consumer
-uses - `odoo-instance`'s `WORKTREE_PATH` field substitution, which acquires the lease with
-`cwd` and `addons_path` naming that tree: dispatch `odoo-instance`
-with `WORKTREE_PATH: <path>/fp-integration`, which drops every catalog entry under the
-principal checkout and prepends the equivalent under `<path>/fp-integration` before acquiring. Do NOT
-hand-build the override yourself and do NOT verify against the catalog `ADDONS_PATH` built above
-directly - that is exactly the un-adapted-code false-green this re-root exists to prevent. Before trusting any
-result below, assert the resolved addons list contains `<path>/fp-integration/<module>/<tgt-descriptor>`
-for every module in this batch (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` §
-Addons coverage assertion) - on a miss, `BLOCKED`, never a silent run against the wrong tree.
+**Worktree re-root (MANDATORY).** The catalog baseline is NEVER the addons_path this phase verifies
+against. Dispatch `odoo-instance` with `WORKTREE_PATH: <path>/fp-integration`, which re-roots the
+baseline onto that tree before acquiring. Do NOT hand-build the override and do NOT verify against
+the catalog `ADDONS_PATH` directly. Before trusting any result below, assert the resolved addons
+list contains `<path>/fp-integration/<module>/<tgt-descriptor>` for every module in this batch
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion) - on a
+miss, `BLOCKED`.
 
 **Install/verify the FULL transitive `depends` closure, not just the module you edited.**
-A forwarded change can break a downstream depender that you never touched. Resolve the closure
-per module, then install/verify its breadth:
+Resolve the closure per module, then install/verify its breadth:
 
 ```python
-module_inspect(name='account_accountant', method='dependencies', odoo_version='18.0')
+module_inspect(name='account_accountant', method='dependencies', odoo_version='<target_version>')
 ```
 
 Union the closures of every directly-touched module and pass that whole set as `modules` in the
 dispatch below.
 
-**Lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
-(and eslint / prettier for frontend) installed, or the P12 lint gate silently no-ops. Confirm
-`flake8 --version` and `ruff --version` resolve in the verify env before relying on a green lint.
+**Lint toolchain present BEFORE the lint gate.** Confirm `flake8 --version` and `ruff --version`
+(and eslint / prettier for frontend) resolve in the verify env before relying on a green lint.
 
 **Dispatch `odoo-instance` (via the Skill tool) - ONE ephemeral instance per BATCH, not per
-commit.** First commit in the batch (fresh DB; install + test in one pass - Odoo create-on-init
-builds the DB, the lease only reserves the name/ports):
+commit.** First commit in the batch (fresh DB; install + test in one pass):
 
 ```
 operation: run-tests
@@ -709,40 +569,28 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/fp-integration   # re-root per the Worktree re-root note above
 modules: <union of the touched modules' full transitive depends closure, comma-separated>
-test_tags: <`/<m>` for every module in that closure, comma-joined - the closure's own suites run,
-            the Odoo core it dragged in does not. See the narrowing rule below>
+test_tags: <`/<m>` for every module in that closure, comma-joined (narrowing rule below)>
 mode: fresh
 GATE_ROLE: node-verify    # a per-batch verify, never the run's pre-PR lint gate
-skip_auto_install: true   # ISOLATES auto_install modules that would otherwise be pulled in
-                          # silently and mask (or fabricate) a break
-CONFIRM: "confirm each module in this closure emits a Loading line before reading any test count -
-          Odoo silent-skips an installable:False or skip_auto_install-excluded module with NO
-          error line, so a green run alone is not proof it installed; report per-module install
-          status in modules_installed and the test result in findings_path"
+skip_auto_install: true
+CONFIRM: "confirm each module in this closure emits a Loading line before reading any test count;
+          report per-module install status in modules_installed and the test result in findings_path"
 ```
 
 Capture the returned `instance-ops` block as this batch's `INSTANCE_HANDLE` (`db_name`,
-`lease_token`, `run_id`, `addons_path`) - memory-cap is applied automatically inside
-`odoo-instance-ops`, no separate field to pass
-(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). **Pass `test_tags` - the install
-closure and the tag set are two sides of one scope** (SSOT:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). Default: `/<m>` for every module in the
-INSTALL CLOSURE this batch named, comma-joined - the whole closure's suites run, and the Odoo core
-that the closure dragged in does not. NEVER narrow below that to only the edited module: a forwarded
-change can break tests in a downstream depender, and a module-only tag would hide that. Record the
-tag set used in `merge-log.md`.
+`lease_token`, `run_id`, `addons_path`). **Pass `test_tags`** (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`):
+`/<m>` for every module in the INSTALL CLOSURE this batch named, comma-joined. NEVER narrow below
+that to only the edited module. Record the tag set used in `merge-log.md`.
 
 For a SUBSEQUENT commit in the SAME batch touching only a subset, re-dispatch `odoo-instance` with
 the SAME `INSTANCE_HANDLE` forwarded, `mode: reuse` (`-u` semantics) and `GATE_ROLE: node-verify`
 on the changed modules only
-- skip re-running the full closure. Behavior rule: once a module is installed in this DB,
-re-running its tests MUST use `reuse` (`-u`, right on every series); `fresh`/`-i` on an
-already-installed module runs none of its tests on recent series
-(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database; confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+- skip re-running the full closure. Once a module is installed in this DB, re-running its tests
+MUST use `reuse` (`-u`; `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an
+existing database; confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 Relay the returned `instance-ops` block (`log_path`, `findings_path`, `modules_installed`,
-`failed`/`errors`/`warnings`/`skipped`) into `merge-log.md` verbatim - never trust a bare "tests
-passed" summary in its place (Hard rule 8: verify the result yourself). Reconcile
+`failed`/`errors`/`warnings`/`skipped`) into `merge-log.md` verbatim (Hard rule 8). Reconcile
 `modules_installed` against the installable scan (`[[fp-symbol-survival-check]]` section 2.5f): a
 module that is `installable: False` at the target is EXPECTED to be absent from
 `modules_installed` - route it to the 8c-bis lint-only lane and do NOT count its absence as a
@@ -753,8 +601,7 @@ investigate via `log_path` before reading any test count.
 provisioned for THIS run, so you are its run-level owner
 (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): call `lease_release` with the
 batch's cached `lease_token`/`run_id` - it stops the bound process group FIRST, then drops the DB.
-A bare `pkill` risks matching the wrong process or a sibling batch's server. Re-dispatch the Step
-above for a clean retry.
+Re-dispatch the Step above for a clean retry.
 
 - **Whole module green:** the target suite must be green.
 - **Every FP-delta test proven:** each newly-forwarded or adapted test was proven by its node's test leg -
@@ -763,18 +610,13 @@ above for a clean retry.
   instead confirmed absorbed (green on the target with the commit's own code out of play). A test with
   neither is unverified - resume the module's coder through `odoo-coding` (8b, `WORKER_AGENT_ID`) to
   produce it; never run a break of your own here.
-- **Database freshness - judgment.** 8b passes no `INSTANCE_HANDLE`, so the node test legs break code on the
-  coder's own instance and this batch's database stays clean (`mode: reuse` above is valid). Never
-  hand this handle to a P8 invocation; if a break ever ran on it, rebuild fresh when the break touched data
-  files or schema.
+- **Database freshness.** Never hand this handle to a P8 invocation; if a break ever ran on it,
+  rebuild fresh when the break touched data files or schema.
 - **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
-  regression - whether the red is in the edited module or in a co-installed dependency pulled
-  in by the closure. Re-dispatch `odoo-instance` (same shape as above) against a clean checkout of
+  regression. Re-dispatch `odoo-instance` (same shape as above) against a clean checkout of
   the target tip - no `WORKTREE_PATH` override, no absorption - running the SAME closure. Red
   there too = pre-existing (record in merge-log.md, do not fix, do not block). Green on clean /
-  red only after absorption = FP-delta (fix before committing). A red in a co-installed dep you
-  never touched is almost always pre-existing - prove it with the clean-tip dispatch, do not
-  assume. Never widen an assertion to hide a pre-existing failure. For source-series
+  red only after absorption = FP-delta (fix before committing). Never widen an assertion to hide a pre-existing failure. For source-series
   follow-through on a pre-existing red, apply C3 - carry faithfully + open a source issue
   (resolvable remote) or record it; see `[[fp-merge-absorption]]` § Triage / C3.
 - **Baseline a failed INSTALL the same way.** If a module fails to install, re-dispatch
@@ -782,9 +624,7 @@ above for a clean retry.
   Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
   `merge-log.md` and do NOT block the forward-port on it. Only an install that is green on clean
   origin/target and red after absorption is an FP-delta to fix.
-- **CREATEDB role:** an `ephemeral` acquire refuses instead of borrowing the declared DB, so
-  batches are never silently serialised onto one database; on any refusal follow
-  `[[fp-merge-absorption]]` § Ephemeral isolation.
+- **CREATEDB role:** on any acquire refusal follow `[[fp-merge-absorption]]` § Ephemeral isolation.
 
 Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
@@ -792,8 +632,7 @@ Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
 ## P10 - Conclude the merge (self-decided, per batch) - ONE commit closes the whole range
 
-No human confirmation: this is a local merge on `fp/<slug>`; `merge-log.md` and everything P10
-records are presented at P12. Before the commit, build the FULL file list:
+No human confirmation (a local merge on `fp/<slug>`; P12 presents it). Before the commit, build the FULL file list:
 the union of every module row's `files:` (8b) plus the files P9.5's `odoo-i18n` result names.
 Compare it with `git -C <path>/fp-integration status --porcelain` (bounded read): a modified or
 untracked path in neither the list nor the merge's own staged set is work no step accounted for -
@@ -816,26 +655,21 @@ empty and `git -C <path>/fp-integration rev-parse -q --verify MERGE_HEAD` finds 
 reads). A leftover path is a file the list missed - record it with the path in `merge-log.md` for P12;
 never amend the merge commit.
 
-That single commit closes the batch's merge window and lands the whole range; every SHA in the
-range is marked `done` in `checkpoint.json` by it. Buckets (a)/(d) are absorbed by the same commit
-and carry no adapt work (Hard rule 7) - their body line records the bucket + reason so the absent
-adapt work is not flagged.
+That single commit lands the whole range; every SHA in the range is marked `done` in
+`checkpoint.json`. Buckets (a)/(d) are absorbed by it too (Hard rule 7); their body line records the
+bucket + reason.
 
-**There is no P5 loop.** A single-batch run (the default) reaches P10 once, then goes on to P11.
-Only a human-approved multi-batch split at the P4 plan gate returns to P5, once PER BATCH, never
-per commit: that pass merges the NEXT batch's range TIP in ONE operation, then P6 symbol-survival
--> P7 drift -> P8 adapt -> P9 verify -> P10 conclude for that whole batch. Re-entering P5 for a single
-source commit, or committing part-way through a batch's range, is `SKILL.md` Hard rule 2's banned
-shape. Never skip P5/P6/P7 for a later batch by jumping straight to P8 either - that would leave
-the next range unabsorbed and unchecked.
+**There is no P5 loop.** A single-batch run reaches P10 once, then P11. Only a human-approved
+multi-batch split at the P4 plan gate returns to P5, once PER BATCH, never per commit, with the NEXT
+batch's range TIP, then P6 -> P7 -> P8 -> P9 -> P10 for that whole batch. Never skip P5/P6/P7 for a
+later batch.
 
 ---
 
 ## P12 - PR + review
 
-Runs AFTER P11 (end-to-end acceptance, `SKILL.md` § P11) has already cleared for this batch -
-acceptance, then this review gate, THEN the PR opens; never the reverse (`SKILL.md` Hard rule 9;
-SSOT for the ordering rationale: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail).
+Runs AFTER P11 (`SKILL.md` § P11): acceptance, then this review gate, THEN the PR opens
+(`SKILL.md` Hard rule 9; `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail).
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve origin URL via `git remote get-url origin`):
 
@@ -846,18 +680,13 @@ worktree: <path>/fp-integration
 remote: resolve via `git remote get-url origin`
 ```
 
-Run `odoo-code-review` inline (via the Skill tool, from the orchestrating context) for the
-forward-port pitfall (a forwarded test still coupled to the source API) - this review runs on the
-pushed branch BEFORE the PR is created (the diff-based checks below need only the push above, not
-an open PR).
+Run `odoo-code-review` inline (via the Skill tool) for the forward-port pitfall (a forwarded test
+still coupled to the source API) on the pushed branch BEFORE the PR is created.
 
-**Attribute every finding to the FP diff before rating it.** A reviewer rating the whole
-file blames the forward-port for code it never touched. Before rating any finding, confirm the
-line is actually in the forward-port delta. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
+**Attribute every finding to the FP diff before rating it.** Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
 (`origin/<target-branch>...fp/<slug> -- <file>`, only what the FP added to `<file>`).
 
-A finding on a line NOT in this diff is pre-existing - note it separately, do not block the PR on
-it (flag it, do not gate the forward-port on it).
+A finding on a line NOT in this diff is pre-existing - note it separately, never block the PR on it.
 
 **Per finding, apply C3 (fix old version first).** Check whether the same defect exists at the source
 series. If it does, it is a **pre-existing source bug** (inherited - forwarded faithfully, not introduced
@@ -867,18 +696,14 @@ do NOT patch it inside the FP. Record `<sha> | C3 | source issue <ref|DEFERRED> 
 `merge-log.md` and carry it faithfully forward. EXCEPTION: a serious security/safety bug is fixed on the
 destination immediately (still open a source issue). SSOT: `[[fp-merge-absorption]]` § Triage / C3.
 
-**Narrow a field-existence question with a direct lookup, not a model_inspect retry.** When
-a finding hinges on whether one field still exists / changed type at the target, query that field
-directly instead of re-dumping the whole model:
+**Field-existence question:** query that field directly instead of re-dumping the model:
 
 ```python
-entity_lookup(kind='field', model='account.move', field='payment_state', odoo_version='18.0')
+entity_lookup(kind='field', model='account.move', field='payment_state', odoo_version='<target_version>')
 ```
 
 **installable:False modules get a LINT-ONLY review.** For any module that is
-`installable: False` at the target (8c-bis lane), the reviewer rates ONLY syntax / lint findings -
-do NOT raise business-logic / behavior findings against a module that does not even install at the
-target. Mark such findings out-of-scope for this forward-port.
+`installable: False` at the target (8c-bis lane), the reviewer rates ONLY syntax / lint findings - raise no business-logic findings against it; mark such findings out-of-scope.
 
 Only once the review above is addressed, invoke the `git-toolkit:git-ops` skill (via the Skill
 tool) to create the PR:
@@ -892,14 +717,10 @@ body: "..."
 remote: resolve from `git remote get-url origin`
 ```
 
-**Cross-check every static-review bot comment on the PR (post-PR, the ONE sub-step here that
-genuinely needs an open PR).** Once the PR above is open and CI has had a chance to run, read the
-bot (CI linter / review bot) comments and resolve or consciously waive each - a bot comment on a
-forward-ported line is signal that an auto-merged construct did not survive the target. This runs
-after PR creation, never before, and never gates PR creation itself.
+**Cross-check every static-review bot comment on the PR (post-PR).** Once the PR is open and CI has
+run, read the bot comments and resolve or consciously waive each; this never gates PR creation.
 
-NEVER squash (squash mints a new SHA, defeats merge-base advance). B stays LOCKED - the PR adds
-only the merge commits. Present the PR URL, the review findings, and the P11 acceptance verdict
+NEVER squash. B stays LOCKED - the PR adds only the merge commits. Present the PR URL, the review findings, and the P11 acceptance verdict
 together, and wait for the human to merge.
 
 ---
@@ -922,5 +743,4 @@ Confirm no instance of this run is still leased: call `mcp__plugin_odoo-ai-agent
 with scope `run` and this run's `run_id`, and `lease_release` any lease the P9 instance release step left
 behind - you are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
 
-Leave `<ISOLATE_DIR>/forward-port/<slug>/` for the next continuous run's resume (it is gitignored and
-the checkpoint lets tomorrow's run skip done commits).
+Leave `<ISOLATE_DIR>/forward-port/<slug>/` for the next run's resume.

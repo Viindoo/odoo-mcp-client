@@ -113,8 +113,8 @@ After install, 50 skills activate automatically:
 | `odoo-feature-highlights` | Marketer | Generate business-language feature highlights for a version, ready for decks, blogs, or release notes |
 | `odoo-content-draft` | Marketer | Draft channel-specific marketing content (LinkedIn, blog, YouTube script, email, landing copy) |
 | `odoo-campaign-plan` | Marketer | Plan a multi-week, multi-channel marketing campaign with timeline, channel mix, KPIs, and owner map |
-| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, always gates with a Proposed Plan before execution |
-| `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
+| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, asks only text questions, and hands the request to the owner of its one Plan-Mode approval |
+| `odoo-ui-review` | Coder / Visual | Six-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance, design-system fidelity - with screenshot/console/Lighthouse evidence |
 | `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging - scientific method; dispatches specialist debug agents (backend/UI) |
 | `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |

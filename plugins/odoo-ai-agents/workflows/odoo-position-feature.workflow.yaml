@@ -1,12 +1,8 @@
-# odoo-position-feature.workflow.yaml
-# Encode the four-phase feature positioning pipeline as a declarative workflow.
-# Phases: feature-check -> addon-diff -> competitive-brief -> positioning-copy (inline)
-# Output lands under .odoo-ai/positioning/ - same as the prose command SSOT.
 name: odoo-position-feature
 domain: marketing
 team_pattern: Pipeline
 description: |
-  Generate positioning copy for a specific Odoo feature or capability. Chains four gated
+  Generate positioning copy for a specific Odoo feature or capability. Chains four
   phases: verify the feature exists (feature-check), compare editions (addon-diff),
   optionally benchmark against a named competitor (competitive-brief), then produce a
   positioning copy block adapted to the target audience and output channel (slide / blog /
@@ -30,8 +26,7 @@ phases:
       exists Y/N, supported editions (CE / EE / distribution), key modules that provide
       the feature, and key fields or API landmarks. If the feature does not exist in any
       edition, stop and inform the user.
-    model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
+    model_tier: haiku
 
   - id: addon-diff
     skill: odoo-addon-diff
@@ -41,8 +36,7 @@ phases:
       EE | Dist., using Y/check for available and N/dash for not available. Highlight any
       edition-specific enhancements or distribution-exclusive capabilities. If the feature
       exists in only one edition, note that and proceed without a full table.
-    model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
+    model_tier: haiku
 
   - id: competitive-brief
     skill: odoo-competitive-brief
@@ -51,29 +45,16 @@ phases:
       provided by the user, produce a focused competitive comparison in single-feature
       mode (per odoo-competitive-brief's elastic scope). Output a 2-column capability
       matrix (Odoo vs competitor) covering this feature only. Highlight Odoo's unique
-      strengths and any gaps. Name the competitor explicitly throughout -
-      odoo-competitive-brief's contract is named-competitor (argument-hint "[competitor
-      name]", output header "# Competitive Brief: <Competitor Name>"). This phase's
-      output is an INTERNAL working artifact consumed only by the positioning-copy
-      phase below - distinct from that phase's EXTERNAL-facing deliverable, which MUST
-      genericize the competitor label before it can be shared, published, or sent to a
-      customer. (.odoo-ai/positioning/ being gitignored only keeps this internal
-      artifact out of THIS repo - it says nothing about whether the caller later shares
-      the FINAL positioning copy externally, which is the actual reason that phase
-      genericizes.) If the user did not provide a competitor name or answered "none",
+      strengths and any gaps. Name the competitor explicitly throughout. This
+      output is an INTERNAL working artifact consumed only by the positioning-copy phase,
+      which genericizes the competitor label in its external-facing copy. If the user did not provide a competitor name or answered "none",
       skip this phase entirely.
     model_tier: sonnet
-    gate: "approve / skip / cancel"
     when: "competitor_name != null"
 
-  # ------------------------------------------------------------------
-  # Phase positioning-copy - produce copy block adapted to audience + channel (inline)
-  # Encodes the old Phase 4 prose contract: per-channel structure + per-audience tone.
-  # ------------------------------------------------------------------
   - id: positioning-copy
     inline: true
     model_tier: sonnet
-    gate: "approve / skip / cancel"   # approve = produce the copy; skip = skip this phase, no copy produced; cancel = abort
     # Produce a positioning block whose SHAPE is chosen by output_channel:
     #   slide    -> 1 headline value statement + 2-3 concrete benefit-focused bullets
     #               + 1 differentiator (Odoo vs typical alternatives)
@@ -89,13 +70,9 @@ phases:
     #   sales     -> proof points, customer success, objection removal
     #   developer -> technical depth, integration patterns, API / module names
     #   marketer  -> messaging hooks, social proof, differentiator framing
-    # On gate `approve`: ask a separate output-destination question - save the copy to a file, or
-    # show it in chat only? File -> write .odoo-ai/positioning/<slug>-<channel>-<YYYY-MM-DD>.md.
-    # Chat-only -> display the copy in chat, write nothing.
-    # On gate `skip`: produce no copy. On `cancel`: discard.
-    # Use generic competitor labels (e.g. "leading mid-market ERP") in saved copy - this
-    # output is EXTERNAL-facing and may be shared/published, unlike the internal
-    # competitive-brief artifact above (see that phase's nl_trigger for the distinction).
+    # Write .odoo-ai/positioning/<slug>-<channel>-<YYYY-MM-DD>.md and display the copy in chat.
+    # Use generic competitor labels (e.g. "leading mid-market ERP") in saved copy: it is
+    # EXTERNAL-facing.
 
 resume: true
 fallback: standalone

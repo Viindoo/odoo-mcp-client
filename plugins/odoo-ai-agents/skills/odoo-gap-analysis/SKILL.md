@@ -44,21 +44,18 @@ Consultant / Project Manager
 
 ## Context
 
-Gap analysis sets client expectations and determines budget. Errors in either direction are costly (under = overruns; over = lost deals).
-
 **Effort classification** (the locked `classification` axis - one of `standard | config | extension | custom`): the `odoo-gap-analyzer` agent's own Classification + effort tier table is the SSOT for the classification -> effort_tier mapping - not restated here.
 
 `effort_tier` is the separate day axis: **S** <1d - **M** 1-3d - **L** 3-10d - **XL** >10d. `coverage` is `full | partial | none`. These four enums (`classification`, `effort_tier`, `coverage`, and `grounded`) are the locked keys of `gap-matrix.jsonl` (see § Output).
 
-Version matters: "custom" on v12 may be "standard" on v16. v8/v9 migrations cost more (Python 2, `_columns`, `osv.osv`). **Data priority:** OSM / local source over training knowledge - never assert a verdict from memory (see § Standalone-first fallback).
+**Data priority:** OSM / local source over training knowledge - never assert a verdict from memory (§ Standalone-first fallback).
 
-**Index coverage is not ground truth.** A module ABSENT from the OSM index is NOT proof the product lacks the feature - profile/index coverage is incomplete for commercial layers. Confirm coverage with `profile_inspect(method='repos', ...)` and fall back to a local checkout (§ Standalone-first fallback). A requirement that neither OSM nor a checkout can ground is `grounded: unknown` with `notes: "BLOCKED - needs OSM index or checkout"` - never a training guess.
+**Index coverage is not ground truth.** A module ABSENT from the OSM index is NOT proof the product lacks the feature. Confirm coverage with `profile_inspect(method='repos', ...)` and fall back to a local checkout (§ Standalone-first fallback).
 
 ## When to invoke the gap-analyzer subagent
 
 This skill is an ORCHESTRATOR. It does NOT classify requirements inline - it dispatches the
-`odoo-gap-analyzer` worker agent and synthesizes the workers' output from disk, keeping the
-orchestrator's context clean.
+`odoo-gap-analyzer` worker agent and synthesizes the workers' output from disk.
 
 **Cluster by functional area first.** Group the requirement list by cohesive functional area
 (sales, inventory, accounting, HR, manufacturing, CRM, project, website, ...), then size the
@@ -72,11 +69,9 @@ fan-out:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - do not restate the weights or the
 in-flight cap here. Beyond the budget, use the rolling window.
 
-**Model per cluster:** set each worker's launch `model` from THAT cluster's complexity per the
-SSOT `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § "Model-tier selection" - e.g.
-a small, well-indexed cluster -> haiku; a normal cluster -> sonnet; a cluster in a legal,
-accounting, regulatory or other deep specialist domain -> opus. The cluster's size never raises
-the tier. Do not restate the tier principle - read it from the SSOT.
+**Model per cluster:** set each worker's launch `model` per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § "Model-tier selection", from THAT
+cluster's domain.
 
 **Synthesize from disk, do not re-classify.** After the workers finish:
 1. Read every worker's `clusters/<NN>-<area>/gap-matrix.jsonl` shard and concatenate the rows into
@@ -111,11 +106,9 @@ cluster a 2-digit `<NN>` and a short `<area>` label.
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Survey/analyst family
 delta; never inline that file verbatim into a hard-leaf brief. Launch one `odoo-gap-analyzer` worker per cluster (or one worker total on the fast
 path) at the `model` chosen for that cluster's complexity, honoring the Mode B budget with a
-rolling window. Prefer CHP Tier-B `subagent_type: "fork"` (the fork inherits the orchestrator's
-loaded context + version pin and shares its prompt cache; see
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`); if fork is unavailable, fall back
-to a fresh `odoo-gap-analyzer` spawn (Tier-C) carrying the explicit brief - Tier-C is always
-correct. Each worker brief carries:
+rolling window. Prefer CHP Tier-B `subagent_type: "fork"`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`); if fork is unavailable, launch a
+fresh `odoo-gap-analyzer` (Tier-C) carrying the explicit brief. Each worker brief carries:
 1. **Leaf restrictions** - `Do NOT invoke the Skill tool. Do NOT spawn a sub-agent. Use
    Read/Grep/Glob/Bash + OSM MCP only; the ONLY file you Write is your own shard.`
 2. **Scope, hard** - this cluster's requirements (each `req_id` + text) and the `<area>` label.
@@ -126,9 +119,8 @@ correct. Each worker brief carries:
    take `module` from `describe_module`'s `author`/`shortdesc`, never a slug token - do not
    restate either here.
 5. **Output contract** - `OUTPUT_DIR: <SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>/`
-   (a distinct DIRECTORY per cluster, never a bare filename - this is what keeps concurrent
-   workers from racing on one path). File name + exact key schema are the agent's own LOCKED
-   Output contract - do not restate the key list here.
+   (a distinct DIRECTORY per cluster, never a bare filename). File name + exact key schema are the
+   agent's own LOCKED Output contract.
 
 The `odoo-gap-analyzer` agent owns the per-requirement OSM method (the `check_module_exists` ->
 `model_inspect` / `module_inspect` -> `find_examples` / `suggest_pattern` rounds) and the
@@ -155,17 +147,15 @@ classification tier:
    `grounded: unknown` with `notes: "BLOCKED - needs OSM index or checkout"`.
 
 A requirement that cannot be grounded by OSM or a checkout is `unknown`, never a guessed verdict.
-Downgrade customer-facing wording for any `unknown` row to "to be confirmed". An OSM hit proves
-the source DEFINES the capability - it is NOT a live "verified available" guarantee, so never
-phrase it that way.
+Word any `unknown` row as "to be confirmed". An OSM hit proves the source DEFINES the capability;
+never phrase it as "verified available".
 
 ## Output - locked file-handoff contract
 
 All outputs live in `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. The skill writes state-root
 artifacts (L0/L1, per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` risk tiers) - it
-writes the three artifacts below, then prints a compact summary plus these paths to chat. It still
-**skips Plan Mode** (state-root-only writer exemption - SSOT + rationale: `odoo-intake`'s own
-Plan Mode decision tree).
+writes the three artifacts below, then prints a compact summary plus these paths to chat. It never
+enters Plan Mode.
 
 ### `gap-matrix.jsonl` (machine SSOT - one JSON object per requirement)
 
@@ -196,8 +186,7 @@ The markdown table (existing columns, each mapping 1:1 to a `gap-matrix.jsonl` k
 - **Risk flags** - scope-creep / hidden-complexity items, and every `grounded: unknown` row.
 - **Recommended phasing** - Phase 1 (must-have) / Phase 2 (nice-to-have).
 
-An OSM hit means the source DEFINES the capability, not that a shipped product is "verified
-available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallback).
+Wording of `unknown` rows and OSM hits: § Standalone-first fallback.
 
 ### `gap-continuation-contract.json` (locked machine handoff)
 
@@ -214,55 +203,22 @@ available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallba
 }
 ```
 - `has_nontrivial` is `true` iff any `custom` row is present, OR any `extension` row has
-  `effort_tier` in `{L, XL}`. An `extension` row with `effort_tier: M` (Extension-M - a simple
-  `_inherit` point) does NOT trigger design on its own. This mirrors `odoo-brl`'s Extension-M
-  (skips design) vs Extension-L/Custom-XL (routes to design) split, so the two classifiers are
-  interchangeable.
+  `effort_tier` in `{L, XL}`. An `extension` row with `effort_tier: M` does NOT trigger design on
+  its own.
 - `next` is a JSON **array** mirroring the chat continuation block's `next[]` (empty `[]`, or one
-  entry `[{"skill": "..."}]`) - never a bare string/null. Three branches, evaluated in order (same
-  split `odoo-brl` uses for Extension-L/Custom-XL vs Standard/Config/Extension-M, § Stay
-  format-compatible):
-  1. `has_nontrivial` true -> `next: [{"skill": "odoo-solution-design"}]`.
-  2. `has_nontrivial` false BUT buildable work exists (any row `classification` in
-     `{config, extension, custom}` - i.e. NOT purely `standard` activation, equivalently
-     `meta.config + meta.extension + meta.custom > 0`) -> `next: [{"skill": "odoo-planning"}]`
-     (mirrors `odoo-brl`'s "Standard/Config/Extension-M only -> `odoo-planning` instead of
-     `odoo-coding` directly").
-  3. Purely `standard` (every row `classification: standard`, i.e.
-     `meta.config == meta.extension == meta.custom == 0`) -> `next: []`.
+  entry `[{"skill": "..."}]`) - never a bare string/null; the branches are those of § Continuation
+  Contract.
 - `effort_days` is the deduped min/max from the band table above.
-
-## Examples
-
-**Example 1 - small scope, fast path:**
-Prompt: "gap analysis for a client who needs multi-company invoicing, approval workflows, and a
-custom loyalty program"
-Action: One cohesive list -> ONE `odoo-gap-analyzer` worker (sonnet), given
-`OUTPUT_DIR: clusters/01-finance/`. It writes `clusters/01-finance/gap-matrix.jsonl`; the
-orchestrator emits the artifact set under `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. Rows:
-multi-company invoicing -> standard/S; approval workflows -> extension/M (`mail.activity.mixin`);
-custom loyalty -> custom/XL. `has_nontrivial: true` -> `next: [{skill: odoo-solution-design}]`
-(branch 1).
-
-**Example 2 - larger scope, clustered fan-out:**
-Prompt: "Classify these 40 requirements across manufacturing, inventory, accounting and HR for a
-quote"
-Action: Cluster into 4 functional areas; dispatch one worker per cluster in a rolling window (the
-statutory-accounting cluster -> opus; the well-indexed HR cluster -> haiku). Synthesize: merge shards,
-dedup shared builds (e.g. two HR reqs that both extend `hr.employee` are one build), then write
-`gap-report.md` + `gap-matrix.jsonl` + `gap-continuation-contract.json`.
 
 ## Continuation Contract
 
 Emit the chat continuation block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (status / produced / next); it MUST mirror `gap-continuation-contract.json`. `produced` lists the
-three artifact paths. Three branches, evaluated in order (mirrors `odoo-brl`'s
-Extension-L/Custom-XL vs Standard/Config/Extension-M split, § Stay format-compatible):
-1. `meta.has_nontrivial` true -> `status: NEEDS_NEXT`, `next: [{skill: odoo-solution-design, reason: "non-trivial item(s) need a designed-and-approved solution before code", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}}]`.
+three artifact paths. Three branches, evaluated in order:
+1. `meta.has_nontrivial` true -> `status: NEEDS_NEXT`, `next: [{skill: odoo-solution-design, reason: "non-trivial item(s) need a design before code", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}}]`.
 2. `meta.has_nontrivial` false BUT buildable work exists (any row `classification` in
    `{config, extension, custom}` - not purely `standard` activation) -> `status: NEEDS_NEXT`,
-   `next: [{skill: odoo-planning, reason: "one-approach (standard/config/extension-M) work still needs the mandatory minimal plan before coding", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of every non-standard row>]}}]` (mirrors `odoo-brl`'s
-   "Standard/Config/Extension-M only -> `odoo-planning` instead of `odoo-coding` directly").
+   `next: [{skill: odoo-planning, reason: "standard/config/extension-M work needs the minimal plan before coding", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of every non-standard row>]}}]`.
 3. Purely `standard` (every row `classification: standard`) -> `status: DONE`, `next: []`.
 
 Surface every `grounded: unknown` row in the risk flags so the human can supply an OSM index or

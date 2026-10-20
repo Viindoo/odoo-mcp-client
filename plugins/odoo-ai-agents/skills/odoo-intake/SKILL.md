@@ -6,7 +6,7 @@ description: >-
 model: inherit
 ---
 
-# Odoo Intake - Universal Front Door (Brainstorm + Route + Soft-Plan-Gate)
+# Odoo Intake - Universal Front Door (Brainstorm + Route + Hand-off)
 
 ## Your role - orchestrator, not implementer (THIS IS MANDATARY)
 
@@ -16,17 +16,13 @@ You are the main agent and orchestrator: get work done by **invoking the right s
 
 ## Role
 
-Domain-agnostic front door for all 9 README persona buckets: CEO/strategist, consultant,
-sales AE, pre-sales, marketer, developer, QA, customer-success, and anyone in between.
-
-The user is often NOT a developer and may not know skill names - they just describe the outcome
-they need. This skill's job is to:
+Your job:
 
 1. **Detect** whether the intent is clear (fast-path) or vague (brainstorm).
 2. **Route** via 4-tier logic to the single best specialist skill or workflow.
-3. **Gate** every execution with a Proposed Plan before any work runs.
-4. **Never do the routed work itself** - it MAY produce plan/design artifacts during its
-   turn, but the routed *execution* (production code, proposals) happens after approval.
+3. **Settle** intent, preliminary scope and approach with text questions, then **hand off** the
+   request to the component that owns its plan, which holds the request's one Plan-Mode approval
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request).
 
 ## Language - mirror the user in every chat output
 
@@ -36,15 +32,15 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 
 ## Hard rules
 
-1. **Gate before execution.** Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`) during the plan turn. What it MUST NOT do before the Proposed Plan is approved: produce the routed deliverable (production code, generated proposals) or dispatch a `writes-files` specialist.
-2. **No `writes-files` specialist before Plan Mode is approved.** Three points, none optional:
-   - (a) Never run `odoo-coding`, `odoo-brl`, `workflow-chaining`, or any `output_mode = writes-files` skill before approval - only describe it in the Proposed Plan. (Node landing is run by the main agent per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan - there is no user-invocable git-executor skill.) This clause governs mid-plan `writes-files` SPECIALISTS dispatched out of an already-approved plan. `odoo-brl` is itself a front-door plan-establisher (`planning-gate-contract.md` names it a FRONT DOOR alongside `odoo-intake`): it is STILL dispatched only after intake's own Proposed-Plan is approved - never speculatively - but, being self-gating (its own BRL GATE 0/BRL GATE E, not the harness Plan Mode), it is NOT additionally gated behind a separate pre-BRL `odoo-planning` dispatch (see § Plan Mode decision tree exceptions).
-   - (b) Phase R MAY launch a READ-ONLY recon subagent (`Explore` or an anonymous recon agent) to survey state, dispatched at **haiku by default** (sonnet when it must judge) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, Recon/scouting phase default (the SSOT for the inheritance mechanism, the unstated-model hazard, and the opus/fable escalation gate - reference it, never restate it here) - a read-only **leaf skill** (e.g. `odoo-feature-check`, `odoo-override-finding`) is invoked via the **Skill tool** instead (a skill name is not an agentType; that same SSOT section's leaf-skill-invocation clause binds this path's tier too). The recon agent MUST NOT write a file or spawn further (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); read-only agent types may lack the Write tool, so it returns findings in chat; the PARENT skill then ALWAYS persists them VERBATIM - for Phase R this is not conditional - per `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2 (path/schema) and clause 3 (verbatim per-agent capture - a paraphrased digest is not compliant), resolving the state-root tier per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are allowed.
-   - (c) A `writes-files` specialist is dispatched ONLY after Plan Mode approval, by the main agent via the **Skill tool** (not a direct agent launch - see § Dispatch mechanism, § Plan Mode).
+1. **Settle, then hand off.** Intake MAY write planning artifacts (brainstorm notes, recon findings, `state.json`). It never produces the routed deliverable (production code, generated proposals) and never runs `odoo-coding` or a code-writing specialist outside an approved plan: code-writing work goes to its plan owner per § Plan owner.
+2. **Dispatch rules.** Three points, none optional:
+   - (a) Invoke the plan owner, never the executors under it. Node landing is run by the main agent per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan. `odoo-brl` is a front-door plan-establisher that writes only under the state root: invoke it directly.
+   - (b) Recon: Phase R launches read-only recon agents only, per § Phase R. A read-only **leaf skill** (e.g. `odoo-feature-check`, `odoo-override-finding`) is invoked via the **Skill tool**. Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are allowed.
+   - (c) Every skill is invoked by the main agent via the **Skill tool** (not a direct agent launch - see § Dispatch mechanism).
 3. **Phase 0 - Context, Detect & Clarify (mandatory).** Runs at the start of every invocation. Closes the **intent gate** before anything else proceeds.
 
    **3a. Read existing context / resume.**
-   - **Resolve the project facts** - series, OSM profile, addons scope, and (live steps only) an instance target - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`: work its rungs in order, stop at the first that answers, thread the resolved literals into the Proposed Plan and every dispatch brief. Resolve `<SHARE_DIR>` (and `<ISOLATE_DIR>` where noted below) via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before the first Read/Write/Edit of any state-root path in this skill.
+   - **Resolve the project facts** - series, OSM profile, addons scope, and (live steps only) an instance target - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`: work its rungs in order, stop at the first that answers, thread the resolved literals into the hand-off and every dispatch brief. Resolve `<SHARE_DIR>` (and `<ISOLATE_DIR>` where noted below) via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before the first Read/Write/Edit of any state-root path in this skill.
    - Check `<ISOLATE_DIR>/brainstorm/state.json` - if an in-progress brainstorm session exists, resume it (Tier 2).
    - **Check for an active run** - glob `<ISOLATE_DIR>/run-*.json` for any with `status: NEEDS_NEXT`. If one exists, do NOT silently open a second RUN-DAG. Surface it and ask: resume it (continue per `plan-mode-schema.md` § Running the plan), or start fresh? Only proceed to open a new run once the user chooses.
    - **Check for existing recon** - glob `<ISOLATE_DIR>/recon/*/findings.md` for this intent's slug.
@@ -58,7 +54,6 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
    ```bash
    find . -maxdepth 3 \( -name "__manifest__.py" -o -name "__openerp__.py" \) 2>/dev/null | head -20
    ```
-   Both descriptor filenames are globbed because the v8-v9 descriptor is `__openerp__.py` - matching only one name reports 0 manifests on those series. Branch on the result:
    - **(i) Odoo addon dir (≥1 manifest)** → the facts 3a resolved stand as-is; **skip** re-asking anything a rung answered. Ask ONLY for what remained unresolved after every rung, batched into ONE message (rung 5). Never ask for the module list - rung 3 globs it. Edition (CE|EE|custom) is stored nowhere: when an answer genuinely depends on it, settle it per question via OSM (`list_available_profiles` / `check_module_exists`) against the resolved series.
    - **(ii) Project root (manifests under nested dirs / mono-repo)** → infer common parent as project root; confirm version/edition once, then continue.
    - **(iii) Non-Odoo dir (0 manifests)** → discriminate by intent:
@@ -68,51 +63,37 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 
    **3c. OSM probe + version confirmation.** Call `mcp__odoo-semantic__list_available_versions`, then branch:
    - **OSM reachable AND 3a resolved the series** → confirm the series is in the indexed list and mark `backed`. Do NOT re-ask the version.
-   - **OSM reachable BUT the series is still unresolved after every rung** → present the indexed version menu from `list_available_versions` → `list_available_profiles` filtered to the chosen version → `profile_inspect(method='summary', …)` to confirm the profile name resolves. Record both in the Proposed Plan as the values in force for this turn. Mark `backed`. When no `[[instance]]` in the catalog covers this repo, add ONE line offering `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; the run proceeds on the resolved values either way.
-   - **OSM absent/unreachable** → mark `standalone`. The series still comes from 3a's rungs; ask for it only when every rung missed.
-   Record `OSM: backed | standalone` in the Proposed Plan.
+   - **OSM reachable BUT the series is still unresolved after every rung** → present the indexed version menu from `list_available_versions` → `list_available_profiles` filtered to the chosen version → `profile_inspect(method='summary', …)` to confirm the profile name resolves. Record both as the values in force for this turn. Mark `backed`. When no `[[instance]]` in the catalog covers this repo, add ONE line offering `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; the run proceeds on the resolved values either way.
+   - **OSM absent/unreachable** → mark `standalone`. The series still comes from 3a's rungs; ask for it only when every rung missed. When no `[[instance]]` in the catalog covers this repo, add ONE line offering `/odoo-ai-agents:odoo-setup`.
+   Record `OSM: backed | standalone` for the hand-off.
 
    **3d. GATE - Intent / Purpose / Expected outcomes (MANDATORY).** All three MUST be clear before Phase R may run: **what** the user wants, **why**, and **what done looks like**. Resolve any gap with **pre-structured options** (e.g. "Is the goal (a) ship a code change, (b) scope a proposal, (c) produce marketing copy?"), never an open-ended "what do you want?". **If intent / purpose / expected outcomes are not all clear, you MUST NOT proceed to Phase R.**
 
 4. **Confidentiality (public repo - 8 banned groups).** Do not surface, quote, or transmit: CEO personal info, customer PII/contracts, internal pricing, competitor intelligence beyond public sources, product roadmap details, marketing-in-draft, OKR/targets, vault paths. If a user prompt contains such data, acknowledge intent only - do not echo it.
-5. **Main-context only.** This skill is the front door and orchestrator; it MUST NOT be called from inside a subagent. It owns the ADMISSION gate (the text Proposed-Plan gate) and the initial routing decision. It does NOT call `EnterPlanMode`/`ExitPlanMode` on any path - Plan Mode is owned by the plan-authoring skill it dispatches (`odoo-planning`, or a self-gating orchestrator).
-6. **Worktree isolation - universal git-safety default (no exceptions).** Before ANY dispatched skill/workflow writes a git-tracked file or commits, a dedicated worktree/branch MUST be provisioned via `git-toolkit:git-ops` and the write happens there - never in the principal checkout (a direct mutation corrupts any other session on that branch). Applies on EVERY path out of intake - Tier-1/3 fast-path, Tier-4 brainstorm, the trivial inline-micro-plan case, the Plan-Mode-exempt fast-paths. ENFORCEMENT: a `writes-files` node is provisioned by the runner at launch (`plan-mode-schema.md` § Running the plan, step 2); intake provisions directly only for a `writes-files` skill it Skill-tool-dispatches WITHOUT a run file. Self-provisioning specialists (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists) isolate internally; `odoo-coding` self-provisions if it gets none. **Exempt:** read-only work (recon, review of `TARGET=local`, brainstorming), and any deliverable whose write is not git-tracked - the exemption is the CRITERION, never a fixed list of destinations: nothing under git to isolate. The `$ODOO_AI_HOME` state root (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, either tier) is the canonical instance - it sits outside the working tree entirely, so nothing written there is ever version-controlled. Any other destination meeting the same criterion (outside the working tree, not version-controlled) is equally exempt by the same reasoning; do not re-enumerate destinations here as they change. Mechanics (SSOT - do not restate): `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+5. **Main-context only.** This skill is the front door and orchestrator; it MUST NOT be called from inside a subagent. It never calls `EnterPlanMode`/`ExitPlanMode`.
+6. **Worktree isolation (no exceptions).** Before ANY dispatched skill/workflow writes a git-tracked file or commits, provision a dedicated worktree/branch via `git-toolkit:git-ops` and write there - never in the principal checkout. Applies on EVERY path out of intake. A `writes-files` node is provisioned by the runner at launch (`plan-mode-schema.md` § Running the plan, step 2); intake provisions directly only for a `writes-files` skill it Skill-tool-dispatches WITHOUT a run file, and passes the path in the brief (`WORKTREE_PATH` for `odoo-coding`, else `TARGET: worktree:<path>`). Self-provisioning specialists (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists) isolate internally; `odoo-coding` self-provisions if it gets none. **Exempt:** read-only work (recon, review of `TARGET=local`, brainstorming) and any write that is not git-tracked (the `$ODOO_AI_HOME` state root, or any other destination outside the working tree). Mechanics: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 ## Anti-rationalize gate
 
-> **No execution skill fires until the user has approved a Proposed Plan.**
+> **No execution skill writes code before its plan owner's Plan-Mode approval.**
 
-Two enforcement layers, both required: the **text gate** (Proposed Plan block; user types `approve / refine: [feedback] / cancel`) and, on top of it whenever the approved step **writes files**, **Plan Mode** (the harness-level guarantee). The text gate alone is insufficient when file writes are about to occur.
-
-**Red Flags - phrases that trigger STOP + re-gate:**
-- "This is simple, I'll just start coding" → STOP. Still propose + gate.
-- "The user clearly wants X, skip the questions" → only valid via Tier-1 fast-path, NOT a rationalization to skip the gate.
-- "I'll plan, then build the deliverable in the same turn" → STILL GATED. Writing a design/plan artifact is fine; producing the routed deliverable (production code, proposal) or dispatching a writes-files specialist before approval is not.
-- "The gate is unnecessary friction here" → wrong. The gate IS the contract.
-- "The text gate was enough, I can skip Plan Mode" → WRONG. Plan Mode is mandatory when an execute-skill will write files. The text gate and Plan Mode are independent layers.
+**Red Flags - phrases that trigger STOP:**
+- "This is simple, I'll just start coding" → STOP. Hand it to `odoo-planning`; its minimal plan is the gate.
+- "The user clearly wants X, skip the questions" → only valid via the fast-path, when intent, scope and approach are already settled.
+- "I'll plan, then build the deliverable in the same turn" → NO. Writing a planning artifact is fine; producing the routed deliverable is the plan owner's run.
+- "I'll have the user approve my summary, then the plan owner presents its plan" → NO. One approval per request: ask only what is unsettled, then hand off with one line.
+- "The user approved the approach, so the plan is approved" → NO. The approach is a text answer; the plan owner's Plan-Mode approval is the gate.
 
 ## Phase R - Recon (read-only current-state + inventory discovery)
 
-**When**: AFTER Phase 0 closes the intent gate, BEFORE the Proposed Plan. Recon turns a generic plan into a context-aware one.
+**When**: AFTER Phase 0 closes the intent gate, BEFORE the approach question and the hand-off, on every path; in the brainstorm flow it sits between step 2 and step 3.
 
 **What it does** - survey, never mutate:
-- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) at **haiku by default** (sonnet when it must judge) - never opus/fable by default (mechanism, unstated-model hazard, and escalation gate: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, Recon/scouting phase default - reference it, never restate it here) - to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn.
+- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) at **haiku by default** (sonnet when it must judge), never opus/fable by default (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, Recon/scouting phase default), to map code/modules relevant to the stated intent. A read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); they return findings in chat.
 - Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`.
 - For a request that produces or follows documentation, the recon brief also records in `findings.md`, per module in scope, `module_docs: yes|no` (`doc/` or `static/description/` present), and the declared docs-site rows (the output of `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/docs_site_config.py show`).
 - When recon reads a document that IS the requirement SSOT (RFP / contract / spec / requirement list), extract it faithfully per `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - verbatim/structured, never an interpretive summary that invents specifics.
-- **Persist before you propose (MANDATORY).** After the recon subagents return, YOU (not they) write
-  their findings to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md`: a `target_ref:` header line
-  (the current `git rev-parse --abbrev-ref HEAD`, or short SHA when detached) followed by the
-  capped four-field record rows, then reference that path in the Proposed Plan. The `target_ref:`
-  header is what Phase 0 3a's staleness read-back (above) checks on resume. Contract (full schema):
-  `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2. The subagents stay
-  write-free, but YOUR write is never a paraphrase - transcribe each subagent's returned findings
-  VERBATIM: when only one subagent ran, its return fills `findings.md` fact-for-fact; when two ran,
-  the second's verbatim return goes to its OWN sibling `findings-2.md` (never merged into
-  `findings.md`) and `findings.md` names it in a closing `siblings:` line - clause 3 (verbatim
-  per-agent capture) of the same contract owns this schema; a summarized digest standing in for
-  either subagent's actual return is not compliant. Cannot resolve `<ISOLATE_DIR>` (resolver REFUSAL) -> proceed with the plan and record
-  `Findings (Recon): <bullets> (not persisted - state root unresolvable)`; never block intake on it.
+- **Persist before you hand off (MANDATORY).** After the recon subagents return, YOU write their returns VERBATIM (never a paraphrase or digest) to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md`: a `target_ref:` header line (the current `git rev-parse --abbrev-ref HEAD`, or short SHA when detached) followed by the capped four-field record rows. When two subagents ran, the second's return goes to its own `findings-2.md`, never merged into `findings.md`, and `findings.md` names it in a closing `siblings:` line. Schema: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clauses 2 and 3; resolve the state-root tier per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Pass the path in the hand-off brief. Cannot resolve `<ISOLATE_DIR>` (resolver REFUSAL) -> proceed and pass `Findings (Recon): <bullets> (not persisted - state root unresolvable)`; never block intake on it.
 
 **Inventory discovery (hybrid).** Pull each fact from its SSOT:
 
@@ -121,52 +102,37 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 | skill / agent / command exists + its description | runtime context (harness-injected) | already available - do NOT read files for this |
 | `model_tier` (Haiku/Sonnet/Opus/inherit) | the `model:` frontmatter of the candidate's `SKILL.md` / `agents/*.md` (SSOT) | read the frontmatter of the CHOSEN candidate only; **if absent, treat as `inherit`** |
 | `output_mode` (`chat-only` ⇄ `writes-files`) | `orchestration.<skill>.output_mode` in `skill_tool_deps.json` | read that field directly |
-| `effort` (S / M / L / XL / `unrated`) | `odoo-gap-analysis` owns the tier; it is registered nowhere | COPY the tier from an existing gap-matrix / BRL RTM row for this item; with no such row write `unrated` and leave the tier to the gap run or the dispatched skill - never reason one out here |
-
-`model_tier` lives in frontmatter and `effort` is per-task - NEVER copy either into a registry.
+| `effort` (S / M / L / XL / `unrated`) | `odoo-gap-analysis` owns the tier | COPY the tier from an existing gap-matrix / BRL RTM row for this item; with no such row write `unrated` and leave the tier to the gap run or the dispatched skill - never reason one out here |
 
 **Hard limits**: read-only, leaf - must not spawn further (see `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), no file writes. If OSM is unreachable, proceed on user-provided context (standalone).
 
-## Plan Mode - harness-level pre-execute gate
+## Plan owner - who holds the one Plan-Mode gate
 
-**Decision tree (run first)**: read the chosen Approach's `output_mode` from `skill_tool_deps.json`.
-- `output_mode = writes-files` → **Plan Mode REQUIRED** before dispatch. **Exceptions that SKIP Plan Mode:**
-  - `odoo-deep-survey` (dispatched when the user replies `refine: deep-survey`) - that opt-in reply is the human gate.
-  - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `approve` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop. Hard rule 6 (worktree isolation) still applies to any write these trigger - each owns it internally before touching a file (`git-delegation.md`); skipping intake's Plan Mode never means skipping worktree isolation.
-  - `odoo-forward-port` (P4 gate), `odoo-git-rebase` (P6 gate), `odoo-modules-upgrade` (P3 gate) - each uses the shared Plan-Mode gate (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit) for its own approval (EnterPlanMode/ExitPlanMode called internally; plan presented before any branch/worktree/merge/adapt). Intake MUST NOT call EnterPlanMode for these; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged. Each already satisfies Hard rule 6 internally (own worktree/branch per `git-delegation.md`) - intake does not double-provision.
-  - `odoo-brl` - a self-gating FRONT-DOOR plan-establisher (`planning-gate-contract.md` names it a FRONT DOOR alongside `odoo-intake` and the `odoo-implement-feature` workflow): it presents its OWN text gates (BRL GATE 0 before classification, BRL GATE E before writing deliverables), never the harness Plan Mode. It is dispatched directly once intake's own Proposed-Plan is approved (Hard rule 2(a)) - NOT additionally gated behind a separate pre-BRL `odoo-planning` dispatch.
-  - `odoo-solution-design`, and any other `output_mode = writes-files` skill that persists ONLY under the `$ODOO_AI_HOME` state root (never a git-tracked path - e.g. a Technical Design Document at `<SHARE_DIR>/designs/...`) - SKIPS Plan Mode: **Plan Mode gates git-TRACKED writes, not state-root writes.** Such a skill is likewise exempt from worktree isolation (Hard rule 6) for the same reason.
-- `output_mode = chat-only` → **SKIP Plan Mode**; intake ends its turn and the specialist fires via the Skill tool on the next turn.
+Intake never enters Plan Mode. Pick the plan owner from the routed work
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request) and
+invoke it via the Skill tool after a one-line hand-off:
 
-**When it applies**: after user approves the Proposed Plan AND the next step is an execute-skill that will **write or modify files** - specifically `odoo-coding`, `workflow-chaining`, or any skill whose output column is NOT "chat only" - EXCEPT `odoo-brl`, which is self-gating (see the exception above) and therefore never additionally gated behind the harness Plan Mode.
+| Routed work | Plan owner (invoke it) |
+|---|---|
+| Code-writing work (`odoo-coding`, a multi-module change, a code change with documentation) | `odoo-planning` - after `odoo-solution-design` when § Design-first preference applies, or through the `odoo-implement-feature` workflow |
+| A forward-port, a rebase, a module upgrade | `odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade` - pass the § Documentation routing facts so the plan shows the documentation target |
+| Documentation that is the request, one target | `odoo-doc-illustration` or `odoo-doc-site` |
+| A workflow | `workflow-chaining` |
+| A skill that writes only under the `$ODOO_AI_HOME` state root (`odoo-brl`, `odoo-solution-design`, `odoo-gap-analysis`, `odoo-deep-survey`), a read-only or chat-only skill, `odoo-code-review`, `odoo-debug` | none - invoke it directly; its own text questions apply |
 
-**Who enters Plan Mode**: the plan-authoring skill (`odoo-planning`) launches `odoo-planner` FIRST - it authors the plan artifact under the `$ODOO_AI_HOME` state root, which does NOT require an open Plan Mode window - THEN `odoo-planning` enters Plan Mode itself, after the planner returns and before presenting the plan for approval; intake never does. `EnterPlanMode`/`ExitPlanMode` are main-context tools and both intake and `odoo-planning` run in the main context, but exactly one enterer is pinned - the author - so the enter cannot be misordered. Semantics: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit + plan_mode_active.
+The hand-off line names the owner and what it presents next ("`odoo-forward-port` presents its
+per-commit plan for approval before any branch or merge"); it asks nothing. Phase P does not engage
+for a self-planning skill: it owns its own run and resume.
 
-**Does NOT apply** for any `chat-only` skill (per the decision tree - e.g. `odoo-feature-check`, `odoo-version-diff`, `odoo-gap-analysis`, `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-content-draft`), NOR for a `writes-files` skill covered by the state-root-only-writer exception above (`odoo-solution-design` and its class - see § Plan Mode decision tree: Plan Mode gates git-TRACKED writes, not state-root writes). `odoo-planning` owns its own Plan Mode: it dispatches both planners first (they author the plan under the state root, which needs no Plan Mode window), then enters Plan Mode itself AFTER both return and BEFORE presenting the plan for approval (SSOT: planning-gate-contract.md) - intake dispatches it WITHOUT pre-opening (never passes `plan_mode_active: true`), so there is exactly one enterer and it enters before the plan is presented. The SKIP-list skills above (`odoo-deep-survey`, `odoo-code-review`, `odoo-debug`, `odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade`, `odoo-brl`) each drive their own gate the same way - self-entering (or, for `odoo-brl`, self-text-gating via its own BRL GATE 0/BRL GATE E) before their own authoring/branch/write.
+**Procedure** (`odoo-planning` path):
+1. Invoke `odoo-planning` via the **Skill tool** with a brief composed per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (OBJECTIVE/SCOPE/INPUTS/ACCEPTANCE - `INPUTS` carries the deep-survey `synthesis.md` path when one exists, explicit `none` otherwise, the recon findings path, and the documentation target). It authors the plan, then presents it in Plan Mode and exits on approval.
+2. `odoo-planning` hands control back via its Continuation Contract (`next: odoo-intake`) once the plan is approved - this engages **Phase P**.
+3. **Worktree isolation** per Hard rule 6: on the common path Phase P engages and the runner provisions at launch; only in the non-Phase-P case provision the worktree before dispatch.
+4. Run the approved plan per `plan-mode-schema.md` § Running the plan; nothing under it enters Plan Mode again.
 
-**Procedure** (execute-skill that touches files):
-1. User sends `approve` on the Proposed Plan.
-2. Main agent dispatches the mandatory `odoo-planning` via the **Skill tool** - WITHOUT `plan_mode_active` - with a brief composed per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (OBJECTIVE/SCOPE/INPUTS/ACCEPTANCE - `INPUTS` carries the resolved Proposed Plan `Survey:` path when one exists, explicit `none` otherwise, so `odoo-planning` can pass it on to `odoo-planner`'s `SURVEY:` field). `odoo-planning` launches `odoo-planner` FIRST - it authors the 3-block plan (module list, dependency graph, assignment) under the `$ODOO_AI_HOME` state root, which does NOT require an open Plan Mode window - THEN `odoo-planning` enters Plan Mode ITSELF, after the planner returns and before presenting the plan (its own guard; SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit), presents it, and calls **`ExitPlanMode`** itself once the human approves in the Plan Mode UI. Intake calls NEITHER `EnterPlanMode` NOR `ExitPlanMode` on this path; intake does not draft plan content itself either (see § Plan Mode Content Schema below).
-3. `odoo-planning` hands control back to intake via its Continuation Contract (`next: odoo-intake`) once the plan is approved - this then engages **Phase P**.
-4. **Worktree isolation (Hard rule 6, no exceptions).** Self-provisioning specialists (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists) provision internally - skip this step. On the common path a `writes-files` Approach engages Phase P and the runner provisions at launch. Only in the non-Phase-P case, BEFORE dispatch, invoke `git-toolkit:git-ops` via the Skill tool to create a worktree/branch and pass its path into the brief (`WORKTREE_PATH` for `odoo-coding`, else `TARGET: worktree:<path>`). The principal checkout is NEVER the target. Mechanics: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
-5. ONLY after Plan Mode approval AND worktree provisioning, the main agent runs the plan per `plan-mode-schema.md` § Running the plan in the common case, else invokes the execute-skill via the **Skill tool** directly ( a skill is not an agentType, so launching an agent by a skill name fails - see § Dispatch mechanism).
+### Plan Content Schema
 
-The self-gating skip-list skills (`odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade`, `odoo-deep-survey`, `odoo-code-review`, `odoo-debug`) each own their own gate exactly the same way - they call `EnterPlanMode`/`ExitPlanMode` internally, before their own authoring/branch/write; intake dispatches each directly (§ Plan Mode decision tree above) and calls neither tool for them either.
-
-**Red flags for Plan Mode**:
-- "The user already said approve, I can skip dispatching `odoo-planning`'s Plan Mode gate" → NO. Text-gate approval and Plan Mode approval are two separate steps.
-- "I'll enter Plan Mode after I've already started editing" → BANNED. EnterPlanMode must come before any file touch.
-- "I'll enter Plan Mode before dispatching the planners, to be safe" → UNNECESSARY and out of order for `odoo-planning`: the planners write ONLY under the `$ODOO_AI_HOME` state root (no Plan Mode window needed for that), so `odoo-planning` enters Plan Mode AFTER both planners return and BEFORE presenting the plan - never before dispatching them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit, the amended WHEN clause).
-- "`odoo-deep-survey` writes files, so it needs Plan Mode" → NO. It is the one `writes-files` exception (analysis-only under `<SHARE_DIR>/survey/`, gated by the user's `refine: deep-survey` opt-in reply).
-- "This is a trivial single-change fix / an ambiguous case I couldn't fully classify, worktree isolation can wait" → NO. Hard rule 6 is a catch-all default: trivial and ambiguous work that touches git-tracked files is provisioned into a worktree exactly like any other, before dispatch.
-
-### Plan Mode Content Schema
-
-The implementation plan (step 2 above) is a 3-block `writes-files` plan, authored by `odoo-planning`'s two planners under the state root and then presented inside Plan Mode; its schema is SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 / § Block 2 / § Block 3 (block schemas incl. the REQUIRED module-DAG ASCII dep-graph, worked examples, rejection flow) + § Design is an INPUT to this plan (no plan node may be a design node). **ALWAYS delegate 3-block authoring to `odoo-planning`** (its `odoo-planner` produces the dependency-ordered node graph + landing sequence + lifecycle wiring); intake NEVER writes the plan inline - planning is mandatory for all work (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule). **Intake dispatches it WITHOUT `plan_mode_active`** (never passes it as `true`) - `odoo-planning` dispatches both planners first (they author under the state root), then enters Plan Mode itself AFTER both return and BEFORE presenting the plan, per its own Plan Mode guard.
-
-The minimal `writes-files` plan `odoo-planning` emits for a single-module change is `[code, verify, review, integrate, monitor, merge]` - `verify` is an `odoo-instance` node and is never omitted, or `integrate` readiness deadlocks; the `integrate` land tail (git-ops open-PR -> `odoo-pr-monitoring` @ L2) is SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Terminal integrate land node.
-
-**Rejection flow (summary):** if the user refines/rejects in the Plan Mode UI, loop back to the soft-plan-gate (not execution); re-enter Plan Mode only after the revised plan is re-approved at the text gate. Full detail in the reference above.
+The execution plan is authored by `odoo-planning`'s planner; its schema is SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 / § Block 2 / § Block 3 and § Design is an INPUT to this plan. **ALWAYS delegate plan authoring to `odoo-planning`**; intake NEVER writes the plan inline (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule).
 
 ## Dispatch mechanism - Skill tool, not a direct agent launch
 
@@ -176,35 +142,14 @@ The minimal `writes-files` plan `odoo-planning` emits for a single-module change
 | a **workflow** - e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch |
 | a **command** - e.g. `/odoo-respond-bid` | a slash command | the user's slash kickoff / its command |
 
-Skills always go through the Skill tool: a skill name is not an agentType, so passing one to an agent launch fails. A `spawner-agent` skill must run in the main context so the Skill tool can load it there and let it launch its own subagents. Agents are launched directly - inside intake, only the Phase R read-only recon agent. Full rationale: `references/maintainers.md`.
+Skills always go through the Skill tool. Agents are launched directly - inside intake, only the Phase R read-only recon agent.
 
 When composing the dispatch prompt for any specialist agent you dispatch (including the Phase R
 recon agent), fill the caller-side skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
 (read it by path) plus the target agent's family delta; never inline that file verbatim into a
 hard-leaf brief.
 
-## Kind of work -> the first launch
-
-Once the Proposed Plan is approved, the kind of work decides who is launched first and in which
-mode; the model is the one the launch names (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-§ Model-tier selection):
-
-| Kind of work | First launch | Then |
-|---|---|---|
-| A new feature, or a change across two or more modules (SRS required - `odoo-solution-design`'s own list) | `odoo-solution-architect`, design session, opus | `odoo-planning` when the design has two or more nodes; the plan's tail per `plan-mode-schema.md` § Default tail |
-| A change inside one module with no SRS | `odoo-coder`, sonnet, directly (it runs its own recon) | review R1 then R2 by the default tail; PR |
-| A broken behaviour, a traceback, a wrong value | `odoo-debug` (one debugger per incident) | `odoo-coder` for the fix, haiku when the report names the location and the change |
-| A forward-port, a rebase, a series upgrade | the orchestrator skill (`odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade`), sonnet | its own plan gate |
-| Documentation (a module's own docs, a docs site, or both) | per § Documentation routing: `odoo-doc-illustration`, `odoo-doc-site`, or a docs-only plan | - |
-| A translation pass | `odoo-i18n` | - |
-
-The Domain line (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`) travels with the first
-launch; intake records it when it is clear and never assigns a business function from a
-technical word.
-
 ## Phase P - RUN-DAG persistence + drive-to-done (optional, additive)
-
-This phase turns an approved plan into a self-advancing run. It is **purely additive**: single-step plans dispatch as before - Phase P only matters for multi-step work or hands-off execution.
 
 **Engage Phase P** (after plan approval) if ANY holds: (1) `node_count >= 2`; (2) a single `output_mode == writes-files` node; or (3) a single workflow node whose YAML declares `on_complete`. Otherwise SKIP and dispatch directly. When engaged, serialize the approved 3-block plan into `<ISOLATE_DIR>/run-<id>.json` and run it per `plan-mode-schema.md` § Running the plan. Parse the autonomy dial from the prompt (`--auto` / `--step` / `--plan`); default `--auto` if no flag is present.
 
@@ -220,98 +165,53 @@ This plugin owns the **Odoo** domain. Do not invent an Odoo skill to cover a non
 
 ## 4-tier routing
 
-Run tiers in order; first hit wins; cost rises per tier.
+Run tiers in order; first hit wins.
 
-| Tier | Mechanism | Token cost | Action |
-|---|---|---|---|
-| **1 - regex/intent** | Explicit verb+noun pattern: "write computed field", "diff v16 v17", "review this PR", "/..." | 0 | Exact specialist → **pro fast-path** (see § Pro fast-path) |
-| **2 - session state** | `<ISOLATE_DIR>/brainstorm/state.json` exists and contains in-progress brainstorm | 0 | Resume that brainstorm thread |
-| **3 - keyword table** | 63-row routing table (see § Routing Table) covering all 9 persona domains | 0 | Map to single skill or workflow → soft-plan-gate |
-| **4 - LLM classify** | Only on Tier 1-3 miss: classify the ambiguous prompt (~500 tok) | ~500 tok | Single clear target → gate; vague/multi-domain → **enter brainstorm** |
+| Tier | Mechanism | Action |
+|---|---|---|
+| **1 - regex/intent** | Explicit verb+noun pattern: "write computed field", "diff between two versions", "review this PR", "/..." | Exact specialist → **pro fast-path** (see § Pro fast-path) |
+| **2 - session state** | `<ISOLATE_DIR>/brainstorm/state.json` exists and contains in-progress brainstorm | Resume that brainstorm thread |
+| **3 - keyword table** | the § Routing Table | Map to single skill or workflow → hand-off |
+| **4 - LLM classify** | Only on Tier 1-3 miss: classify the ambiguous prompt | Single clear target → hand-off; vague/multi-domain → **enter brainstorm** |
 
-Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) **no confident single target** (≥2 candidate skills with no decisive discriminator), or (b) a **large / multi-domain job** (≥10 requirement items, OR a scale signal like "hundreds of requirements" / "win this deal end-to-end" / "plan + build + ship an upgrade"). **Do NOT brainstorm a question that resolves to ONE specialist** - a lone capability question ("can Odoo handle X", even in reported speech) is a Tier-3 hit to `odoo-feature-check`, not a vague job; brainstorm is for genuinely open-ended or multi-domain intent, never a hedge against a single clear answer.
+Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) **no confident single target** (≥2 candidate skills with no decisive discriminator), or (b) a **large / multi-domain job** (≥10 requirement items, OR a scale signal like "hundreds of requirements" / "win this deal end-to-end" / "plan + build + ship an upgrade"). **Do NOT brainstorm a question that resolves to ONE specialist** - a lone capability question ("can Odoo handle X", even in reported speech) is a Tier-3 hit to `odoo-feature-check`, not a vague job.
 
 ## Pro fast-path
 
-When Tier 1 or Tier 3 yields exactly ONE specialist AND the prompt contains a concrete action verb + object, skip brainstorm entirely and emit a **one-line soft plan gate**:
+When Tier 1 or Tier 3 yields exactly ONE specialist AND the prompt contains a concrete action verb + object, intent and approach are settled: skip brainstorm, emit the one-line hand-off (§ Approach question and hand-off) and invoke the routed skill - or its plan owner, § Plan owner - in the same turn. Ask the approach question only when the preliminary scope is still open.
 
-```
-Plan: run `<skill-name>` to <one-line outcome>. Proceed? (approve / refine: [feedback] / cancel)
-Not the job you meant? Reply `refine: brainstorm` and I will open it up first.
-```
-
-A pro user types `approve` once. A novice replies `refine: brainstorm` to open the brainstorm branch. The reply set is the PLAN set verbatim (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`) - `brainstorm` is feedback carried inside `refine:`, never a fourth keyword. This guarantees brainstorm-first never blocks an expert.
-
-**Canonical behavior on a clear single-step match (removes the fire/no-fire ambiguity).** A clear match is NOT a reason to skip the gate - gate-before-execution (Hard rule 1) has no exception. So the outcome is always the one-line fast-path gate above (intake engages, states the target, and stops for `approve`); there is NO "silent passthrough that runs the specialist ungated". Two - and only two - outcomes are genuinely "intake never engages": (a) an explicit `/slash` command (the harness invokes it directly and intake never sees the turn), and (b) the user is already mid-workflow inside another skill. The description's `DO NOT trigger ... let it fire directly` clause is a *harness-triggering* hint (prefer surfacing the specific specialist over intake); it does NOT mean that, once consulted, intake executes without a gate. The read-only/chat-only fast-paths (`odoo-code-review`, `odoo-debug` - see § Plan Mode) still emit this one-line gate; they only skip the heavier Plan Mode.
-
-## Brainstorm (6-step)
+## Brainstorm (5-step)
 
 Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 
-1. **Explore context (STATIC only)** - reuse the facts 3a resolved, list existing artifacts under the `$ODOO_AI_HOME` state root (SHARE/ISOLATE dirs per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), infer domain and persona. STATIC = filesystem reads only (no agent launch, no OSM calls). Dynamic recon that dispatches agents + calls OSM is Phase R (not this step).
+1. **Explore context (STATIC only)** - reuse the facts 3a resolved, list existing artifacts under the `$ODOO_AI_HOME` state root (SHARE/ISOLATE dirs per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), infer domain and persona. STATIC = filesystem reads only (no agent launch, no OSM calls).
 2. **Clarifying options** - present 2-3 **pre-structured options** (not open-ended questions), e.g. "Is this (a) sales/proposal, (b) engineering upgrade, (c) strategy?". **Multi-turn boundary:** if intent/purpose/outcomes are already clear, continue in the same turn; if not, emit options and **END THE TURN** - next turn resumes via Tier-2. Do not run Phase R until the intent gate is closed (Hard rule 3d).
-3. **Propose 2-3 approaches** - each with: one-line outcome + key trade-off + recommendation. Informed by Phase R findings.
-4. **Present Proposed Plan** (soft-plan-gate - see § Soft plan gate). This IS the gate.
-5. **Write design doc** - intake MAY write `<ISOLATE_DIR>/brainstorm/<slug>-<date>.md` during the plan turn. The approval gate covers the routed deliverable, not the planning artifact.
-6. **Transition** - emit the NL-dispatch prompt for the chosen skill/workflow; update `<ISOLATE_DIR>/brainstorm/state.json`.
+3. **Propose 2-3 approaches** - each with: one-line outcome + key trade-off + recommendation, informed by Phase R findings - as the approach question (§ Approach question and hand-off). END THE TURN.
+4. **Write brainstorm notes** - intake MAY write `<ISOLATE_DIR>/brainstorm/<slug>-<date>.md`.
+5. **Hand off** - on the chosen approach, emit the hand-off line, invoke the plan owner, and update `<ISOLATE_DIR>/brainstorm/state.json`.
 
-**Where Phase R fits (ALL paths, not just brainstorm):** Phase R runs AFTER the intent gate closes and BEFORE the Proposed Plan, on both fast-path and brainstorm. In the brainstorm flow it sits between step 2 (intent closed) and step 4 (Proposed Plan), so its findings inform step-3 approaches and fill the `Findings (Recon)` field.
+## Approach question and hand-off
 
-## Soft plan gate
-
-Universal gate emitted by intake at the end of every brainstorm or fast-path turn:
-
-**Exception - skills that own a stronger gate.** When the routed skill opens with its own richer STOP
-plan gate (`odoo-forward-port` P4, `odoo-git-rebase` P6, `odoo-modules-upgrade` P3 - each in harness
-Plan Mode after its own intent-extract/classify/design), do NOT emit the full `## Proposed Plan`
-block; launch directly with a single acknowledgment one-liner: "Launching `odoo-forward-port` - it
-will present its own per-commit plan and stop for your approval before any branch or merge."
-(Substitute the actual skill name.) Two approval gates for one action is friction; the skill's own
-gate is authoritative. Phase P does NOT engage for these skills either - a self-gating + self-resuming
-skill (Plan Mode gate + checkpoint.json resume) owns its own run-DAG; intake dispatches it once and
-the skill drives itself.
+**Approach question** - a text question, asked only while the approach or the preliminary scope is unsettled. One message, in the user's language:
 
 ```
-## Proposed Plan
-Project:        <repo / project root, or "non-Odoo workspace">
-Odoo version/edition: <series / EE | CE | custom | "n/a">
-Intent / Purpose / Expected outcomes: <what / why / what done looks like - from the Phase 0 gate>
-Persona:        <one of 9 persona buckets - who is asking>
-Domain lines:   <per unit, from `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`: `Domain: <business_function>; Audience: <roles | n/a>; Outcome: <result>` - one line per node, bundle, cluster or module; "UNKNOWN" when the category is not in the taxonomy>
-Approach:       <skill name | workflow name | command>
-Chain:          <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
-Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>
-Findings file:  <ISOLATE_DIR>/recon/<slug>-<date>/findings.md   (or "not persisted - state root unresolvable")
-Survey:         none | <SHARE_DIR>/survey/<slug>-<date>/synthesis.md   (deep-survey synthesis path, if a deep survey was run)
-Modules (preview): <module-A …, module-B … - disjoint; "single module" for atomic asks>
-Assignment (skill/agent + effort + est_agents): <module → skill|agent (effort S/M/L/XL/unrated - copied from a gap-matrix / BRL row or `unrated`, est_agents N - ADVISORY/du kien; model + count owned by the dispatched skill at runtime, never bound here)>
-Output:         `$ODOO_AI_HOME` SHARE/ISOLATE path (tier per the routed skill's actual subdir - see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), e.g. <SHARE_DIR>/<subdir>/<slug>-<date>.<ext>   (or "chat only")
-Est. effort:    <S / M / L / XL / unrated / "single turn">
-OSM:            backed | standalone   (OSM = Odoo Semantic, the indexed Odoo source. backed = Odoo facts are checked against it; standalone = it is not reachable, so this runs on the local files plus model knowledge)
-Plan Mode:      required | not | skill-owned   (skill-owned when the routed skill drives its own Plan Mode - e.g. odoo-forward-port at P4, odoo-git-rebase at P6, odoo-modules-upgrade at P3)
-Next turn:      invoke the routed **skill** via the **Skill tool** (workflow/command: via its command) - you will see the tool call
-
-Gate: approve / refine: [feedback] / cancel
+Approach: <recommended skill | workflow | chain> - <one-line outcome>; <key trade-off>
+Options:  <B - one line> | <C - one line>
+Scope:    <modules / items, preliminary; "single module" for atomic asks>
+Reply:    approve / refine: [feedback] / cancel
 ```
 
-When the job is **large** (≥10 requirement items or a scale signal, OR a code job spanning ≥3 modules / a cross-cutting model change), add one offer line under the plan - a SEPARATE question, never a fourth gate keyword: "This plan is built on a light Phase R recon. Want a **deep survey** first (many subagents, real tokens)? Reply `refine: deep-survey` and I will run it, then re-propose a sharper plan." Omit for small/atomic asks.
+`approve` takes the recommended approach; `refine: [feedback]` picks another option or changes the scope, then re-ask; `cancel` stops with a brief report. For a large job (≥10 requirement items or a scale signal, OR a code job spanning ≥3 modules / a cross-cutting model change) add one line - a SEPARATE question, never a fourth reply word: "Want a **deep survey** first (many subagents, real tokens)? Reply `refine: deep-survey`." Omit it for small asks.
 
-Enforcement stack:
-1. Hard rule 1 → intake may write planning/design artifacts, but NOT the routed deliverable, before approval.
-2. Anti-rationalize gate + Red Flags → behavioral enforcement (text gate layer).
-3. Plan Mode (EnterPlanMode / ExitPlanMode) → harness-level guarantee before any execute-skill that writes files (the stronger layer).
-4. On `approve` → if the next step writes files, main agent dispatches the mandatory `odoo-planning` (Skill tool, WITHOUT `plan_mode_active`) BEFORE invoking the specialist - `odoo-planning` dispatches its two planners first (they author the plan under the state root), then calls `EnterPlanMode` itself AFTER both return and BEFORE presenting the plan. If chat-only/read-only, intake ends its turn and the specialist fires via the **Skill tool** on the next turn.
-5. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
-6. On `refine: deep-survey` → run the opt-in deep survey, then re-propose (see § Deep survey).
-7. Hard rule 6 (worktree isolation) → before any writes-files dispatch a dedicated worktree/branch MUST be provisioned (common case: Phase P, then the runner at launch; rare non-Phase-P case: inline per § Plan Mode Procedure step 4); the principal checkout is never the target, on any path.
+**Hand-off** - once intent, scope and approach are settled, emit ONE line naming the plan owner and what it presents next, then invoke it in the same turn. Its brief carries: project root; Odoo version/edition; intent / purpose / expected outcomes; persona; Domain lines (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`: `Domain: <business_function>; Audience: <roles | n/a>; Outcome: <result>` per unit, `UNKNOWN` when the category is not in the taxonomy; never assign a business function from a technical word); the chosen approach and preliminary scope; the recon findings path; the deep-survey `synthesis.md` path or `none`; the documentation target and its facts (§ Documentation routing); `OSM: backed | standalone`. A chat-only or read-only skill gets the same one line and fires at once.
 
 ### Deep survey (opt-in)
 
 On `refine: deep-survey`:
-1. Invoke **`odoo-deep-survey` via the Skill tool** (a `spawner-agent` skill - the Skill tool loads it in the main context so it fans out workers as subagents). Pass it the closed intent/purpose/outcomes, the resolved Odoo version + profile, the feature slug, and the first Proposed Plan.
-2. **No Plan Mode.** `odoo-deep-survey` writes only analysis artifacts under `<SHARE_DIR>/survey/` (never the routed deliverable), and the user's `refine: deep-survey` reply IS the human gate.
-3. When it returns a `synthesis.md` path, **re-propose** the Proposed Plan: fill the `Survey:` field with that path; update `Approach` / `Chain` / `Findings` / `Modules (preview)` / `Est. effort` from the synthesis. Re-gate with `approve / refine: [feedback] / cancel` and **drop the deep-survey offer line** (survey runs at most once).
-4. Downstream execute-skills read `synthesis.md` (carried in `Survey:` and, for a RUN-DAG, in the `run-<id>.json` node inputs).
+1. Invoke **`odoo-deep-survey` via the Skill tool** (a `spawner-agent` skill - the Skill tool loads it in the main context so it fans out workers as subagents). Pass it the closed intent/purpose/outcomes, the resolved Odoo version + profile, the feature slug, and the recommended approach.
+2. It writes only analysis artifacts under `<SHARE_DIR>/survey/`; the user's opt-in reply is the consent.
+3. When it returns a `synthesis.md` path, re-ask the approach question sharpened by the synthesis and **drop the deep-survey offer line** (survey runs at most once).
+4. Downstream skills read `synthesis.md` (carried in the hand-off brief and, for a RUN-DAG, in the `run-<id>.json` node inputs).
 
 ## Routing Table
 
@@ -323,7 +223,7 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 2 | "inventory", "list all customizations", "what have we built" | `odoo-customization-inventory` | Module-list deliverable for CEO/PM (vs `odoo-risk-overview` which scores risk) |
 | 3 | "where to hook", "override method", "best place to extend", "which method should I override" | `odoo-override-finding` | Hook location question for ONE method (vs `odoo-coding` which writes the override) |
 | 4 | "deprecated", "what will break", "audit before upgrade", "old API", "leftover OpenERP code" | `odoo-deprecation-audit` | Code-level audit (vs `odoo-version-diff` which is pure API diff, vs `odoo-risk-overview` which is executive) |
-| 5 | "what changed between", "diff v16 v17", "API changes", "new features in Odoo X" (dev framing) | `odoo-version-diff` | Version-to-version comparison (vs `odoo-feature-highlights` which is marketing framing for the same data) |
+| 5 | "what changed between", "diff between two versions", "API changes", "new features in Odoo X" (dev framing) | `odoo-version-diff` | Version-to-version comparison (vs `odoo-feature-highlights` which is marketing framing for the same data) |
 | 6 | "does Odoo have X", "is X available", "is module Y in CE", "can Odoo handle/do/support X", "someone asked me if Odoo can X", "is it possible to X in Odoo" (reported-speech capability questions count) | `odoo-feature-check` | SINGLE feature/capability lookup - a lone yes/no question is NOT vague, do NOT brainstorm it (vs `odoo-gap-analysis` which handles a LIST of requirements; vs `odoo-capability-proof` which builds an evidence PACKAGE) |
 | 7 | "gap analysis", "scope", "effort estimate", "proposal", "customer needs A,B,C - does Odoo have them" | `odoo-gap-analysis` | Multi-requirement -> effort matrix (vs `odoo-feature-check` for single feature) |
 | 8 | "feature highlights", "slide", "blog post", "marketing", "release notes for non-developers", "newsletter" | `odoo-feature-highlights` | Marketing/business audience (vs `odoo-version-diff` which is dev-track diff) |
@@ -358,7 +258,7 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 37 | "deal close cycle", "full sales closing cycle", "multi-step deal closing", "sales follow-up sequence end-to-end", "close this deal from discovery to signature" | `sales-closing-cycle` (workflow) | End-to-end deal-closing pipeline (vs `odoo-deal-followup` which is a single email draft, vs `/odoo-respond-bid` which produces an RFP response document) |
 | 38 | "long debug session", "investigate phiên dài", "multi-turn UI debug", "ui-debug-session", "sustained troubleshooting session for Odoo UI" | `ui-debug-session` (workflow) | Sustained multi-turn UI debug session with state tracking (vs `odoo-debug` which is a single-turn root-cause investigation) |
 | 39 | "content brief to publish", "full content production", "content from brief to done", "multi-step content workflow", "brief → draft → review → publish" | `content-production` (workflow) | End-to-end content pipeline: brief → draft → review → publish (vs `odoo-content-draft` which is single-piece draft only, vs `odoo-campaign-plan` which plans the campaign, not produces the pieces) |
-| 40 | "parallelize these changes", "multi-change PR with review and squash", "land N related changes safely without touching main", "split this work into parallel worktrees", VI: "chia viec song song" | `odoo-planning` | User-facing parallel / multi-module delivery routes to the PLANNER, never to an executor: `odoo-planning` produces the node plan (design-first chain `odoo-solution-design -> odoo-planning`); on approval the main agent runs it node by node onto ONE run-integration branch per repo (cherry-pick + per-node review + verification nodes the plan places), then ONE PR per repo opened once every non-land-tail node in that repo is terminal, STOP at "PR opened" - it never merges; the merge is owned by the subsequent `odoo-pr-monitoring` at the merge approval gate. The node loop is the main agent's - NEVER route a user prompt to an executor. (vs `odoo-coding` = a SINGLE change, no git orchestration; vs `odoo-brl` = classify/cost requirements, writes NO code) |
+| 40 | "parallelize these changes", "multi-change PR with review and squash", "land N related changes safely without touching main", "split this work into parallel worktrees", VI: "chia viec song song" | `odoo-planning` | User-facing parallel / multi-module delivery routes to the PLANNER, never to an executor (design-first chain `odoo-solution-design -> odoo-planning`); on approval the main agent runs the plan node by node and stops at "PR opened"; the merge belongs to `odoo-pr-monitoring`. (vs `odoo-coding` = a SINGLE change, no git orchestration; vs `odoo-brl` = classify/cost requirements, writes NO code) |
 | 41 | "design the solution", "thiết kế giải pháp / phân tích thiết kế", "how should I architect / structure this", "which approach", "design the data model", "plan the refactor", "design before we code", "technical design", "architecture decision" | `odoo-solution-design` | Designs HOW to build a non-trivial change into a gate-able design doc BEFORE coding (vs `odoo-coding` which WRITES code, vs `odoo-override-finding` which answers ONE method's hook location, vs `odoo-brl`/`odoo-gap-analysis` which classify WHAT to build + cost). Discriminator: user wants a designed/approved approach, not yet the code |
 | 42 | "implement this feature end-to-end", "from requirement to working code", "design then build then review", "scope → design → code → review" | `odoo-implement-feature` (workflow) | End-to-end feature pipeline: gap/brl → solution-design → odoo-coding → code-review (vs `odoo-solution-design` which produces ONLY the design, vs `odoo-coding` which writes ONE change with no design/review phases) |
 | 43 | "make this Odoo UI look good", "design the form/kanban/list", "this screen looks cluttered/off", "thiết kế giao diện Odoo đẹp đúng chuẩn", "đúng design-system Odoo", "design a clean portal page" | `odoo-frontend-design` | Knowledge-only DESIGN-QUALITY expertise for Odoo UI/UX (view-type choice, form hierarchy, semantic tokens, website/portal) - loaded by solution-design/odoo-coding and the bar ui-review rates against (vs `odoo-coding` which WRITES the JS/OWL/SCSS, vs `odoo-ui-review` which RATES a rendered screen in a browser) |
@@ -366,8 +266,8 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 45 | "rebase onto", "rebase branch onto another branch same version", "absorb my branch onto an updated base", "rebase feature onto X", "rebase intent", VI: "rebase nhánh lên nhánh khác cùng phiên bản", "đưa nhánh feature lên base mới", "gộp ý đồ khi rebase nhánh" | `odoo-git-rebase` | SAME Odoo series; whole-range `rebase --onto` absorbing intent (vs `odoo-forward-port` = CROSS major; vs parallel N-disjoint-change delivery = `odoo-planning`, which plans it for the main agent to run node by node; vs `odoo-coding` = one change, nothing to replay) |
 | 46 | "upgrade my module(s) to v<N>", "migrate custom module from one major to the next", "upgrade this cluster across majors", "make this module installable on the new Odoo version", VI: "nâng cấp module lên phiên bản Odoo mới", "chuyển module custom lên major kế tiếp", "đưa cluster lên series cao hơn" | `odoo-modules-upgrade` | EXECUTE a cross-major cluster upgrade (CODE-LEVEL: installable+working; DELETE core-absorbed modules) (vs `/odoo-plan-upgrade` = PLAN only; vs `odoo-forward-port` = port commits (one, or a whole range) UP a major, absorbed by one merge; vs `odoo-deprecation-audit`/`odoo-version-diff` = detection only) |
 | 47 | "acceptance test", "QA the affected cluster / blast-radius", "run it for real on the UI", "write scenarios then run them", "verify blast-radius", "works end-to-end before release", VI: "nghiệm thu cụm module", "chạy thật trên UI", "kịch bản test rồi chạy", "kiểm thử chấp nhận", "QA cụm bị ảnh hưởng" | `odoo-acceptance` | EXECUTE an independent oracle on a LIVE instance/UI across the affected cluster (CRUD + >=2 roles + state + search) and adjudicate PASS/FAIL/UNVERIFIED with evidence (vs `qa-suite` which only WRITES a static test-plan/checklist doc, nothing run; vs `odoo-ui-review` which rates ONE rendered screen; vs `odoo-code-review` which is static source review, no run). Needs a live instance + browser MCP |
-| 48 | "plan the implementation / execution plan", "what order do we build the modules", "sequence this rollout / wire the lifecycle", VI: "lập kế hoạch thực hiện", "thứ tự build module", "lên kế hoạch triển khai" | `odoo-planning` | Turns an APPROVED design into the EXECUTION PLAN (dependency-ordered node graph + node/stage->skill wiring + full lifecycle) BEFORE code; runs AFTER `odoo-solution-design`. Also the user front door for "parallelize these changes" (row 40): it plans the node delivery; on approval the main agent runs it node by node (never a user-invoked executor). Discriminator: `odoo-solution-design` = the technical DESIGN = HOW to build (data model / override strategy / approach); `odoo-planning` = the EXECUTION plan = build/integration order + lifecycle wiring. Pure design with no sequencing → solution-design; WRITE code → `odoo-coding`; classify/cost requirements → `odoo-gap-analysis` |
-| 49 | "watch PR #N", "monitor PR #123", "babysit this PR", "drive the PR to merge", "poll CI until it goes green", VI: "theo dõi PR", "canh PR đến khi merge" | `odoo-pr-monitoring` | Owns the PR lifecycle AFTER a PR already exists and the plan's `integrate` node opened the ONE run-level PR (STOP at "PR opened"): polls CI + review state (via `/loop` in-session or `/schedule` cron, reading through git-toolkit), routes any CI warning/fail to `odoo-debug` (fix authored by `odoo-coding`, re-push HUMAN-gated), and on green + approved presents the merge approval gate and merges. Discriminator: opening + squashing the PR = the plan's `integrate` node (once every non-tail node in that repo is terminal); writing a fix = `odoo-coding`; diagnosing = `odoo-debug`. DO NOT route here to OPEN a new PR, before any PR exists, or for a single-file change |
+| 48 | "plan the implementation / execution plan", "what order do we build the modules", "sequence this rollout / wire the lifecycle", VI: "lập kế hoạch thực hiện", "thứ tự build module", "lên kế hoạch triển khai" | `odoo-planning` | Turns an APPROVED design into the EXECUTION PLAN (dependency-ordered node graph + node->skill wiring + full lifecycle) BEFORE code; runs AFTER `odoo-solution-design`. Also the front door for "parallelize these changes" (row 40). Discriminator: `odoo-solution-design` = the technical DESIGN (HOW to build); `odoo-planning` = the EXECUTION plan (build/integration order). Pure design with no sequencing -> solution-design; WRITE code -> `odoo-coding`; classify/cost requirements -> `odoo-gap-analysis` |
+| 49 | "watch PR #N", "monitor PR #123", "babysit this PR", "drive the PR to merge", "poll CI until it goes green", VI: "theo dõi PR", "canh PR đến khi merge" | `odoo-pr-monitoring` | Owns the PR lifecycle AFTER a PR already exists (the plan's `integrate` node opened it): CI + review polling, merge gate. Discriminator: opening + squashing the PR = the plan's `integrate` node; writing a fix = `odoo-coding`; diagnosing = `odoo-debug`. DO NOT route here to OPEN a new PR, before any PR exists, or for a single-file change |
 | 50 | "thiết kế icon module", "design module app icon", "tạo icon.png cho module", "generate icon.png", "module identity icon", "design icon for Odoo app" | `odoo-icon-design` | DESIGN/GENERATE the module's icon.png (256x256 SVG-to-PNG) via code-gen + rasterizer - brand-aware (vs `odoo-doc-illustration` which captures a 128x128 live SCREENSHOT crop as fallback; vs in-UI glyph = a Font Awesome class name -> route to `odoo-coding`) |
 | 51 | "liệt kê tính năng module cho tài liệu", "enumerate module capabilities", "feature inventory for docs", "what features does this module ship", "catalog all module features", "lập kịch bản hướng dẫn sử dụng", "walkthrough scenarios for docs", "write usage scenarios", "happy-path usage guide", "document how to use this module", "tạo kịch bản sử dụng cho tài liệu" | `odoo-doc-feature-map` | Browser-free TEXT for documentation: the feature catalog, the role map and the usage walkthrough of one module, no screenshots (vs `odoo-feature-check` which answers ONE single yes/no feature question; vs `odoo-feature-highlights` which is marketing "what's new in version X"; vs `odoo-acceptance` which DRIVES a live UI + yields PASS/FAIL; vs `odoo-content-draft` which is marketing copy; vs `odoo-solution-design` which designs technical architecture) |
 | 52 | "write the docs site page", "update the documentation site", "docs repo pages for this feature", "Sphinx documentation for the product", "document this on the docs site", "viết tài liệu trên site docs", "cập nhật site tài liệu sản phẩm", "port the docs to the next series", "forward-port docs PR #N to the next series" | `odoo-doc-site` | TARGET `site` of § Documentation routing: pages of a product docs site kept in its own repository, one PR per series, with browser acceptance of the built docs before the PR; porting docs-site content from a lower series branch to higher ones is this row with its PORT input when PR #N belongs to a declared docs-site repo (vs row 44 `odoo-doc-illustration` for docs shipped inside the module) |
@@ -385,11 +285,13 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 
 ## Full-stack tasks - `odoo-coding` handles both stacks in one skill
 
-A request spanning backend **and** frontend (e.g. "add a `priority` field **and** show it as a star widget") is a **single `odoo-coding` node** - do **not** pre-split it. `odoo-coding` (rows 12/14) scopes per node and launches ONE `odoo-coder` that writes backend and frontend itself, following the design-system fidelity contract when styling must match the theme. For ≥4 disjoint modules or git-orchestrated delivery, route to `odoo-planning` - it plans the node delivery and, on approval, the main agent runs it node by node (never invoke an executor directly).
+A request spanning backend **and** frontend (e.g. "add a `priority` field **and** show it as a star widget") is a **single `odoo-coding` node** - do **not** pre-split it. `odoo-coding` (rows 12/14) scopes per node and launches ONE `odoo-coder` that writes backend and frontend itself. For ≥4 disjoint modules or git-orchestrated delivery, route to `odoo-planning` - it plans the node delivery and, on approval, the main agent runs it node by node (never invoke an executor directly).
 
 ## Design-first preference - steer non-trivial coding through `odoo-solution-design`
 
-A coding request (`odoo-coding`) is NOT automatically the first step. When the change is **non-trivial** - reuse `odoo-solution-design`'s own non-trivial criterion, do **NOT** invent a third definition, and do NOT settle a criterion by inspecting code yourself (override-chain depth is an `odoo-override-finding` question, migration strategy an `odoo-solution-design` one): when what the user said does not settle it, ASK at the plan gate instead of judging it here - intake RECOMMENDS `odoo-solution-design` BEFORE the coder, with `odoo-planning` between design and code: `odoo-solution-design → odoo-planning → odoo-coding → odoo-code-review` (exactly the `odoo-implement-feature` workflow - prefer it for the full chain, driven by Phase P). `odoo-planning` turns that design into the dependency-ordered node execution plan. Design is a planning step (writes only `<SHARE_DIR>/designs/`), human-approved FIRST, then Plan Mode wraps the code step. **This is intake's PREFERENCE, never a precondition:** DESIGN may be skipped at ANY complexity level - always for a one-approach localized fix (a single field, boilerplate), and on the user's word for anything else - and nothing downstream refuses a plan whose design was skipped. What is NOT optional is the plan: **planning is mandatory for all work** - it still flows through `odoo-planning`, which emits the minimal `[code, verify, review, integrate, monitor, merge]` plan. Intake OWNS this admission gate: it establishes the approved plan (routing through `odoo-planning`) before dispatching any executor, so the executor never re-checks for a plan (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule).
+A coding request (`odoo-coding`) is NOT automatically the first step. When the change is **non-trivial** - by `odoo-solution-design`'s own criterion, never a third definition, and never settled by inspecting code yourself - recommend `odoo-solution-design → odoo-planning → odoo-coding → odoo-code-review` (the `odoo-implement-feature` workflow, driven by Phase P, is preferred for the full chain). When what the user said does not settle the criterion, ASK in the approach question. Design writes only `<SHARE_DIR>/designs/`; its SRS and design reviews are text questions, and `odoo-planning`'s Plan-Mode approval is the request's one Plan-Mode gate.
+
+This is a PREFERENCE, never a precondition: DESIGN may be skipped at any complexity level - always for a one-approach localized fix, and on the user's word for anything else. The plan is not optional: planning is mandatory for all code-writing work and flows through `odoo-planning` (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule).
 
 ## Scope-first rule - establish scope/effort before designing
 
@@ -402,7 +304,7 @@ classifies each requirement + effort tier and emits `gap-continuation-contract.j
 (`meta.has_nontrivial`), which decides whether a design step is even needed.
 
 **Reuse a prior gap run.** In Phase 0 / Phase R, glob `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl`. If a
-run exists, surface it in the Proposed Plan (path + date) and offer to REUSE it: skip a fresh gap run
+run exists, surface it in the approach question (path + date) and offer to REUSE it: skip a fresh gap run
 and feed that artifact straight to `odoo-solution-design` (it reads either a gap-matrix or a BRL RTM).
 Re-run gap-analysis only if the requirements changed since.
 
@@ -424,8 +326,8 @@ Apply this rule to every request that produces documentation: a module's own doc
 | `both` | `odoo-planning` with a docs-only plan: `docs-module`, then `docs-site` | both nodes, in that order |
 | `none` | no documentation work | no doc node; the reason is written in the plan |
 
-- A standalone request with ONE target invokes that doc skill directly, with no `odoo-planning` hop; only `both`, or a request that also changes code, builds a plan. When `odoo-doc-illustration` finishes, land its branch as one PR through `git-toolkit:git-ops`.
-- A tail-of-change request goes through `odoo-planning`, except a forward-port or module upgrade, which documents after its own PR with no plan; its plan gate shows the `Docs:` line where the user changes the target, and `no docs` drops both nodes. Node fields: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail. Pass the target and its facts to the planner as `DOC TARGET`.
+- A standalone request with ONE target invokes that doc skill directly, with no `odoo-planning` hop: the skill's own Plan-Mode gate is the approval. Only `both`, or a request that also changes code, builds an `odoo-planning` plan, whose doc nodes run without a gate. When `odoo-doc-illustration` finishes, land its branch as one PR through `git-toolkit:git-ops`.
+- A tail-of-change request goes through `odoo-planning`, except a forward-port or module upgrade, which documents after its own PR: pass it the TARGET and its facts, and its own plan shows the documentation target. The plan's `Docs:` line is where the user changes the target, and `no docs` drops the documentation. Node fields: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail. Pass the target and its facts to the planner as `DOC TARGET`.
 - The change's feature list travels with the doc nodes (and with a standalone update) as a file, `CHANGE` / `FROM CHANGE` = `<ISOLATE_DIR>/docs/change-<slug>.md`, one line per changed user-visible feature with its module and UI label, so only the affected sections and screens are redone.
 - A request to port or forward-port "docs PR #N": recon first checks which repository PR #N belongs to. A declared docs-site repo: TARGET `site`, invoke `odoo-doc-site` with PORT. An addons repo, even when the PR changes only `doc/` files: `odoo-forward-port`.
 - The catalog, role map or usage walkthrough alone, no screenshots: `odoo-doc-feature-map`, no TARGET. A store submission bundle with icon and manifest audit: `module-packaging`.
@@ -434,34 +336,9 @@ Apply this rule to every request that produces documentation: a module's own doc
 
 ## Collision zones - when the Routing Table tie is close
 
-The Routing Table's **Discriminator** column resolves most ties inline. **When the candidate is one of the pairs below and the inline discriminator is not decisive, read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/collision-zones.md`** for the canonical resolution logic.
-
-| # | Collision pair | Quick discriminator |
-|---|---|---|
-| 1 | `odoo-objection-handling` vs `odoo-capability-proof` | "write a response" (paste-able paragraph) → objection; "technical evidence / proof package" → capability-proof |
-| 2 | `odoo-version-diff` vs `odoo-feature-highlights` | "slide / newsletter / summarize for business" → highlights; "which APIs changed, dev needs" → version-diff |
-| 3 | `odoo-deprecation-audit` vs `odoo-version-diff` | "audit OUR code / what will break" → deprecation-audit; "clean diff between versions" → version-diff |
-| 4 | `odoo-deal-followup` vs `odoo-objection-handling` | "hasn't replied / re-engage" → deal-followup; "counter a stated objection" → objection |
-| 5 | skill vs `/command` (same domain) | no slash + single-step → SKILL; explicit slash or "save to file" → COMMAND |
-| 6 | `odoo-capability-proof` vs `odoo-demo-recording` | written/paste-able proof → capability-proof; real recorded video/GIF → demo-recording |
-| 7 | `odoo-coding` vs `odoo-debug` | symptom + "why / not showing" → debug (cause first); "write / create from scratch" → coding |
-| 8 | `odoo-feature-check` vs `odoo-gap-analysis` vs `odoo-brl` | 1 feature → feature-check; short list → gap-analysis; hundreds OR cost/DAG/RTM → brl |
-| 9 | parallel multi-module vs `odoo-brl` vs `odoo-coding` | parallelize+PR+squash → `odoo-planning` (plans it; the main agent runs it node by node); classify/cost reqs → brl; single change → coding |
-| 10 | `odoo-doc-illustration` / `odoo-doc-site` vs `odoo-demo-recording` | static doc/screenshots -> doc-illustration (module) or doc-site (docs site); recorded video/GIF -> demo-recording |
-| 11 | `odoo-git-rebase` vs `odoo-forward-port` vs parallel multi-module | same series + one branch's whole range = git-rebase; cross-major commits to port (one, or a whole range, absorbed by ONE merge) = forward-port; N disjoint modules squashed = `odoo-planning` (plans it; the main agent runs it node by node) |
-| 12 | `odoo-modules-upgrade` vs `odoo-forward-port` / `/odoo-plan-upgrade` / `odoo-deprecation-audit` / `odoo-version-diff` | execute + working code/PR for a cluster across majors = modules-upgrade; plan only = plan-upgrade; port commits UP a major, absorbed by ONE merge = forward-port; detection only = deprecation-audit/version-diff |
-| 13 | `odoo-acceptance` vs `qa-suite` vs `odoo-ui-review` vs `odoo-code-review` | execute + adjudicate an oracle on a live instance/UI across the cluster = acceptance; static test-plan/checklist/triage doc, nothing run = qa-suite; rate ONE rendered screen = ui-review; static source/PR review, no run = code-review |
-| 14 | `odoo-feature-check` vs `odoo-doc-feature-map` vs `odoo-feature-highlights` | single yes/no feature question -> feature-check; enumerate ALL capabilities or write usage walkthrough text for docs -> doc-feature-map; marketing "what's new in version X" -> feature-highlights |
-| 15 | `odoo-customization-inventory` vs `odoo-doc-feature-map` | CUSTOM code summary for a client engagement -> customization-inventory; STANDARD module capabilities from source for documentation -> doc-feature-map |
-| 16 | `odoo-doc-illustration` vs `odoo-doc-site` vs both | module-shipped docs -> doc-illustration; docs-site pages -> doc-site; both, or unclear -> TARGET of § Documentation routing |
-| 17 | `odoo-icon-design` vs `odoo-doc-illustration` (screenshot crop) vs in-UI glyph | DESIGN/GENERATE icon.png (256x256 SVG code-gen + rasterize) -> icon-design; crop live screenshot as fallback -> doc-illustration; Font Awesome class name in a view -> odoo-coding |
-| 18 | `odoo-doc-illustration` DOC LAYER (default `both`) vs `module-packaging` | docs only, no icon or submission -> doc-illustration (`userguide` or `appstore` only when the user narrows it); full bundle icon+manifest+submission -> module-packaging (row 53) |
+The Routing Table's **Discriminator** column resolves most ties inline. **When the inline discriminator is not decisive, read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/collision-zones.md`** for the resolution logic.
 
 ## Command-vs-skill discriminator
-
-Slash commands (`/odoo-*`) are user-explicit kickoffs that chain multiple skills with approval gates. Skills (`odoo-*`) auto-fire on natural-language intent match.
-
-**Routing rule**: if the user's input begins with `/`, the harness invokes the command directly - intake does NOT see this turn. If input is natural language, intake fires on description match.
 
 When ambiguous between command and skill:
 - **Multi-step** intent → recommend the COMMAND.
@@ -470,29 +347,21 @@ When ambiguous between command and skill:
 
 ## Out of Scope
 
-- **NEVER execute work yourself.** No code generation, no proposal drafting, no file writes. MCP / agent calls limited to read-only context: Phase 0 context reads and Phase R read-only Recon. No writes-files specialist runs before Plan Mode is approved.
-- **NEVER recommend more than one skill per module.** If 2 skills are close for the same module, use the Discriminator column to pick the winner; if truly undecidable, escalate to the user with both names + the 1-line difference. A full-stack change is a single `odoo-coding` node - that skill launches ONE `odoo-coder` which writes backend and frontend itself (see § Full-stack tasks). Genuinely disjoint changes are separate nodes planned by `odoo-planning`; its approved plan is what the main agent runs node by node.
+- **NEVER execute work yourself.** No code generation, no proposal drafting, no routed-deliverable writes (planning artifacts under the state root excepted, Hard rule 1). MCP / agent calls limited to read-only context: Phase 0 context reads and Phase R read-only Recon. No code-writing specialist runs outside its plan owner's approved plan.
+- **NEVER recommend more than one skill per module.** If 2 skills are close for the same module, use the Discriminator column to pick the winner; if truly undecidable, escalate to the user with both names + the 1-line difference. A full-stack change is a single `odoo-coding` node (§ Full-stack tasks); genuinely disjoint changes are separate nodes planned by `odoo-planning`.
 - **NEVER trigger on already-routed work.** If the user is mid-workflow, let the active skill continue - do not re-route.
 - **Decline politely for non-Odoo/ERP intents.** Say "This doesn't seem to be an Odoo/ERP task - could you clarify?" and stop.
-
-## Standalone-first fallback
-
-Intake is routing + brainstorm + read-only Recon - no file writes, and no MCP calls beyond Phase 0 fact resolution and Phase R read-only OSM probes. OSM is optional:
-- **backed path**: Phase 0 resolved the Odoo series (any rung of `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) AND `mcp__odoo-semantic__*` tools are reachable → intake records `OSM: backed` in the Proposed Plan.
-- **standalone path**: OSM tools are not reachable, or the series stayed unresolved through every rung → intake operates on the series the user states and records `OSM: standalone`. Offer `/odoo-ai-agents:odoo-setup` when no `[[instance]]` covers this repo, so the next run resolves at rung 2 instead of asking again.
 
 ## Output Format
 
 See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/output-format-templates.md` for the full collision / non-Odoo response templates.
 
-**Fast-path gate** (Tier 1 or Tier 3 hit with clear verb): emit the one-line gate from § Pro fast-path.
+**Fast-path** (Tier 1 or Tier 3 hit with clear verb): the one-line hand-off from § Approach question and hand-off.
 
-**Brainstorm Proposed Plan** (Tier 4 vague branch): use the canonical `## Proposed Plan` block from § Soft plan gate (SSOT - do not restate the fields here).
+**Brainstorm** (Tier 4 vague branch): the approach question from § Approach question and hand-off (SSOT - do not restate the fields here).
 
-## Notes for future maintainers
-
-Design rationale, 5-phase flow, inventory-discovery rules, routing-table layout, and trigger-eval plan: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/maintainers.md`. Keep the routing table and `references/collision-zones.md` in sync when adding entries.
+Maintainer notes: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/maintainers.md`. Keep the routing table and `references/collision-zones.md` in sync when adding entries.
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive output for the plan runner - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).

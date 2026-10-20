@@ -205,27 +205,25 @@ def test_every_gate_slot_in_the_tree_carries_a_declared_reply_set():
 
 
 def test_the_scan_actually_sees_the_tree_s_gates():
-    """Anti-vacuity: a detector that matched nothing would satisfy the rule above trivially.
+    """Anti-vacuity: a scan that matched nothing in the tree would satisfy the rule above trivially.
 
-    Floors are set well under today's real counts so adding gates never breaks CI, while a
-    refactor that silently blinds an extractor does.
+    The tree keeps few gates (one Plan-Mode approval per request, text confirmations only before
+    an outward action), so the floor is on the tree-wide total; each slot extractor is proven on
+    its own by the synthetic red and green proofs below.
     """
-    per_slot: dict[str, int] = {}
+    total = 0
     for f in scanned_files():
-        for slot, _set, _line in gate_reply_candidates(
-            f.read_text(encoding="utf-8"), is_yaml=f.suffix in (".yaml", ".yml")
-        ):
-            per_slot[slot] = per_slot.get(slot, 0) + 1
-    for slot, floor in (
-        ("gate-key", 40),
-        ("Gate-label", 3),
-        ("table", 5),
-        ("question-paren", 5),
-    ):
-        assert per_slot.get(slot, 0) >= floor, (
-            f"the {slot!r} extractor found {per_slot.get(slot, 0)} gates, under the floor of "
-            f"{floor} - an extractor that stops matching makes this guard vacuous"
+        total += len(
+            list(
+                gate_reply_candidates(
+                    f.read_text(encoding="utf-8"), is_yaml=f.suffix in (".yaml", ".yml")
+                )
+            )
         )
+    assert total >= 5, (
+        f"the scan found {total} gate prompts in the tree, under the floor of 5 - an extractor "
+        "that stops matching makes this guard vacuous"
+    )
 
 
 # ---------------------------------------------------------------------------

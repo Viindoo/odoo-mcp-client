@@ -1,8 +1,7 @@
 # Workflow Schema - `workflows/*.workflow.yaml`
 
 > **SSOT for the `*.workflow.yaml` composition contract.**
-> The `workflow-chaining` skill reads files conforming to this schema at runtime.
-> Validators: `generator/check_workflows.py` (CI). Tests: `tests/test_workflow_format.py`.
+> Validators: `generator/check_workflows.py`, `tests/test_workflow_format.py`.
 
 ---
 
@@ -41,9 +40,8 @@ plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 engineering | sales | presales | marketing | strategy | qa | support | content | consultant
 ```
 
-Matches the 9 README persona buckets: WHO the workflow serves. It drives the `odoo-intake`
-tier-3 routing row so this workflow appears in the right routing group without separate
-registration. It is not the business function of the work: that is the per-unit Domain line of
+WHO the workflow serves; it drives the `odoo-intake` tier-3 routing row. It is not the business
+function of the work: that is the per-unit Domain line of
 `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`.
 
 ---
@@ -52,15 +50,15 @@ registration. It is not the business function of the work: that is the per-unit 
 
 | Value | Runner behavior |
 |-------|-----------------|
-| `Pipeline` | Phases run sequentially; gate between each. Equivalent to the existing command shape. |
+| `Pipeline` | Phases run sequentially, without stopping. |
 | `Fan-out` | A phase with `fanout: true` and `chunk_by` splits input, fires N parallel `context: fork` workers (<=3 concurrent), then aggregates. |
 | `Expert-Pool` | `phases[].when:` predicate selects which specialist fires per item. |
 | `Producer-Reviewer` | Two phases: `produce` + `review`. Review phase uses `agent:` in read-only mode. |
 | `Supervisor` | An `inline` supervisor phase distributes sub-tasks via NL-dispatch and collects results. |
 | `Hierarchical` | Top phase decomposes into a generated `phases[]` list bounded to one decomposition level. |
 
-Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and are capped at
-3 concurrent (Mode A - see `skills/_shared/concurrency-guard.md`, the SSOT for the OOM fan-out rule).
+Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and are capped per
+`skills/_shared/concurrency-guard.md` Mode A.
 
 ---
 
@@ -73,8 +71,9 @@ Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and
 | `inline` | bool | ONE OF | `true` = runner handles this phase itself; no separate skill dispatched |
 | `agent` | string | ONE OF | Agent bundle name to launch for read-only passes (e.g. `odoo-code-reviewer`) |
 | `nl_trigger` | string | YES (if skill/agent) | NL prompt written to fire the target skill via description-match dispatch |
-| `model_tier` | enum | YES | `haiku` / `sonnet` / `opus` / `inherit`; a `skill:`/`agent:` phase declares a concrete tier; `sonnet` is the floor when it authors net-new content for an external or customer reader (§6). `inherit` is legal ONLY on an `inline: true` assembler phase (§6) |
-| `gate` | string | NO | Gate options shown to user before this phase. Exactly ONE of the two declared reply sets, verbatim, no third set: `"approve / refine: [feedback] / cancel"` (the phase output can be iterated on) or `"approve / skip / cancel"` (do-it-or-skip-it). SSOT: `snippets/planning-gate-contract.md` |
+| `model_tier` | enum | YES | `haiku` / `sonnet` / `opus` / `inherit`; a `skill:`/`agent:` phase declares a concrete tier (§6). `inherit` is legal ONLY on an `inline: true` assembler phase (§6) |
+| `plan` | bool | NO | `true` on the ONE phase whose output is the workflow plan: the runner runs the phases up to and including it (they write only under the state root, and carry no `gate`), then decides the plan once |
+| `gate` | string | NO | A text confirmation before this phase's outward or irreversible action (send, publish, merge, push, delete) - never to advance a phase or save an artifact. Exactly ONE of the two declared reply sets, verbatim, no third set: `"approve / refine: [feedback] / cancel"` (the phase output can be iterated on) or `"approve / skip / cancel"` (do-it-or-skip-it). SSOT: `snippets/planning-gate-contract.md` |
 | `when` | string | NO | Conditional predicate; phase fires only when it evaluates true (otherwise the runner skips the phase). Used by Expert-Pool for per-item specialist selection, and by Pipeline to carry mutually-exclusive conditional branches (e.g. `classification == 'bug'`) |
 | `fanout` | bool | NO | Fan-out pattern: split input by `chunk_by` and run parallel workers |
 | `chunk_by` | string | NO (with `fanout`) | Field name or expression to split the input for Fan-out |
@@ -89,12 +88,10 @@ Exactly one of `skill`, `inline: true`, or `agent` must be present per phase ite
 haiku | sonnet | opus | inherit
 ```
 
-- `haiku` - read-only lookup, gathering, classification, and verdicts backed by OSM evidence (for example "does standard Odoo already do X" with the OSM lookup cited). Also mechanical edits and running instances.
-- `sonnet` - judgement, edits, review, and root-cause debugging. **Floor for a phase that AUTHORS net-new content for an external or customer reader** - any `skill:`/`agent:` phase that writes new prose or code for that reader.
-- `opus` - long or complex planning, synthesis in complex specialist, legal, or accounting domains, and cross-file DAG reasoning.
-- `inherit` - defer to the calling context's model. Legal ONLY on an `inline: true` ASSEMBLER phase that merely stitches already-authored prior-phase outputs; a `skill:`/`agent:` authoring phase must declare a concrete tier, never `inherit`.
-
-Concurrency limits for fan-out workers are not defined here; see `skills/_shared/concurrency-guard.md` Mode A.
+Choose the tier per `skills/_shared/concurrency-guard.md` § Model-tier selection (the SSOT). A
+`skill:`/`agent:` phase declares a concrete tier. `inherit` defers to the calling context's model and
+is legal ONLY on an `inline: true` ASSEMBLER phase that merely stitches already-authored prior-phase
+outputs.
 
 ---
 
@@ -108,75 +105,23 @@ Must start with `.odoo-ai/`. Examples:
 .odoo-ai/upgrade-plans
 ```
 
-These `output_dir:` values are relative names `workflow-chaining` resolves against the
-machine-global `$ODOO_AI_HOME` state root at runtime (see
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) - artifacts land outside the repo
-working tree entirely, so nothing here needs to be committed or gitignored.
+`workflow-chaining` resolves these relative names against the `$ODOO_AI_HOME` state root at runtime
+(`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`).
 
 ---
 
-## 8. Annotated reference example
+## 8. Reference example
 
-```yaml
-# workflows/discovery-pipeline.workflow.yaml
-name: discovery-pipeline
-domain: presales
-team_pattern: Pipeline
-description: |
-  Run a two-phase discovery pipeline: summarize raw discovery notes into a structured
-  customer profile, then generate a gap analysis effort matrix from that profile.
-  Trigger: "discovery to gap analysis", "full presales pipeline", "discovery and scoping
-  in one pass", "summarize my notes and scope the project".
-output_dir: .odoo-ai/discovery
-inputs:
-  - discovery_notes
-
-phases:
-  - id: summarize
-    skill: odoo-discovery-summary
-    nl_trigger: >
-      Summarize the following raw discovery notes into a structured customer profile
-      (industry, headcount, current system, pain points, fit assessment, open questions).
-    model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
-
-  - id: gap-analysis
-    skill: odoo-gap-analysis
-    nl_trigger: >
-      Using the customer profile produced in the previous phase, generate a full gap
-      analysis effort matrix (Standard/Config/Extension/Custom + day estimates) ready
-      for a proposal.
-    model_tier: sonnet
-    gate: "approve / refine: [feedback] / cancel"
-
-  - id: synthesize
-    inline: true
-    model_tier: inherit
-    gate: "approve / skip / cancel"
-
-resume: true
-fallback: standalone
-```
-
-### Annotation notes
-
-- `team_pattern: Pipeline` - phases run in order with a gate between each; equivalent to
-  the existing command shape.
-- `inputs: [discovery_notes]` - the runner collects this from the user at Phase 0 before
-  emitting the soft-plan-gate.
-- `nl_trigger` - the exact NL prompt the runner passes to the context to fire the target
-  skill via description-match. It should naturally match the skill's `description` field.
-- `inline: true` on `synthesize` - the runner assembles the two phase outputs and writes
-  `<ISOLATE_DIR>/discovery/<slug>-synthesize.md` itself (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
-  once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
-  absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); no
-  external skill is dispatched.
-- `resume: true` - the runner writes `<ISOLATE_DIR>/discovery/<slug>-state.json` after each
-  phase so a cancelled or interrupted workflow can be resumed.
-- `fallback: standalone` - if OSM is unreachable, each specialist phase runs in standalone
-  mode; the runner appends a caveat to the final artifact.
+`workflows/discovery-pipeline.workflow.yaml`: a Pipeline of two `skill:` phases followed by an
+`inline: true` assembler phase, with `resume: true` and `fallback: standalone`. `nl_trigger` is the
+NL prompt the runner passes to fire the target skill via description-match; it should naturally match
+the skill's `description`. An `inline` phase writes `<ISOLATE_DIR>/<output_dir minus its .odoo-ai/ prefix>/<slug>-<phase-id>.md`
+itself; `resume: true` writes `<ISOLATE_DIR>/<output_dir minus its .odoo-ai/ prefix>/<slug>-state.json` after each phase;
+`fallback: standalone` runs each specialist phase without OSM and appends a caveat to the final
+artifact. Resolve `<ISOLATE_DIR>` per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 
 ---
+
 
 ## 9. Validation rules (enforced by `generator/check_workflows.py`)
 
@@ -195,8 +140,7 @@ fallback: standalone
 
 ## 10. Registration
 
-No explicit registration in `plugin.json` is needed. The `workflow-chaining` skill
-auto-discovers `*.workflow.yaml` files from the `workflows/` directory at runtime.
+No `plugin.json` registration: `workflow-chaining` discovers `*.workflow.yaml` files from `workflows/`.
 
 ---
 
@@ -212,7 +156,7 @@ self-dispatches a spawner). Each entry:
 | `next` | string | YES | Target skill **or** workflow name; must exist; must not be this same workflow (no self-loop) |
 | `reason` | string | YES | Why the chain fires (shown to the human / recorded in the contract) |
 | `inputs` | mapping | NO | Args threaded into the next step |
-| `gate_tier` | enum | NO | `L0` / `L1` / `L2` - the driver gates accordingly (L2 always human) |
+| `gate_tier` | enum | NO | `L0` / `L1` / `L2`; recorded metadata only - no runtime step gates on it |
 
 ```yaml
 on_complete:
@@ -223,6 +167,4 @@ on_complete:
     gate_tier: L1
 ```
 
-Validated by `generator/check_workflows.py` (`_validate_on_complete`). Fully optional and
-back-compatible: a workflow without `on_complete` behaves exactly as before.
-Adding a workflow = dropping a `.workflow.yaml` file; no orchestration code is written.
+Validated by `generator/check_workflows.py` (`_validate_on_complete`). Optional.
