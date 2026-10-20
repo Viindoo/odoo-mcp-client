@@ -72,6 +72,8 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    a user-visible string outside `_()`; multiple positional `%s` in one `_()`; a hardcoded locale,
    currency, company or timezone; `hasattr` or `getattr` default as a presence probe;
    `position="replace"` in an inherited view; a bare `inherit_id`; a hardcoded database id.
+   A `_name`, `_inherit` or `_inherits` value that is not a string literal (or a list or dict of
+   literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
 7. **Conventions**: naming prefixes and suffixes, model attribute order, xml_id names, import
    order, manifest version form - each against the guideline file and section you read.
 8. **The coder's `VERSION RULES APPLIED` block**: every cited heading exists in the cited file;

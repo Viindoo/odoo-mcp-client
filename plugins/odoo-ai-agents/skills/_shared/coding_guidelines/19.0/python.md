@@ -53,6 +53,15 @@ from odoo.addons.website.models.website import slug
   and accepts only relative `from . import <name>` lines (plus `from .<subpackage> import *` for a
   test sub-package).
 
+## Model name attributes are literals
+
+> Plugin rule (not in the upstream text):
+
+- `_name`, `_inherit` and `_inherits` are string literals in the class body: `_name = 'x.y'`;
+  `_inherit = 'x.y'` or `['a.b', 'c.d']` (every element a literal); `_inherits = {'res.partner':
+  'partner_id'}` (key and value literals). Never a constant or variable (same module or imported
+  from another addon), a function call, an f-string, a concatenation or any other expression.
+
 ---
 
 ## Idiomatics of Programming (Python)
