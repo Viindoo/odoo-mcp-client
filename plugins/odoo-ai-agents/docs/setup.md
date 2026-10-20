@@ -344,8 +344,8 @@ can be blocked and, after repeated blocks, auto mode pauses to ask you.
 
 - **Derived from this machine, nothing typed in:** trusted roots = the parent directory of every
   `addons_path` entry in the instance catalog plus the state root's `projects` directory;
-  organization = owner of each repository's `origin` remote; fork owner = owner of any other
-  remote; protected branches = the remote's default branch plus every `<major>.0` branch. Git is
+  organization = owner of each repository's `origin` remote; fork owner = owner of each other
+  remote the user pushes to (a fetch-only upstream is not one); protected branches = the remote's default branch plus every `<major>.0` branch. Git is
   only read. `propose` prints all of it; `apply` asks `[Y/n]` per group.
 - **What is written** (user settings, each entry tagged `odoo-ai-agents: `): `autoMode.allow`
   (routine development inside the trusted roots, routine git, local instances), `autoMode.soft_deny`

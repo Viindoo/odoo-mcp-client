@@ -18,8 +18,8 @@
 # It NEVER writes hard_deny, permissions.allow or a bypass mode.
 #
 # Every value is derived from the machine (scripts/lib/auto_mode_facts.py): trusted roots
-# from the instance catalog's addons_path rows, organization and fork owner from the git
-# remotes of those repositories, protected branches from the remote's default branch plus
+# from the instance catalog's addons_path rows, organization and fork owner (a non-origin
+# remote the user pushes to, never a fetch-only upstream) from the git remotes of those repositories, protected branches from the remote's default branch plus
 # every `<major>.0` branch. Git is only read.
 #
 # Subcommands:
