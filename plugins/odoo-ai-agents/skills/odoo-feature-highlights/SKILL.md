@@ -46,14 +46,12 @@ Odoo ships annual major releases - each brings API changes (developer-facing) an
 | Version | Highlight |
 |---|---|
 | v9 | First CE/EE split |
-| v10 | Odoo rebranding from OpenERP; Python 3 migration start |
 | v11/v12 | Community stabilization; major accounting improvements |
-| v13 | OWL introduced (most views still use legacy widgets) |
-| v14 | OWL becomes primary framework; `web.Widget` deprecated |
 | v15 | ES6 module system canonical (`/** @odoo-module **/`); spreadsheet; sign matured |
-| v16 | OWL 2.x library (`@odoo/owl`, breaking OWL API); `web.Widget` removed; new field types |
 | v17 | Performance; Python 3.10+; UX refinements |
 | v18+ | ORM enhancements; module restructuring |
+
+Frontend milestones (OWL library first release and major, module system, shell, legacy `web.Widget` lifetime) and the `openerp`-to-`odoo` package rename: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` rows 1, 1b and 5.
 
 Custom distributions track Odoo versions - distinguish CE base from distribution-specific add-ons. **Data priority:** `api_version_diff` is ground truth - never assert "added in vX" without MCP confirmation.
 

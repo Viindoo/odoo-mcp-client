@@ -1,12 +1,14 @@
 # Risk Overview Examples
 
 **Example 1:**
-Prompt: "give me a risk overview of our Odoo customization before we upgrade to v17"
+Prompt: "give me a risk overview of our Odoo customization before we upgrade to Odoo <target>"
 Output: Table of custom modules with deprecated API counts, blast radius for critical fields,
-migration complexity note (e.g. from v16 = Low multiplier), recommended action.
+upgrade complexity note (a same-era jump = Low multiplier), recommended action.
 
 **Example 2:**
-Prompt: "risk overview before we upgrade our system from version 14 to 17"
+Prompt: "risk overview before we upgrade our system from version <from> to <to>"
 Output: Risk analysis for distribution-maintained vs custom modules, identify modules needing
-deep migration work (v13 `@api.multi` removal + v14 OWL-becomes-primary + v16 OWL 2.x library),
+deep modernisation work (the `@api.multi` removal, a frontend era change and the OWL library major, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` and
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`),
 estimate timeline and recommended action in business language.
