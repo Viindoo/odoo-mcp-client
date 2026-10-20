@@ -4,10 +4,10 @@ Fill the universal skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md
 skeleton (read by path) plus the fields below. Inputs only; the writer's body owns every
 procedure. Every path is the captured absolute literal, never re-resolved by the writer.
 
-## Launch (`odoo-doc-writer`, model sonnet)
+## Launch (`odoo-doc-writer`)
 
 ```
-DISPATCH MODEL: sonnet
+DISPATCH MODEL: <haiku | sonnet, per concurrency-guard.md § Model-tier selection>
 MODE: full | landing
 MODULE: <technical name>   MODULE_PATH: <abs path under WORKTREE_PATH>
 WORKTREE_PATH: <doc_root>
@@ -19,6 +19,7 @@ LANGUAGES: <resolved list, en_US first>
 DOMAIN: <Domain line | none>   SRS: <path | none>
 FEATURE CATALOG: <path | none>   ROLE MAP: <path | none>   WALKTHROUGH: <path | none>
 MARKETING COPY: <path | none>   BUYER PROFILE: <path | none>   TARGET MARKET: <value | none>
+CHANGE: <feature list | path of the file holding it | whole | none>
 DOC SCOPE: screenshot-doc | full-guide
 CAPTURE MODE: screens | scenarios
 BROWSER MODE: headless | headed
@@ -41,7 +42,7 @@ FINDINGS:
 ...
 ```
 
-## `catalog-only` (launched by `odoo-doc-feature-map` and `odoo-doc-walkthrough`)
+## `catalog-only` (launched by `odoo-doc-feature-map`)
 
 ```
 DISPATCH MODEL: sonnet

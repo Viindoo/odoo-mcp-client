@@ -638,16 +638,17 @@
       "deprecated_tools_used": [],
       "notes": "Launcher: launches odoo-doc-writer in MODE catalog-only for the three shared documentation files (feature catalog, role map, walkthrough). Standalone-first; browser-free. OSM for module capability enumeration (describe_module + module_inspect + model_inspect). min_server 0.13.1 for describe_module."
     },
-    "odoo-doc-walkthrough": {
+    "odoo-doc-site": {
       "mcp_tools": [
         "set_active_version",
         "describe_module",
         "module_inspect",
-        "model_inspect"
+        "check_module_exists",
+        "api_version_diff"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Launcher: launches odoo-doc-writer in MODE catalog-only, forwarding a catalog and role map the caller holds, for the happy-path usage walkthrough. Standalone-first; browser-free. OSM for grounding scenario steps in real UI labels/views. min_server 0.6.0 for set_active_version."
+      "notes": "Launcher: writes or updates the pages of a product documentation site kept in its own repository (Sphinx, one branch, worktree and PR per series). Resolves the site row, finds existing content first, plans the pages behind a human gate, provisions the capture instance through odoo-instance, launches odoo-doc-site-writer per disjoint page group, runs the content gates, browser-accepts the locally served build through odoo-qa-tester MODE DOCS, lands the PR through git-ops and reads its CI. Its own OSM calls map the area to modules (page plan) and re-check the facts of a ported page; the launched writer and odoo-doc-feature-map ground the page facts."
     }
   },
   "agents": {
@@ -1072,7 +1073,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Live acceptance executor in two caller-set modes: A1A2 (haiku, sonnet when a Given needs a fixture built: a multi-company database, a stubbed external service, device emulation, an upgrade database) builds the stand-alone and with-dependents databases through the odoo-instance skill, drives each scenario as its role, captures evidence and rules PASS/FAIL/UNVERIFIED by comparison; A4 (sonnet) walks the new screens as each audience role and reports what the role cannot understand. OSM is static structural grounding for modules outside the worktree; live values come from the instance and the browser. Never edits the oracle, never fixes code, launches nothing.",
+      "notes": "Live acceptance executor in three caller-set modes: A1A2 (haiku, sonnet when a Given needs a fixture built: a multi-company database, a stubbed external service, device emulation, an upgrade database) builds the stand-alone and with-dependents databases through the odoo-instance skill, drives each scenario as its role, captures evidence and rules PASS/FAIL/UNVERIFIED by comparison; A4 (sonnet) walks the new screens as each audience role and reports what the role cannot understand; DOCS (sonnet, launched by odoo-doc-site) is the browser acceptance of a locally served docs build against a checklist, per site language, with SERVED URLS and PAGE PLAN as inputs. OSM is static structural grounding for modules outside the worktree; live values come from the instance and the browser. Never edits the oracle, never fixes code, launches nothing.",
       "brief": {
         "required": [
           "MODE",
@@ -1093,7 +1094,11 @@
           "SHARE_DIR",
           "REPORT_PATH",
           "DOMAIN",
-          "USER LANGUAGE"
+          "USER LANGUAGE",
+          "SERVED URLS",
+          "PAGE PLAN",
+          "IMAGES TO REVIEW",
+          "BANNED TERMS"
         ]
       }
     },
@@ -1120,7 +1125,7 @@
       }
     },
     "odoo-doc-writer": {
-      "role": "leaf",
+      "role": "node-owner",
       "mcp_tools": [
         "set_active_version",
         "check_module_exists",
@@ -1131,7 +1136,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "The one documentation writer: MODE catalog-only writes feature-catalog.jsonl, role-map.json and walkthrough.jsonl from the module tree and OSM (no browser); MODE full captures the screens on the provisioned instance and writes the role-based doc/index.rst per locale; MODE landing, resumed in the same context after full or launched with the catalog in hand, writes static/description/index.html from the catalog and the copy and wires the manifest images. Writes doc files, images and the three shared files only; launches nothing. min_server 0.13.1 for describe_module.",
+      "notes": "The one documentation writer: MODE catalog-only writes feature-catalog.jsonl, role-map.json and walkthrough.jsonl from the module tree and OSM (no browser); MODE full captures the screens on the provisioned instance and writes the role-based doc/index.rst per locale; MODE landing, resumed in the same context after full or launched with the catalog in hand, writes static/description/index.html from the catalog and the copy and wires the manifest images. A CHANGE feature list turns full or landing into an update of the affected sections and screens only. Traces code through the built-in Explore agent at haiku. Writes doc files, images and the shared files only; launches only Explore. min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
           "MODE",
@@ -1156,6 +1161,7 @@
           "MARKETING COPY",
           "BUYER PROFILE",
           "TARGET MARKET",
+          "CHANGE",
           "DOC SCOPE",
           "CAPTURE MODE",
           "BROWSER MODE",
@@ -1180,6 +1186,47 @@
         ]
       },
       "notes": "Read-only haiku recon: upstream closure, dependents, sibling overrides and references, existing features and tests, one row each with its source (worktree or index). Launched once per change by odoo-solution-architect (design session) or by a coder that works without a design; launches nothing."
+    },
+    "odoo-doc-site-writer": {
+      "role": "node-owner",
+      "mcp_tools": [
+        "set_active_version",
+        "describe_module",
+        "module_inspect",
+        "model_inspect",
+        "entity_lookup",
+        "check_module_exists",
+        "api_version_diff"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Writes one group of pages of a product documentation site from the series' code and the live UI: facts (code tracing by the built-in Explore agent at haiku), screenshots in every site language, RST, images and translation entries. Never touches the theme, the build configuration or other catalogs; launches only Explore. min_server 0.13.1 for describe_module.",
+      "brief": {
+        "required": [
+          "SITE WORKTREE",
+          "SERIES",
+          "LANGUAGES",
+          "PAGE PLAN",
+          "FACTS",
+          "INSTANCE HANDLE",
+          "SHARE_DIR",
+          "ISOLATE_DIR",
+          "POLICY",
+          "REPO FACTS",
+          "DOCS PYTHON"
+        ],
+        "optional": [
+          "LOGIN",
+          "GROUP",
+          "PROFILE",
+          "ADDONS_PATH",
+          "RUN_ID",
+          "FROM CHANGE",
+          "USER LANGUAGE",
+          "CONTENT WIDTH",
+          "SERVED URLS"
+        ]
+      }
     }
   },
   "orchestration": {
@@ -1505,7 +1552,7 @@
     "odoo-doc-illustration": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-writer (MODE full per module, resumed with MODE landing for the App Store page; sonnet)",
+        "odoo-doc-writer (MODE full per module, resumed with MODE landing for the App Store page; sonnet, haiku for a change made only of relabels and recaptures; CHANGE feature list = update only the affected sections and screens)",
         "odoo-instance (Skill tool, inline - one lease per instance path)",
         "git-toolkit:git-ops (Skill tool - the docs worktree and one commit per module)"
       ],
@@ -1649,7 +1696,8 @@
         "git-ops (P5 absorb-all - ONE no-ff no-commit merge of the batch's range TIP, the pipeline's only git shape - plus branch/worktree ops, the single self-decided P10 merge commit (no human gate; human gates are P4 and the P12 PR merge), and all other local git mutations, plus read-only diff/range map and PR create/review - via git-ops skill - git-toolkit; never a per-commit merge, and never a cherry-pick at any granularity)",
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
         "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
-        "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; SELF_PROVISIONS its own demo-loaded export instance - the P9 verify instance is built without demo and cannot serve an export - its result is presented at the P12 PR gate)"
+        "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; SELF_PROVISIONS its own demo-loaded export instance - the P9 verify instance is built without demo and cannot serve an export - its result is presented at the P12 PR gate)",
+        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per odoo-intake's documentation routing rule, from a change file of the user-visible features; module docs commit onto the same PR's branch)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1701,7 +1749,8 @@
         "odoo-instance skill (P5 install/test via the Skill tool; owns the odoo-instance-ops fan-out) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)",
         "odoo-acceptance (P5.8 acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole cluster, gates alongside the P6 sign-off)",
-        "odoo-i18n (P5.7 catalog reconcile via the Skill tool; MANDATORY for every surviving module, narrow-escape only; reuses the P5 instance, folds its result into the P6 sign-off)"
+        "odoo-i18n (P5.7 catalog reconcile via the Skill tool; MANDATORY for every surviving module, narrow-escape only; reuses the P5 instance, folds its result into the P6 sign-off)",
+        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per odoo-intake's documentation routing rule, from a change file of the user-visible features; module docs commit onto the same PR's branch)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1748,7 +1797,7 @@
     "odoo-doc-feature-map": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-writer (MODE catalog-only)"
+        "odoo-doc-writer (MODE catalog-only; writes the catalog, the role map and the usage walkthrough)"
       ],
       "stack": "backend",
       "instance_touching": false,
@@ -1758,18 +1807,25 @@
         "odoo-doc-writer"
       ]
     },
-    "odoo-doc-walkthrough": {
+    "odoo-doc-site": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-writer (MODE catalog-only; the walkthrough is one of its three files)"
+        "odoo-doc-site-writer (one per disjoint page group; sonnet for new pages, haiku for recapture, relabel, toctree wiring and filling existing translations)",
+        "odoo-qa-tester (MODE DOCS: browser acceptance of the locally served docs build before the PR; sonnet)",
+        "odoo-instance (Skill tool, inline - one lease per series)",
+        "odoo-doc-feature-map (Skill tool - the catalog of a module the plan shows when none exists)",
+        "git-toolkit:git-ops (Skill tool - worktrees, commits, push and the PR per series)"
       ],
-      "stack": "backend",
-      "instance_touching": false,
+      "stack": "none",
+      "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1",
+      "default_gate_tier": "L2",
       "spawns_agents": [
-        "odoo-doc-writer"
-      ]
+        "odoo-doc-site-writer",
+        "odoo-qa-tester"
+      ],
+      "outward": true,
+      "instance_scope": "ephemeral"
     }
   },
   "vocabulary": {

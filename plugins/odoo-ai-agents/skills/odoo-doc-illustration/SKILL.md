@@ -2,12 +2,14 @@
 name: odoo-doc-illustration
 argument-hint: "[module] [doc target]"
 description: >-
-  Module docs with live screenshots: App Store page and/or RST user guide
+  Module docs with live screenshots: in-module user guide and App Store page
 ---
 
 ## Role
 
-Front door for documenting Odoo modules with live screenshots. It settles the tree the docs land
+Front door for the documentation that ships inside Odoo modules (`doc/index.rst`, the App Store
+page `static/description/index.html`), illustrated with live screenshots. A product documentation
+site kept in its own repository is `odoo-doc-site`. It settles the tree the docs land
 in, plans the instances a multi-module package needs, provisions each instance, launches ONE
 `odoo-doc-writer` per module (`MODE: full` for the user guide, resumed with `MODE: landing` for
 the App Store page), verifies the references, commits per module and releases what it leased.
@@ -21,18 +23,22 @@ The writer owns the documents; this skill owns the tree, the instances and the o
 - **Spec or outline before any code or doc exists** -> `odoo-solution-design`
 - **Compare two builds for visual drift** -> `odoo-visual-regression`
 - **Write or fix frontend source** -> `odoo-coding`
-- **The catalog, role map or walkthrough alone, no browser** -> `odoo-doc-feature-map` /
-  `odoo-doc-walkthrough`
+- **The catalog, role map or walkthrough text alone, no browser** -> `odoo-doc-feature-map`
+- **A product documentation site** (its own repository, a branch per series) -> `odoo-doc-site`
 
 ## Inputs
 
 `TARGET`: one module (name or path), or `local`, `worktree:<abs-path>`, `repo:<abs-path>` for a
 multi-module package. Optional axes, per module or for the run: `DOC LAYER` (`userguide`,
-`appstore`, `both`; default `both`, else what the module already ships on disk), `DOC SCOPE`
-(`screenshot-doc` default, `full-guide`), `CAPTURE MODE` (`screens` default, `scenarios`),
-`BROWSER MODE` (`headless` default), `LANGUAGES`, `TARGET MARKET`, `REDOC`. A caller may supply
-per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`, `MARKETING COPY`, `BUYER PROFILE`; each
-is forwarded and never rebuilt.
+`appstore`, `both`; default `both`), `DOC SCOPE` (`screenshot-doc` default, `full-guide`),
+`CAPTURE MODE` (`screens` default, `scenarios`), `BROWSER MODE` (`headless` default), `LANGUAGES`,
+`TARGET MARKET`, and `CHANGE`: the path of a change file (`<ISOLATE_DIR>/docs/change-<slug>.md`, one
+line per added, changed or removed user-visible feature with its module and UI label) or `whole`; a
+module's feature list is the lines of that file that name the module. `CHANGE` is the one update input: with a feature list
+the writer rewrites only the affected sections and recaptures only the affected screens; `whole`
+documents the module again from scratch; absent, a module that already ships docs is left alone
+(step 2). A caller may supply per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`,
+`MARKETING COPY`, `BUYER PROFILE`; each is forwarded and never rebuilt.
 
 ## Steps
 
@@ -50,17 +56,19 @@ is forwarded and never rebuilt.
    `share` and `isolate`) and pass the same literals to every launch and to step 7.
 2. **Scope and plan (inline, no launch).** Per module: `abs_path`, `version`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), `languages` (§ Language
-   resolution), `doc_layer`, `has_demo`, `depends_in_scope`, `has_ondisk_doc`, `target_market`
+   resolution), `doc_layer`, `has_demo`, `depends_in_scope`, `has_ondisk_doc`, `change`, `target_market`
    proposed from the descriptor (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md`
    § Target market) - field rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`
    § Input. One module: one instance, one step. Several: compute `doc-plan.yaml` per that file's
    algorithm (clusters, branch-aware instances, leaf-first order, dedup, `W`) and write it to
    `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`.
 3. **One gate.** Present the whole plan - modules, instances and order, `doc:false` modules with
-   their reason, `W`, one `TARGET MARKET` row per appstore module, the uncommitted-changes
-   question of step 1 - for one `approve / refine: [feedback] / cancel`. `refine` recomputes the
+   their reason (a module with docs on disk and no `change` is listed here; `refine: redo <module>`
+   sets its `change` to `whole`), `W`, one `TARGET MARKET` row per appstore module, the
+   uncommitted-changes question of step 1 - for one `approve / refine: [feedback] / cancel`. `refine` recomputes the
    plan; `cancel` leaves nothing behind. A single module with every input resolved skips the gate
-   except the target-market and uncommitted-changes questions, asked once.
+   except the target-market and uncommitted-changes questions and, for a module with docs on disk
+   and no `change`, the question "redo from scratch, or give the change", asked once.
 4. **Orphan sweep**, before any launch: remove abandoned staging of earlier runs -
 
    ```
@@ -78,8 +86,10 @@ is forwarded and never rebuilt.
       Otherwise run the gate of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
       § Reference gate (`--series` = M's resolved series) on `M` with no file arguments and keep
       its findings as the baseline, then launch
-      `odoo-doc-writer` (`model: sonnet`, brief in `references/writer-brief.md`) with `MODE: full`
-      when the layer includes `userguide`, else `MODE: landing`.
+      `odoo-doc-writer` (brief in `references/writer-brief.md`; `model` per
+      `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection: composing
+      new text is sonnet, a `change` made only of relabels and recaptures is haiku) with
+      `MODE: full` when the layer includes `userguide`, else `MODE: landing`.
    3. Layer `both`: when the `full` round returns, send the same writer `MODE: landing` with
       `SendMessage` - never a second launch; it holds the catalog and the captures.
    4. **Verify.** Every reported file exists. Run the reference gate on `M` with no file

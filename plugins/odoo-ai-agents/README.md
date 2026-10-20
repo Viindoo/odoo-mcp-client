@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **50 skills + 20 agents + 8 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **50 skills + 21 agents + 8 commands**, grouped into **9 persona
 > buckets**, plus **13 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -49,7 +49,7 @@ test forwarding, and verify-by-behavior per batch - at most one agent instance p
 the whole run. It runs alongside coding, code review, and upgrade planning as a core engineering
 capability.
 
-> **Counts at a glance:** this plugin ships **50 skills + 20 agents + 8 commands**, grouped into
+> **Counts at a glance:** this plugin ships **50 skills + 21 agents + 8 commands**, grouped into
 > **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -72,7 +72,7 @@ row above.
 | Visual / UI QA | qa | ui-review - visual-regression - demo-recording - doc-illustration |
 | Pre-Sales | presales | feature-check - gap-analysis - brl |
 | Sales AE | sales | objection-handling - deal-followup - discovery-summary |
-| Marketer | marketing | feature-highlights - content-draft - campaign-plan - icon-design - doc-feature-map - doc-walkthrough |
+| Marketer | marketing | feature-highlights - content-draft - campaign-plan - icon-design - doc-feature-map - doc-site |
 | Strategist / CEO | strategy | risk-overview - competitive-brief - customization-inventory |
 
 - **Engineer** - Find the correct override point, audit deprecated API usage before an upgrade, or validate a deployment is safe.
@@ -81,7 +81,7 @@ row above.
 - **Visual / UI QA** - Review a live Odoo screen through five lenses (aesthetics, function, stability, accessibility, performance), debug a broken render, catch visual regressions, record a demo clip, or run a full QA pipeline (test cases + checklist + bug triage).
 - **Pre-Sales Consultant** - Verify feature availability, build a gap matrix, produce evidence for a proposal, compare CE vs EE side-by-side, or classify and cost hundreds of business requirements at scale with the BRL engine.
 - **Sales AE** - Get ACA-structured responses to objections, risk-scored follow-up emails for stalled deals, a synthesized prospect profile from discovery notes, or triage an inbound support ticket into a customer-ready resolution draft.
-- **Marketer** - Create content around Odoo features - blog posts, slide decks, social copy, multi-channel campaign plans - in marketing-ready language, and package a complete module for the Apps Store (icon, feature catalog, usage walkthroughs, illustrated landing) via `module-packaging`; individual skills: `odoo-doc-illustration`, `odoo-icon-design`, `odoo-doc-feature-map`, `odoo-doc-walkthrough`.
+- **Marketer** - Create content around Odoo features - blog posts, slide decks, social copy, multi-channel campaign plans - in marketing-ready language, and package a complete module for the Apps Store (icon, feature catalog, usage walkthroughs, illustrated landing) via `module-packaging`; individual skills: `odoo-doc-illustration`, `odoo-icon-design`, `odoo-doc-feature-map`, `odoo-doc-site` (a product docs site).
 - **Strategist / CEO** - Get an executive risk overview of customizations, a structured customization inventory, or a competitor capability snapshot ready for a board or sales response.
 - **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-intake` takes ambiguous intent, brainstorms when vague, fast-paths when clear, resolves the Odoo series/profile/scope from your declared instance or checkout, routes to the right workflow or specialist, and always proposes a plan before any execution skill fires.
 
@@ -183,7 +183,7 @@ flowchart TD
     PK -->|"integrate node<br/>(once per repo)"| INT["main agent invokes git-toolkit:git-ops<br/>pre-PR lint, squash, push, open the run's ONE PR"]
     PK -->|"tail: review R1 -> R2 (R3 when due)<br/>|| acceptance A1A2 (A4 when due)"| REV["odoo-code-reviewer + odoo-qa-tester<br/>one merged fix round, max 3"]
     REV --> PK
-    PK -->|"when: new msgids / user-visible feature"| DOC["odoo-translator per language<br/>odoo-doc-writer per module"]
+    PK -->|"when: new msgids / user-visible feature"| DOC["odoo-translator per language<br/>docs-module: odoo-doc-illustration<br/>docs-site: odoo-doc-site"]
 
     DISP --> CC["Continuation Contract"]
     DOC --> CC
@@ -375,7 +375,7 @@ flowchart TD
     DR --> MEDIA["MP4 / GIF artifact"]
 
     subgraph DOC_PREP["Doc content prep (browser-free)"]
-        FMP["odoo-doc-feature-map / odoo-doc-walkthrough<br/>(odoo-doc-writer, catalog-only)"]
+        FMP["odoo-doc-feature-map<br/>(odoo-doc-writer, catalog-only: catalog, role map, walkthrough)"]
         ICN["odoo-icon-design<br/>(icon.png + icon.svg)"]
     end
 
@@ -601,21 +601,21 @@ flowchart TD
     PKG_START --> PKG_P0["P0 - Scope inline<br/>resolve modules, read manifests,<br/>detect existing assets"]
     PKG_P0 --> PKG_P05["P0.5 - doc plan inline<br/>(skills/_shared/doc-cluster-plan.md)<br/>clusters, instances by DAG shape, ONE gate"]
 
-    subgraph PKG_FANOUT["P1-P4: browser-free (parallel)"]
-        PKG_P1["P1/P2 - odoo-doc-writer catalog-only<br/>(catalog, role map, walkthrough)"]
-        PKG_P3["P3 - odoo-icon-design<br/>(icon.png + icon.svg)"]
-        PKG_P4["P4 - odoo-content-draft<br/>(buyer profile + Apps Store copy)"]
+    subgraph PKG_FANOUT["P1-P3: browser-free (parallel)"]
+        PKG_P1["P1 - odoo-doc-writer catalog-only<br/>(catalog, role map, walkthrough)"]
+        PKG_P3["P2 - odoo-icon-design<br/>(icon.png + icon.svg)"]
+        PKG_P4["P3 - odoo-content-draft<br/>(buyer profile + Apps Store copy)"]
     end
 
     PKG_P05 --> PKG_P1
     PKG_P05 --> PKG_P3
     PKG_P05 --> PKG_P4
 
-    PKG_P1 --> PKG_P5["P5 - provision-capture (per instance path)<br/>odoo-instance + odoo-doc-writer (full, then landing) + git-ops<br/>parallel ACROSS paths (<=W); sequential WITHIN"]
+    PKG_P1 --> PKG_P5["P4 - provision-capture (per instance path)<br/>odoo-instance + odoo-doc-writer (full, then landing) + git-ops<br/>parallel ACROSS paths (<=W); sequential WITHIN"]
     PKG_P4 --> PKG_P5
     PKG_P3 -. "icon committed directly" .-> PKG_DONE
-    PKG_P5 --> PKG_P6["P6 - Manifest audit inline"]
-    PKG_P6 --> PKG_P7["P7 - Aggregate index"]
+    PKG_P5 --> PKG_P6["P5 - Manifest audit inline"]
+    PKG_P6 --> PKG_P7["P6 - Aggregate index"]
     PKG_P7 --> PKG_DONE(["DONE - <ISOLATE_DIR>/packaging/"])
 ```
 
@@ -623,12 +623,12 @@ flowchart TD
 |-------|-------------|-----------|----------|
 | P0 Scope | Resolve modules, read manifests, detect existing assets | - | - |
 | P0.5 doc plan | Inline per `skills/_shared/doc-cluster-plan.md`: clusters, instances by DAG shape, leaf-first order, dedup; ONE whole-plan gate | - | - |
-| P1/P2 Catalog + walkthrough | `odoo-doc-feature-map` / `odoo-doc-walkthrough` -> `odoo-doc-writer` (catalog-only): feature-catalog.jsonl, role-map.json, walkthrough.jsonl | fan-out per module | - |
-| P3 Icon | `odoo-icon-design` -> icon.png 256x256 + icon.svg, committed via git-toolkit:git-ops | fan-out (independent) | - |
-| P4 Copy | `odoo-content-draft` -> buyer profile + Apps Store copy per locale | fan-out per module | - |
-| P5 provision-capture | `odoo-instance` + `odoo-doc-writer` (MODE full, then MODE landing by SendMessage) + `git-ops` per instance path; incremental install leaf-first; one commit per module | across paths (<=W) | yes |
-| P6 Manifest audit | Inline: audit `__manifest__.py` store keys; flag drift | - | - |
-| P7 Aggregate | Write `<ISOLATE_DIR>/packaging/` index | - | - |
+| P1 Catalog + walkthrough | `odoo-doc-feature-map` -> `odoo-doc-writer` (catalog-only): feature-catalog.jsonl, role-map.json, walkthrough.jsonl | fan-out per module | - |
+| P2 Icon | `odoo-icon-design` -> icon.png 256x256 + icon.svg, committed via git-toolkit:git-ops | fan-out (independent) | - |
+| P3 Copy | `odoo-content-draft` -> buyer profile + Apps Store copy per locale | fan-out per module | - |
+| P4 provision-capture | `odoo-instance` + `odoo-doc-writer` (MODE full, then MODE landing by SendMessage) + `git-ops` per instance path; incremental install leaf-first; one commit per module | across paths (<=W) | yes |
+| P5 Manifest audit | Inline: audit `__manifest__.py` store keys; flag drift | - | - |
+| P6 Aggregate | Write `<ISOLATE_DIR>/packaging/` index | - | - |
 
 ### Available commands
 
@@ -948,7 +948,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-code-review` | Code-Reviewer | Static review of a diff, worktree or PR in three tiers - R1 mechanical (haiku), R2 behaviour and verdict (sonnet), R3 specialist (opus) when due; a later round resumes the same reviewer |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
-| `odoo-instance` | Engineer / Coder | Front door for all Odoo instance lifecycle operations (create, drop, init, update, run-tests, ensure-up, load-language, status) for any series v8+; runs the ops steps inline in the caller's own context or launches the `odoo-instance-ops` agent - whichever fits the caller - and relays back structured metadata including db name, log path, ports, `db_port`, lease token, and the owning run id |
+| `odoo-instance` | Engineer / Coder | Front door for all Odoo instance lifecycle operations (create, drop, init, update, run-tests, ensure-up, load-language, status) for any series v8+; launches the haiku `odoo-instance-ops` agent for build, test, serve and export work (inline only for hard leaves, path-incremental loops, quick reads and teardown of the caller's own lease) and relays back structured metadata including db name, log path, ports, `db_port`, lease token, and the owning run id |
 | `odoo-capability-proof` | Pre-Sales Consultant | Evidence-based proof that Odoo supports a client requirement |
 | `odoo-addon-diff` | Pre-Sales Consultant | Side-by-side CE vs EE feature comparison |
 | `odoo-brl` | Pre-Sales Consultant | BRL engine - classify and cost tens-to-thousands of business requirements into a phased RTM with dependency DAG and checkpoint/resume |
@@ -968,22 +968,23 @@ regardless of whether it has a dedicated guide.
 | `odoo-debug` | Coder | Root-cause a broken behaviour with ONE debugger per incident (backend or UI, sonnet), escalated to opus with the prior findings when a full pass proves no cause, then to fable on confirmation; hands the proven cause to `odoo-coding` |
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
-| `odoo-doc-illustration` | Marketer / Visual | Module docs with live screenshots - plans the instances of a multi-module package inline, provisions each, launches ONE `odoo-doc-writer` per module (user guide, then the App Store page by SendMessage), verifies the references and commits per module |
+| `odoo-doc-illustration` | Marketer / Visual | Module docs (the in-module RST user guide and the App Store page) with live screenshots; a `CHANGE` feature list updates only the affected sections and screens - plans the instances of a multi-module package inline, provisions each, launches ONE `odoo-doc-writer` per module (user guide, then the App Store page by SendMessage), verifies the references and commits per module |
 | `odoo-icon-design` | Marketer / Visual | Generates icon.png (256x256) plus the icon.svg source, in whichever asset formats the target series accepts (resolved by the agent, never assumed from a series here); reads module manifest, picks fitting symbols, produces static/description/icon.png + icon.svg, then verifies and commits the assets via `git-toolkit:git-ops` (self-provisioning a worktree first if dispatched standalone); dispatches `odoo-icon-designer`; standalone-first, no browser. |
-| `odoo-doc-feature-map` | Marketer | The three shared doc files of a module (feature catalog, role map, walkthrough) through `odoo-doc-writer` in catalog-only mode; browser-free |
-| `odoo-doc-walkthrough` | Marketer | Happy-path usage walkthrough per business role through `odoo-doc-writer` in catalog-only mode; browser-free |
+| `odoo-doc-feature-map` | Marketer | The three shared doc files of a module (feature catalog, role map, usage walkthrough text) through `odoo-doc-writer` in catalog-only mode; browser-free |
+| `odoo-doc-site` | Marketer | Pages of a product documentation site kept in its own repository (Sphinx, one branch and PR per series) from code, with live screenshots in every language; launches `odoo-doc-site-writer`, browser-accepts the served build with `odoo-qa-tester` and opens the PR |
 | `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |
 | `odoo-acceptance` | Coder / QA | Prove a change on a live instance against the SRS acceptance criteria - `odoo-qa-tester` builds the stand-alone and with-dependents databases, drives every scenario as its role and rules PASS/FAIL/UNVERIFIED on evidence (A1A2, haiku); the role walk-through (A4, sonnet) when due |
 | `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER the plan's `integrate` node opened the ONE PR per repo: polls CI and review, routes a failure to `odoo-debug` with the re-push human-gated, presents the merge approval gate and runs the post-merge cleanup |
 | `workflow-chaining` | Internal | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake, not directly by users |
 
-### Agents (20)
+### Agents (21)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
 | `odoo-coder` | Sonnet *(the node's model from the design: haiku / sonnet / opus)* | Owner of ONE plan node - reads the version guidelines by file type, writes the tests from the acceptance criteria first, writes backend and frontend code, runs the module stand-alone and with its dependents through the `odoo-local` tools, records `impact-map.md`, commits via git-ops; resumed by SendMessage for fixes |
 | `odoo-impact-recon` | Haiku | Read-only recon of a change launched once by the design session (or by a coder without a design): upstream closure, dependents, sibling overrides and references, existing features and tests - one row each with its source (worktree or index) |
-| `odoo-doc-writer` | Sonnet | The one documentation writer - MODE catalog-only (feature catalog, role map, walkthrough; no browser), MODE full (captures the screens, writes the role-based `doc/index.rst` per locale), MODE landing (the App Store page from the catalog and the copy, resumed in the same context) |
+| `odoo-doc-writer` | Sonnet | The one documentation writer - MODE catalog-only (feature catalog, role map, walkthrough; no browser), MODE full (captures the screens, writes the role-based `doc/index.rst` per locale), MODE landing (the App Store page from the catalog and the copy, resumed in the same context); a `CHANGE` feature list makes full or landing an update of the affected sections only; traces code through `Explore` at haiku |
+| `odoo-doc-site-writer` | Sonnet | Writes one group of pages of a product documentation site from the series' code and the live UI - facts, screenshots per language, RST, images, translation entries; traces code through `Explore` at haiku |
 | `odoo-test-writer` | Sonnet | Test author for callers other than the node's coder (acceptance durable tests, coverage fill, adapt mode) - reads `tests.md` of the series, writes red-first, proves each test with a break-check |
 | `odoo-solution-architect` | Opus *(fable proposed for a cross-module inheritance-axis change, on confirmation)* | The design session - writes the SRS, launches `odoo-impact-recon`, decides the design depth from the effort and the recon flags, writes the design with a build-tier hint per node; two human gates (SRS, design) |
 | `odoo-planner` | Sonnet | Execution-plan author launched by `odoo-planning` for a design with two or more nodes - nodes with agent, mode, model and `when:`, plus the default tail |
@@ -1000,7 +1001,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-diff-comparator` | Sonnet | Read-only: reads a git-diff range and emits a structured business-intent / expected-outcome / acceptance-criteria comparison (rebase: branch vs base; upgrade: custom vs core). |
 | `odoo-gap-analyzer` | Sonnet | Gap-analysis leaf dispatched by `odoo-gap-analysis` (one per requirement cluster) - classifies each requirement against standard Odoo (coverage full/partial/none, classification standard/config/extension/custom, effort tier S/M/L/XL) grounded in OSM first and the local checkout as fallback, then writes a machine-readable findings file; read-only on source, does not design or write code |
 | `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author - only when the SRS criteria are not concrete scenarios (role, precondition, steps, comparable value) |
-| `odoo-qa-tester` | Haiku *(sonnet when a Given needs a fixture built; A4 at sonnet)* | A1A2: builds the stand-alone and with-dependents databases, drives every SRS scenario as its role, rules PASS/FAIL/UNVERIFIED by comparing observed and expected values with evidence; A4: uses the new screens as each audience role and reports what the role cannot understand |
+| `odoo-qa-tester` | Haiku *(sonnet when a Given needs a fixture built; A4 and DOCS at sonnet)* | A1A2: builds the stand-alone and with-dependents databases, drives every SRS scenario as its role, rules PASS/FAIL/UNVERIFIED by comparing observed and expected values with evidence; A4: uses the new screens as each audience role and reports what the role cannot understand; DOCS: tests a locally served documentation build page by page in every language at a desktop and a mobile viewport |
 
 ## Requirements
 

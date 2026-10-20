@@ -21,7 +21,7 @@ adjudicator stay three contexts
 - **Static review of a diff or PR** -> `odoo-code-review`
 - **Fixing the code** -> the caller resumes the node's coder; **root cause of one symptom** -> `odoo-debug`
 - **A standalone durable test with no acceptance loop** -> `odoo-test-writing`
-- **Walkthrough text for documentation** -> `odoo-doc-walkthrough`
+- **Walkthrough text for documentation** -> `odoo-doc-feature-map`
 
 ## MCP tools
 

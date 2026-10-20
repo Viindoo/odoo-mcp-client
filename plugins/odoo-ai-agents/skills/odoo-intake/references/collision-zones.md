@@ -156,18 +156,19 @@ by node onto ONE run-integration branch, then ONE PR).
 
 **Prompt**: "tôi cần tài liệu cho module Sale với ảnh chụp màn hình minh hoạ các bước"
 
-- `odoo-doc-illustration`: handles "viết tài liệu module / cập nhật tài liệu có ảnh chụp màn hình /
-  làm static/description / document this module" -> produces a STATIC written guide with
-  screenshots captured from the live instance, saved as docs/description files.
+- `odoo-doc-illustration` (module docs) and `odoo-doc-site` (docs-site pages): handle "viết tài liệu
+  module / cập nhật tài liệu có ảnh chụp màn hình / làm static/description / document this module" ->
+  produce STATIC written guides with screenshots captured from the live instance.
 - `odoo-demo-recording`: handles "quay video tính năng / demo video / screencast / GIF" ->
   drives the live instance and produces a REAL recorded MP4/GIF screencast of a flow.
 
 **Discriminator**: "ảnh chụp" / "screenshot" / "tài liệu" / "docs" + no mention of "video",
-"quay", "screencast", "GIF" -> **Pick `odoo-doc-illustration`**. If the user wants a playable
+"quay", "screencast", "GIF" -> **Pick `odoo-doc-illustration`** (module) or `odoo-doc-site` (site),
+per the Documentation routing rule. If the user wants a playable
 recording of the flow ("video", "quay lại", "GIF"), -> **Pick `odoo-demo-recording`**.
 When the user says "demo" with no further qualifier, ask: "static screenshot doc, or recorded video?"
 
-**Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
+**Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration` / `odoo-doc-site`;
 deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
 
 ## Collision 11 - Rebase vs Forward-Port vs Parallel multi-change delivery
@@ -239,7 +240,8 @@ If the user said "make our modules actually run on v17" -> `odoo-modules-upgrade
 - `odoo-feature-check`: answers ONE specific feature availability question with a yes/no verdict
   ready for a client email (e.g. "does purchase have landed costs?"). Single-feature, evidence-backed.
 - `odoo-doc-feature-map`: produces a FULL enumeration of all capabilities a module ships for
-  documentation purposes - iterates over every feature group, model, view type, and workflow.
+  documentation purposes - iterates over every feature group, model, view type, and workflow - plus
+  the role map and the usage walkthrough text.
 - `odoo-feature-highlights`: marketing-framed "what's new in version X" summary - version delta
   with business audience framing, not a complete capability catalogue.
 
@@ -270,12 +272,13 @@ If the user said "give me an inventory of all the custom code we've built on top
 If the user said "enumerate all features that stock module ships for the docs" ->
 `odoo-doc-feature-map` (standard source for documentation).
 
-## Collision 15 - doc-walkthrough vs acceptance vs content-draft vs solution-design
+## Collision 15 - doc-feature-map (walkthrough text) vs acceptance vs content-draft vs solution-design
 
 **Prompt**: "write scenarios", "create walkthroughs", "document how to use this module".
 
-- `odoo-doc-walkthrough`: authors happy-path TEXT scenarios for USER DOCUMENTATION - narrative
-  prose + structured steps[], browser-free, no execution, not bound by acceptance oracle contract.
+- `odoo-doc-feature-map`: authors the feature catalog, the role map and the happy-path usage
+  walkthrough (narrative prose + structured steps[]) for USER DOCUMENTATION, browser-free, no
+  execution, not bound by the acceptance oracle contract.
 - `odoo-acceptance`: drives a LIVE Odoo instance/UI to execute an independent oracle and
   adjudicate PASS/FAIL/UNVERIFIED with evidence. Requires a live instance + browser MCP.
 - `odoo-content-draft`: marketing copy (landing page / email sequence / social / blog) with
@@ -283,12 +286,12 @@ If the user said "enumerate all features that stock module ships for the docs" -
 - `odoo-solution-design`: technical architecture DOCUMENT (data model / override strategy /
   module structure) produced BEFORE implementation is written; no user-facing narrative.
 
-**Discriminator**: documentation narrative, no execution -> **`odoo-doc-walkthrough`**.
+**Discriminator**: documentation narrative, no execution -> **`odoo-doc-feature-map`**.
 Live drive + PASS/FAIL verdict -> `odoo-acceptance`. Marketing copy + channels ->
 `odoo-content-draft`. Technical architecture pre-code -> `odoo-solution-design`.
 
-If the user said "write a step-by-step guide for users on how to use the purchase flow" ->
-`odoo-doc-walkthrough` (text docs, no browser).
+If the user said "write a step-by-step guide for users on how to use the purchase flow" and wants
+text only -> `odoo-doc-feature-map`; with screenshots in the module's guide -> `odoo-doc-illustration`.
 If the user said "run the purchase flow on the real instance and tell me if it passes" ->
 `odoo-acceptance` (live execution + verdict).
 If the user said "write blog post copy explaining the purchase module for prospects" ->
@@ -322,37 +325,31 @@ If the user said "take a screenshot of the purchase list view for the module doc
 If the user said "add a shopping-cart icon to the Purchase button in the form view" ->
 `odoo-coding` (Font Awesome class in XML view).
 
-## Collision 17 - userguide vs appstore vs both vs module-packaging (within the doc suite)
+## Collision 17 - userguide vs appstore vs both vs module-packaging (within the module doc suite)
 
-**Prompt**: "viết tài liệu cho module" (could mean App Store HTML, RST user guide, both, or a full submission bundle).
+**Prompt**: "viết tài liệu cho module" (could mean the RST user guide, the App Store page, both, or a full submission bundle).
 
-- `odoo-doc-illustration DOC LAYER:appstore` (default when DOC LAYER omitted): writes ONLY
-  `static/description/index.html` - the App Store Description tab listing.
-- `odoo-doc-illustration DOC LAYER:userguide`: writes ONLY `doc/index.rst` - the RST
-  technical user guide (Documentation tab). TONE:technical, DOC SCOPE:full-guide for a
-  structured Installation/Configuration/Usage/Troubleshooting/FAQ guide.
-- `odoo-doc-illustration DOC LAYER:both`: writes BOTH `static/description/index.html` AND
-  `doc/index.rst` with shared screenshots in ONE run - pure documentation artifacts, NO
-  icon.png generated, NO manifest-audit, NOT a store submission.
+- `odoo-doc-illustration DOC LAYER:both` (the default when DOC LAYER is omitted): writes BOTH
+  `static/description/index.html` AND `doc/index.rst` with shared screenshots in ONE run - pure
+  documentation artifacts, NO icon.png generated, NO manifest-audit, NOT a store submission.
+- `odoo-doc-illustration DOC LAYER:userguide`: writes ONLY `doc/index.rst` - the RST user guide
+  (Documentation tab); `DOC SCOPE:full-guide` adds the Troubleshooting/FAQ chapters.
+- `odoo-doc-illustration DOC LAYER:appstore`: writes ONLY `static/description/index.html` - the
+  App Store Description tab listing.
 - `module-packaging` (workflow): full App Store submission bundle = icon-design +
-  doc-illustration marketing landing + user-guide + manifest-audit BEFORE submission.
+  doc-illustration landing + user-guide + manifest-audit BEFORE submission.
   Requires explicit icon.png or "đăng store / marketplace submission" intent.
 
 **Discriminator**:
-- "hướng dẫn sử dụng / user guide / viết RST / doc/index.rst" -> `DOC LAYER:userguide TONE:technical DOC SCOPE:full-guide`
-- "landing App Store / marketing / static/description/index.html" (no user guide) -> `DOC LAYER:appstore TONE:marketing`
-- DOC LAYER omitted -> default `appstore` (writes `static/description/index.html`)
-- "cả hướng dẫn và landing / both user guide and store page / full doc cả 2 file" AND no mention of icon/submission -> `DOC LAYER:both TONE:marketing DOC SCOPE:full-guide` (row 54)
+- DOC LAYER omitted, or "cả hướng dẫn và landing / both user guide and store page" with no mention of icon/submission -> `DOC LAYER:both` (row 44)
+- "chỉ hướng dẫn sử dụng / user guide only / viết RST / doc/index.rst" -> `DOC LAYER:userguide`
+- "chỉ landing App Store / App Store page only / static/description/index.html" -> `DOC LAYER:appstore`
 - "đăng module lên Apps Store / store submission / chuẩn bị lên marketplace" OR explicit icon + manifest-audit need -> `module-packaging` (workflow, row 53)
 
-If the user said "viết hướng dẫn sử dụng cho module purchase" ->
-`odoo-doc-illustration DOC LAYER:userguide TONE:technical DOC SCOPE:full-guide` (RST guide only).
-If the user said "làm App Store landing page cho module" ->
-`odoo-doc-illustration DOC LAYER:appstore TONE:marketing` (HTML listing only).
-If the user said "viết cả hướng dẫn sử dụng và App Store description cho module, không cần icon" ->
-`odoo-doc-illustration DOC LAYER:both` (row 54 - both RST + HTML, no icon/manifest audit).
-If the user said "đóng gói đăng Apps Store kèm icon và manifest" ->
-`module-packaging` (workflow, row 53 - full submission bundle).
+If the user said "viết tài liệu cho module purchase" -> `odoo-doc-illustration` (`both`).
+If the user said "chỉ viết hướng dẫn sử dụng cho module purchase" -> `odoo-doc-illustration DOC LAYER:userguide`.
+If the user said "làm App Store landing page cho module" (page only) -> `odoo-doc-illustration DOC LAYER:appstore`.
+If the user said "đóng gói đăng Apps Store kèm icon và manifest" -> `module-packaging` (workflow, row 53).
 
 ## Collision 18 - the code-analysis family: code-review vs perf-audit vs security-audit vs debug
 
@@ -415,3 +412,24 @@ QA checklist" -> `odoo-qa-suite`; "run it for real and tell me pass/fail" -> `od
 **Discriminator**: existing customer at risk/renewal -> `odoo-customer-health`; new prospect notes ->
 `odoo-discovery-summary`; a quote/price -> `odoo-pricing-proposal`; "hasn't replied, write a
 follow-up" -> `odoo-deal-followup`.
+
+## Collision 22 - module docs vs docs site vs both
+
+**Prompt**: "document the new booking feature" (the docs may live in the module, on a product docs site, or both).
+
+- `odoo-doc-illustration`: docs that ship inside the module (`doc/index.rst`, the App Store page).
+- `odoo-doc-site`: pages of a product documentation site kept in its own repository; one PR per series.
+- Both: a docs-only plan with the nodes `docs-module` then `docs-site`.
+
+**Discriminator**: decide TARGET by the Documentation routing rule of `odoo-intake`: the user's own
+words first, else the facts recorded by Phase R (`module_docs: yes` for a module in scope -> module;
+a declared site row whose `repos` contains the changed repo -> site; both -> both). When a site row
+exists, that rule decides TARGET before any single-skill row. Ask ONE closed question,
+"module / site / both / no", only when the request is the documentation and the facts give no
+signal.
+
+If the user said "update the docs site page for the booking feature" -> `odoo-doc-site`.
+If the user said "forward-port the docs of PR #N to the higher series" -> recon checks which repository PR #N belongs to: a declared docs-site repo -> `odoo-doc-site` with PORT; an addons repo, even when the PR changes only `doc/` files -> `odoo-forward-port`.
+If the user said "document the booking module with screenshots" -> `odoo-doc-illustration`, invoked directly (no `odoo-planning` hop).
+If the user said "ship the booking field and document it" -> `odoo-planning` with `docs-module` and
+`docs-site` tail nodes kept or dropped by the facts.

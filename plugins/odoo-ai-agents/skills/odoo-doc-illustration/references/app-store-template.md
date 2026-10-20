@@ -126,7 +126,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
     </div>
   </div>
   <!-- Hero screenshot - the widest image slot: measure its rendered width and frame the shot per
-       capture-mechanics.md § Frame for the placement slot -->
+       doc-capture-mechanics.md § Frame for the placement slot -->
   <div class="row mt-4">
     <div class="col-md-10 offset-md-1 text-center"
          style="border-radius:20px;padding:3px;background-color:{{PRIMARY_HEX}};">
@@ -287,7 +287,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
           </div>
           <div class="col-md-12 col-xl-8 mt-3 mt-xl-0 d-flex justify-content-center">
             <!-- Feature slot: measure its rendered width and frame the shot per
-                 capture-mechanics.md § Frame for the placement slot -->
+                 doc-capture-mechanics.md § Frame for the placement slot -->
             <!-- {{SCREEN_FILE}} = this screen's file in static/description/assets/, named per
                  module-doc-references.md § Images -->
             <img alt="{{FEATURE_TASK_TITLE}}" class="img-fluid" loading="lazy"
@@ -432,7 +432,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 Where each image lives, its file name, format and how a doc references it:
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images and § Manifest images. Every
 screenshot size follows from the measured width of the slot it fills
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` § Frame for the
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § Frame for the
 placement slot); the module icon is the only fixed size.
 
 | Asset | Size | Notes |
