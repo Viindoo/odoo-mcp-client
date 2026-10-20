@@ -7,14 +7,9 @@ organization, fork owner and protected branches from the git remotes and branche
 repositories holding those addons. Git is only READ (remote URLs, the remote's HEAD symbolic
 ref, branch names, local branch config, remote-tracking reflogs). No network, no `gh`. stdlib only.
 
-A fork owner is the owner of a non-origin remote the user PUSHES to. A remote that is only
-fetched from (the upstream a fork was made from) is read-only to the user and is not a fork.
-Local evidence of a push to remote R, any one of: a remote-tracking reflog entry of R written by
-a push ("update by push"); `remote.pushDefault` or `branch.<b>.pushRemote` naming R; a local
-branch whose upstream is a non-protected branch of R (`branch.<b>.remote` = R and
-`branch.<b>.merge` not a series or default branch, which is what `git push -u` writes). A bare
-`branch.<b>.remote` = R or the presence of other branches on R proves nothing: a branch started
-from `R/<series>` tracks R, and a fetch of an upstream also brings its feature and PR refs.
+A fork owner is the owner of a non-origin remote the user PUSHES to; the push-evidence rule
+and the fork status of each repository live in fork_facts.py (one home, shared with setup steps
+60 and the instance repo scan).
 
 Subcommands (settings/catalog paths come from the same environment as the setup steps:
 CLAUDE_SETTINGS, ODOO_AI_HOME, ODOO_AI_INSTANCES):
@@ -33,17 +28,19 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
+import shlex
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import fork_facts  # noqa: E402  (git reader, owner parser, push evidence, fork status)
+
 TAG = "odoo-ai-agents: "
 # The shape of every permissions.ask rule this step writes (and so the only shape it prunes).
 ASK_PATTERN = r"^Bash\(git push (--force\* )?\* (--delete )?[A-Za-z0-9._/-]+\)$"
 _BRANCH_OK = re.compile(r"^[A-Za-z0-9._/-]+$")
-_SERIES_BRANCH = re.compile(r"^[0-9]+\.0$")
+_SERIES_BRANCH = fork_facts.SERIES_BRANCH
 
 
 def _home() -> str:
@@ -70,27 +67,8 @@ def _catalog_path() -> str:
     return global_path
 
 
-def _git(repo: str, *args: str) -> str:
-    try:
-        out = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=20)
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    return out.stdout.strip() if out.returncode == 0 else ""
-
-
-def _owner(url: str) -> str:
-    """Owner segment of a remote URL (ssh scp-style, ssh:// or https://); '' when none."""
-    url = url.strip()
-    if not url:
-        return ""
-    if "://" in url:
-        rest = url.split("://", 1)[1]
-        path = rest.split("/", 1)[1] if "/" in rest else ""
-    else:
-        scp = re.match(r"^[^/:]+:(.+)$", url)
-        path = scp.group(1) if scp else ""
-    parts = [p for p in path.split("/") if p]
-    return parts[-2] if len(parts) >= 2 else ""
+_git = fork_facts.git
+_owner = fork_facts.owner
 
 
 def _git_root(path: str) -> str:
@@ -113,46 +91,8 @@ def _dedup(items):
     return out
 
 
-_CONFIG_KEY = re.compile(r"^branch\.(.+)\.(remote|merge|pushremote)$")
-
-
-def _pushed_remotes(repo: str, remotes: list[str], protected: set[str]) -> set[str]:
-    """Names among `remotes` the user pushes to, from this clone's own records (git READ only)."""
-    pushed: set[str] = set()
-    # 1. A push rewrites the remote-tracking ref and logs "update by push"; a fetch logs "fetch".
-    log = _git(repo, "log", "-g", "--glob=refs/remotes/*", "--format=%gD%x09%gs")
-    for line in log.splitlines():
-        ref, _, subject = line.partition("\t")
-        if not subject.startswith("update by push"):
-            continue
-        for name in remotes:
-            if ref.startswith(f"refs/remotes/{name}/"):
-                pushed.add(name)
-    # 2 and 3. Explicit push targets, and branches that `git push -u` bound to a feature branch.
-    track: dict[str, dict[str, str]] = {}
-    config = _git(repo, "config", "--get-regexp",
-                  r"^(remote\.pushdefault|branch\..*\.(remote|merge|pushremote))$")
-    for line in config.splitlines():
-        key, _, value = line.partition(" ")
-        if key == "remote.pushdefault" and value in remotes:
-            pushed.add(value)
-            continue
-        m = _CONFIG_KEY.match(key)
-        if m:
-            track.setdefault(m.group(1), {})[m.group(2)] = value.strip()
-    for cfg in track.values():
-        if cfg.get("pushremote") in remotes:
-            pushed.add(cfg["pushremote"])
-        merge = cfg.get("merge", "")
-        short = merge[len("refs/heads/"):] if merge.startswith("refs/heads/") else ""
-        if (cfg.get("remote") in remotes and short and short not in protected
-                and not _SERIES_BRANCH.match(short)):
-            pushed.add(cfg["remote"])
-    return pushed
-
-
 def derive() -> dict:
-    """Facts of this machine. Keys: catalog, rows, roots, repos, orgs, forks, branches."""
+    """Facts of this machine. Keys: catalog, rows, roots, repos, orgs, forks, branches, fork_status."""
     import instances_io
 
     catalog = _catalog_path()
@@ -172,17 +112,14 @@ def derive() -> dict:
     orgs: list[str] = []
     forks: list[str] = []
     branches: list[str] = []
+    fork_status: list[dict] = []
     for repo in repos:
-        remotes = _git(repo, "remote").split()
-        head = _git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
-        default = head[len("origin/"):] if head.startswith("origin/") else ""
-        pushed = _pushed_remotes(repo, [r for r in remotes if r != "origin"], {default} - {""})
-        for name in remotes:
-            owner = _owner(_git(repo, "remote", "get-url", name))
-            if name == "origin":
-                orgs.append(owner)
-            elif name in pushed:
-                forks.append(owner)
+        found = fork_facts.fork_facts(repo)
+        fork_status.append(found)
+        default = fork_facts.default_branch(repo)
+        if found["origin"]:
+            orgs.append(found["origin"]["owner"])
+        forks.extend(r["owner"] for r in found["remotes"] if r["pushed"])
         if default:
             branches.append(default)
         refs = _git(repo, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").splitlines()
@@ -199,7 +136,7 @@ def derive() -> dict:
     forks = [f for f in _dedup(forks) if f not in orgs]
     branches = [b for b in _dedup(branches) if _BRANCH_OK.match(b)]
     return {"catalog": catalog, "rows": rows, "roots": roots, "repos": repos,
-            "orgs": orgs, "forks": forks, "branches": branches}
+            "orgs": orgs, "forks": forks, "branches": branches, "fork_status": fork_status}
 
 
 def _join(values) -> str:
@@ -267,6 +204,9 @@ def propose_text(facts: dict, entries: dict) -> str:
     lines += [f"organization (origin owner): {o}" for o in facts["orgs"]]
     lines += [f"fork owner (remote the user pushes to): {o}" for o in facts["forks"]]
     lines += [f"protected branch: {b}" for b in facts["branches"]]
+    for found in facts["fork_status"]:
+        lines.append("FORK_REPO=" + found["repo"])
+        lines += ["%s=%s" % (name, shlex.quote(value)) for name, value in fork_facts.pairs(found)]
     if not facts["orgs"]:
         lines.append("note: no git remote named origin found - organization-scoped wording is generic")
     if not facts["branches"]:

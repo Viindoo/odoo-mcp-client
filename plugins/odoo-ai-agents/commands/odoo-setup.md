@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh] [--version X.Y] [--profile P]"
+argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site] [--version X.Y] [--profile P]"
 description: >-
   Set up browser MCP, permissions and local Odoo instances
 ---
@@ -57,7 +57,7 @@ menu" below).
 
 | Arg            | Runs steps |
 |----------------|------------|
-| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset` (47 is reset-only, excluded from the all loop) |
+| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset` (47 is reset-only, excluded from the all loop) and `60-docs-site` (runs only via `docs-site`) |
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
@@ -65,6 +65,7 @@ menu" below).
 | `listing`      | `35-skill-listing-budget` only (no preflight needed - measures and, with consent, edits the user settings file) |
 | `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-6 + `40-instance-profile` + optional `45-venv` + `46-server-wide` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
 | `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`), then `35-skill-listing-budget` (installed skills change with updates). Declares nothing new. |
+| `docs-site`    | `60-docs-site` only (no preflight): `propose`, ask the policy questions, `record` on confirmation - see its step-specific note |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
@@ -99,12 +100,15 @@ Which parts of the Odoo visual workflow would you like to set up?
 [ ] Refresh declared instances - re-derive each declared row's venv facts
     and confirm its server-wide modules (equivalent to refresh)
 
+[ ] Declare a product docs site - repo, series, capture instance and site policy
+    (runs step 60)
+
 [ ] Reset instances.toml - backup then clean the instance registry
     (runs step 47 only; equivalent to --reset)
 ```
 
 Map each ticked option to its filter in the table above (`browser`, `listing`, `instance`,
-`refresh`, `--reset`); with several ticked, run them in that order. Confirm the plan before
+`refresh`, `docs-site`, `--reset`); with several ticked, run them in that order. Confirm the plan before
 executing - the per-step [Y/n] gates still apply.
 
 ## Steps for the AI agent
@@ -176,7 +180,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    ```
    Print this as the plan. Map the `$ARGUMENTS` filter to the matching scripts
    (see the table above). Exclude `47-instance-reset` from `all` and `instance`
-   plan listings - it runs only via `--reset`.
+   plan listings - it runs only via `--reset` - and `60-docs-site` - it runs only via `docs-site`.
 
 2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-5).**
    This cluster runs when the filter is `all` or `instance`. It precedes the
@@ -238,15 +242,17 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    no clones, no edits.
 
    For each repo in the confirmed set:
-   - **MATCHED** → record the local absolute path; show it to the user.
-   - **MISSING** → compose and print for the user (the agent does NOT run these):
-     - A clone command: git clone with -b BRANCH, --no-single-branch, SSH_URL,
-       into a local directory named `odoo<major>` - where BRANCH and SSH_URL come
-       from OSM at runtime (`<Org>/<repo>` is the runtime placeholder).
-     - An optional fork-remote step: gh repo fork with --remote and
-       --remote-name fork, run inside the cloned directory.
-     Do **NOT** auto-clone. Print the commands and ask the user to run them
-     first, then re-run this step - or confirm they want to skip that repo.
+   - **MATCHED** → record the local absolute path; show it to the user. For a repo of role `own`,
+     run `python3 "$STEPS_DIR/../lib/fork_facts.py" --repo <path>` and follow
+     **Fork resolution** when its `FORK_STATUS` is not `fork-remote-pushed`; an `inherited` repo
+     gets none.
+   - **MISSING** → compose and print for the user (the agent does NOT run it) a clone
+     command: git clone with -b BRANCH, --no-single-branch, SSH_URL, into a local
+     directory named `odoo<major>` - where BRANCH and SSH_URL come from OSM at runtime
+     (`<Org>/<repo>` is the runtime placeholder).
+     Do **NOT** auto-clone. Print the command and ask the user to run it first, then
+     re-run this step - or confirm they want to skip that repo. Fork resolution runs
+     for an `own` repo once it is cloned.
 
    Present the matched paths and addons_path ordering to the user. Default
    ordering: **own repos first → ancestor/inherited repos → Odoo core last**
@@ -487,6 +493,26 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 > `~/.claude.json` - Claude is served by the bundled `.mcp.json`, so re-running produces
 > no "skipped duplicate" notes there. It wires Codex and Gemini only.
 
+## Fork resolution (steps `34-auto-mode`, `60-docs-site` and AI-3)
+
+Applies only to repos the user pushes to: AI-3 repos of role `own`, the docs repo, the auto-mode
+repos. Never to a read-only core or enterprise checkout.
+
+Follow this for every such clone whose `FORK_STATUS` (from `34`/`60` `propose`, or
+`python3 "$STEPS_DIR/../lib/fork_facts.py" --repo <path>`) is not `fork-remote-pushed`:
+
+1. Ask the operator `FORK_QUESTION`: which GitHub account holds their fork of `FORK_ORIGIN`.
+   Never guess or infer an account name; `FORK_UNPUSHED_REMOTES` are candidates to offer, not answers.
+2. The fork exists but no local remote points at it: on the operator's yes, add a remote named
+   `fork` for it through `git-toolkit:git-ops`.
+3. No fork exists: ask whether to create it. Create it only on an explicit yes, through `git-toolkit:git-ops` (it forks
+   and adds the `fork` remote); on a no, print the command for them to run.
+4. The operator has no GitHub fork workflow: record no fork (`60`: ask which existing remote
+   receives their branches; `fork_remote` needs one).
+5. Re-run the step's `propose`. A `fork` remote the operator just confirmed is the answer even
+   while it is still unpushed: do not ask again, and record it only as the operator confirms it
+   (`60`: `fork_remote`; `34` writes a fork owner only once a push to it exists).
+
 ## Step-specific notes (what each `apply` does)
 
 - **10-browser-mcp** - wires the browser MCP *registry* for **Codex CLI** and
@@ -536,12 +562,15 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   writes the odoo-semantic-mcp permission prefix - that permission's owner is
   `plugins/odoo-semantic-mcp/commands/connect.md` step 5; this step's `check`
   only reports its absence and points there. Honours `ODOO_AI_NO_AUTO_PERMS=1`.
+  Grants no Read/Edit rule to an ephemeral state root (under a system temp
+  directory or the default root's `scratch/`) and removes its own earlier
+  pairs whose root is gone or under a system temp directory.
   Asks [Y/n] itself; after `apply` it prints the exact rules written and
   instructs ONE restart (permissions are finalized before SessionStart hooks
   run).
 - **34-auto-mode** - `propose` derives, from this machine only, the trusted roots (parent of every
   catalog `addons_path` plus the state root's `projects`), the organization (owner of `origin`), the
-  fork owner (owner of each other remote the user pushes to, never a fetch-only upstream) and the protected branches (the remote's default branch plus
+  fork owner (owner of each other remote the user pushes to, never a fetch-only upstream; `FORK_STATUS` per repository, plus `FORK_QUESTION` when none was pushed to - see **Fork resolution**) and the protected branches (the remote's default branch plus
   every `<major>.0` branch); show the proposal, then `apply` on consent. It writes tagged
   `odoo-ai-agents: ` entries into `autoMode.allow`, `autoMode.soft_deny`, `autoMode.environment`
   (each array keeps `"$defaults"` first) and `permissions.ask` push rules for the protected
@@ -615,6 +644,30 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   `server_wide_modules` TOML array (other keys, comments and rows untouched; atomic write;
   `--modules ""` = a confirmed none). `check` exits 0 when every declared row carries the key;
   `apply` only prints the proposals and writes nothing - confirmation is the operator's.
+- **60-docs-site** *(runs only via `docs-site`; never in `all` or `instance`)* - Ask the operator for
+  the path of a local clone of the docs repo. The operator has none: print `git clone <REMOTE>
+  <directory beside the operator's other clones>` (`REMOTE` from the repo URL the operator names, or
+  from `propose` on another clone), ask the operator to run it and re-run `docs-site`; never clone
+  automatically. Then:
+  1. Run `"$STEPS_DIR/60-docs-site.sh" propose --repo <path> [--key <id>]` (read-only). Read
+     `REMOTE`, `FORK_STATUS`, `FORK_QUESTION`, `FORK_CANDIDATES`, `OTHER_REMOTES`, `SERIES`, `SERIES_<X_Y>_CLONES`,
+     `SERIES_<X_Y>_INSTANCES`, `LANGUAGES` (`UNKNOWN` = the repo states none) and `DECLARED`.
+     When `FORK_STATUS` is not `fork-remote-pushed`, follow **Fork resolution** before step 2.
+  2. Show the facts. Put `FACTS_TO_CONFIRM` and `POLICY_FIELDS_TO_CONFIRM` to the operator with
+     AskUserQuestion. Never fill a policy field yourself; leave an unanswered one unset; an empty
+     list is a confirmed none. When `DECLARED=1`, offer `show --key <id>` values as defaults.
+     Ask whether the docs repo has a forward-port bot; if yes, offer
+     `FORWARD_PORT_BRANCH_PATTERN_CANDIDATE` (when non-empty, with its `..._EVIDENCE` branches) as
+     the default of `forward_port_branch_pattern` (it must contain `{pr}` and `{series}` only); if
+     no, leave it unset. Never record the candidate unconfirmed. Ask which code repositories the
+     site documents and record them as `repos` (`owner/repo` or origin URL); never fill it from a guess.
+  3. Write the confirmed row as one JSON object to a file under `<state root>/scratch/docs-site-setup/`, then run
+     `"$STEPS_DIR/60-docs-site.sh" record --key <id> --from-json <file>` and remove the file after `record`. On a refusal, show stderr,
+     correct the answer with the operator and re-run. `record` refuses a row without a `clone` on
+     at least one series: offer the `--repo` path. `record` refuses an instance the catalog does not
+     declare: route the operator to `/odoo-ai-agents:odoo-setup instance` first, then re-run
+     `docs-site`. Never edit `docs-sites.toml` by hand.
+  `check` / `show [--key <id>]` read the file; `apply` only advises. Never put a credential in a row.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths
@@ -671,7 +724,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   the whole command must be a no-op when everything is already configured.
 - **Spawn a HAIKU subagent ONLY for read-only local filesystem scans** (repo →
   local path mapping in AI-3, venv → series mapping in AI-4). Every file
-  mutation goes through the deterministic `*.sh` step scripts (40/45/46/47/48/50),
+  mutation goes through the deterministic `*.sh` step scripts (40/45/46/47/48/50/60),
   NEVER through a subagent. The HAIKU subagent reads; the shell scripts write.
 
 ## Standalone / fallback
