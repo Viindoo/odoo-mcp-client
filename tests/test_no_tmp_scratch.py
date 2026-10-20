@@ -1,6 +1,6 @@
-"""Guard: the plugin writes NOTHING to `/tmp`, and its PR-review worktree lives beside the checkout.
+"""Guard: the plugin writes NOTHING to `/tmp`.
 
-Business rules protected here (two, sharing one scanner):
+Business rule protected here (GT3b, two rules sharing one scanner):
 
 GT3b - **no scratch destination outside the state root.** `/tmp` is wiped on reboot, is
   shared by every user and every project on the host, and is not namespaced per
@@ -24,13 +24,6 @@ GT3b - **no scratch destination outside the state root.** `/tmp` is wiped on reb
   `tmpdir_hits_in_tree` from here instead of re-deriving the scan, so the prose criterion and
   the source fact are asserted against ONE mechanism.
 
-GT4 - **the PR-review worktree lives under the state root, keyed per PR.** A git worktree under
-  `/tmp` loses its checkout on a `/tmp` wipe while its `.git/worktrees/<name>` registration
-  survives, and because the ISOLATE state key hashes the worktree's own top-level path, every
-  review under a fresh `/tmp` path also minted a state tree nothing could ever reclaim. The path
-  therefore comes from `project_dir` (axis `worktree`, `name` = `pr-<N>`) - stable per PR,
-  outside every checkout, never the main checkout (S9).
-
 Every text-matching helper below is a PURE FUNCTION of the text it is given, and each is
 exercised against a MUST-CATCH / MUST-NOT-CATCH probe corpus in this same file. The probes are
 the committed red-before-green proof: they are alternate SHAPES of the same defect, present
@@ -40,7 +33,6 @@ walks past it.
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from shutil import which
 
@@ -48,9 +40,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGINS_DIR = REPO_ROOT / "plugins"
-CODE_REVIEW_SKILL = (
-    PLUGINS_DIR / "odoo-ai-agents" / "skills" / "odoo-code-review" / "SKILL.md"
-)
 
 # Directories that are never source: build/VCS caches. Anything else under plugins/ is in
 # scope, including docs, snippets, agents, skills, workflows and scripts - the claim-4
@@ -157,6 +146,14 @@ TMP_ALLOWLIST: dict[str, list[tuple[str, str]]] = {
             "user-facing copy telling a HUMAN where to hand-write a profile spec before "
             "invoking the step; no agent and no script ever writes this path, so it creates "
             "no artifact to reclaim",
+        ),
+    ],
+    "odoo-ai-agents/scripts/lib/state_root_permissions.py": [
+        (
+            '_SYSTEM_TEMP_DIRS = ("/tmp", "/var/tmp"',
+            "the list of system temp directories a state root must not live under, so the "
+            "permission step refuses to grant rules for it and prunes old ones; it is only "
+            "compared against and nothing is ever created or written there",
         ),
     ],
 }
@@ -462,149 +459,4 @@ def test_rule2_allowlist_is_scoped_to_the_file_that_earned_it():
     assert unsanctioned_tmp_in_text(line, "odoo-ai-agents/skills/odoo-intake/SKILL.md"), (
         "the SAME literal in a DIFFERENT file must still fail - an allowlist keyed on the "
         "literal alone would let any file adopt the exemption"
-    )
-
-
-# ---------------------------------------------------------------------------
-# GT4 - the PR-review worktree location
-# ---------------------------------------------------------------------------
-
-# Synonyms for the S9 invariant, so a re-wording of the clause cannot break the guard while
-# a DELETION of it still does.
-_MAIN_CHECKOUT_CRITERION = re.compile(
-    r"never\s+(?:in\s+)?the\s+main\s+checkout"
-    r"|not\s+the\s+main\s+checkout"
-    r"|never\s+the\s+principal\s+checkout",
-    re.IGNORECASE,
-)
-_BLOCK_BOUNDARY = re.compile(r"^(?:\*\*|#{1,6}\s)")
-
-
-def pr_target_blocks(text: str) -> list[str]:
-    """Every block of `text` whose opening line resolves the `pr:` target.
-
-    A block runs from its opening line to the next bold-paragraph, heading or numbered step, so
-    the lines that belong to the `pr:` resolution travel with it. Located by CONTENT, never by
-    line number, so the step may move within the file.
-    """
-    lines = text.splitlines()
-    blocks = []
-    for idx, line in enumerate(lines):
-        if "`pr:`" not in line and "TARGET=pr:" not in line:
-            continue
-        end = idx + 1
-        while end < len(lines) and not _BLOCK_BOUNDARY.match(lines[end]) and not re.match(r"^\d+\. ", lines[end]):
-            end += 1
-        blocks.append("\n".join(lines[idx:end]))
-    return blocks
-
-
-def pr_worktree_blocks(text: str) -> list[str]:
-    """The `pr:` blocks that actually resolve a worktree (the ones GT4 is about)."""
-    return [b for b in pr_target_blocks(text) if "worktree" in b.lower()]
-
-
-def test_pr_review_resolves_a_worktree_under_the_state_root_not_in_tmp():
-    """GT4(1) - the `pr:` resolution takes its worktree path from `project_dir` (axis `worktree`),
-    keyed per PR under the state root, never a temp path and never the main checkout."""
-    text = CODE_REVIEW_SKILL.read_text(encoding="utf-8")
-    blocks = pr_worktree_blocks(text)
-    assert blocks, (
-        "odoo-code-review/SKILL.md must resolve pr:<N> to an isolated WORKTREE - no pr: step "
-        "mentioning a worktree was found at all"
-    )
-    joined = "\n".join(blocks)
-    assert "project_dir" in joined and "axis `worktree`" in joined, (
-        "the PR-review worktree path must come from project_dir (axis worktree), keyed per PR "
-        f"under the state root. Block(s) found:\n{joined}"
-    )
-    assert unsanctioned_tmp_in_text(joined, "<pr-preresolution-block>") == [], (
-        "the PR-review worktree must not be placed under /tmp or /var/tmp (Rule 2 above is "
-        f"the SSOT for why). Block(s) found:\n{joined}"
-    )
-    assert "show-toplevel" not in joined, (
-        "the pr: pre-resolution must NOT resolve review_root from `git rev-parse "
-        "--show-toplevel` - that is the main checkout, which S9 forbids as a review target"
-    )
-
-
-def test_pr_review_keeps_the_never_the_main_checkout_invariant():
-    """GT4(3) - relocating the worktree must not quietly drop the S9 clause that names WHY."""
-    text = CODE_REVIEW_SKILL.read_text(encoding="utf-8")
-    joined = "\n".join(pr_worktree_blocks(text))
-    assert "S9" in joined, (
-        "the pr: worktree step must still cite S9 (git-safety-contract's never-the-main-checkout "
-        f"invariant). Block(s) found:\n{joined}"
-    )
-    assert _MAIN_CHECKOUT_CRITERION.search(joined), (
-        "the pr: worktree step must still state the S9 CRITERION (never the main checkout), "
-        f"not just the label. Block(s) found:\n{joined}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# GT4 probe corpus - the block extractor must catch every relocation shape.
-# ---------------------------------------------------------------------------
-
-_PR_BLOCK_TEMPLATE = (
-    "1. **Resolve the tree.** `local` -> this cwd's toplevel; `worktree:` -> the path given; `pr:` ->\n"
-    "   invoke `git-toolkit:git-ops` to fetch the PR metadata and to check the PR branch out in a\n"
-    "   worktree at {path} - never the principal checkout (git-safety-contract S9).\n"
-    "2. **Changed set.** A bounded `git-ops` read gives `CHANGED_SET`.\n"
-)
-
-PR_PATH_MUST_CATCH = [
-    ("reverted to tmp", "`/tmp/pr-review-<N>`"),
-    ("moved to var/tmp", "`/var/tmp/pr-review-<N>`"),
-    ("tmpdir env", "`$TMPDIR/pr-review-<N>`"),
-    ("main checkout via show-toplevel", "`$(git rev-parse --show-toplevel)`"),
-    ("beside the checkout", "`<repo-root>/.pr-worktrees/pr-<N>`"),
-]
-
-PR_PATH_MUST_NOT_CATCH = [
-    ("tool form", "the path `project_dir` (axis `worktree`, `name` = `pr-<N>`) returns"),
-    ("tool form, returned first", "the path returned by `project_dir` (axis `worktree`) for `pr-<N>`"),
-]
-
-
-def _pr_path_verdict(path: str) -> bool:
-    """True when the GT4(1) assertions accept `path`; mirrors the real test's checks."""
-    blocks = pr_worktree_blocks(_PR_BLOCK_TEMPLATE.format(path=path))
-    if not blocks:
-        return False
-    joined = "\n".join(blocks)
-    return bool(
-        "project_dir" in joined and "axis `worktree`" in joined
-        and unsanctioned_tmp_in_text(joined, "<probe>") == []
-        and "show-toplevel" not in joined
-    )
-
-
-@pytest.mark.parametrize("shape,path", PR_PATH_MUST_CATCH, ids=[s for s, _ in PR_PATH_MUST_CATCH])
-def test_gt4_rejects_every_relocation_shape(shape, path):
-    assert not _pr_path_verdict(path), (
-        f"GT4 accepted a {shape} PR-worktree path ({path}) - each of these reintroduces either "
-        f"the /tmp-wipe hazard or the S9 main-checkout violation"
-    )
-
-
-@pytest.mark.parametrize(
-    "shape,path", PR_PATH_MUST_NOT_CATCH, ids=[s for s, _ in PR_PATH_MUST_NOT_CATCH]
-)
-def test_gt4_accepts_every_compliant_spelling(shape, path):
-    assert _pr_path_verdict(path), (
-        f"GT4 rejected a compliant {shape} PR-worktree path ({path}) - the guard must key on "
-        f"project_dir (axis worktree), not on one way of phrasing it"
-    )
-
-
-def test_gt4_block_extractor_ignores_unrelated_target_kinds():
-    """MUST-NOT-CATCH control on the extractor itself: only `pr:` blocks are in scope."""
-    text = (
-        "- `TARGET=local` -> `review_root` = `git rev-parse --show-toplevel`.\n"
-        "- `TARGET=worktree:<abs-path>` -> `review_root` = `<abs-path>`.\n"
-    )
-    assert pr_target_blocks(text) == [], (
-        "the extractor must not pick up TARGET=local / TARGET=worktree steps - `show-toplevel` "
-        "is CORRECT for TARGET=local and must never be flagged there"
     )

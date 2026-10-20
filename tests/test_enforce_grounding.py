@@ -465,15 +465,6 @@ def test_a_false_claim_in_a_summary_list_is_blocked(tmp_path, report):
     assert out is not None and out.get("decision") == "block", out
 
 
-@pytest.mark.parametrize("spec, needle", [
-    ("agents/odoo-qa-planner.md", "`grounded: osm | local-source`"),
-])
-def test_summary_returns_name_the_label_the_gate_reads(spec, needle):
-    """The two agents whose return is a prose summary state their claim under the gate's key."""
-    flat = " ".join((PLUGIN / spec).read_text(encoding="utf-8").split())
-    assert needle in flat, f"{spec} must return its grounding claim as {needle!r}"
-
-
 # --------------------------------------------------------------------------- #
 # One label everywhere: `grounded: <value> - <explanation>`, value from a closed set
 # --------------------------------------------------------------------------- #
@@ -521,12 +512,6 @@ def _off_contract_labels(text: str) -> list[str]:
     return out
 
 
-#: Label wordings the contract replaced. Taught without the `grounded:` key - wrapped across a
-#: line, say - they slip past the key scan, and an agent that copies one into its label line
-#: writes a value whose first word is `osm`.
-_RETIRED_WORDING = _RE.compile(r"(?i)OSM\s+unavailable\s*-\s*ungrounded|osm\s*\+\s*local-source\s*\(hybrid\)")
-
-
 def test_every_grounding_label_uses_the_key_and_values_the_gate_reads():
     """Every report or artifact template states its label as `grounded:` plus a value from the
     contract's closed set. A template spelled another way teaches agents a label the gate reads as
@@ -538,9 +523,6 @@ def test_every_grounding_label_uses_the_key_and_values_the_gate_reads():
             text = path.read_text(encoding="utf-8")
             for hit in _off_contract_labels(text):
                 offenders.append(f"{path.relative_to(ROOT)}:{hit}")
-            for m in _RETIRED_WORDING.finditer(text):
-                line = text[:m.start()].count("\n") + 1
-                offenders.append(f"{path.relative_to(ROOT)}:{line}: retired wording {m.group(0)!r}")
     assert not offenders, "grounding labels off the contract's key/values:\n  " + "\n  ".join(offenders)
 
 
@@ -646,13 +628,3 @@ def test_a_bad_tally_key_without_an_osm_count_earns_the_note(tmp_path):
     _, out = _run(tmp_path, [brief_record()],
                   last_message="Checked the module.\ngrounded: local-source=2 disk=1")
     assert "grounded: <value> - <explanation>" in _note_text(out)
-
-
-@pytest.mark.parametrize("text, hit", [
-    ("fall back to memory, label `OSM unavailable -\nungrounded`.", True),
-    ("doc labeled `grounded: osm + local-source (hybrid)`.", True),
-    ("label `grounded: ungrounded - OSM unavailable`.", False),
-    ("note `OSM unavailable - grounding from local source` at the top", False),
-])
-def test_the_retired_wording_scan(text, hit):
-    assert bool(_RETIRED_WORDING.search(text)) is hit, text

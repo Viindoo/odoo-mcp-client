@@ -68,7 +68,7 @@ AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 # ---------------------------------------------------------------------------
 # File discovery
-# skills/** is recursive (includes references/, evals/, etc. subdirectories).
+# skills/** is recursive (includes references/ and other subdirectories).
 # agents/commands/snippets are also scanned recursively to catch any nested
 # files, though in practice they are currently flat.
 # docs/ broadly and CONTRIBUTING.md are OUT of the boundary-A/B scan scope (human-reference

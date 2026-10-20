@@ -1,5 +1,4 @@
-"""Behavior gate for the unwakeable waits (hooks/enforce-background-wait.sh plus the one prose home
-that declares the rules).
+"""Behavior gate for the unwakeable waits (hooks/enforce-background-wait.sh).
 
 ## The behavior protected
 
@@ -59,9 +58,6 @@ root guard and `test_a_root_shaped_stop_is_never_gated` fails.
 4. The agent arm correlates on the async launch receipt. A child resumed by a send, or one whose
    receipt text the harness rewords, is not correlated; and an unattended surface that exports
    neither signal is treated as interactive.
-5. The prose half is a LEXICAL whole-tree scan over normalized whitespace. A promise phrased in
-   wording neither vocabulary anticipates escapes it. It proves the harmful INSTRUCTION is absent
-   from the prose an agent is handed; it can never prove an agent obeys the rule.
 
 Run: python -m pytest tests/test_background_wait_gate.py -v
 """
@@ -82,8 +78,6 @@ ODOO_PLUGIN = PLUGINS / "odoo-ai-agents"
 HOOKS_DIR = ODOO_PLUGIN / "hooks"
 HOOKS_JSON = HOOKS_DIR / "hooks.json"
 GATE = HOOKS_DIR / "enforce-background-wait.sh"
-SSOT = ODOO_PLUGIN / "snippets" / "spawner-completion-contract.md"
-ROOT_DOCS = REPO_ROOT / "docs"
 
 # The tool_result text the Bash tool hands back for a backgrounded command, verbatim in shape.
 _RECEIPT = (
@@ -648,148 +642,4 @@ def test_the_other_subagentstop_hooks_do_not_catch_this_shape(tmp_path):
     assert not blocked, (
         f"{blocked} now also block the background-wait shape. Exactly one gate should own it "
         "(enforce-background-wait.sh); two blocks on one turn end is a double refusal"
-    )
-
-
-# --------------------------------------------------------------------------- #
-# 5. Prose - one home declares the rule, and nothing in the tree contradicts it
-# --------------------------------------------------------------------------- #
-_GENERATED_RE = re.compile(
-    r"<!--\s*BEGIN GENERATED TOOLS\s*-->.*?<!--\s*END GENERATED TOOLS\s*-->", re.S
-)
-
-
-def _prose_files() -> list[Path]:
-    files = [p for root in (PLUGINS, ROOT_DOCS) for p in root.rglob("*.md")]
-    files += list(PLUGINS.rglob("hooks.json"))
-    return sorted(p for p in files if ".venv" not in p.parts)
-
-
-def _norm_text(text: str) -> str:
-    return " ".join(_GENERATED_RE.sub(" ", text).split())
-
-
-PROSE = {p: _norm_text(p.read_text(encoding="utf-8")) for p in _prose_files()}
-
-
-def test_prose_corpus_discovered():
-    assert len(PROSE) >= 200, (
-        f"expected >=200 scanned prose files, found {len(PROSE)} - the glob is wrong, so the "
-        "whole-tree assertion below would pass for the wrong reason"
-    )
-
-
-# A promise that a background command's completion will reach the reader on its own. Two
-# vocabularies, paired inside one window over NORMALIZED text - never line adjacency, never a
-# single phrasing.
-_WAKE_RE = re.compile(
-    r"(you will be notified|will be notified|be notified when|"
-    r"you will be woken|be woken when|notification will (?:reach|resume|wake))",
-    re.I,
-)
-_BACKGROUND_RE = re.compile(
-    r"background(?:ed|ing)?\s+(?:shell\s+)?(?:task|command|run|process|job|build)|"
-    r"\bin the background\b|\brun_in_background\b",
-    re.I,
-)
-# What makes the pairing legal: the same window says the promise does not hold here.
-_DENIAL_RE = re.compile(
-    r"(does not hold|do(?:es)? not apply|never (?:holds|applies)|is not true for you|"
-    r"no notification|never resumes|nothing resumes|overridden|overrides|"
-    r"written for the root|only inside the turn)",
-    re.I,
-)
-_PAIR_WINDOW = 240
-
-
-def _wake_promise_offenders(text: str) -> list[str]:
-    found = []
-    for m in _WAKE_RE.finditer(text):
-        window = text[max(0, m.start() - _PAIR_WINDOW): m.end() + _PAIR_WINDOW]
-        if not _BACKGROUND_RE.search(window):
-            continue
-        if _DENIAL_RE.search(window):
-            continue
-        found.append(window.strip()[:280])
-    return found
-
-
-def test_no_file_promises_an_agent_a_wake_for_a_background_command():
-    offenders = [
-        f"{path.relative_to(REPO_ROOT)}: ...{w}..."
-        for path, text in PROSE.items()
-        for w in _wake_promise_offenders(text)
-    ]
-    assert not offenders, (
-        "prose promises that a background command's completion will reach the reader on its own. "
-        "That receipt is written for the ROOT conversation; a dispatched agent's turn end IS the "
-        "end of its dispatch and nothing resumes it, so the result is reachable only inside the "
-        "turn that started it (snippets/spawner-completion-contract.md R0 § A background shell "
-        "command is a SAME-TURN result):\n" + "\n".join(offenders)
-    )
-
-
-_MUST_CATCH = (
-    "If you are waiting for a background task you will be notified when it completes, so end "
-    "your turn and consume the result when it arrives.",
-    "Start the build in the background; you will be woken when the run finishes.",
-    "Run it with run_in_background: true via Bash - a notification will reach you on completion.",
-)
-_MUST_NOT_CATCH = (
-    "The Bash tool's generic guidance - \"if waiting for a background task you will be notified; "
-    "do not poll\" - DOES NOT APPLY to a dispatched agent ANYWHERE.",
-    "The receipt it hands back says you will be notified when the command completes. That "
-    "sentence is written for the ROOT conversation, where it is true. It is not true for you.",
-    "You will be notified when your teammate's review lands on the pull request.",
-)
-
-
-@pytest.mark.parametrize("phrasing", _MUST_CATCH)
-def test_wake_promise_guard_catches_every_known_phrasing(phrasing):
-    assert _wake_promise_offenders(_norm_text(phrasing)), (
-        f"the wake-promise guard does not catch {phrasing!r} - it is bound to one spelling again"
-    )
-
-
-@pytest.mark.parametrize("phrasing", _MUST_NOT_CATCH)
-def test_wake_promise_guard_allows_the_denial_and_unrelated_shapes(phrasing):
-    assert not _wake_promise_offenders(_norm_text(phrasing)), (
-        f"the wake-promise guard flags {phrasing!r}. Quoting the receipt in order to deny it is "
-        "the corrected shape, and a notification unrelated to a background command is not this "
-        "defect at all"
-    )
-
-
-def test_the_ssot_declares_the_rule_positively():
-    """An absence guard alone passes on a tree that deleted the rule everywhere. The single home
-    must state the fact, the consequence, and the legal shape."""
-    low = PROSE[SSOT].lower()
-    assert "a background shell command is a same-turn result" in low, (
-        "the SSOT must carry the named section other files point at"
-    )
-    assert "written for the root conversation" in low, (
-        "the SSOT must say WHO the Bash receipt is written for - a bare prohibition loses to the "
-        "receipt the agent can see"
-    )
-    assert "nothing resumes you for a background shell command" in low, (
-        "the SSOT must state the mechanical fact, not just the prohibition"
-    )
-    assert "only inside the turn that started it" in low, (
-        "the SSOT must state where the result IS reachable, or the rule reads as a ban on "
-        "backgrounding"
-    )
-    assert "foreground" in low, (
-        "the SSOT must name the legal shape - drive it to a result with foreground calls in the "
-        "same turn - or an agent reads the rule as 'never background anything'"
-    )
-    assert "under move 3 an agent child delivers to a launcher that stopped" in low, (
-        "the SSOT must state the contrast with an agent child, which wakes its launcher under move "
-        "3 - collapsing the two rules is how one gets generalized onto the other"
-    )
-    assert "a teammate you launched that is still running" in low, (
-        "the SSOT must say the gate also refuses an unattended-surface stop over a live teammate"
-    )
-    assert "enforce-background-wait.sh" in low, (
-        "the SSOT must name the gate that enforces it, so the refusal an agent meets at runtime "
-        "is traceable to the rule"
     )

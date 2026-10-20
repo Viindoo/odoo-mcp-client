@@ -13,17 +13,12 @@ installed plugin trees (`odoo-ai-agents`, `git-toolkit`), not just the four repo
 
 Design notes (why each exemption is STRUCTURAL, never a per-file allowlist):
 
-- `evals/` is a repo-wide directory convention (every skill's `evals/evals.json` holds quoted
-  user-prompt fixtures for the trigger-accuracy harness) - never loaded by an execute-agent
-  during real task work. Exempting the DIRECTORY exempts every present and future eval fixture,
-  not one named file.
 - `generator/` is documented at the repo root (`CLAUDE.md` "What this repo is": "the Python
   under `generator/` and `tests/` exists to *validate and generate* that Markdown, not to run at
   user time") as build/validation tooling, never agent-facing prose. A `#<N>` citation in a
   generator docstring or an SSOT JSON `notes` field (e.g. `generator/skill_tool_deps.json`'s
   "(PR #323, v0.15.0)" maintainer note) is dev bookkeeping, structurally never read by a running
-  agent - same rationale as the `evals/` exemption, applied to the other whole-directory
-  convention CLAUDE.md itself names.
+  agent. The exemption is a whole-directory convention CLAUDE.md itself names.
 - A citation inside an agent frontmatter `<example>...</example>` block is the standard Claude
   Code agent-description convention (illustrative worked scenarios), not an operating instruction
   the running agent's body carries.
@@ -63,7 +58,7 @@ _VERSION_ADJACENT_RE = re.compile(
     r"(at\s+v\d|v\d+(\.\d+)+|odoo core|upstream|core odoo)", re.IGNORECASE
 )
 # Directory-wide conventions (apply to every present/future file under them, not one filename).
-_EXEMPT_DIR_SEGMENTS = ("/evals/", "/generator/")
+_EXEMPT_DIR_SEGMENTS = ("/generator/",)
 
 _SCAN_GLOBS = ("*.md", "*.sh", "*.py", "*.json", "*.yaml")
 

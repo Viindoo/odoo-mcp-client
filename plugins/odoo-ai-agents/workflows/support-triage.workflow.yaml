@@ -5,7 +5,7 @@
 # (root-cause-bug / root-cause-feature) gated by `when:` predicates. The runner
 # evaluates `when:` in Pipeline and skips the non-matching branch, so exactly one
 # root-cause phase fires per ticket (matches the SKILL.md classify->single-dispatch
-# design and the evals' single-target expectation).
+# design).
 name: support-triage
 domain: support
 team_pattern: Pipeline

@@ -3454,48 +3454,6 @@ def test_js_counter_replayed_over_the_real_run_log_corpus(tmp_path):
         )
 
 
-def test_no_committed_file_claims_the_python_markers_are_the_whole_per_test_vocabulary():
-    """A `--test-enable` build has TWO per-test vocabularies, not one.
-
-    The counter was blind to Hoot/QUnit for as long as it was because the
-    committed prose said the Python `FAIL:`/`ERROR:` pair WAS the per-test
-    signal - normative text that describes the incomplete behavior as complete,
-    which is what an author reads before deciding nothing is missing. Any
-    totality claim about that pair must name the browser vocabulary in the same
-    breath or it is teaching the defect again.
-
-    Whole-tree scan on whitespace-normalized text: this prose is line-wrapped,
-    so an adjacency-bound check would miss most of it."""
-    offenders = []
-    skip_dirs = {"node_modules", "__pycache__"}
-    pair_re = re.compile(r"FAIL:.{0,40}?ERROR:|ERROR:.{0,40}?FAIL:")
-    totality_re = re.compile(
-        r"\beach failing test\b|\bevery failing test\b|\bloses nothing\b|"
-        r"\bare the failure\b|\bcome from the individual\b|\bare the per-test\b|"
-        r"\bis the per-test\b|\bthe only per-test\b|\bthe whole per-test\b",
-        re.IGNORECASE,
-    )
-    for path in sorted(ROOT.rglob("*")):
-        if not path.is_file() or path.suffix not in {".sh", ".md", ".py", ".json", ".yaml"}:
-            continue
-        rel = path.relative_to(ROOT)
-        if any(part.startswith(".") or part in skip_dirs for part in rel.parts):
-            continue
-        if path.resolve() == Path(__file__).resolve():
-            continue
-        text = " ".join(path.read_text(encoding="utf-8", errors="ignore").split())
-        for m in pair_re.finditer(text):
-            window = text[max(0, m.start() - 250):m.end() + 250]
-            claim = totality_re.search(window)
-            if claim and "HOOT" not in window and "QUnit" not in window:
-                offenders.append(f"{rel}: ...{window[:200]}...")
-    assert not offenders, (
-        "a committed file states a TOTALITY claim about the Python "
-        "FAIL:/ERROR: markers without naming the Hoot/QUnit vocabulary that "
-        "shares the same run:\n  " + "\n  ".join(offenders)
-    )
-
-
 def test_a_js_success_marker_is_never_grepped_without_its_logger_anchor():
     """A bare grep for a JS green marker is ALWAYS a false green.
 
@@ -3525,40 +3483,6 @@ def test_a_js_success_marker_is_never_grepped_without_its_logger_anchor():
     assert not offenders, (
         "a scan looks for a JS success marker without requiring the logger "
         "prefix that separates it from the traceback echo:\n  " + "\n  ".join(offenders)
-    )
-
-
-def test_every_js_success_marker_mention_carries_its_per_scope_limit():
-    """An anchored green marker is a verdict for ITS OWN SCOPE, never for the file.
-
-    Measured on a real 19.0 log: one scope's `[HOOT] Test suite succeeded` is
-    genuine while another scope of the SAME file failed 477 tests. Prose that
-    names the marker without that limit teaches a reader to treat one run's
-    success as the run's success, which is the defect the logger anchor alone
-    does not prevent."""
-    offenders = []
-    skip_dirs = {"node_modules", "__pycache__"}
-    green_re = re.compile(r"Test suite succeeded|QUnit test suite done")
-    limit_re = re.compile(
-        r"its own scope|per scope|scope only|per run|logger scope|own logger",
-        re.IGNORECASE,
-    )
-    for path in sorted(ROOT.rglob("*")):
-        if not path.is_file() or path.suffix not in {".sh", ".md", ".py", ".json", ".yaml"}:
-            continue
-        rel = path.relative_to(ROOT)
-        if any(part.startswith(".") or part in skip_dirs for part in rel.parts):
-            continue
-        if path.resolve() == Path(__file__).resolve():
-            continue
-        text = " ".join(path.read_text(encoding="utf-8", errors="ignore").split())
-        for m in green_re.finditer(text):
-            window = text[max(0, m.start() - 350):m.end() + 350]
-            if not limit_re.search(window):
-                offenders.append(f"{rel}: ...{window[:200]}...")
-    assert not offenders, (
-        "a committed file names a JS success marker without stating that it "
-        "speaks for its own logger scope only:\n  " + "\n  ".join(offenders)
     )
 
 

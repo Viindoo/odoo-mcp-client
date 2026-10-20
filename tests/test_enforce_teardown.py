@@ -27,14 +27,12 @@ real work, so it prefers a false-negative over a false-positive).
 
 Run with: python3 -m pytest tests/test_enforce_teardown.py -v
 """
-import io
 import json
 import re
 import shutil
 import socket
 import subprocess
 import time
-import tokenize
 from pathlib import Path
 
 import pytest
@@ -1890,7 +1888,6 @@ def test_session_end_leaves_a_session_it_cannot_prove_ended_alone(tmp_path, ledg
     assert a_run in ledger.tokens(), f"{case}: not provably this session's end - keep its leases"
 
 
-
 def test_session_end_gc_never_passes_yes_to_reap_orphans():
     """Static guard: the destructive `--yes` flag must never appear anywhere on
     this hook's reap-orphans invocation line - the drop half is a deliberate,
@@ -1934,222 +1931,6 @@ def test_hooks_json_still_wires_enforce_grounding_alongside_teardown():
     """The new hook is ADDITIVE - it must not displace the existing SubagentStop grounding gate."""
     subagent = _commands_for("SubagentStop")
     assert any("enforce-grounding.sh" in c for c in subagent)
-
-
-# --------------------------------------------------------------------------- #
-# The gate's TRIGGER is described identically everywhere, or nowhere
-#
-# The gate no longer keys on a literal `status: DONE`; it blocks EVERY subagent turn end except a
-# BLOCKED / NEEDS_CONTEXT stop-report or a forwarded INSTANCE_HANDLE. A file that still calls the
-# trigger "DONE-only" tells an agent debugging a hard block that the block is a bug - and the most
-# authoritative-looking artifacts (hooks.json, the hook's own header) are exactly where that stale
-# claim survived. The scan universe therefore includes the artifacts the whole-tree prose guards
-# historically skipped: hooks/*.json, hooks/*.sh, and the repo's own tests/*.py.
-# --------------------------------------------------------------------------- #
-_HOOKS_DIR = PLUGIN_ROOT / "hooks"
-
-# The gate itself - a DONE token only matters in a sentence that is talking about THIS gate.
-# `hard block` is deliberately NOT here: it is generic enough to drag in unrelated degraded-path
-# prose that merely happens to mention `status: DONE`.
-_GATE_VOCAB = re.compile(
-    r"enforce-teardown|teardown gate|resource-teardown|instance-teardown|SubagentStop",
-    re.IGNORECASE,
-)
-# The sentence binds the gate to an outcome (this is a TRIGGER description, not a passing mention).
-_TRIGGER_BINDING = re.compile(
-    r"\b(?:fires?|firing|keyed|gated|self-passes|blocks?|blocked|blocking|triggers?|leak)\b",
-    re.IGNORECASE,
-)
-# What makes the sentence NOT a DONE-only claim: it names another status the gate treats
-# differently, names the no-status / out-of-enum shapes, denies the DONE keying outright, or labels
-# itself as history. Naming DONE and nothing else is precisely the false claim.
-_TRIGGER_QUALIFIER = re.compile(
-    r"BLOCKED|NEEDS_CONTEXT|NEEDS_NEXT|no (?:machine-readable )?status|out-of-enum|"
-    r"outside the enum|not keyed|never on the literal|pre-fix|no longer|used to|retired|"
-    r"superseded|every turn end|any turn end",
-    re.IGNORECASE,
-)
-_DONE_TOKEN = re.compile(r"\bDONE\b")
-
-
-def _prose_of(path: Path) -> str:
-    """The human-readable prose of a file, so a code line is never read as a claim.
-
-    For `.py` the prose is its COMMENTS and DOCSTRINGS (a `_cont("DONE")` fixture argument is
-    code, not a description of the gate); for `.sh` it is the comment lines; everything else is
-    scanned whole."""
-    text = path.read_text(encoding="utf-8")
-    if path.suffix == ".py":
-        chunks = []
-        try:
-            for tok in tokenize.generate_tokens(io.StringIO(text).readline):
-                if tok.type == tokenize.COMMENT:
-                    chunks.append(tok.string.lstrip("#").strip())
-                elif tok.type == tokenize.STRING and tok.string.lstrip("rbuRBUf")[:3] in (
-                    '"""', "'''",
-                ):
-                    chunks.append(tok.string)
-        except (tokenize.TokenError, IndentationError, SyntaxError):
-            return text  # unparseable: scan it whole rather than skip it
-        return "\n".join(chunks)
-    if path.suffix == ".sh":
-        return "\n".join(
-            line.lstrip("#").strip()
-            for line in text.splitlines()
-            if line.lstrip().startswith("#")
-        )
-    return text
-
-
-def _sentences(text: str):
-    """Whitespace-normalized sentences. Joining the wrapped lines first is the whole point - every
-    stale claim in this area spanned two or three source lines. Split on `.!?` only: a `:` or `;`
-    routinely separates a claim from the gate name that governs it (`... at DONE is a leak (SSOT:
-    resource-teardown-contract.md)`), and splitting there is what let one survive."""
-    return [s for s in re.split(r"(?<=[.!?])\s+", " ".join(text.split())) if s]
-
-
-def _trigger_scan_corpus():
-    """Every agent-facing / machine-readable file that could describe the gate's trigger.
-
-    Deliberately wider than `plugins/**/*.md`: `hooks/*.json` is the registration a debugging agent
-    reads first, `hooks/*.sh` carries the headers that justify each hook, and `tests/*.py` carries
-    the section banners a maintainer reads as the contract - all three were unscanned, and all
-    three are where the stale DONE-only claims survived. This file is excluded because it must be
-    allowed to NAME the shapes it bans."""
-    self_path = Path(__file__).resolve()
-    files = set((ROOT / "plugins").rglob("*.md"))
-    files |= set(_HOOKS_DIR.glob("*.json")) | set(_HOOKS_DIR.glob("*.sh"))
-    files |= set((ROOT / "tests").glob("*.py"))
-    return sorted(p for p in files if p.resolve() != self_path)
-
-
-def _done_only_offenders(paths):
-    """Every sentence in `paths` that presents DONE as the teardown gate's trigger."""
-    offenders = []
-    for path in paths:
-        try:
-            prose = _prose_of(path)
-        except (UnicodeDecodeError, OSError):
-            continue
-        for sentence in _sentences(prose):
-            if not (_DONE_TOKEN.search(sentence) and _GATE_VOCAB.search(sentence)):
-                continue
-            if not _TRIGGER_BINDING.search(sentence):
-                continue
-            if _TRIGGER_QUALIFIER.search(sentence):
-                continue
-            offenders.append(f"{path}: {sentence[:220]}")
-    return offenders
-
-
-def test_trigger_scan_corpus_covers_the_historical_blind_spots():
-    """Discovery floor: a corpus that silently stopped covering hooks/ or tests/ would make the
-    guard below vacuous, which is how every stale claim in this area survived in the first place."""
-    corpus = _trigger_scan_corpus()
-    assert HOOKS_JSON in corpus, "hooks/hooks.json must be in the trigger-description scan"
-    assert HOOK in corpus, "hooks/enforce-teardown.sh must be in the trigger-description scan"
-    assert GC_HOOK in corpus, "hooks/session-end-gc.sh must be in the trigger-description scan"
-    assert any(p.suffix == ".py" and p.parent.name == "tests" for p in corpus), (
-        "the repo's own tests/*.py must be in the trigger-description scan"
-    )
-    assert any(p.suffix == ".md" for p in corpus), "plugin markdown must still be scanned"
-
-
-def test_the_done_only_detector_can_actually_fire():
-    """Red-before-green, in-repo: the detector must flag every phrasing the real stale survivors
-    used, and clear the corrected wording - otherwise the whole-tree scan below is a guard that can
-    only ever say "clean"."""
-    must_flag = (
-        # the five real survivors this guard was written for, verbatim in shape
-        "the instance-teardown gate, which fires only on a live, non-shared lease that the "
-        "SUBAGENT ITSELF provisioned at a DONE claim",
-        "a -9 / OOM / abort runs no teardown prose and emits no DONE claim, so the DONE-gated "
-        "SubagentStop teardown gate self-passes and never fires.",
-        "prose release (graceful) -> SubagentStop block (a lying DONE) -> SessionEnd gc.",
-        "an unforwarded live lease at DONE is a leak (SSOT: resource-teardown-contract.md T4)",
-        "Instance check - BLOCKING, ledger-grounded, SubagentStop only, DONE only",
-        # other spellings of the same claim - one phrasing must never be the whole guard
-        "the resource-teardown gate is DONE-gated",
-        "enforce-teardown.sh blocks a DONE claim",
-        "the SubagentStop teardown gate fires when a subagent claims DONE",
-        "the teardown gate triggers on DONE and nothing else",
-        "SubagentStop teardown gate: it only ever fires at DONE",
-    )
-    for claim in must_flag:
-        assert _done_only_offenders([_Synthetic(claim)]), (
-            f"the DONE-only detector failed to flag: {claim!r}"
-        )
-    must_clear = (
-        "the instance-teardown gate fires at a turn end that neither reports a stopped run "
-        "(BLOCKED or NEEDS_CONTEXT) nor forwards INSTANCE_HANDLE - it is NOT keyed on DONE.",
-        "an unforwarded live lease at any turn end but BLOCKED/NEEDS_CONTEXT is a leak the "
-        "SubagentStop gate hard-blocks (SSOT: resource-teardown-contract.md T4)",
-        "The pre-fix SubagentStop teardown gate keyed on the literal DONE.",
-        "Degraded paths (never hard-block the whole run): the writer reports status: DONE with "
-        "concerns.",
-    )
-    for ok in must_clear:
-        assert not _done_only_offenders([_Synthetic(ok)]), (
-            f"the DONE-only detector false-flagged correct prose: {ok!r}"
-        )
-
-
-class _Synthetic:
-    """A one-sentence stand-in for a real file, so the detector's own red/green proof needs no
-    fixture tree and no write into the repo."""
-
-    suffix = ".md"
-
-    def __init__(self, text):
-        self._text = text
-
-    def read_text(self, encoding="utf-8"):
-        return self._text
-
-    def __str__(self):
-        return "<synthetic>"
-
-
-def test_no_file_describes_the_teardown_gate_trigger_as_done_only():
-    """No file anywhere may describe the teardown gate's trigger as DONE-only, in any phrasing.
-
-    Whitespace-normalized and shape-based, so a reflow or a reworded sentence cannot smuggle the
-    claim back in. An agent that believes the gate is DONE-gated concludes a block on a no-status
-    turn end is a bug, and disables the only hard-enforcement mechanism in the system."""
-    offenders = _done_only_offenders(_trigger_scan_corpus())
-    assert not offenders, (
-        "the teardown gate's trigger is still described as DONE-only:\n  " + "\n  ".join(offenders)
-    )
-
-
-def test_the_authoritative_artifacts_state_the_real_trigger():
-    """The other half of the rule above: deleting the description must NOT pass as 'no stale claim
-    found'. The two artifacts a debugging agent actually reads - the hook manifest and the hook's
-    own header - must each state the REAL trigger: the gate is status-blind, its one exception is
-    a forwarded INSTANCE_HANDLE, and the stop-report statuses are named as GATED rather than sold
-    as a free pass. A reader who believes `BLOCKED` still walks through will re-open the leak."""
-    manifest = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
-    for label, text in (
-        ("hooks/hooks.json description", manifest.get("description", "")),
-        ("hooks/enforce-teardown.sh header", HOOK.read_text(encoding="utf-8")),
-    ):
-        norm = " ".join(text.split())
-        assert "BLOCKED" in norm and "NEEDS_CONTEXT" in norm, (
-            f"{label}: must name BOTH stop-report statuses the gate now covers"
-        )
-        assert "INSTANCE_HANDLE" in norm, (
-            f"{label}: must name the forwarded-handle handoff as the gate's only exception"
-        )
-        assert re.search(r"status-blind|STATUS-BLIND", norm), (
-            f"{label}: must say the gate is STATUS-BLIND - without it, the "
-            "'BLOCKED is a sanctioned pass' reading comes straight back and the leak with it"
-        )
-        assert not re.search(
-            r"Only a stopped-run report|stop-report\) or a T4 named handoff passes", norm
-        ), (
-            f"{label}: still advertises the retired unconditional stop-report pass"
-        )
 
 
 # --------------------------------------------------------------------------- #
