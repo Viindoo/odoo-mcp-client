@@ -184,9 +184,9 @@ return the contents of `setUpClass` fixtures (Read the source file directly if f
 internals are needed). The base chain and `commit_allowed` directly inform the 4-outcome hint:
 check the base class's window in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3
 against the target version - a base DEPRECATED-but-present at the target (e.g.
-`SavepointCase`/`HttpSavepointCase` on a v15-v16 target) leans toward bucket (b) as a cleanliness
-migration; a base REMOVED at the target (e.g. `SavepointCase`/`HttpSavepointCase` on a v17+
-target) makes the adapt MANDATORY, not optional - the import fails outright.
+`SavepointCase`/`HttpSavepointCase` inside its deprecated window) leans toward bucket (b) as a
+cleanliness modernisation; a base REMOVED at the target (e.g. the same classes once removed) makes
+the adapt MANDATORY, not optional - the import fails outright.
 `tests_covering` enriches the Behavioral contract section with
 which production behaviors the commit's tests already guard, making the coverage picture concrete
 rather than inferred from the diff alone.

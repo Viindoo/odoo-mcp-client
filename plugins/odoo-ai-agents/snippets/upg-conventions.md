@@ -1,26 +1,23 @@
 # Upgrade conventions
 
-Apply every convention below on every profile and distribution, OSM-reachable or not. Conv-0 and
-Conv-1 are reached through the `odoo-modules-upgrade` P4 adapt dispatch brief
-(`upg-phase-detail.md` § odoo-coding dispatch brief), which cites this file; Conv-3 and Conv-4 point
-at the file that owns their rule text.
+Apply every convention below on every profile and distribution, OSM-reachable or not. The
+`odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail.md` § odoo-coding dispatch brief)
+cites this file.
 
 ---
 
 ## Convention 1 - No version bump on code-level upgrade
 
-When upgrading a module to a new Odoo series with ONLY code-level changes (no data migration, no
-behavior contract change visible to end users), do **not** bump `version` in `__manifest__.py`
-and do **not** add the series prefix.
+When upgrading a module's code to a new Odoo series (§ Convention 0) with no behavior contract
+change visible to end users, do **not** bump `version` in `__manifest__.py` and do **not** add the
+series prefix.
 
-- Keep the existing short form `x.y.z` (e.g. `0.1`, `1.2.0`) unchanged. A value that currently
-  carries the series prefix (`<series>.x.y.z`) is CONVERTED to `x.y.z` by dropping the prefix -
-  a conversion is not a bump. Form SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md
-  §3`. Do not restate the form here.
+- Keep the existing short form `x.y.z` unchanged. A value carrying the series prefix
+  (`<series>.x.y.z`) is CONVERTED to `x.y.z` by dropping the prefix - a conversion is not a bump.
+  Form SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md §3`.
 
-> **Forward-port note:** In forward-port the no-bump rule is STRONGER - on a `__manifest__.py`
-> conflict keep the TARGET's value; never merge-pick or invent. See `[[fp-merge-absorption]]`.
-> Convention 1 applies to upgrade commits only.
+> Convention 1 applies to upgrade commits only; forward-port sets the version by
+> `[[fp-merge-absorption]]` C1.
 
 ---
 
@@ -28,8 +25,7 @@ and do **not** add the series prefix.
 
 Full rule, definition and enforcing test, per series:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/xml.md` § Always-invisible field carries a comment.
-A missing comment fails the full CI suite triggered when a module flips `installable: False -> True`
-(P5 gate) on a series that enforces it.
+A missing comment fails the P5 install + test gate on a series that enforces it.
 
 ---
 
@@ -38,30 +34,42 @@ A missing comment fails the full CI suite triggered when a module flips `install
 Full rule and code example:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` section "Core test-enforced authoring rules".
 
-The rule is stated by Odoo itself, in the `hr.employee` model docstring - read it there for the
-target series rather than from any restatement. Upgrade context: omitting the `groups=` fails the
-`hr` self-access check in the full CI suite triggered on installable-flip (the P5 install + test
-gate), on the series that ship it.
+The rule is stated in the `hr.employee` model docstring - read it there for the target series.
+Omitting the `groups=` fails the `hr` self-access check in the P5 install + test gate, on the
+series that ship it.
 
 ---
 
-## Convention 0 - A major-series module upgrade is a CODE upgrade
+## Convention 0 - A series upgrade is a CODE upgrade (UPG), never a database migration (MIG)
 
 Governs every P4 adapt of `odoo-modules-upgrade`.
 
-**(a) No old-series compatibility, no migration script, no version bump.** Treat the module at the
-target series as NEW feature development. Do NOT preserve backward compatibility with the previous
-Odoo series or with the module's own prior shape, and do NOT write a migration script (Convention 1
-owns the no-bump rule; `[[fp-merge-absorption]]` owns the forward-port variant). A genuine
-data-at-risk case routes OUT to `odoo-data-migration` and is never handled inline - see (d).
+**UPG.** Input: a module's source on series N. Output: its source on the target series, which
+installs on a FRESH database of the target series, passes its tests and acceptance, keeps its
+business behaviour and is modernised as if newly developed there - newest mechanisms (API, views,
+frontend framework, manifest, tests), no compatibility layer for an older series, no deprecated
+API, a module absorbed by core deleted. It writes no migration script, deletes the `migrations/`
+directory of every upgraded module, never touches, restores or updates an existing database, keeps
+no old field or xmlid name for data compatibility and never asks how existing data will be
+migrated. What a later MIG project needs, including every deleted `migrations/` directory, goes
+into `migration-notes.md` (`odoo-modules-upgrade` § P7).
 
-**(b) Write the target series' newest mechanism, not a shim.** The P2 NEW-FEATURE SWEEP already ran
-`suggest_pattern` / `find_examples` for every KEEP / REWRITE feature and recorded any replacement in
-`reuse_candidates[]` - see
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md` § P2 step 3b. Do
-NOT re-run that sweep here. The only P4-time addition: a feature WITH a `reuse_candidates[]` entry ->
-implement the target-core mechanism it names and delete the custom implementation; a feature WITHOUT
-one -> nothing to do. Never wrap the new mechanism in a compatibility shim over the old one.
+**MIG.** Moving an existing database's data to a higher series. The plugin only writes code for it
+(module-level migration scripts through `odoo-data-migration`, when the user asks separately) and
+never executes it. Never a step of UPG.
+
+**Wording.** "Migration script" = a module-level `migrations/` script; "database migration (MIG)" =
+the database move; moving code to a newer framework mechanism = "modernisation" (UPG).
+
+**Commit tag.** A commit request for upgrade work proposes the commit convention's series-upgrade
+tag (`[UPG]`), never the migration tag.
+
+**(b) Write the target series' newest mechanism, not a shim.** The P2 NEW-FEATURE SWEEP already
+recorded any replacement in `reuse_candidates[]`
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md` § P2 step 3b);
+do NOT re-run it. A feature WITH an entry -> implement the target-core mechanism it names and
+delete the custom implementation; WITHOUT one -> nothing to do. Never wrap the new mechanism in a
+compatibility shim over the old one.
 
 **(c) Bias to the newest external API, decidably.** Trigger the vendor-currency pass when EITHER holds:
 1. the module's `__manifest__.py` declares `external_dependencies` with at least one non-empty list
@@ -88,7 +96,3 @@ reserved `vendor_api_checked:` field of THIS module's `absorption/<module>.md` (
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md` § P2 output
 FORMAT) - the same file the P6 gate presents, satisfying the "surface at P6" rule above without a
 separate step.
-
-**(d) Data at risk routes out.** A module the P2 comparator flagged `data_at_risk: true` that receives
-REWRITE(model) or DELETE is already an escalation (`odoo-modules-upgrade` § Hard rules). Do
-not write a migration script to "handle" it here; report and route to `odoo-data-migration`.

@@ -74,11 +74,13 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
 
 ## 5. Change hygiene: versions, migrations, retirement
 
+Within a series; a cross-series code upgrade follows
+`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0.
+
 - **One `__manifest__.py` version bump per module per PR**, only when the PR needs a data
   update or a migration. The migration directory of that version holds at most ONE file per
   stage (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`); files named after business
-  topics are not accepted even when they run. A cross-series upgrade converts the series prefix
-  instead of bumping (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`).
+  topics are not accepted even when they run.
 - **Retire, do not delete.** A module, model or field that customer databases hold data in stays
   in place with a TODO naming the next major that removes it. Only a pre-migration script removes
   data that carries an XML ID.

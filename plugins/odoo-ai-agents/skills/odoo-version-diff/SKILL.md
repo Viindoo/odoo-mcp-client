@@ -39,11 +39,11 @@ Developer + Marketer
 
 ## Context
 
-Two audiences: **Developers** (file paths, method signatures, migration instructions for breaking changes) and **Marketers** (business-language feature highlights for sales/marketing content).
+Two audiences: **Developers** (file paths, method signatures, modernisation instructions for breaking changes) and **Marketers** (business-language feature highlights for sales/marketing content).
 
 Historical breaking points: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/breaking-points-history.md`
 
-Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline), but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** - it requires significantly more migration work.
+Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline), but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** - it requires significantly more modernisation work.
 
 ## Instructions
 
@@ -64,7 +64,7 @@ Diff the results to surface field and view-level structural changes. Fire these 
 
 Categorize findings by impact: **Module developer** changes vs **End-user functionality** changes.
 
-**Cross-era note:** If the jump spans v8/v9→v10+ or v12→v13, add a special "Era migration" section explaining the magnitude.
+**Cross-era note:** If the jump crosses an era boundary (the OpenERP-to-modern row of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/breaking-points-history.md`, the `@api.multi` removal in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`, a frontend era change in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`), add a special "Era modernisation" section explaining the magnitude.
 
 ## Forward-port mode (4-outcome mapping)
 
@@ -116,7 +116,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 ## Version Diff: Odoo <from> → <to>
 
 **Era:** <Within-era / Cross-era - specify which eras>
-**Migration complexity:** <Low (within-era, <2 versions) / Medium / High / Very High (cross-era)>
+**Upgrade complexity:** <Low (within-era, <2 versions) / Medium / High / Very High (cross-era)>
 
 ### Added APIs (<N> new)
 | Symbol | Kind | Module | Description |
@@ -124,7 +124,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 | ...    | field/method/class | ... | ... |
 
 ### Removed APIs (<N> breaking)
-| Symbol | Last version | Replacement | Migration note |
+| Symbol | Last version | Replacement | Modernisation note |
 |--------|-------------|-------------|---------------|
 | ...    | ...         | ...         | ...            |
 
@@ -138,8 +138,8 @@ When OSM is unreachable, follow the three-tier grounding order from
 |--------|--------------|---------------|--------|
 | ...    | ...          | ...           | ...    |
 
-### Era migration (if cross-era)
-<Explanation of the broader migration work required beyond API changes>
+### Era modernisation (if cross-era)
+<Explanation of the broader modernisation work required beyond API changes>
 
 ### Structural diff - `<model>` (when model-specific diff requested)
 **Fields added:** `<field1>`, `<field2>` …
@@ -154,7 +154,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 ### Developer sprint plan
 1. Fix BREAKING issues (Removed APIs): <priority order>
 2. Update Changed signatures: <modules to check>
-3. Migrate Deprecated (next sprint): <list>
+3. Replace Deprecated (next sprint): <list>
 ```
 
 Examples: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/examples.md`

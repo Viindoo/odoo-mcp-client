@@ -20,7 +20,7 @@ resolves for the module's adapt unit. Size, file count, LOC and module count alo
 | 1 | Action=MERGE or SPLIT that creates or changes a cross-module inheritance axis, OR the upgrade involves a domain-specific DSL or formula engine that must be redesigned | **fable** (always needs explicit human confirmation) |
 | 2 | Action=REWRITE(model) where >=1 core model's field type changed AND the module has ORM `create`/`write`/`unlink` overrides; OR override chain has >=3 entries at target (`find_override_point`); OR cross-model computed chain or multi-company logic must be restructured; OR action=SPLIT and the split boundary is ambiguous | **opus** |
 | 3 | Action=DELETE-absorbed (the coder runs the dangling-reference sweep + dep cleanup only - directory removal is delegated to git-toolkit via `git-ops`; no business logic written); OR action=KEEP with only string/label/path fixes (no ORM, no view restructure) or with additions that are fully specified (the fields, views and values are already stated); OR action=REWRITE(api) where the old-to-new mapping is already known (the deprecation fix list or the breaking-change catalog names the replacement) | **haiku** |
-| 4 | Everything else - action=REWRITE(api) where the replacement must be worked out, action=KEEP with additions that need reasoning, normal OWL widget migration, MERGE, and any case not clearly resolved by rows 1-3 | **sonnet** (default) |
+| 4 | Everything else - action=REWRITE(api) where the replacement must be worked out, action=KEEP with additions that need reasoning, normal OWL widget modernisation, MERGE, and any case not clearly resolved by rows 1-3 | **sonnet** (default) |
 
 ---
 

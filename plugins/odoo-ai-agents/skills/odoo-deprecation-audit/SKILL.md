@@ -83,9 +83,9 @@ test_base_classes(odoo_version='17.0')   # replace with actual target version
 Use the result to audit test files for legacy base classes. Specifically flag, per the window in
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3:
 - `SavepointCase` / `HttpSavepointCase` used in test files - severity depends on the TARGET
-  version: **v8-v14** target - real, non-deprecated class, no finding; **v15-v16** target -
-  deprecated but still real, migrate to `TransactionCase`/`HttpCase` for cleanliness - WARN;
-  **v17+** target - REMOVED (a surviving import fails outright) - BREAKING, never a WARN
+  series' window: window still open (a real, non-deprecated class) -> no finding; deprecated but
+  still real -> replace with `TransactionCase`/`HttpCase` for cleanliness - WARN; REMOVED (a
+  surviving import fails outright) -> BREAKING, never a WARN
 - `cr.commit()` inside `TransactionCase` or `SavepointCase` test bodies - always BREAKING
   (isolation is savepoint rollback; `cr.commit()` is forbidden in the test transaction)
 
@@ -116,33 +116,32 @@ version-range table) rather than trusting an OSM MISS as "symbol absent". Scan A
 
 **Round 3 - Parallel:** Call `entity_lookup(kind='method', …)` for ALL changed-signature methods simultaneously. Independent of each other and of Round 2.
 
-**Round 3b - JS patch audit (when migrating from v8-v13 or from v17 to v18+):** Call
-`module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy
-`web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the legacy
-Widget API is deprecated from v14 and OWL becomes the primary component path from v16 onward -
-`web.Widget`/`AbstractField` are NOT removed at v16 (see
-`references/era-reference.md`), but usage declines from v16 and the symbols are absent from the
-OSM index by v18. Flag
-each patch as BREAKING if target version is v14+ and the patch still references
-`AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both apply.
+**Round 3b - JS patch audit (when the source series is in the legacy frontend era, or the target
+ships Hoot as its primary JS test framework - `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`
+rows 1 and 2):** Call `module_inspect(name=<scope>, method='js', odoo_version='<version>')` to
+enumerate all legacy `web.Widget`-based patches. Legacy-era patches require manual OWL rewrites. The
+legacy Widget API is deprecated well before it leaves the OSM index (`references/era-reference.md`,
+row `web.Widget`). Flag each patch as BREAKING when the target is at or beyond the series that
+deprecates the symbol and the patch still references `AbstractField`, `FieldWidget`, or
+`web.Widget`. Fire in parallel with Round 3 if both apply.
 
-When the target version is v18 or later, also audit JS test files for framework migration. Call
-`js_test_inspect` for each module that has JS tests:
+When the target series ships Hoot as its primary JS test framework, also audit JS test files for
+QUnit suites to modernise. Call `js_test_inspect` for each module that has JS tests:
 
 ```python
 js_test_inspect(module='account', odoo_version='18.0')   # replace with actual module + target version
 ```
 
 `js_test_inspect` returns the framework mix (hoot / qunit / tour), file paths, and sample
-describe/test blocks. Flag any module still running QUnit suites when the target version ships
-Hoot as the default framework (v18+) - these require migration to Hoot's `describe/test/expect`
-API and `mock_models` convention. Severity: WARN (the tests still execute under a compatibility
-shim in early v18 but will break when the shim is removed). Group findings under "JS Test
+describe/test blocks. Flag any module still running QUnit suites when the target ships Hoot as the
+primary framework - these need modernising to Hoot's `describe/test/expect` API and `mock_models`
+convention. Severity: WARN (the tests still execute under a compatibility shim on the first
+Hoot-primary series but will break when the shim is removed). Group findings under "JS Test
 Framework" in the output table.
 
-Capture file, line, symbol name, and deprecation message from Round 1; merge with Round 2 replacement info before building the output table. Group findings by file so developers can batch-fix one file at a time. Include the exact replacement API with a one-line migration note.
+Capture file, line, symbol name, and deprecation message from Round 1; merge with Round 2 replacement info before building the output table. Group findings by file so developers can batch-fix one file at a time. Include the exact replacement API with a one-line modernisation note.
 
-**Era upgrade note:** If migrating from v8/v9, add a separate section "OpenERP Era Rewrites" listing modules requiring full Python 2→3 syntax migration, not just API replacements.
+**Era upgrade note:** If the source predates the `odoo` package rename (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 5), add a separate section "OpenERP Era Rewrites" listing modules requiring full Python 2→3 syntax conversion, not just API replacements.
 
 ## Standalone-first fallback
 
@@ -156,7 +155,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 ## Output format and examples
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deprecation-audit/references/era-reference.md` for the full output table template, migration notes format, and worked examples.
+See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deprecation-audit/references/era-reference.md` for the full output table template, modernisation notes format, and worked examples.
 
 ## Continuation Contract
 

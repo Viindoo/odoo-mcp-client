@@ -41,7 +41,7 @@ the pivot table before citing a version.
 | `pool.get('model.name')` | **REMOVED v13** | `self.env['model.name']` |
 | `cr.execute` without context manager | WARN | Use `with self.env.cr.savepoint():` idiom |
 
-Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite. Effort: **Very High**.
+Upgrading from this era: expect full Python 2→3 rewrite + full model API rewrite. Effort: **Very High**.
 
 ### v10-v12 (legacy API era)
 
@@ -109,9 +109,9 @@ Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite.
 |------|------|-------------------|-------------|---------|
 | ...  | ...  | ...               | ...         | BREAKING/WARN/STYLE |
 
-### Migration notes
-- <key migration pattern 1>
-- <key migration pattern 2>
+### Modernisation notes
+- <key modernisation pattern 1>
+- <key modernisation pattern 2>
 
 ### Legacy JS patches requiring OWL rewrite (v8-v13 source → v14+ target only)
 | Patch target | Module | Era | Replacement pattern |
@@ -121,7 +121,7 @@ Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite.
 ### OpenERP era rewrites (v8/v9 source only)
 <List modules needing full Python 2→3 + model API rewrite>
 
-### Estimated migration effort
+### Estimated upgrade effort
 <Low/Medium/High/Very High> - <rationale: BREAKING count, era complexity, OWL rewrite scope>
 
 ### Recommended sprint plan
@@ -134,9 +134,9 @@ Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite.
 ## Examples
 
 **Example 1:**
-Prompt: "audit deprecated API usage before we upgrade from Odoo 16 to 17"
-Output: Table of deprecated/removed APIs by file (flush/invalidate/fields_view_get removals,
-attrs= ValidationError), urgency ratings, migration notes for v16→v17 breaking changes,
+Prompt: "audit deprecated API usage before we upgrade from Odoo <from> to <to>"
+Output: Table of deprecated/removed APIs by file (the removals and view ValidationErrors the
+target series introduces), urgency ratings, modernisation notes for its breaking changes,
 effort estimate.
 
 **Example 2:**

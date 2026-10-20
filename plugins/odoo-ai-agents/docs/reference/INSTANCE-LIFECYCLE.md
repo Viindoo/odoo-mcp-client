@@ -32,7 +32,7 @@
 | `store=True` computed field added / formula changed | `-u <module>` | `-u` should recompute the stored column; if recompute is skipped, force it (shell `env … recompute`, or null the column + `-u`). Verify the column, don't assume |
 | Removed a model / field / changed an XML id | `-u <module>` + watch for orphans | may leave stale columns / `ir_model_data` orphans; hard cleanup → reinstall |
 | Renamed module, changed a model `_name`, data corruption, demo mismatch | **REINSTALL**: drop DB + create fresh + `-i` | a leased (allocator-managed) DB is dropped by releasing its lease, never by bare name - see the ownership guard in `INSTANCE-ALLOCATION-GUARDS.md` §6.3 |
-| Cross-version bump (e.g. 16 → 17) | OpenUpgrade / the upgrade path - **NOT a plain `-u`** | a version bump is a migration job, not a module update |
+| Cross-version bump of an existing database (e.g. 16 → 17) | database migration (MIG) - **NOT a plain `-u`**; the plugin never executes it (`snippets/upg-conventions.md` § Convention 0) | moving a database to a higher series is a migration job, not a module update; a module's code upgrade is built and tested on a FRESH database |
 
 ## `-i` vs `-u` semantics (confirm exact flags via `cli_help` for the target version)
 

@@ -46,7 +46,7 @@ Three risk dimensions for executives:
 2. **Change blast radius** - places affected when a key field/model is modified.
 3. **Dependency health** - custom modules depending on features that may disappear.
 
-Risk levels: **Low** (0-2 deprecated APIs, no high-impact fields, all deps stable) / **Medium** (3-10 deprecated APIs, or 1-2 high-impact fields) / **High** (10+ deprecated APIs, or critical business field with wide blast radius - requires dedicated migration project).
+Risk levels: **Low** (0-2 deprecated APIs, no high-impact fields, all deps stable) / **Medium** (3-10 deprecated APIs, or 1-2 high-impact fields) / **High** (10+ deprecated APIs, or critical business field with wide blast radius - requires dedicated design work).
 
 Version era multiplier - score by BOUNDARIES CROSSED, never by a single flat "modern" bucket. Which
 series sit on which side of the frontend-framework and test-framework boundaries is owned by
@@ -102,11 +102,11 @@ When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-proto
 - **Change blast radius:** <Low/Med/High> - <field/method> affects <N> downstream points
 - **Dependency health:** <Low/Med/High> - <N> dependencies unverified in target version
 
-### Version migration complexity
+### Version upgrade complexity
 <Low/Medium/High/Very High> - <rationale based on era and version gap>
 
 ### Recommended action
-<One concrete, specific sentence: "Prioritize migration of `module_x` before the v17 upgrade window
+<One concrete, specific sentence: "Prioritize modernising `module_x` before the <target> upgrade window
 because it has N breaking changes in core method Y.">
 ```
 

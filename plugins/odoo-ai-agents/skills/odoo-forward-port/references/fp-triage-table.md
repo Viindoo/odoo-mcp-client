@@ -120,13 +120,13 @@ bucket is known - a commit triaged sonnet-to-adapt that classifies as bucket (a)
 ## Bucket-(c) upgrade-scale defer-or-do gate
 
 The ADAPT table picks a MODEL; it does NOT decide whether a cluster is even a mechanical port.
-A large bucket-(c) cluster that is really an upgrade-scale RE-IMPLEMENT (a framework migration,
+A large bucket-(c) cluster that is really an upgrade-scale RE-IMPLEMENT (a framework modernisation,
 not a port) MUST be surfaced as an explicit choice, never silently adapted inside a "mechanical"
 forward-port run.
 
 **When the gate fires.** After P2 classify (buckets known), estimate each bucket-(c) cluster's
-adapt size: source-side LOC delta + a framework-migration flag (e.g. v16 legacy widget -> v17+
-OWL, QUnit -> Hoot, an API removed wholesale at the target). The gate trips if EITHER holds:
+adapt size: source-side LOC delta + a framework-modernisation flag (e.g. a legacy widget -> OWL,
+QUnit -> Hoot, an API removed wholesale at the target; eras: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` rows 1-2). The gate trips if EITHER holds:
 - estimated > ~200 LOC of new OWL/JS (or backend) on the target, OR
 - it is a full component / framework rewrite (the source idiom no longer exists at the target).
 
@@ -135,7 +135,7 @@ late):**
 
 ```
 This cluster (<modules>) is really a version-upgrade rewrite, not a mechanical port
-(~<LOC> new lines / <framework-migration>). Two ways forward:
+(~<LOC> new lines / <framework-modernisation>). Two ways forward:
   (a) defer  - mark these modules not-installable for now and re-implement them later as
                their own piece of work (they get lint-only checks meanwhile)
   (b) do now - roughly <X> hours of re-implementation inside this run

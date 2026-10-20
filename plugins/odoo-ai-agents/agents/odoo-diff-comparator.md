@@ -305,16 +305,6 @@ Drives the P2b wire-in design decision. Empty if no RECONCILE features. -->
 
 <Any symbol touched by the custom module that `api_version_diff` shows was removed or renamed between source and target. Each flag: symbol + from_version + to_version + diff summary.>
 
-## Data at risk
-
-**data_at_risk:** true | false
-
-<!-- true when the module is currently installable:True AND defines stored non-computed
-fields OR has noupdate="1" data records. Drives the `data_at_risk` flag in the return
-block and must be confirmed before any DELETE action proceeds. -->
-
-<List any stored non-computed fields or noupdate records that would be lost on deletion.>
-
 ## Deferred work (version-anchored reconciliation)
 
 <!-- Version-anchored TODO/FIXME/XXX/HACK markers found during the SAME read above (upgrade
@@ -398,7 +388,6 @@ proposed_classification:  # per-class count aggregate - an EXTRA roll-up, not th
   RECONCILE: <count>  # routes to P2b design (odoo-solution-design); never silently KEEP/coexist
 reuse_candidates: <count>  # new-feature wire-in candidates listed in absorption file (RECONCILE features)
 breaking_change_flags: <N>
-data_at_risk: true | false  # true if module is installable:True AND has stored non-computed fields or noupdate records
 deferred_work_due: <count>         # version-anchored TODO/FIXME/XXX/HACK markers DUE at target - feed P4 as real work
 deferred_work_unanchored: <count>  # markers with no parseable version anchor - flagged for human at P3/P6, never silently absorbed or dropped
 grounded: <osm | local-source | ungrounded>

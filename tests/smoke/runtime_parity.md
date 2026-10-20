@@ -289,9 +289,9 @@ Before beginning this checklist, confirm all of the following:
 **Trigger prompt (EN)**: "which APIs changed between Odoo v16 and v17 - what should a developer know before upgrading"
 
 **Expected output**:
-- `## Version Diff: Odoo <from> → <to>` header with era label + migration complexity rating
+- `## Version Diff: Odoo <from> → <to>` header with era label + upgrade complexity rating
 - `### Added APIs` table (Symbol / Kind / Module / Description)
-- `### Removed APIs` table (Symbol / Last version / Replacement / Migration note)
+- `### Removed APIs` table (Symbol / Last version / Replacement / Modernisation note)
 - `### Deprecated APIs` table (Symbol / Deprecation message / Replacement)
 - `### Changed signatures` table (at least one row or explicit "none")
 
@@ -315,8 +315,8 @@ Before beginning this checklist, confirm all of the following:
 **Expected output**:
 - `## Deprecation Audit Report` header with source/target version, era, file count, issue count
 - Issues table (File / Line / Deprecated symbol / Replacement / Urgency) with BREAKING/WARN/STYLE tags
-- `### Migration notes` section (at least 2 key patterns)
-- `### Estimated migration effort` block with Low/Medium/High/Very High rating + rationale
+- `### Modernisation notes` section (at least 2 key patterns)
+- `### Estimated upgrade effort` block with Low/Medium/High/Very High rating + rationale
 - `### Recommended sprint plan` section (phased approach or single-sprint recommendation)
 
 | Runtime | Pass? | Notes |

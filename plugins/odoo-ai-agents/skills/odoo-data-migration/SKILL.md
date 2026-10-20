@@ -22,6 +22,7 @@ verifiable row counts, and a rollback note in every output.
 | What changed between two Odoo versions | `odoo-version-diff` |
 | Deploy readiness gate | `odoo-deploy-checklist` |
 | Full upgrade orchestration plan | `/odoo-plan-upgrade` |
+| Upgrade a module's code to a higher Odoo series | `odoo-modules-upgrade` |
 | Backend model/field creation (no migration needed) | `odoo-coding` |
 | Executive risk overview | `odoo-risk-overview` |
 
@@ -62,7 +63,13 @@ data.
 
 ## When to use
 
-Migration is needed when a module version bump introduces any of: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation.
+Scope: write module-level migration scripts - for a module version bump within a series, or for the
+custom modules of a database migration (MIG) project the user asked for separately, using the
+`migration-notes.md` of the code upgrade when the user gives one. It is never a step of a code
+upgrade (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0) and never executes a
+migration.
+
+A migration script is needed when a module version bump introduces any of: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation.
 
 ---
 

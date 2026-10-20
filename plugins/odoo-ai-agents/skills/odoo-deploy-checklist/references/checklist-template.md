@@ -30,7 +30,7 @@
 - [✓/⚠/✗/N/A] Filestore / attachments backup included
 - [✓/⚠/✗/N/A] Backup age ≤ 24h before deploy window
 
-### 3. Data migration
+### 3. Data migration (database migration project only; N/A for a code upgrade)
 - [✓/⚠/✗/N/A] Migration scripts present for all upgrading modules
 - [✓/⚠/✗/N/A] Migration tested on prod-size data
 - [✓/⚠/✗/N/A] Custom SQL constraints checked for data conflicts
