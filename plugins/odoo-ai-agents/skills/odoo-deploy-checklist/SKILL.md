@@ -52,7 +52,7 @@ Full item list and output template: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deploy-ch
 Domain purposes (for autofill logic):
 - **1 Pre-flight** - code-level readiness checks before touching production.
 - **2 Backup** - data safe and recovery tested (not just assumed).
-- **3 Data migration** - scripts present, correct, and tested at scale.
+- **3 Data migration** - for a database migration (MIG) project only (N/A for a code upgrade): scripts present, correct, and tested at scale.
 - **4 Downtime** - business continuity planned and communicated.
 - **5 Deploy mechanics** - deploy is deterministic and repeatable. CLI flags grounded for TARGET version via OSM `cli_help` (`set_active_version` first); install/upgrade/reinstall classified per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree; tests per `ODOO-TESTING.md`. Never reuse one version's command line for another.
 - **6 Smoke tests** - system functional after deploy. Code-quality CI gate reproduced: the lint-class modules (${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md) included in the `--test-tags` run - per `docs/reference/ODOO-TESTING.md`.

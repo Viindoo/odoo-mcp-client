@@ -186,6 +186,32 @@ def test_a_user_prompt_still_gets_its_hints_in_a_fresh_context(tmp_path):
 
 
 @pytest.mark.parametrize("prompt", [
+    "migrate the odoo database to the next major",
+    "upgrade the odoo database to the next major",
+    "write a data migration script for odoo",
+    "chuyển dữ liệu database odoo sang phiên bản mới",
+], ids=["migrate-db", "upgrade-db", "migration-script", "vi-data-move"])
+def test_a_database_migration_prompt_is_told_the_plugin_does_not_run_it(tmp_path, prompt):
+    """Moving an existing database to a higher series (MIG) is not a module code upgrade (UPG):
+    the hint says the plugin never executes it and names the skill that writes its scripts."""
+    env = _env(tmp_path)
+    ctx = _intent(prompt, _write(tmp_path / "t.jsonl", [_user(prompt)]), env)
+    assert "[Database migration]" in ctx and "odoo-data-migration" in ctx, ctx
+
+
+@pytest.mark.parametrize("prompt", [
+    "upgrade my odoo module to the next major",
+    "migrate custom odoo module from one major to the next",
+], ids=["upgrade-module", "migrate-module"])
+def test_a_module_code_upgrade_prompt_gets_no_database_migration_hint(tmp_path, prompt):
+    """A code upgrade (module source to a higher series) carries no database object, so it must
+    not be told it is a database migration."""
+    env = _env(tmp_path)
+    ctx = _intent(prompt, _write(tmp_path / "t.jsonl", [_user(prompt)]), env)
+    assert ctx and "[Database migration]" not in ctx, ctx
+
+
+@pytest.mark.parametrize("prompt", [
     "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n<result>Đã sửa odoo "
     "module sale: thêm computed field, test xanh trên v17.</result>\n</task-notification>",
     'Another Claude session sent a message: <agent-message from="a2"> [Subagent report] '

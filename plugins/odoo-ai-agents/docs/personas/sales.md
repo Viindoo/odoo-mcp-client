@@ -53,7 +53,7 @@ Returns actual code from indexed Odoo repos - not a demo script, but real implem
 model_inspect(model="sale.order", method="summary", odoo_version="16.0")
 ```
 
-See how many modules extend their core models. If the prospect is on an older version with heavy customization, this tells you the migration complexity before your competitor does.
+See how many modules extend their core models. If the prospect is on an older version with heavy customization, this tells you the upgrade complexity before your competitor does.
 
 ---
 

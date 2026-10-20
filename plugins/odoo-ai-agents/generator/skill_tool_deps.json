@@ -601,7 +601,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Cross-major cluster upgrade orchestrator (full delegation; CODE-LEVEL, no data migration): validate_depends + module_inspect(dependencies) build the topo DAG; subagents compare custom-vs-core and adapt; reuses odoo-deprecation-audit + odoo-version-diff (recon), odoo-gap-analysis (core-absorption), odoo-coding (adapt), odoo-instance (install/test), and the plugin review capability (PR). Module wholly absorbed -> delete + record reason. cli_help grounds per-target odoo-bin flags. min_server 0.15.0."
+      "notes": "Cross-major cluster upgrade orchestrator (full delegation; code upgrade only, no database migration): validate_depends + module_inspect(dependencies) build the topo DAG; subagents compare custom-vs-core and adapt; reuses odoo-deprecation-audit + odoo-version-diff (recon), odoo-gap-analysis (core-absorption), odoo-coding (adapt), odoo-instance (install/test), and the plugin review capability (PR). Module wholly absorbed -> delete + record reason. cli_help grounds per-target odoo-bin flags. min_server 0.15.0."
     },
     "odoo-acceptance": {
       "mcp_tools": [

@@ -26,6 +26,8 @@ odoo.com git guidelines.
 | `[FIX]` | bug fix (stable or dev branch) |
 | `[IMP]` | incremental improvement / feature work in dev (most common when no other tag fits) |
 | `[ADD]` | adding a new module |
+| `[UPG]` | upgrade of a module's code to a higher Odoo series (port + modernisation) |
+| `[MIG]` | adding database migration scripts (a `migrations/` folder) for a database migration project; never for a code upgrade |
 | `[REM]` | removing code/views/modules (dead-code removal) |
 | `[REF]` | refactor - heavy rewrite, behavior unchanged |
 | `[MOV]` | moving files (`git mv`) or code between files, NO content change |
@@ -39,9 +41,13 @@ odoo.com git guidelines.
 | `[LINT]` | linting/formatting only |
 
 Decision order: revert -> `[REV]`; move only -> `[MOV]`; translation -> `[I18N]`; new module ->
-`[ADD]`; removal -> `[REM]`; release -> `[REL]`; merge/fwd-port -> `[MERGE]`; cleanup ->
-`[CLN]`/`[LINT]`; perf -> `[PERF]`; bug fix -> `[FIX]`; behavior-preserving rewrite -> `[REF]`;
-everything else (feature/incremental) -> `[IMP]`.
+`[ADD]`; removal -> `[REM]`; release -> `[REL]`; merge/fwd-port -> `[MERGE]`; series upgrade of a
+module -> `[UPG]`; database migration scripts -> `[MIG]`; cleanup -> `[CLN]`/`[LINT]`; perf ->
+`[PERF]`; bug fix -> `[FIX]`; behavior-preserving rewrite -> `[REF]`; everything else
+(feature/incremental) -> `[IMP]`.
+
+When the repo's history tags module ports with a different tag, follow the history (the convention
+is detected from it).
 
 ## Body: WHY, not HOW (mandatory)
 

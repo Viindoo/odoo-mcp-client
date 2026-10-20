@@ -1,7 +1,7 @@
 # upg-classification-table - module action taxonomy + breaking-change catalog
 
 Used by: P2 `odoo-diff-comparator` brief, P4 `odoo-coding` brief, and the P3 Plan Mode
-gate. NO data-migration content.
+gate. NO database-migration content.
 
 ---
 
@@ -47,10 +47,7 @@ Use ALL of the following to confirm DELETE-absorbed. A single signal is insuffic
 
 Raise as a risk in `plan.md` when any of these hold:
 
-- The custom module has a field that stores data not present in the core model at target
-  (structural data loss risk if deleted without migration).
 - The custom module has `ir.model.access` / `ir.rule` records beyond the core's grants.
-- The custom module has a `noupdate="1"` data record not present in core.
 - External dependers OUTSIDE the cluster depend on the custom module (check `validate_depends`
   or grep the rest of the repo for `depends` containing the module name).
 
@@ -80,7 +77,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | `fields_view_get()` override | v16 deprecated; **v17+ REMOVED** | Replace with `get_views()` (new signature) |
 | `attrs` / `states` view attribute (Python-eval) | v17+ | Replace with `invisible` / `required` / `readonly` domain-style attributes |
 | `cr.commit()` in tests | all | FORBIDDEN inside `TransactionCase` / `SavepointCase`; remove or restructure test |
-| `SavepointCase` used in tests | **v15-v16** WARN (deprecated, still real); **v17+** BREAKING (removed - import failure) - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3 | Migrate to `TransactionCase` (mandatory at v17+, cleanliness at v15-v16; keep on v8-v14) |
+| `SavepointCase` used in tests | WARN while deprecated but still real; BREAKING once removed (import failure) - window in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3 | Replace with `TransactionCase` (mandatory once removed, cleanliness while deprecated; keep while the window is open) |
 
 ### View / QWeb breaks
 
@@ -89,7 +86,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | `<tree>` tag renamed to `<list>` | **v18+** (at v17 `<tree>` is still canonical; `<list>` is unknown pre-v18) | Replace `<tree>` with `<list>` in all XML views |
 | `<form>` `string=` attribute on groups | check per version | Validate against `model_inspect(model='<model>', method='views', odoo_version='<target_version>')` at target |
 | `<field widget="...">` legacy widgets | v14-v17+ | Check widget availability at target; OWL widgets may need replacing |
-| `attrs` / `states` on form/tree fields | v17+ | Migrate to domain-based `invisible` / `required` / `readonly` attributes |
+| `attrs` / `states` on form/tree fields | the series in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § XML views | Replace with domain-based `invisible` / `required` / `readonly` attributes |
 | `domain=` referencing removed fields | any | Update domains when fields renamed/removed at target |
 
 ### JavaScript / OWL / SCSS breaks
@@ -101,7 +98,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | Legacy asset bundle keys (`web.assets_backend` manifest shape) | v15+ | Update `__manifest__.py` `assets` dict to new bundle format |
 | SCSS `@import "variables"` | v16+ | Replace with `@use "variables" as *` + `math.div()` for division |
 | `@import` for SCSS files that moved | any | Verify import paths against `module_inspect(name='<module>', method='assets', odoo_version='<target_version>')` at target |
-| QUnit tests | v18+ | Migrate to Hoot (`describe/test/expect`) - route to `odoo-coding` (frontend leg) |
+| QUnit tests | the series in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 2 | Move to Hoot (`describe/test/expect`) - route to `odoo-coding` (frontend leg) |
 
 ### Manifest breaks
 
@@ -129,7 +126,7 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 - [ ] `installable: True` in every adapted module's manifest
 - [ ] Scanned each module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9) for the `# TODO: Uncomment when upgrading` breadcrumb and honored it (restored `auto_install`/`application` only when the breadcrumb directed)
 - [ ] Manifest `version` uses the short form, no series prefix, and is NOT bumped from the source value - a value that arrived series-prefixed was CONVERTED to `x.y.z`, not bumped (remedy: § Manifest breaks, the Rule A row)
-- [ ] Existing `migrations/` dirs belonging to lower series are untouched, and no NEW migration script was written (a data-at-risk case routes out to `odoo-data-migration`)
+- [ ] No upgraded module carries a `migrations/` directory (each deleted one is recorded in `migration-notes.md`), and no migration script was written
 
 ### Test verification
 

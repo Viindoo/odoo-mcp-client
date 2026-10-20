@@ -96,7 +96,7 @@ RE-IMPLEMENT (a framework component rewrite, not a conflict resolution) MUST be 
 an explicit choice, never silently adapted inside a "mechanical" rebase run.
 
 **When the gate fires.** After P4 classify (outcomes known), estimate each bucket-(c)
-cluster's adapt size: source-side LOC delta + a framework-migration flag (e.g. a component
+cluster's adapt size: source-side LOC delta + a framework-modernisation flag (e.g. a component
 that was refactored wholesale at the new-base, so the source code no longer has a valid
 re-apply surface). The gate trips if EITHER holds:
 - Estimated >~200 LOC of new OWL/JS (or backend) on the target, OR
@@ -107,7 +107,7 @@ re-apply surface). The gate trips if EITHER holds:
 
 ```
 This cluster (<modules>) looks like an upgrade-scale re-implement, not a mechanical
-conflict resolution (~<LOC> LOC / <framework-migration-reason>). Options:
+conflict resolution (~<LOC> LOC / <framework-modernisation-reason>). Options:
   (a) defer  - carry as installable:False now; re-implement in a dedicated later effort
                (skip this cluster from the rebase; note in PR that it is deferred)
   (b) do now - estimate ~<X> hours; proceed at the ADAPT tier from Table 2

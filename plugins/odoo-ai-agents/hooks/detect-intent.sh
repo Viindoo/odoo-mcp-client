@@ -99,10 +99,19 @@ if printf '%s' "${_p_lower}" | grep -Eq "(^|[^a-z0-9-])-?(odoo|viindoo|erp|opene
 fi
 
 # 9-domain keyword scan
-# NOTE: upgrade/migrate/migration checked FIRST to avoid being shadowed by the
+# NOTE: migration/upgrade are checked FIRST to avoid being shadowed by the
 # engineering bucket (which previously matched *upgrade* and *migration* before
-# the upgrade bucket could fire).
-if _wb 'upgrade|migrate|migration|backport|breaking|deprecat'; then
+# the upgrade bucket could fire). A DATABASE/data migration (MIG: moving an existing database
+# to a higher series) is its own bucket, distinct from a module CODE upgrade (UPG): a
+# migrate/upgrade verb together with a database/data object. A migrate verb with no database
+# object ("migrate this module to the next major") stays a code upgrade.
+if { _wb 'migrate|migrates|migrating|migration|migrations' \
+       && { _wb 'database|databases|db|dbs|data|script|scripts|csdl' full || _wb 'dữ[[:space:]]+liệu'; }; } \
+   || { _wb 'upgrade|upgrades|upgrading' && _wb 'database|databases|db|dbs|csdl' full; } \
+   || { _wb 'chuyển|nâng[[:space:]]+cấp' && { _wb 'database|databases|db|dbs|csdl' full || _wb 'dữ[[:space:]]+liệu'; }; }; then
+  _domain="migration"
+fi
+if [ -z "${_domain}" ] && _wb 'upgrade|migrate|migration|backport|breaking|deprecat'; then
   _domain="upgrade"
 fi
 if [ -z "${_domain}" ] && _wb 'module|model|computed|onchange|inherit|controller|v16|v17|v18|v19|version'; then
@@ -182,7 +191,7 @@ fi
 # keyword-scan hook never has a reliable signal for "presales" specifically (that distinction
 # needs deal-stage context this hook does not have), so it is not a target bucket here.
 case "${_domain}" in
-  upgrade|visual-UI) _domain_enum="engineering" ;;
+  upgrade|migration|visual-UI) _domain_enum="engineering" ;;
   setup|QA-support) _domain_enum="support" ;;
   general) _domain_enum="consultant" ;;
   *) _domain_enum="${_domain}" ;;
@@ -257,7 +266,7 @@ fi
 # emission order; the once-per-context-window filter at the end works per block.
 _blocks=()
 case "${_domain}" in
-  engineering|upgrade|visual-UI)
+  engineering|upgrade|migration|visual-UI)
     # V-11: an Odoo-specific tool-calling hint must never fire without a real Odoo/Viindoo
     # anchor - a domain-bucket match alone (e.g. a non-Odoo "visual design" or "version" prompt)
     # is not proof this is an Odoo task.
@@ -302,6 +311,14 @@ case "${_domain}" in
     if [ "${_odoo_anchor}" = "true" ]; then
       _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work -> odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity -> see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
       _blocks+=("${_fe_hint}")
+    fi
+    ;;
+  migration)
+    # A database migration is never executed by the plugin; name the two skills that sit on either
+    # side of it. Gated on the Odoo anchor like every Odoo-specific hint.
+    if [ "${_odoo_anchor}" = "true" ]; then
+      _mig_hint="[Database migration] The plugin never executes a database migration. It writes code for one: module-level migration scripts -> odoo-data-migration (with the run's migration-notes.md when a code upgrade produced one). Upgrading a module's code to a higher series is a different job -> odoo-modules-upgrade."
+      _blocks+=("${_mig_hint}")
     fi
     ;;
   setup)

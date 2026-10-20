@@ -209,29 +209,12 @@ node onto ONE run-integration branch, then ONE PR).
 
 ## Collision 12 - Modules-Upgrade vs Forward-Port vs Plan-Upgrade vs Deprecation-Audit vs Version-Diff
 
-**Prompt**: "nâng cấp cluster sale_custom + sale_discount từ Odoo 16 lên 17 - cần code chạy được
-và xoá module nào core đã hấp thụ."
-
-- `odoo-modules-upgrade`: EXECUTE a cross-major cluster upgrade at CODE level - adapts source so
-  modules are installable and working on the target series, deletes core-absorbed modules, produces
-  a mergeable PR.
-- `odoo-plan-upgrade`: produces a PLAN / risk dashboard only - no code written, no files changed;
-  for decision-makers who want scope and risk before committing to the upgrade.
-- `odoo-forward-port`: moves ONE commit from one major to the next - not a full module adaptation,
-  not a cluster upgrade.
-- `odoo-deprecation-audit`: scans for deprecated-symbol usage only - detection report, no fixes.
-- `odoo-version-diff`: reports API delta between two versions - what changed, added, removed - no
-  code changes, no upgrade execution.
-
-**Discriminator**: "execute + produce working code / PR" for a cluster across majors ->
-**Pick `odoo-modules-upgrade`**. "just give me a plan / risk overview, no code" ->
-`odoo-plan-upgrade`. "move one commit to the next major" -> `odoo-forward-port`. "scan for
-deprecated symbols only" -> `odoo-deprecation-audit`. "show me what the API changed between
-versions" -> `odoo-version-diff`.
-
-If the user said "tell me what risks I face upgrading to v17 but don't touch the code yet" ->
-`odoo-plan-upgrade` (plan only).
-If the user said "make our modules actually run on v17" -> `odoo-modules-upgrade` (execute).
+- `odoo-modules-upgrade`: execute a cross-major cluster upgrade at code level (installable and working, core-absorbed modules deleted, mergeable PR).
+- `odoo-plan-upgrade`: plan and risk overview only, no code.
+- `odoo-forward-port`: commits moved UP a major.
+- `odoo-deprecation-audit`: detection report only.
+- `odoo-version-diff`: API delta between two versions only.
+- Code upgrade vs database migration: `odoo-modules-upgrade` upgrades the modules' code and never touches a database; moving a database to a higher series is never executed by the plugin, and only its custom-module scripts are written, by `odoo-data-migration`.
 
 ## Collision 13 - feature-check vs doc-feature-map vs feature-highlights
 
