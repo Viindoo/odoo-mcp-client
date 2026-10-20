@@ -1,10 +1,7 @@
 # Doc-cluster planning algorithm - schedule multi-module documentation by DAG shape (SSOT)
 
 A multi-module documentation package (user-guide `doc/index.rst` + marketing landing
-`static/description/index.html`) is planned, not fanned out flat. Documenting a module while the
-modules that EXTEND it are also installed produces polluted
-screenshots; a flat one-instance-per-module fan-out re-installs shared deps N times, never deduping. This
-file is the single algorithm that turns an in-scope module set into a `doc-plan.yaml`: dependency
+`static/description/index.html`) is planned, not fanned out flat. This file is the single algorithm that turns an in-scope module set into a `doc-plan.yaml`: dependency
 CLUSTERS, instance allocation by DAG SHAPE, incremental leaf-first install order, cross-module
 dedup, and an inter-instance parallelism schedule.
 
@@ -37,10 +34,11 @@ read from the module tree, never guessed:
 | `name`, `abs_path` | the module directory under `doc_root` (`__manifest__.py`, or `__openerp__.py` on the series that has it) |
 | `version` | `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; never a manifest `version` prefix |
 | `languages` | `odoo-doc-illustration` § Language resolution |
-| `doc_layer` | an explicit per-module value; else `static/description/` present -> `appstore`, `doc/` present -> `userguide`, both or neither -> `both` |
+| `doc_layer` | an explicit per-module value, else `both` |
 | `has_demo` | the descriptor's `demo` list is non-empty |
 | `depends_in_scope` | the descriptor's `depends` restricted to the in-scope set |
 | `has_ondisk_doc` | `static/description/index.html` or `doc/index.rst` exists |
+| `change` | the change's feature list for this module, or `whole`; absent = none (the update input of `odoo-doc-illustration`) |
 | `target_market` | the brief's value, else proposed from the descriptor per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md` § Target market and confirmed at the plan gate |
 
 A run-level `doc_layer` input overrides every module's detected value; pass it only when every
@@ -53,16 +51,16 @@ same fields (a plan node after a build). Output = `doc-plan.yaml`.
 
 ### 1. Build the in-scope sub-graph
 
-Restrict edges to the in-scope set (`depends_in_scope`); edges to out-of-scope modules are upstream
-context only, never in-set ordering edges. Compute per `odoo-module-graph.md`. OSM-verify the disk
+Restrict edges to the in-scope set (`depends_in_scope`); out-of-scope edges are upstream context,
+never ordering edges. Compute per `odoo-module-graph.md`. OSM-verify the disk
 edges opportunistically (trust-but-verify) with the CONCRETE Odoo version - never `'auto'` (the pin
 is per-session and racy under a shared session, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
 session-pin race").
 
 ### 2. Connected components = CLUSTERS
 
-Each connected component of the sub-graph (undirected connectivity) is one cluster. Independent
-clusters carry no cross edges and schedule fully in parallel (subject to W, step 6).
+Each connected component (undirected) is one cluster. Independent clusters have no cross edges and
+run fully in parallel (subject to W, step 6).
 
 ### 3. Topological order within each cluster (leaf-dependency first)
 
@@ -89,28 +87,26 @@ Allocate instances by the SHAPE of the sub-graph. Three rules compose (default
   docs the node on the now-complete DB. The node legitimately needs all its branches, so this is
   pure for the node.
 
-Deeper trees / diamonds recurse: one instance per independent leaf-path, converge inner joins by
-reuse+fill bottom-up. `MAX_CLUSTER_MODULES` (knob, default ~6) bounds how large a component may grow
+Deeper trees and diamonds recurse: one instance per independent leaf-path, inner joins by reuse+fill. `MAX_CLUSTER_MODULES` (knob, default ~6) bounds how large a component may grow
 before the plan splits a shared low-level dep for extra parallelism (triggering dedup, step 5).
-An optional `purity: fresh-per-module` override allocates one throwaway instance per module for the
-paranoid case.
+An optional `purity: fresh-per-module` override allocates one throwaway instance per module.
 
 ### 5. Dedup - the `doc_owner` map (`doc:true|false`)
 
-Each in-scope module is doc'd exactly ONCE globally. Assign each module one `(instance, install_step)`
-doc owner; the owner is where the module sits LOWEST in its topo order (fewest extensions installed
-on top = most pure); ties break to the earliest instance in the schedule. Three cases force
-`doc:false` (install as a dep, do not re-doc):
+Each in-scope module is doc'd exactly ONCE globally, on its owner `(instance, install_step)`: where
+it sits LOWEST in its topo order (fewest extensions on top = most pure); ties break to the earliest
+instance. Three cases force `doc:false` (install as a dep, do not re-doc):
 
 - **Shared dependency across branches/clusters** - installed on several instances but doc'd only on
   its owner (`dedup_reason: "duplicate-dep: doc'd in <instance>"`).
 - **Convergence fill modules** already doc'd on their own branch instance - `doc:false` in the fill;
   only the convergence node is doc'd there.
 - **Already-documented on disk / prior run** - `has_ondisk_doc` true, or a prior run's `index.jsonl`
-  covered it -> `doc:false, dedup_reason: existing-on-disk`, UNLESS `REDOC: true` is passed
-  (cross-run dedup). The plan gate lists them: their docs may predate
-  `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, and the user picks `REDOC: true` to
-  re-document them into it or keeps them `doc:false`.
+  covered it, and `change` absent -> `doc:false, dedup_reason: existing-on-disk`. A `change` (a
+  feature list or `whole`) keeps the module `doc:true`; the writer then updates only what the list
+  affects, or documents it again when `whole`. The plan gate lists the `doc:false` ones: their docs
+  may predate `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, and the user sets
+  `change: whole` to re-document them into it or keeps them `doc:false`.
 
 ### 6. Parallelism
 
@@ -155,7 +151,8 @@ install_step <= k}). `doc:true|false` is the dedup switch. `extends_in_scope` (=
 ∩ the `doc:true` set) drives the cross-reference hint ("Extends `<base>` - see its documentation")
 the writer adds to an extension's doc. `doc_layer` (`userguide|appstore|both`) is the per-module
 layer from the scope block; a `plan_source: design-dag` entry may omit it, and the run-level
-`DOC LAYER` input (default `both`) then applies to that module only.
+`DOC LAYER` input (default `both`) then applies to that module only. A `doc:true` entry may carry
+`change`.
 
 ```yaml
 run: doc-run-<timestamp>
@@ -206,11 +203,11 @@ purity: strict-branch                    # (default) linear paths share; indepen
 
 ## Worked examples
 
-- **Linear `A -> B -> C`** (A depends B depends C): 1 instance. Install C, doc C ({C}); install B,
-  doc B ({C,B}); install A, doc A ({C,B,A}). Base reused, each doc pure.
+- **Linear `A -> B -> C`** (A depends B depends C): 1 instance; install and doc C, then B, then A.
 - **Branch `A -> {B, C}`** (A depends on B and C; B, C independent): 2 instances.
   `inst-1` install B -> doc B on {B}; `inst-2` install C -> doc C on {C} (parallel with inst-1 up to
   W). Convergence: REUSE `inst-1` (holds B) -> install fill `[C, A]` -> DB `{B, C, A}` -> doc A.
-  Result: 2 instances for a 3-module branching cluster; B/C captured pure and in parallel; A once.
+  Result: 2 instances for 3 modules; B/C pure and parallel; A once.
 - **Dedup `X -> Y -> B`** where B already carries on-disk doc (`has_ondisk_doc`): B is `doc:false`
-  (install-only) - only Y and X are doc'd. With `REDOC: true`, B is doc'd again.
+  (install-only) - only Y and X are doc'd. With `change: whole` on B, B is doc'd again; with a
+  feature list on B, only the sections that list affects are rewritten.

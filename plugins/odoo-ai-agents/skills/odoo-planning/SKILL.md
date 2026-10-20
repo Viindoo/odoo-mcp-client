@@ -20,7 +20,7 @@ gap/brl  ->  odoo-solution-design (TDD + index.yaml)  ->  HUMAN approves design
    ->  odoo-planning -> odoo-planner (the plan: build nodes + the lifecycle tail)
    ->  ONE lifecycle plan gate  ->  ExitPlanMode
    ->  intake Phase P serializes run-<id>.json  ->  the main agent runs the plan
-   ->  the doc node (odoo-doc-writer) runs after code/review/QA when its `when:` holds
+   ->  the doc nodes (docs-module, then docs-site) run after code/review/QA when their `when:` holds
 ```
 
 This skill does NOT compute the plan itself and does NOT write code - it launches `odoo-planner`
@@ -34,10 +34,10 @@ full product journey - the build nodes and the lifecycle tail, documentation inc
 ONE leaf planner, `odoo-planner`: a dependency-ordered node graph, each node naming the agent,
 mode and model it launches, run end to end by the main agent per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan. The
-documentation of the change is a node
-of that tail (`odoo-doc-writer`, one per module, after acceptance - screenshots need the built
-module on a live instance); when it covers several modules, the main agent computes their
-instance plan inline at that node per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`.
+documentation of the change is two nodes
+of that tail, `docs-module` (skill `odoo-doc-illustration`, after acceptance) and `docs-site` (skill
+`odoo-doc-site`, in the docs site's own repo and PR, followed by `monitor-site` and `merge-site`, which also waits for the code repo's `merge`). The documentation target (`module`, `site`,
+`both`, `none`) comes from `odoo-intake` in the brief.
 Pairs with `odoo-solution-design` (consumes its design DAG) and intake Phase P (serializes it).
 
 ## Input port - read the upstream artifacts BY POINTER (before dispatch)
@@ -159,6 +159,7 @@ later at odoo-acceptance Phase 1; else the scenarios.md path]
 SURVEY: [none | <SHARE_DIR>/survey/<slug>-<date>/synthesis.md - the deep-survey synthesis from
 intake's Proposed Plan `Survey:` field, when one was run this session; explicit `none` when no
 deep survey was opted into - never omit this field, unlike GAP_MATRIX/QA_ORACLE above]
+DOC TARGET: [module | site | both | none - with the facts that decided it; omit when the caller decided nothing]
 RETURN_TO: [omit when absent; set to the caller skill name when return routing is requested]
 ```
 
@@ -234,7 +235,8 @@ Plan ready:
   Plan:       <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
 Build order: <node-1> -> <node-2> -> ...   (topological order; landing: <one line>)
 Lifecycle:   <the tail nodes in order with their when: conditions, as the plan writes them>
-             (the doc node runs AFTER code/review/QA when its `when:` holds)
+             (the doc nodes run AFTER code/review/QA when their `when:` holds)
+Docs:        <module | site | both | none> - <the facts that decided it>   (reply `refine:` to change it)
 Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY - the agent count is an estimate;
              each node's agent, mode and model are what the plan states)
 Approve plan? (approve / refine: [feedback] / cancel)
@@ -242,6 +244,9 @@ Approve plan? (approve / refine: [feedback] / cancel)
 
 - `Lifecycle:` renders the plan's own tail nodes - the default tail of `plan-mode-schema.md`
   § Default tail as the planner adapted it, with the reason for any change.
+- `Docs:` is the single line that shows the documentation target. `refine: no docs` drops
+  `docs-module` and `docs-site`, with the reason written in the plan; `refine: docs module | site |
+  both` re-sends the planner the new target.
 - **Before approving, confirm the rendered Block 2 ASCII graph honors the schema's no-grouping
   rule**: "`nodes` and `edges` are the ONLY ordering statement a plan makes: no field, header,
   annotation, or grouping construct may batch nodes together." This gate is the one human check that
@@ -252,7 +257,7 @@ Approve plan? (approve / refine: [feedback] / cancel)
   and § Block 3 own the rule). A node whose objective or acceptance names a technical end-state - a
   field, model, file or method to exist - hands the coder a method instead of a result: reject and
   `refine: [feedback]` rather than approving.
-- **Also before approving, confirm every repo the plan touches carries at least one `odoo-instance`
+- **Also before approving, confirm every repo with a coding node carries at least one `odoo-instance`
   node on `integrate`'s `depends_on` path whose `modules` cover every module DECLARED in the
   `modules` field of a coding node in that repo.** This is a set comparison between two declared
   `modules` fields of the plan in front of you - never a dependency read of module source, and never

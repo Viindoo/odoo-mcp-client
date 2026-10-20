@@ -331,6 +331,13 @@ drop-in. What it does:
    launches reads a config file the plugin generates, never your `~/.odoorc`, so a `db_password`
    there is not used.
 6. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
+7. **Docs site** (optional; `/odoo-ai-agents:odoo-setup docs-site`, step `60-docs-site`) - declares a
+   product documentation repository in `$ODOO_AI_HOME/docs-sites.toml` (machine-global, never
+   committed), read by the `odoo-doc-site` skill. `propose --repo <local clone>` derives the origin
+   URL, fork candidates, series branches, languages, sibling clones and catalog instances per series;
+   the site policy is yours to state. `record` refuses an unknown key, an instance the catalog does
+   not declare and a marketplace link lacking `{series}` or `{module}`. Runs only on request, never
+   under `all`.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-ai-agents:odoo-setup` whenever a dependency is missing. The same hint prints `browser MCP flags outdated` when a registered browser server differs from the current spec (see the re-run note above).

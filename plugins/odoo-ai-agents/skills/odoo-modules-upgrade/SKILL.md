@@ -387,8 +387,10 @@ ONLY once that review is clean, push branch and open PR: invoke the `git-toolkit
 the Skill tool) to push the branch, then to create the PR - resolve upstream org/repo and base from
 `git remote get-url origin`.
 No cluster-squash (per-module consolidation is allowed - see `references/upg-phase-detail.md` § Commit consolidation).
-After the PR exists, only PR-OBSERVING work remains (CI-failure triage, the human merge). Wait for
+After the PR exists, only PR-OBSERVING work (CI-failure triage, the human merge) and the closing docs below remain. Wait for
 human merge.
+
+With the PR presented, document the upgraded user-visible features. Decide the documentation target by `odoo-intake`'s Documentation routing rule (no plan is built; ask only on a miss). Compose a change file `<ISOLATE_DIR>/docs/change-<slug>.md`: one line per upgraded user-visible feature, with its module and UI label. Module docs: invoke `odoo-doc-illustration` on the target branch's worktree with `CHANGE` = that file and commit the result onto the SAME open PR's branch through `git-toolkit:git-ops` - one PR per repo per run. Site docs: invoke `odoo-doc-site` with `CODE_WORKTREE` = the target worktree, `SERIES` = the target series, `FROM CHANGE` = that file.
 
 ## Hard rules
 

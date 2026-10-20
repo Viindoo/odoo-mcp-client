@@ -2,7 +2,7 @@
 name: odoo-doc-feature-map
 argument-hint: "[module-name]"
 description: >-
-  Catalog every feature, menu and view a module ships, for its docs
+  Catalog a module's features, roles and step-by-step usage scenarios, text only
 ---
 
 ## Role
@@ -10,9 +10,12 @@ description: >-
 Front door for the three shared documentation files of one module: the feature catalog (every
 user-visible capability with the access right that reaches it), the role map (the business roles
 of a company that work with the module and the process they hand records along) and the role
-walkthrough. It launches `odoo-doc-writer` in `MODE: catalog-only` and returns the paths. No
-browser, no instance. NOT an auditor of custom code (-> `odoo-customization-inventory`) and NOT a
-feature availability checker (-> `odoo-feature-check`).
+walkthrough (one happy-path scenario per task each role performs, the administrator's setup
+first, as text). A request for the catalog, the role map, the usage scenarios or the walkthrough
+alone is this skill: the writer always produces all three, and a file the caller already holds is
+forwarded, never rebuilt. It launches `odoo-doc-writer` in `MODE: catalog-only` and returns the
+paths. No browser, no instance, no test execution. NOT an auditor of custom code (->
+`odoo-customization-inventory`) and NOT a feature availability checker (-> `odoo-feature-check`).
 
 ## Out of Scope
 
@@ -20,6 +23,12 @@ feature availability checker (-> `odoo-feature-check`).
 - **Marketing highlights for a version release** (what is new in v18?) -> `odoo-feature-highlights`
 - **Executive audit of CUSTOM code in a client instance** -> `odoo-customization-inventory`
 - **The user guide or the App Store page** -> `odoo-doc-illustration`; **landing copy** -> `odoo-content-draft`
+- **Executable test code** (tours, HttpCase, pytest) -> `odoo-test-writing`
+- **Live UI acceptance with a PASS/FAIL verdict**, or negative and permission-violation scenarios
+  -> `odoo-acceptance` / `odoo-qa-suite`
+- **Marketing copy** (landing page, email, social) -> `odoo-content-draft`
+- **Technical architecture or design before code** -> `odoo-solution-design`
+- **Video or GIF of a live walkthrough** -> `odoo-demo-recording`
 - **Live record queries** -> a live Odoo MCP server; this skill reads source only
 
 ## MCP tools
@@ -69,5 +78,5 @@ says so in its report. No browser and no instance are ever needed here.
 ## Continuation Contract
 
 Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
-three paths; `next: odoo-doc-walkthrough` is never needed (the walkthrough is one of the three);
-`next: odoo-doc-illustration` when the caller wants screenshots.
+three paths; `next: odoo-doc-illustration` when the caller wants screenshots (with `CAPTURE MODE:
+scenarios` to capture the walkthrough steps).

@@ -37,8 +37,8 @@ when changing intake's structure, the routing table, or the harness wiring.
   rows 33-40 = Phase E+ BRL flagship + workflow domains + parallel delivery (row 40 -> `odoo-planning`;
   the main agent runs the plan it writes); rows 41-49 =
   solution-design, implement-feature, frontend-design, doc-illustration, git-rebase, modules-upgrade,
-  acceptance, planning, pr-monitoring; rows 50-54 = icon-design, doc-feature-map, doc-walkthrough,
-  module-packaging, doc-illustration DOC LAYER:both; rows 55-63 = coverage rows so every user-facing
+  acceptance, planning, pr-monitoring; rows 50-54 = icon-design, doc-feature-map, doc-site,
+  module-packaging, docs-only plan (TARGET both); rows 55-63 = coverage rows so every user-facing
   front-door skill is reachable - perf-audit, security-audit, data-migration, customer-health, i18n,
   pricing-proposal, rfp-response, test-writing, instance). `odoo-deep-survey` stays out of the table
   by design (opt-in only); `workflow-chaining` is internal machinery, not a routing target.

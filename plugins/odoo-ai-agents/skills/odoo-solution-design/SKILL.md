@@ -107,7 +107,7 @@ A caller such as `odoo-forward-port` supplies `return_to` and a payload; map it 
 - **Finding ONE method's hook location** -> `odoo-override-finding`
 - **Classifying or costing a requirement list** -> `odoo-brl` (large) or `odoo-gap-analysis` (short)
 - **Version-to-version API delta** -> `odoo-version-diff`; **deprecation scan** -> `odoo-deprecation-audit`
-- **User-facing walkthrough or scenario text** -> `odoo-doc-walkthrough`
+- **User-facing walkthrough or scenario text** -> `odoo-doc-feature-map`
 
 ## MCP tools
 

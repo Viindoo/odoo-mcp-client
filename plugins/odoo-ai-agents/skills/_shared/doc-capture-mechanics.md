@@ -1,13 +1,14 @@
-# Capture Mechanics Reference
+# Doc Capture Mechanics Reference
 
-Browser-capture mechanics for `odoo-doc-writer`, which drives a live Odoo instance to shoot the
-screenshots of the user guide (`MODE: full`) and of the App Store landing (`MODE: landing`),
-then embeds them in its own assembly step. This file is the SSOT for HOW to capture; the writer
-body owns the audience and the assembly. It is also the SSOT that `docs/odoo-ui-knowledge.md`
-points at for the browser write mechanism.
+Browser-capture mechanics for the documentation writers (`odoo-doc-writer`, `odoo-doc-site-writer`),
+which drive a live Odoo instance to shoot the screenshots of a user guide, an App Store landing
+or a docs-site page, then embed them in their own assembly step. This file is the SSOT for HOW
+to capture; the writer body owns the audience and the assembly.
 
-The writer captures only the shots its shot list names and launches nothing. The dispatching
-skill owns provisioning, the per-instance loop, verify and commit.
+A writer captures only the shots its shot list names and launches nothing but the read-only
+`Explore` agent for code tracing. The dispatching skill owns provisioning, the per-instance loop,
+verify and commit. Sections 13 and 14 apply to module docs; § 15 overrides sections 3, 7, 10, 12 and 13 for
+`odoo-doc-site-writer`.
 
 ---
 
@@ -18,8 +19,7 @@ browser-driving agent on the SAME MCP family); full rule + close-before-done:
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. When the skill fans out multiple
 capture workers (multi-module / multi-locale), each worker is on a DISTINCT browser MCP server
 family and a DISTINCT instance - the skill computes the cap; you do not self-parallelize and you
-never share a family/instance with another worker. Distinct families MAY run concurrently (each is
-an isolated process with its own Chromium profile - no shared-DOM risk).
+never share a family/instance with another worker. Distinct families MAY run concurrently.
 
 - **Pick one server family per run and stay on it - a FAMILY choice, not a page-lifetime one.**
   Staying on one family across the run does not mean keeping a page open across the run; you still
@@ -63,8 +63,7 @@ Pass that path with the per-family parameter and handle a refusal as
 `<run_id>` is the brief's `RUN_ID` (the
 worklog run-or-slug - reuse it, never mint a new id); `<module>` is the module being documented.
 **NEVER stage into a bare `doc-staging/<...>` with no `<run_id>/<module>` prefix.** `mkdir -p` the
-dir first. On chrome-devtools pass the path as `take_screenshot filePath` (never `path` - the schema
-accepts unknown keys silently, so the wrong key writes nothing).
+dir first. On chrome-devtools pass the path as `take_screenshot filePath` (never `path`).
 
 **`<ISOLATE_DIR>` resolution.** This staging tree is Tier-2 ISOLATE. Your dispatch brief carries
 `ISOLATE_DIR:` (the `odoo-doc-illustration` skill resolves it ONCE against `doc_root` and passes it
@@ -87,16 +86,11 @@ started, and installed the module (as a cumulative delta) on that instance and o
 - **The handle OUTRANKS every other way of resolving the target instance, including section 5's
   fallback.** Set `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` and use the
   handle's DB name for all browser navigation, the `/web/login` step (section 5), and any live Odoo
-  MCP call. NEVER recompute the URL from the declared catalog while a handle is present: this
-  instance is held under an EXCLUSIVE lease, and a leased port is allocated from a pool that starts
-  ABOVE the catalog-declared `http_port` and reserves every declared port in the catalog, so a
-  catalog-derived URL reaches a DIFFERENT server than the one seeded with the target module - wrong
-  screenshots, no error. Skip any self-provisioning step and skip the standalone install gate.
+  MCP call. NEVER recompute the URL from the declared catalog while a handle is present. Skip any self-provisioning step and skip the standalone install gate.
 - Still run the documentation-clean precondition check (demo data present, each resolved locale
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
-  owns provisioning. Never drop or release the lease. (This ban is about the INSTANCE lease only -
-  it is orthogonal to browser pages. You MUST still CLOSE every browser page you drove, opened or
-  reused; closing a page never touches the lease. See resource-teardown-contract.md T2 vs T3.)
+  owns provisioning. Never drop or release the lease. CLOSE every browser page you drove, opened or
+  reused (resource-teardown-contract.md T2).
 - After all writes, report every file path so the skill can verify, commit and install the next
   module delta. Never install the next module yourself.
 
@@ -118,7 +112,8 @@ the file format is family-specific; reuse it only within the family that wrote i
 navigate to `<instance_base_url>/web/login` and fill credentials: the login IDENTIFIER is the
 brief's, else `admin`. The PASSWORD is stored neither in this repo nor in project state - use the
 value the brief supplies, and when the brief supplies none, ask for it ONCE. Never guess a password,
-and never reuse a database credential for the web login.
+and never reuse a database credential for the web login. For `odoo-doc-site-writer` the password is
+never in the brief: § 15.
 - **chrome-devtools (default):** `fill_form` (one call for the username + password elements
   from the page snapshot).
 - **playwright (OPT-IN):** `browser_fill_form`.
@@ -144,7 +139,7 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
 1. **Placement first.** For each shot, name the target doc and the slot the image fills: the
    `<img>` and its enclosing grid column in `index.html`, or the `.. image::` directive in the RST.
 2. **Measure the slot width** in CSS pixels; never take it from a fixed table or compute it from
-   class names (the store's container width is not in the module).
+   class names.
    - Choose ONE reading viewport width per module, state it in your capture-coverage report
      (section 11), and measure every slot of that module at it.
    - Render the doc in the browser at that width: `index.html` inside a local wrapper page that
@@ -226,8 +221,8 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
 
 ## 9. CAPTURE MODE - screens vs scenarios
 
-- **`screens` (default):** navigate + snapshot per screen. Read-only, so a screen is language-neutral
-  UI-chrome-wise - but text on screen IS locale-dependent, so honour the per-locale loop (section 10).
+- **`screens` (default):** navigate + snapshot per screen. Read-only; honour the per-locale loop
+  (section 10).
 - **`scenarios`:** the walkthrough (`walkthrough.jsonl`, the brief's or the one you wrote this round);
   each scenario carries `steps[]` of `{action: navigate|fill|click|select|wait, target, value, note}`.
   For each step, in order:
@@ -244,8 +239,7 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
   4. Optional state-assert: confirm the step produced the expected record/state on the leased
      instance itself - the record's form or list view in the browser MCP - before driving the next
      step.
-  Each step's still is staged under its section-3 name. This is the gap vs `odoo-demo-recording` (one continuous
-  video) and `odoo-qa-tester` (drives to a PASS/FAIL verdict) - here you shoot a still per step.
+  Each step's still is staged under its section-3 name.
 
 ## 10. Per-locale capture loop
 
@@ -278,7 +272,7 @@ with the reading viewport width you measured slots at (section 7).
 - **OSM unreachable:** disk-grep the module XML for view names + menu ids; prefix
   `WARN: OSM unreachable - screens/labels from disk source`.
 
-## 13. Place finals where the target doc resolves them
+## 13. Place finals where the target doc resolves them (module docs)
 
 A final is every image the module ships: each image a doc embeds and each manifest `images` entry.
 The cover goes to the root of the module's `static/description/` (§ Manifest images of
@@ -301,11 +295,35 @@ was written, cited by that path.
 
 ## 14. Hard constraints (capture)
 
-- Every capture names its absolute section-3 staging path; every image reference and cross-module
-  link in the assembled artifact follows `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
+- Every capture names its absolute section-3 staging path; in module docs every image reference
+  and cross-module link in the assembled artifact follows `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
 - Never use `browser_annotate` (playwright-only; chrome-devtools has no equivalent) in the
   capture loop, on any family; never run concurrently with another browser-driving agent on the
   SAME MCP family (T2) - a distinct family/instance may run in parallel.
 - Git/GitHub mutations are NOT yours - the dispatching skill commits via git-toolkit `git-ops`.
   Bounded reads (`git status`, `git diff --stat`) may stay inline; never run git mutations, `gh`, or
   the github MCP directly.
+
+## 15. Docs-site writer
+
+For `odoo-doc-site-writer` (a docs-site page, never a module doc):
+
+- **Staging.** Sections 3 and 13 do not apply. Stage every shot under the staging root `S` =
+  `<ISOLATE_DIR>/visual/<RUN_ID>/site_staging/`, already at its final repo-relative path and name,
+  which the writer body states.
+- **Slot.** The slot is the CONTENT WIDTH of the brief. Section 7's slot measurement, `:width:` and
+  module-slot rules do not apply; the viewport is at most 1.25 x CONTENT WIDTH at device pixel
+  ratio 2.
+- **Locale.** A locale that fails to load or switch is `BLOCKED` for that page; never reuse another
+  language's shots (section 12's locale fallback does not apply).
+- **Auth.** For a database this run built, the login is `admin` and the password is the admin
+  user's default in the base addon of the instance's Odoo checkout (`odoo_root` of its catalog row):
+  the `admin` row of `base.sql` where that file exists, else the `password` field of the
+  `user_admin` record in `data/res_users_data.xml`; read it yourself from the checkout.
+  For any other database the identifier is `LOGIN`, else `admin`, and the password is the cached
+  session of section 5, else the environment variable `ODOO_DOC_PASSWORD` read with Bash; neither
+  -> `NEEDS_CONTEXT(PASSWORD)`. Never ask, never write a password into a file, a brief or a report.
+- **Capture-text log.** After each shot, read the visible text of the captured region with
+  `evaluate_script` (`innerText` of the captured element, else of the action area) and append one
+  line to `<ISOLATE_DIR>/docs-site/<RUN_ID>/capture-text.jsonl`:
+  `{"image": "<repo-relative final path>", "lang": "<lang>", "text": "<visible text>"}`.

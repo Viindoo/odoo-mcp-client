@@ -102,6 +102,7 @@ REPO_BOUND_APPROACHES = (
     "odoo-i18n",               # (2) i18n reconcile - writes .po/.pot into a repo
     "odoo-acceptance",         # (3) live blast-radius oracle - gates that repo's PR
     "odoo-doc-illustration",   # (4) user guide + App-Store landing - writes into a repo
+    "odoo-doc-site",           # (4) docs-site pages - writes into the docs site's repo
     "odoo-pr-monitoring",      # monitor + merge - watches ONE repo's PR
     "git-toolkit:git-ops",     # (6) the land step itself
 )

@@ -89,6 +89,9 @@ these pointers, each authoritative:
    grounding when authoring nodes and setting effort tiers. When the brief's `SURVEY:` field is the
    literal `none`, proceed without it - this is NOT a missing input and never triggers
    `NEEDS_CONTEXT`.
+5. **DOC TARGET (OPTIONAL)** - the brief's `DOC TARGET:` field is `module`, `site`, `both` or
+   `none` followed by the facts that decided it. Absent: derive it from the facts the default tail's
+   `when:` conditions state, and write the derivation in the plan's one `Docs:` line.
 
 ## Round 1 - Compute the node plan (consume by pointer, do not restate)
 
@@ -122,7 +125,7 @@ pass, not N. Once node boundaries are fixed, author `modules` on EVERY node that
 in dependency order, including on a node whose `approach` is `odoo-instance` - there `modules` IS the
 suite scope, the set of modules whose tests must run GREEN.
 
-Every repo MUST carry at least ONE node whose `approach` is `odoo-instance`, on `integrate`'s
+Every repo with a coding node MUST carry at least ONE node whose `approach` is `odoo-instance`, on `integrate`'s
 `depends_on` path, whose `modules` cover every module any coding node in that repo touches -
 the runner refuses to open the PR without it, and you MUST self-check this before Round 3 writes
 the plan (see Round 3 below) rather than let it surface only at launch. A cross-module acceptance
@@ -133,10 +136,15 @@ or are split across sibling coding nodes; name that ownership on the owning node
 set happens to cover it.
 
 After the last verification node, copy the **default tail** of `plan-mode-schema.md` § Default
-tail (review R1 then R2, acceptance in parallel, one fix round, i18n, docs, integrate, monitor,
-merge - each with its `when:`), tagged with its repo, and adapt it only with a reason written in
-the plan (an SRS with a language criterion moves i18n before acceptance; a run with no
-user-visible feature keeps `docs` with its `when:` and lets the runner skip it). `integrate` opens
+tail (review R1 then R2, acceptance in parallel, one fix round, i18n, `docs-module`, `docs-site`,
+integrate, monitor, merge - each with its `when:`), tagged with its repo, and adapt it only with a
+reason written in the plan (an SRS with a language criterion moves i18n before acceptance; a run
+with no user-visible feature keeps both doc nodes with their `when:` and lets the runner skip
+them). The doc nodes follow the documentation target the brief carries (`module`, `site`, `both`
+or `none`, decided by `odoo-intake`): `docs-module` and `docs-site` are kept or dropped to match,
+`docs-site` is tagged with the docs repo and followed only by `monitor-site` and `merge-site`, which also depends on the code repo's `merge` (no
+`integrate`, no `run-integration` branch; its `repos[]` entry: `id` = the site row's `key`, `base` =
+the series branch), and the plan states the target and the facts behind it in one line. `integrate` opens
 **ONE PR per REPO**, once, after every non-tail node in that repo is DONE or SKIPPED;
 `odoo-pr-monitoring` merges that PR at the merge gate, the tail's only human gate.
 
@@ -160,7 +168,7 @@ the closed list of `plan-mode-schema.md` § Running the plan.
 
 ## Round 3 - Write the plan (CONFORM to the existing 3-block schema)
 
-**Self-check BEFORE writing (do this first, not after).** For every repo the plan touches, confirm at
+**Self-check BEFORE writing (do this first, not after).** For every repo with a coding node, confirm at
 least ONE node whose `approach` is `odoo-instance` sits on `integrate`'s `depends_on` path with
 `modules` covering every module any coding node in that repo touches. If any repo fails this, add the
 missing verification node NOW - do not write a plan that would only fail this check later, at

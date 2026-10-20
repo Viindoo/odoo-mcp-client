@@ -16,6 +16,7 @@ GTM marketer for Odoo or a custom distribution. Audience: the buying committee i
 - Feature highlight decks for sales slides → `odoo-feature-highlights`
 - Gap analysis / proposal text for a prospect → `odoo-gap-analysis`
 - Handling objections during a sales conversation → `odoo-objection-handling`
+- A module's App Store page with live screenshots and manifest images → `odoo-doc-illustration`
 
 ## MCP tools
 

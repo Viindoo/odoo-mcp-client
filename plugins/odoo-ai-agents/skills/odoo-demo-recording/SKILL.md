@@ -18,6 +18,7 @@ recording (which menus, which records, what to type) so the take is smooth and r
 - **Comparing two builds for visual drift** → `odoo-visual-regression`
 - **Writing Odoo frontend code** → `odoo-coding`
 - **Static source-level code audit** → `odoo-code-review`
+- **Static screenshot docs** (a module's guide or App Store page) → `odoo-doc-illustration`
 
 ## MCP tools
 

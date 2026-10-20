@@ -2,9 +2,9 @@
 # Declarative SSOT for the end-to-end, dependency-aware module packaging pipeline.
 # Runner: skills/workflow-chaining - auto-discovered at runtime.
 # Phase 0 scope + Phase 0.5 doc-plan are browser-free planning (ONE whole-plan gate).
-# Content phases 1-4 (feature-map / walkthrough / icon / copy) fan out per module (Mode B)
+# Content phases 1-3 (feature-map / icon / copy) fan out per module (Mode B)
 #   but process ONLY doc:true modules (dedup skips modules installed only as a dependency).
-# Phase 5 provision-capture is the ONLY browser-bound + instance-touching phase - it delegates
+# Phase 4 provision-capture is the ONLY browser-bound + instance-touching phase - it delegates
 #   to skill odoo-doc-illustration (the branch-aware per-instance incremental loop SSOT):
 #   SEQUENTIAL within a dependency-path, PARALLEL across independent instance-paths up to W.
 #   Browser families are exclusive-serial per family.
@@ -29,7 +29,7 @@ description: |
   linear chain shares one incremental instance, each independent branch gets its own pure
   instance, a convergence node reuses a branch instance + installs the fill - order installs
   leaf-dependency-first, and dedup modules already doc'd on disk or on another instance). Then
-  build a feature catalog, author usage walkthroughs, design the module icon, draft per-locale
+  build a feature catalog with role map and usage walkthroughs, design the module icon, draft per-locale
   marketing copy (all for doc:true modules only), provision instances per the plan and run a
   per-instance incremental install -> capture -> verify -> commit loop that documents each module
   on a DB holding ONLY that module plus its deps (no reverse-dependent - pure, extension-free
@@ -68,17 +68,19 @@ phases:
     # Then resolve target modules from the `modules` input (module name or absolute path; walk
     # __manifest__.py files for multi-module repos), every abs_path under doc_root, and fill the
     # scope block fields - version, languages, doc_layer, has_demo, depends_in_scope,
-    # has_ondisk_doc, target_market - per skills/_shared/doc-cluster-plan.md § Input (the SSOT
+    # has_ondisk_doc, change, target_market - per skills/_shared/doc-cluster-plan.md § Input (the SSOT
     # for every field; languages per skills/odoo-doc-illustration/SKILL.md § Language resolution).
     # Do NOT restate those rules here; this inline phase only adapts the output location to the
-    # packaging run dir. An explicit `doc_layer` input overrides every module's detected value;
+    # packaging run dir. An explicit `doc_layer` input overrides every module's value;
     # pass it only when every module in the run shares one layer. Phase 0.5's gate confirms each
     # proposed target_market once.
+    # Set `change: whole` on every module named by the `modules` input: a packaging run re-documents
+    # a module that already has docs on disk, so none is skipped as existing-on-disk.
     # For a principal doc_root, once the modules are resolved, run the bounded read
     # `git -C <doc_root> status --porcelain -- <each module abs_path>` and record what it lists as
     # uncommitted: the docs worktree starts at HEAD, so those changes would go undocumented.
     # Emits scope block: doc_root, doc_root_kind, uncommitted + modules[] with {name, abs_path,
-    # languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc, target_market}.
+    # languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc, change, target_market}.
     # Written to <OUT>/<run>/scope.yaml for all downstream phases.
 
   # ------------------------------------------------------------------
@@ -104,14 +106,14 @@ phases:
     #           FILL (other branches + the node), then doc the node on the complete DB.
     #   - DEDUP (doc_owner map, doc:true|false): a module is doc'd exactly once globally; shared
     #     deps, convergence-fill modules already doc'd, and has_ondisk_doc modules become
-    #     doc:false (install-only) with a dedup_reason - unless REDOC: true is passed.
+    #     doc:false (install-only) with a dedup_reason - unless a change (feature list or whole) is given.
     #   - install_doc_sequence[] per instance (module, doc, install_step, install_delta,
     #     depends_in_scope, extends_in_scope) + convergence[] for branching clusters.
     #   - Inter-instance parallelism W = min(#independent instance-paths, browser-family pool,
     #     ephemeral instance cap) with within_path: sequential; a batch schedule[].
     #   - Per-step build inputs (instance_build: demo on, languages = the resolved locales,
     #     skip-auto-install in extra_args spelled via OSM cli_help).
-    # Optional brief overrides consumed if present: REDOC (cross-run re-doc), MAX_CLUSTER_MODULES
+    # Optional brief overrides consumed if present: CHANGE (per module, update or re-doc), MAX_CLUSTER_MODULES
     # (split threshold, default ~6), purity (strict-branch | fresh-per-module).
     # OSM-verify the disk edges opportunistically (trust-but-verify) with the CONCRETE version.
     # Write ONE doc-plan.yaml conforming to the doc-cluster-plan.md schema to
@@ -133,11 +135,11 @@ phases:
     # checkout's HEAD commit, named explicitly. In scope.yaml, record the worktree as doc_root and
     # its branch, and re-root every modules[].abs_path into it (same path relative to the repo top
     # level). Every later phase reads doc_root and abs_path from scope.yaml, so no phase writes to
-    # the principal checkout. The run summary (Phase 7) names the worktree and branch; nothing is
+    # the principal checkout. The run summary (Phase 6) names the worktree and branch; nothing is
     # merged or pushed.
 
   # ------------------------------------------------------------------
-  # Phase 1 - Feature catalog (browser-free, fan-out per doc:true module - Mode B)
+  # Phase 1 - Feature catalog, role map and walkthrough (browser-free, fan-out per doc:true module - Mode B)
   # ------------------------------------------------------------------
   - id: feature-map
     skill: odoo-doc-feature-map
@@ -147,13 +149,15 @@ phases:
       Using the scope block at <OUT>/<run>/scope.yaml, enumerate every feature,
       screen, and capability each in-scope module ships - OSM-first (describe_module, module_inspect,
       model_inspect, check_module_exists; disk fallback for ACL from
-      security/ir.model.access.csv and security/*.xml). Per module produce three files under
-      <DOC><module>/: feature-catalog.jsonl (machine SSOT: feature_id, name,
-      menu_path, entry_point, models, key_fields, roles, states, depends_on, value, grounded),
-      feature-catalog.md (human report) and role-map.json (the business roles, what each can do,
-      and the process stages across them). The catalog feeds the landing Key-Features grid; the
-      role map drives the guide's Overview and per-role chapters, the walkthroughs and the buyer
-      profile in later phases. Standalone-first; no
+      security/ir.model.access.csv and security/*.xml). Per module produce the three shared files
+      under <DOC><module>/: feature-catalog.jsonl (machine SSOT: feature_id, name,
+      menu_path, entry_point, models, key_fields, roles, states, depends_on, value, grounded)
+      with feature-catalog.md (human report), role-map.json (the business roles, what each can
+      do, and the process stages across them) and walkthrough.jsonl with walkthrough.md (one
+      happy-path scenario per role task, positive journeys only - not a QA oracle, NOT bound by
+      acceptance-oracle-contract.md). The catalog feeds the landing Key-Features grid; the role
+      map drives the guide's Overview and per-role chapters and the buyer profile in later
+      phases; the walkthrough feeds the scenario-driven capture. Standalone-first; no
       browser or live instance required. Fan out one worker per doc:true module (Mode B); each worker
       writes to its own <DOC><module>/ subdir before gate.
     model_tier: sonnet
@@ -162,32 +166,8 @@ phases:
     gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 2 - Usage walkthroughs (browser-free, fan-out per doc:true module - Mode B)
-  # Requires: feature-catalog.jsonl + role-map.json from P1.
-  # ------------------------------------------------------------------
-  - id: walkthrough
-    skill: odoo-doc-walkthrough
-    nl_trigger: >
-      Process ONLY modules with doc:true in <OUT>/<run>/doc-plan.yaml (skip
-      doc:false dedup modules). Using the feature catalog at
-      <DOC><module>/feature-catalog.jsonl as CATALOG_PATH, the role map at
-      <DOC><module>/role-map.json as ROLE_MAP_PATH, and the scope block at
-      <OUT>/<run>/scope.yaml, author happy-path usage scenarios for each in-scope
-      module: narrative + structured steps[] (action, target, value, note per step) grounded
-      in the module's actual behavior from source. Per module, produce walkthrough.jsonl (machine
-      SSOT with steps[]) + walkthrough.md (human narrative) under <DOC><module>/,
-      consumed by the provision-capture phase for scenario-driven per-step capture. Positive happy-path
-      journeys only - not a QA oracle, NOT bound by acceptance-oracle-contract.md.
-      Standalone-first; no browser or live instance required. Fan out one worker
-      per doc:true module (Mode B); aggregate before gate.
-    model_tier: sonnet
-    fanout: true
-    chunk_by: modules
-    gate: "approve / refine: [feedback] / cancel"
-
-  # ------------------------------------------------------------------
-  # Phase 3 - Icon design (browser-free, fan-out per doc:true module - Mode B)
-  # Independent of P1-P2; no browser or live instance required.
+  # Phase 2 - Icon design (browser-free, fan-out per doc:true module - Mode B)
+  # Independent of P1; no browser or live instance required.
   # ------------------------------------------------------------------
   - id: icon
     skill: odoo-icon-design
@@ -214,7 +194,7 @@ phases:
     gate: "approve / refine: [feedback] / cancel"   # refine: [feedback] re-generates the icon with that feedback
 
   # ------------------------------------------------------------------
-  # Phase 4 - Buyer profile + marketing copy (browser-free, fan-out per doc:true module - Mode B)
+  # Phase 3 - Buyer profile + marketing copy (browser-free, fan-out per doc:true module - Mode B)
   # Requires: feature-catalog.jsonl + role-map.json from P1, target_market from P0/P0.5.
   # ------------------------------------------------------------------
   - id: copy
@@ -243,16 +223,16 @@ phases:
     gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 5 - Provision + capture (delegated to skill odoo-doc-illustration)
+  # Phase 4 - Provision + capture (delegated to skill odoo-doc-illustration)
   # The ONLY instance-touching + browser-bound phase. Delegates entirely to the
   # odoo-doc-illustration skill, which owns the branch-aware per-instance incremental loop:
   # provision via odoo-instance, one odoo-doc-writer per module (MODE full, then MODE landing by
   # SendMessage on the same instance handle), verify, commit via git-ops, advance next-delta. The
   # workflow does NOT restate the loop mechanics here.
-  # Phases 1, 2 and 4 pre-fetched the catalog, role map, walkthrough, buyer profile and copy; the
+  # Phases 1 and 3 pre-fetched the catalog, role map, walkthrough, buyer profile and copy; the
   # skill does NOT re-fetch them on this workflow path (they are forwarded directly).
   # SEQUENTIAL within a dependency-path; PARALLEL across independent instance-paths up to W.
-  # Requires: P1 (feature-catalog.jsonl, role-map.json), P2 (walkthrough.jsonl), P4
+  # Requires: P1 (feature-catalog.jsonl, role-map.json, walkthrough.jsonl), P3
   # (buyer-profile.md, copy) for doc:true modules, and P0.5 (doc-plan.yaml).
   # ------------------------------------------------------------------
   - id: provision-capture
@@ -270,7 +250,7 @@ phases:
     gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 6 - Manifest audit (inline, per doc:true module)
+  # Phase 5 - Manifest audit (inline, per doc:true module)
   # Browser-free.
   # ------------------------------------------------------------------
   - id: manifest-audit
@@ -293,7 +273,7 @@ phases:
     # <OUT>/<run>/<module>/manifest-audit.md.
 
   # ------------------------------------------------------------------
-  # Phase 7 - Aggregate index (inline)
+  # Phase 6 - Aggregate index (inline)
   # Browser-free.
   # ------------------------------------------------------------------
   - id: aggregate-index

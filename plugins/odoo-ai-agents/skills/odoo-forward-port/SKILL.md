@@ -32,6 +32,7 @@ never cherry-pick, and never merge the range one commit at a time.
 - Reviewing or auditing an existing PR or diff -> use `odoo-code-review`
 - A pre-upgrade deprecation sweep of one codebase -> use `odoo-deprecation-audit`
 - Same-series single-commit replay (no version jump) -> use `odoo-git-rebase`
+- A docs-site repository (not an addons repo): porting its pages to higher series -> `odoo-doc-site` (PORT)
 - Whole-cluster upgrade to a higher series (not one commit) -> use `odoo-modules-upgrade`
 - A STANDALONE design request with no commits to port -> use `odoo-solution-design` directly.
   A bucket-(c) commit INSIDE a forward-port run that requires non-trivial design is handled by
@@ -774,6 +775,8 @@ other review item above is diff-based and already cleared before the PR opened.
 
 Present the PR URL, the review findings, and the P11 acceptance verdict together, and wait for the
 human to merge.
+
+With the PR presented, document the ported user-visible features. Decide the documentation target by `odoo-intake`'s Documentation routing rule (no plan is built; ask only on a miss). Compose a change file `<ISOLATE_DIR>/docs/change-<slug>.md`: one line per ported user-visible feature, with its module and UI label. Module docs: invoke `odoo-doc-illustration` on the target branch's worktree with `CHANGE` = that file and commit the result onto the SAME open PR's branch through `git-toolkit:git-ops` - one PR per repo per run. Site docs: invoke `odoo-doc-site` with `CODE_WORKTREE` = the target worktree, `SERIES` = the target series, `FROM CHANGE` = that file.
 
 ## Model triage - two tier tables
 

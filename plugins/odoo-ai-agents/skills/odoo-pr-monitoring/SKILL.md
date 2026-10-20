@@ -177,6 +177,9 @@ NEVER pushed autonomously.
    [ ] worktree-prune
    ```
 
+   A docs-site series worktree whose PR merged or closed is removed through `git-toolkit:git-ops`
+   in the same brief.
+
    `<ISOLATE_DIR>/integration/<slug>/` (outside any git working tree) and this skill's own
    `<ISOLATE_DIR>/pr-monitoring/<id>.md` are removed inline. Optionally surface a
    version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for the runner to

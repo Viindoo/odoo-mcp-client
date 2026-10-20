@@ -24,8 +24,8 @@ one the stores resolve; the gate (§ Reference gate) checks it.
   reserved host, or an instance URL.
 - **Fit on the stores.** Stores load Bootstrap 5 and size an RST image by its file's pixels, and
   doc screenshots are captured at device pixel ratio 2 (pixel width = 2x the intended CSS width).
-  For every image in ANY `.rst` published on the internet (app stores, documentation sites, any
-  web render; the gate checks `doc/*.rst` and `README.rst`):
+  For every image in a module's `.rst` the stores publish (the gate checks `doc/*.rst` and
+  `README.rst`; a docs site has its own rules):
   1. A block image (`.. image::`, `.. figure::`) carries `:class: img-fluid d-block mx-auto`.
   2. An inline substitution image (`.. |x| image::`) carries `:class: img-fluid` only (`d-block`
      breaks the line).

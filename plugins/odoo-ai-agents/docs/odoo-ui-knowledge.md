@@ -243,4 +243,4 @@ module visual documentation into `<module>/static/description/` (screenshots in 
 
 Screenshot location, names and references: `snippets/module-doc-references.md` § Images; sizes:
 `skills/odoo-doc-illustration/references/app-store-template.md` § Image Specifications; staging,
-framing and placing finals: `skills/odoo-doc-illustration/references/capture-mechanics.md`.
+framing and placing finals: `skills/_shared/doc-capture-mechanics.md`.

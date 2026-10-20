@@ -1,8 +1,7 @@
 # Plan schema and run rules (writes-files Approach)
 
 **SSOT owned by `odoo-planning`** (authored by its `odoo-planner` agent, or filled by the main
-agent from the default tail for a one-node change). Hosted under `skills/odoo-intake/references/`
-because intake Phase P serializes it; every other site points here.
+agent from the default tail for a one-node change).
 
 Load this when the approved Approach has `output_mode = writes-files`. The plan has three blocks
 and a run header; the main agent runs it by § Running the plan. **The plan is the only place a
@@ -28,7 +27,7 @@ must land separately. Each node carries:
 | `modules` | technical names the node touches, in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`); omitted for a node that touches no module. On an `odoo-instance` node this IS the suite scope |
 | `approach`, `approach_kind` | the skill, agent or workflow; `skill | agent | workflow | inline | integrate` |
 | `agent`, `mode` | the agent the node launches and its `MODE` (e.g. `odoo-code-reviewer` `R1`), when the node launches one directly |
-| `model` | `haiku`, `sonnet`, `opus`, `fable` - the launch tier, from `build_tier_hint` for a build node, else the default tail |
+| `model` | `haiku`, `sonnet`, `opus`, `fable` - the launch tier of an agent node, from `build_tier_hint` for a build node, else the default tail. A skill node is invoked inline and carries none: it runs in the runner's context, and the skill's own frontmatter `model:` applies for that turn |
 | `build_tier_hint` | a build node: the design's hint plus its six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the plan copies, the runner checks presence |
 | `business_function`, `audience` | the unit's Domain line (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`); `audience: n/a` for a unit with no user-facing screen |
 | `when` | a condition the runner evaluates with a tool before launching (§ Default tail); absent = always |
@@ -86,12 +85,12 @@ Template:
   [i18n] [repo: fleet-addons] [agent: odoo-translator @ sonnet]
       depends-on: fix-round
       when: the .pot exported on the stable tip has a msgid the committed .pot lacks
-  [docs] [repo: fleet-addons] [agent: odoo-doc-writer full @ sonnet]
+  [docs-module] [repo: fleet-addons] [skill: odoo-doc-illustration]
       depends-on: i18n
-      when: the SRS names a user-visible feature, or a changed module ships doc files
+      when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
   [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
-      depends-on: docs
-  [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring @ haiku]
+      depends-on: docs-module
+  [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring]
       depends-on: integrate
   [merge] [repo: fleet-addons] [skill: odoo-pr-monitoring]   human gate, always
       depends-on: monitor
@@ -105,8 +104,8 @@ Template:
     review-r2 --> fix-round
     acceptance --> fix-round
     fix-round --> i18n
-    i18n --> docs
-    docs --> integrate
+    i18n --> docs-module
+    docs-module --> integrate
     integrate --> monitor
     monitor --> merge
 ```
@@ -114,6 +113,12 @@ Template:
 
 A second repo adds a sibling tail in the same order, every node tagged `[repo: <repo-2>]`, and
 its own `integrate`: N repos = N PRs.
+
+A skill node that lands its own PR (`odoo-doc-site`) is the exception. Its repo is the docs repo,
+tagged on the node, and only `monitor` and `merge` on that PR follow it: that repo has no
+`integrate`, no `run-integration` branch and no verification node, and Loop step 4's cherry-pick
+does not apply to the node. The docs repo's `repos[]` entry: `id` = the site row's `key`, `base` =
+the series branch; `odoo-doc-site` creates the worktree itself.
 
 **Design is an INPUT to this plan, never a node of it.** No node's `approach` is
 `odoo-solution-design` and no node launches `odoo-solution-architect`; the design is read by
@@ -123,7 +128,7 @@ is carried as `none`, never a node.
 
 **Data source.** The node graph derives from the design's `dag_layers`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`) plus the Block 3 assignment;
-`(NEW)` vs `(existing)` from `odoo-module-graph.md`. Every repo carries at least ONE
+`(NEW)` vs `(existing)` from `odoo-module-graph.md`. Every repo that has a coding node carries at least ONE
 `odoo-instance` node on `integrate`'s path whose `modules` cover every module a coding node of that
 repo names (never a PR on a red suite); its `modules` grow monotonically down the graph
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`). A cross-module acceptance criterion
@@ -143,13 +148,8 @@ default tail.
 ## Default tail
 
 The planner copies this tail after the last verification node and adapts it with a reason
-written in the plan (an SRS with a language criterion puts `i18n` before `acceptance`; a
-forward-port has no `docs`). A position the run does not have is skipped in place; the rest keep
-their order. Why this order: review and acceptance read one tip and change nothing, so they run
-in parallel and their findings become one fix round; i18n after the tip is stable, so no
-translation delta is forced by a later fix; docs after i18n (screenshots show translated
-labels) and before lint (docs write manifest keys); everything that can force a code change
-runs before the PR; merge is the only human gate of the tail.
+written in the plan (an SRS with a language criterion puts `i18n` before `acceptance`). A position the run does not have is skipped in
+place; the rest keep their order.
 
 ```yaml
 - id: review-r1
@@ -195,28 +195,45 @@ runs before the PR; merge is the only human gate of the tail.
   model: sonnet
   depends_on: [fix-round]
   when: instance_i18n_export on the stable tip yields a msgid the committed .pot lacks or changed
-- id: docs
-  approach: odoo-doc-writer
-  approach_kind: agent
-  agent: odoo-doc-writer   # one launch per module; landing by SendMessage
-  mode: full
-  model: sonnet
+- id: docs-module
+  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer
+  approach_kind: skill
   depends_on: [i18n]
-  when: the SRS names a user-visible feature, or a changed module ships doc/ or static/description/
+  when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
+- id: docs-site   # tagged with the docs repo; lands its own PR; only monitor-site and merge-site follow it
+  approach: odoo-doc-site   # invoked inline with FROM CHANGE = the change file (Loop step 3)
+  approach_kind: skill
+  depends_on: [docs-module]
+  when: a docs site is declared for the product and the change is user-visible, or the user asked for site docs
 - id: integrate
   approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo
   approach_kind: integrate
-  depends_on: [docs]
+  depends_on: [docs-module]
 - id: monitor
   approach: odoo-pr-monitoring
   approach_kind: skill
-  model: haiku
   depends_on: [integrate]
 - id: merge
   approach: odoo-pr-monitoring   # the human gate, always
   approach_kind: skill
   depends_on: [monitor]
+- id: monitor-site   # tagged with the docs repo; watches the PR odoo-doc-site opened
+  approach: odoo-pr-monitoring
+  approach_kind: skill
+  depends_on: [docs-site]
+- id: merge-site   # the human gate, always; the docs PR never merges before the code it documents
+  approach: odoo-pr-monitoring
+  approach_kind: skill
+  depends_on: [monitor-site, merge]   # merge only where the plan has a code repo's merge
 ```
+
+**The documentation target is decided once, from facts, by the Documentation routing rule of
+`odoo-intake`** (module, site, both or none). The plan gate shows ONE line, `Docs: <module | site |
+both | none> - <the facts that decided it>`, so the user can change it; `none` drops `docs-module`
+and `docs-site` with the user's reason written in the plan. A docs-only request (target `both`)
+is a plan with the nodes `docs-module` then `docs-site`, the code repo's `integrate`, `monitor`
+and `merge`, the docs repo's `monitor-site` and `merge-site`, and no build or verification node:
+no coding node exists, so there is no module set for `odoo-instance` to cover.
 
 ## Running the plan (the main agent, inline)
 
@@ -225,11 +242,11 @@ runs before the PR; merge is the only human gate of the tail.
 
 **Invariants, checked before the first launch.** Two nodes with no path between them share no
 module and no file glob; `depends_on` has no cycle; every node that can change code precedes
-`integrate`; `merge` follows `integrate` and is a human gate; every repo has a verification node
-on `integrate`'s path covering its coding nodes' modules. A failed invariant is a plan error:
+`integrate`; `merge` follows `integrate` (`merge-site` follows `docs-site` and, where the plan has one, `merge`) and is a human gate; every repo that has a coding node has a verification node
+on `integrate`'s path covering its coding nodes' modules (a docs repo and a docs-only plan have none). A failed invariant is a plan error:
 return it to `odoo-planning` with the finding; never patch the plan yourself.
 
-**Run start.** Fork ONE `run-integration` branch per repo from its base through `git-ops`
+**Run start.** Fork ONE `run-integration` branch per repo that has an `integrate` node from its base through `git-ops`
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`), and before creating this run's own
 `<ISOLATE_DIR>/integration/<slug>/`, reap abandoned ones - age alone never decides, the
 correlating run's own top-level status must prove terminal
@@ -255,9 +272,14 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    message when several nodes are ready and their file sets are disjoint; the in-flight weight
    stays inside `concurrency-guard.md` Mode B; the reason letter of launch economics goes to the
    worklog). A skill node is invoked inline; a workflow node through `workflow-chaining`.
+   Before a docs node, compose the change's feature list from the SRS acceptance criteria and the
+   node objectives - one line per added, changed or removed user-visible feature, with its UI
+   label - write it to `<ISOLATE_DIR>/docs/change-<slug>.md` and pass that path as `CHANGE`
+   (`docs-module`) or `FROM CHANGE` (`docs-site`).
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
    file; cherry-pick a source node's range onto `run-integration` through `git-ops`
-   (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`); a continuation `next[]` entry
+   (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; a node that lands its own PR is
+   exempt); a continuation `next[]` entry
    with confidence >= 0.5 becomes a dynamic node, below 0.5 a suggestion in the summary.
 5. A worker that returns `BLOCKED` or `NEEDS_CONTEXT` without a `gate:` is launched once more one
    tier higher with its own artifacts as `PRIOR_FINDINGS`; a second failure stops the run at that
@@ -297,7 +319,9 @@ cross-module assertions). Return: the commit range `<base>..<head>` on the node'
 node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
 `odoo-i18n`, `odoo-doc-illustration`) with `WORKTREE_PATH: <repo>/run-integration` and
 `SELF_PROVISION: worktree-addons` where the agent builds its own instance (i18n always: an export
-build needs demo data and the target languages, which a test lease cannot provide). A verification
+build needs demo data and the target languages, which a test lease cannot provide). `odoo-doc-site`
+gets `CODE_WORKTREE: <code repo>/run-integration`, `RUN_ID` and `FROM CHANGE` instead of
+`WORKTREE_PATH`: the docs repo has no run-integration tree. A verification
 node: `OPERATION: run-tests`, `SERIES`, `MODULES` (= `node.modules`), `MODE: fresh`,
 `PERSIST: ephemeral`, `SELF_PROVISION: worktree-addons`, `WORKTREE_PATH`, `SHARE_DIR`,
 `ISOLATE_DIR`, `WORKLOG`, `GATE_ROLE: node-verify`, `TEST_TAGS` per
@@ -308,7 +332,7 @@ node: `OPERATION: run-tests`, `SERIES`, `MODULES` (= `node.modules`), `MODE: fre
 Written once by intake Phase P, then only by the runner. `run_id`, `intent`, `autonomy`
 (`auto | step | plan`), `status`, `cursor`, `budget`, `repos[]` (one Capability Card per repo:
 `id` origin-derived, `base`, `verify`, `commit`, `confidential`, `worktree_root` from
-`project_dir` axis `worktree`), `nodes[]` (the Block 1 fields plus `status`
+`project_dir` axis `worktree`; the docs repo's entry has no `worktree_root`), `nodes[]` (the Block 1 fields plus `status`
 `PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED|NEEDS_CONTEXT`, `produced`, `contract` = the last
 continuation block), `dynamic_nodes[]`, `gate_log[]`, `completion`. `repo: null` only for a node
 that writes into no repository and gates no delivery; every source-writing, verification,
