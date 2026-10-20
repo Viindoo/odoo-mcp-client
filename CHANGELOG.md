@@ -6,6 +6,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-10-20
+
+### Added
+
+- `odoo-ai-agents` - **product docs site.** New skill `odoo-doc-site` and agent
+  `odoo-doc-site-writer` write, update and port pages of a Sphinx docs-site repository (one branch
+  per series) from code: they search existing pages and open pull requests before writing, capture
+  branded screenshots in every site language on an instance built for the run, keep gettext catalogs
+  safe (never the repo's catalog-rewriting translate target), build every language against the base
+  branch, run content gates (banned terms, version prose, presentation through theme classes only,
+  links, captured-text check of every screenshot) and accept the pages in a real browser before the
+  pull request. Site policy lives on the machine in `docs-sites.toml`, set up by
+  `/odoo-ai-agents:odoo-setup docs-site`.
+- `odoo-ai-agents` - **one fork answer for every setup step.** Auto-mode, docs-site and instance
+  setup read the user's fork from the push history of each clone and, when none is found, ask which
+  account holds it, add the remote or create the fork only on an explicit yes.
+- `git-toolkit` - **`[UPG]` and `[MIG]` tags in the Odoo commit convention.** `[UPG]` marks the
+  upgrade of a module's code to a higher series (port and modernisation); `[MIG]` marks a commit
+  adding database migration scripts for a database migration project, never a code upgrade. A repo
+  whose history tags module ports differently keeps its own tag. (`git-toolkit` 0.8.0 -> 0.9.0.)
+- `odoo-ai-agents` - **literal model names.** The coding guidelines require `_name`, `_inherit` and
+  `_inherits` to be string literals; the reviewer's mechanical pass reports a non-literal value.
+
+### Changed
+
+- `odoo-ai-agents` - **one documentation route.** `odoo-intake` decides the documentation target
+  (module docs, docs site, both, none) from recon facts and asks only on a miss; a single target
+  runs its doc skill directly, a code change carries `docs-module` and `docs-site` tail nodes, and
+  forward-port and module upgrade document after their own pull request.
+- `odoo-ai-agents` - **instances are provisioned at haiku.** `odoo-instance` launches
+  `odoo-instance-ops` for every build, test run, serve and export whenever the caller can launch;
+  inline only for leaves, path-incremental loops, read-only checks and the caller's own lease
+  teardown. A lease handed back up by that agent is held to the same teardown gates as one the
+  caller took.
+- `odoo-ai-agents` - documentation writers may launch the built-in `Explore` agent at haiku to trace
+  code; a skill's frontmatter `model:` is recognised as applying for the rest of the turn.
+- `odoo-ai-agents` - **a code upgrade is defined apart from a database migration.** A module code
+  upgrade (UPG) produces source that installs on a fresh database of the target series, keeps its
+  behaviour and is modernised as if newly developed there: it contains no migration script, touches
+  no database and never asks how existing data will be migrated. A database migration (MIG) is a
+  separate project the plugin never executes; `odoo-data-migration` writes its custom-module
+  scripts only when asked. The upgrade no longer stops on a data-at-risk verdict: it writes
+  `migration-notes.md` (renamed or removed models, fields, xmlids and selection values, changed
+  field types, modules deleted as absorbed, changed `noupdate` data) without asking and points the
+  pull request body at it. `odoo-intake` routes "migrate or upgrade the database" requests to a
+  statement that the plugin does not run them and an offer to write the scripts, the prompt hook
+  tells database migration apart from module upgrade, `/odoo-plan-upgrade` plans the code upgrade
+  only, and the diff comparator no longer returns `data_at_risk`.
+- `odoo-ai-agents` - **one approval per request.** Exactly one Plan-Mode approval, where the
+  concrete execution plan exists (`odoo-planning`, a self-planning skill, `workflow-chaining`, or a
+  doc skill that owns the request); `odoo-intake` settles intent, scope and approach with text
+  questions and never enters Plan Mode; nothing under an approved plan stops again; SRS and design
+  reviews and confirmations before outward or irreversible actions are text questions; work that
+  turns out to need a plan invokes `odoo-planning`, and work outside the approved scope re-plans.
+  `odoo-i18n`, `odoo-brl` and `odoo-qa-suite` no longer stop for approval, and workflow phases no
+  longer stop.
+- `odoo-ai-agents` - inside an approved scope the agent picks the model tier itself; only the
+  `fable` tier asks. `odoo-instance` asks only before dropping a database the run did not create.
+- `odoo-ai-agents` - **forward-port versions.** A forwarded module whose version the source bumped
+  gets `max(target + 1, source)` on the target; a forwarded migration script is retargeted only when
+  the target has the problem it solves.
+
+### Removed
+
+- `odoo-ai-agents` - **`odoo-doc-walkthrough`** (merged into `odoo-doc-feature-map`), the REDOC and
+  TONE inputs of module docs (replaced by `CHANGE`), skill eval files, and tests that pinned prose
+  wording or graded model output.
+
+### Fixed
+
+- `odoo-ai-agents` - the session-start permission hook no longer adds rules for throwaway state
+  roots and prunes its own rules that point at a temp directory or a root that no longer exists.
+- `odoo-ai-agents` - the version-history references no longer claim the legacy widget was removed or
+  OWL became primary in the wrong series; the facts are verified against each series' source.
+
 ## [7.8.1] - 2026-10-20
 
 ### Fixed
