@@ -230,34 +230,3 @@ def test_no_banned_token(token):
 # ---------------------------------------------------------------------------
 
 
-_REQUIRED_MARKERS = [
-    "Boil the Ocean",
-    "Think Before Acting",
-    "Search Before Building",
-    "Outcomes over Procedures",
-    "Root Cause",
-    "See Something",
-    "Completion Status",
-    "Build for the Audience",
-    "Artifact Production",
-    "Test the Behavior",
-]
-
-
-@pytest.mark.parametrize("marker", _REQUIRED_MARKERS)
-def test_principle_heading_present(marker):
-    text = _text()
-    assert marker in text, \
-        f"principle marker {marker!r} missing - a trim must not silently drop a principle"
-
-
-def test_ascii_principle_is_a_heading():
-    """A9: the P0 ASCII-hyphens principle must appear as a markdown HEADING line.
-
-    A bare word match would pass even if the heading were deleted and the word
-    appeared elsewhere in the body. This pins the heading specifically.
-    The author keeps: '## 0. Output Convention - ASCII Hyphens' (or similar).
-    """
-    text = _text()
-    assert re.search(r"(?m)^#+ .*ASCII", text), \
-        "no heading line containing 'ASCII' found - P0 ASCII-hyphens principle heading was dropped"

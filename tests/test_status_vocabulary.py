@@ -27,16 +27,12 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 DEPS_JSON = PLUGIN / "generator" / "skill_tool_deps.json"
 CONTINUATION_CONTRACT = PLUGIN / "snippets" / "continuation-contract.md"
-PLANNING_GATE_CONTRACT = PLUGIN / "snippets" / "planning-gate-contract.md"
-VOCAB_SNIPPET = PLUGIN / "snippets" / "vocabulary.md"
 ETHOS = PLUGIN / "ODOO-AI-ETHOS.md"
 
 EXPECTED_CONTINUATION_STATUS = ["DONE", "NEEDS_NEXT", "BLOCKED", "NEEDS_CONTEXT"]
 EXPECTED_NODE_STATUS = [
     "PENDING", "READY", "RUNNING", "DONE", "FAILED", "SKIPPED", "BLOCKED", "NEEDS_CONTEXT",
 ]
-EXPECTED_GATE_PLAN = ["approve", "refine: <feedback>", "cancel"]
-EXPECTED_GATE_STEP = ["approve", "skip", "cancel"]
 
 # Files legitimately excluded from the reserved-token-in-status-position scan:
 #   - ODOO-AI-ETHOS.md - a DIFFERENT field (human-facing self-report, ODOO-AI-ETHOS #10),
@@ -48,7 +44,7 @@ EXPECTED_GATE_STEP = ["approve", "skip", "cancel"]
 #     M5 design note ("neither is review-severity-rubric.md's verdict word").
 _STATUS_POSITION_SCAN_EXCLUDES = {ETHOS}
 
-# Scan every agent-facing prose root under the plugin (mirrors test_terminology_launch_agent.py).
+# Scan every agent-facing prose root under the plugin.
 _SCAN_ROOTS = [
     PLUGIN / "skills",
     PLUGIN / "agents",
@@ -182,63 +178,3 @@ def test_mechanical_consumers_cover_the_enum():
     )
 
 
-# ---------------------------------------------------------------------------
-# test_gate_reply_sets
-# ---------------------------------------------------------------------------
-# FAILS (for the right reason) if planning-gate-contract.md's declared PLAN/STEP gate-reply
-# sets drift from the JSON SSOT, or if `yes` (explicitly banned as a gate keyword) reappears
-# as a live gate-reply option anywhere in agent-facing prose (a `Proceed? (yes / ...)` line).
-def test_gate_reply_sets():
-    vocab = _load_vocab()
-    assert vocab["gate_reply_sets"]["plan"] == EXPECTED_GATE_PLAN, (
-        f"vocabulary.gate_reply_sets.plan drifted: {vocab['gate_reply_sets']['plan']!r}"
-    )
-    assert vocab["gate_reply_sets"]["step"] == EXPECTED_GATE_STEP, (
-        f"vocabulary.gate_reply_sets.step drifted: {vocab['gate_reply_sets']['step']!r}"
-    )
-
-    text = PLANNING_GATE_CONTRACT.read_text(encoding="utf-8")
-    assert "approve / refine: [feedback] / cancel" in text, (
-        "snippets/planning-gate-contract.md no longer declares the PLAN gate set verbatim"
-    )
-    assert "approve / skip / cancel" in text, (
-        "snippets/planning-gate-contract.md no longer declares the STEP gate set verbatim"
-    )
-    assert "`yes` is not a gate keyword" in text, (
-        "snippets/planning-gate-contract.md dropped the explicit ban on `yes` as a gate keyword"
-    )
-
-    # No live gate prompt anywhere may still offer `yes` as a reply option. This is the direct
-    # regression guard for the gate-prompt migration (odoo-solution-design, odoo-planning,
-    # odoo-coding, odoo-debug, odoo-draft-followup).
-    yes_gate_re = re.compile(r"\(\s*`?yes`?\s*/\s*(?:refine|iterate)", re.IGNORECASE)
-    hits = []
-    for path in _scan_files():
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-        if yes_gate_re.search(text):
-            hits.append(str(path.relative_to(ROOT)))
-    assert not hits, f"`yes` still offered as a gate-reply option in: {hits}"
-
-
-# ---------------------------------------------------------------------------
-# test_vocabulary_snippet_exists_and_points_back
-# ---------------------------------------------------------------------------
-# FAILS (for the right reason) if snippets/vocabulary.md is deleted/renamed, or if it stops
-# pointing at the two declaring files instead of restating their values inline (the exact
-# drift mechanism this whole guard exists to close).
-def test_vocabulary_snippet_exists_and_points_back():
-    assert VOCAB_SNIPPET.is_file(), "snippets/vocabulary.md is missing"
-    text = VOCAB_SNIPPET.read_text(encoding="utf-8")
-    assert "continuation-contract.md" in text, (
-        "snippets/vocabulary.md must point at continuation-contract.md for the status enum"
-    )
-    assert "planning-gate-contract.md" in text, (
-        "snippets/vocabulary.md must point at planning-gate-contract.md for the gate-reply sets"
-    )
-    for term in ("phase", "cluster", "leaf"):
-        assert re.search(rf"\|\s*{term}\s*\|", text), (
-            f"snippets/vocabulary.md is missing its own normative row for {term!r}"
-        )

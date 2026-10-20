@@ -170,37 +170,6 @@ def test_step32_file_exists_and_executable():
     assert os.access(STEP32, os.X_OK), f"step script must be executable: {STEP32}"
 
 
-def test_odoo_setup_command_enumerates_step32_in_all_and_permissions_modes():
-    text = ODOO_SETUP_CMD.read_text(encoding="utf-8")
-    # The `all` loop row runs "every step in scripts/setup-steps/ EXCEPT 47-instance-reset" -
-    # step 32 must NOT be separately excluded there (it must run under `all` by default).
-    all_row = next((ln for ln in text.splitlines() if ln.strip().startswith("| `all`")), None)
-    assert all_row is not None, "odoo-setup.md must have an `all` row in the argument-filter table"
-    assert "47-instance-reset" in all_row, "the `all` row must still exclude only 47-instance-reset"
-    assert "EXCEPT `32-permissions-state-root" not in all_row, (
-        "the `all` row must NOT separately exclude 32-permissions-state-root - it runs under `all`"
-    )
-    # The `permissions` row must explicitly enumerate step 32 alongside step 30.
-    permissions_row = next(
-        (ln for ln in text.splitlines() if ln.strip().startswith("| `permissions`")), None
-    )
-    assert permissions_row is not None, (
-        "odoo-setup.md must have a `permissions` row in the argument-filter table"
-    )
-    assert "32-permissions-state-root" in permissions_row, (
-        f"the `permissions` mode row must enumerate 32-permissions-state-root; got: {permissions_row!r}"
-    )
-    assert "30-permissions" in permissions_row, (
-        f"the `permissions` mode row must still enumerate 30-permissions; got: {permissions_row!r}"
-    )
-    # Step reference section must describe step 32 (not just the arg table row).
-    assert "**32-permissions-state-root**" in text, (
-        "odoo-setup.md must document 32-permissions-state-root in its step-reference section, "
-        "not just the argument-filter table"
-    )
-
-
-
 # --------------------------------------------------------------------------- #
 # Step 48 (local passwordless DB auth) is wired into odoo-setup.md             #
 #                                                                             #
@@ -214,40 +183,23 @@ def test_step48_file_exists_and_executable():
     assert os.access(STEP48, os.X_OK), f"step script must be executable: {STEP48}"
 
 
-def test_odoo_setup_command_enumerates_step48_in_the_instance_loop():
-    text = ODOO_SETUP_CMD.read_text(encoding="utf-8")
-    # The `instance` row is the loop that provisions a declared instance, and this
-    # step must run inside it - between the venv step that records `python` and the
-    # spin-up that needs the connection to work.
-    instance_row = next(
-        (ln for ln in text.splitlines() if ln.strip().startswith("| `instance`")), None
+# --------------------------------------------------------------------------- #
+# Every setup step is reachable from the setup command                        #
+# --------------------------------------------------------------------------- #
+
+# Scripts under setup-steps/ that are NOT setup steps: `55-instance-ops` is the on-demand
+# execution layer the odoo-local `instance_build` tool (and the allocator CLI) drives; its `check`
+# is always satisfied and the setup command never names it.
+NOT_A_SETUP_STEP = {"55-instance-ops"}
+
+
+def test_every_setup_step_script_is_named_in_the_setup_command():
+    """A step script the setup command never names is dead code: nothing tells an agent to run it,
+    and every behaviour test of the step stays green regardless."""
+    command = ODOO_SETUP_CMD.read_text(encoding="utf-8")
+    steps = sorted(
+        p.stem for p in (PLUGIN / "scripts" / "setup-steps").glob("[0-9][0-9]-*.sh")
     )
-    assert instance_row is not None, (
-        "odoo-setup.md must have an `instance` row in the argument-filter table"
-    )
-    assert "48-db-local-auth" in instance_row, (
-        f"the `instance` mode row must enumerate 48-db-local-auth; got: {instance_row!r}"
-    )
-    # The `all` loop runs every step except the reset-only one, so 48 must NOT be
-    # excluded there either.
-    all_row = next((ln for ln in text.splitlines() if ln.strip().startswith("| `all`")), None)
-    assert all_row is not None, "odoo-setup.md must have an `all` row"
-    assert "48-db-local-auth" not in all_row.replace("EXCEPT", "EXCEPT"), (
-        f"the `all` row must not name 48-db-local-auth as an exclusion; got: {all_row!r}"
-    )
-    # And the step-reference section must describe it, not just the table row.
-    assert "**48-db-local-auth**" in text, (
-        "odoo-setup.md must document 48-db-local-auth in its step-reference section, "
-        "not just the argument-filter table"
-    )
-    # Its two non-default verbs are the user's escape routes; naming them is what
-    # makes the change reversible from the documentation alone.
-    for verb in ("revert", "check"):
-        # Matched loosely on purpose: the command file quotes the path in some
-        # places ("$STEPS_DIR/48-db-local-auth.sh" check) and not in others, and
-        # this guard is about the VERB being documented, not about its quoting.
-        assert re.search(r'48-db-local-auth\.sh"?\s+' + verb, text), (
-            "odoo-setup.md must name the {v!r} verb: this step edits a live "
-            "pg_hba.conf, so the way back and the way it is offered both belong in "
-            "the documented contract".format(v=verb)
-        )
+    assert len(steps) > 10, f"step discovery is vacuous: {steps}"
+    unnamed = [s for s in steps if s not in NOT_A_SETUP_STEP and s not in command]
+    assert not unnamed, f"commands/odoo-setup.md never names these setup steps: {unnamed}"

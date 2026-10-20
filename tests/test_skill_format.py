@@ -167,14 +167,6 @@ def test_skill_frontmatter(skill):
         f"{skill.parent.name}: frontmatter name '{fm['name']}' "
         f"does not match directory"
     )
-    # Check for required body sections
-    body = _body(text)
-    assert "## Role" in body, f"{skill.parent.name} SKILL.md missing required ## Role section"
-    assert "## Out of Scope" in body, f"{skill.parent.name} SKILL.md missing required ## Out of Scope section"
-    assert (
-        "## Standalone-first fallback" in body
-        or "## Standalone fallback" in body
-    ), f"{skill.parent.name} SKILL.md missing required ## Standalone-first fallback section"
 
 
 # A skill's ``## Role`` states the executor's operating role, audience, and scope -

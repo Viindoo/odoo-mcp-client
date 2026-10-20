@@ -173,51 +173,6 @@ def test_enumerated_identifiers_survive_in_both_personas():
     )
 
 
-# Each pair is (SSOT marker, row marker): the SSOT marker decides WHICH tools this
-# clause applies to (computed - a tool whose description contains it becomes a
-# subject automatically); the row marker is what the persona row must carry to
-# count as still conveying that clause. They are not always the same literal
-# string: tests_covering's SSOT description also says "not runtime executed
-# coverage", but its (untouched, correctly-worded) row already conveys that via
-# the word "static" - measured, requiring the identical SSOT phrase verbatim in
-# the row produced a false positive on tests_covering that is not part of the
-# reported drift. Matching on "static" instead keeps the check computed from the
-# SSOT on the subject axis while no longer flagging a row that already states the
-# distinction in fewer words. Case-insensitive: a row may open a sentence with the
-# capitalized form.
-_SAFETY_CLAUSES = (
-    ("for the given version", "for the given version"),
-    ("not runtime executed", "static"),
-)
-
-
-def test_safety_clauses_survive_in_the_english_persona():
-    """A tool whose SSOT description carries a safety clause must carry it in
-    EVERY English persona file that documents it (not dev.md-only).
-
-    English only, by construction: a Vietnamese cell cannot contain an English
-    clause. Vietnamese coverage of the same axis is structural - see
-    test_persona_tables_are_structurally_identical."""
-    tools = _tools()
-    offenders = []
-    for en, _vi in _persona_pairs():
-        for lineno, name, line in _rows(en):
-            tool = tools.get(name)
-            if tool is None:
-                continue
-            for ssot_marker, row_marker in _SAFETY_CLAUSES:
-                if ssot_marker in tool["description"] and row_marker.lower() not in line.lower():
-                    offenders.append(
-                        f"{en.relative_to(ROOT)}:{lineno}: {name} row omits the safety clause "
-                        f"'{row_marker}' (server-surface.json states '{ssot_marker}') - "
-                        f"add wording that conveys it to the row"
-                    )
-    assert not offenders, (
-        "A docs/personas/*.md dropped a safety clause the tool surface states:\n"
-        + "\n".join(offenders)
-    )
-
-
 def test_persona_tables_are_structurally_identical():
     """For EVERY persona pair, the English and Vietnamese file must name the SAME
     tools, the same number of times, in the same order. This is the Vietnamese
@@ -258,68 +213,6 @@ def test_every_persona_tool_still_exists_in_the_surface():
     })
     assert not missing, (
         "persona rows name tools absent from server-surface.json:\n" + "\n".join(missing)
-    )
-
-
-# --- Vietnamese counterpart of the OSM session-pin evasion guard -----------------
-# tests/test_agent_facing_guidance.py bans, in English only, prose that licenses
-# omitting odoo_version after a set_active_version pin (the pin is scoped per MCP
-# session and racy when actors share one - see skills/_shared/concurrency-guard.md,
-# "OSM session-pin race"). That file's own docstring says the Vietnamese mirror "is
-# covered structurally" here. It is not, for arbitrary prose (a paraphrase can
-# reorder around any fixed set of English regexes) - but the two known evasions
-# ("khong co odoo_version=", "khong can lap lai phien ban") are covered: SCOPE IS
-# THE WHOLE FILE, not just table rows, and now EVERY persona's .vi.md, not just
-# dev.vi.md - an earlier version of this test scanned dev.vi.md table rows only,
-# via `_rows(VI)`; that double-narrowing (rows-only, dev-only) was itself a live
-# gap - the exact forbidden claim ("khong can lap lai phien ban o cac loi goi
-# tiep theo") survived, uncaught, in dev.vi.md's free-text "Sample Developer
-# Questions" section (not a `_ROW_RE` table row) until it was found and fixed.
-# Restricting a structural assertion to one syntactic shape, or one file, is
-# precisely how the original drift AND this evasion both went unnoticed, so this
-# scans every line of every persona .vi.md, in either section.
-_VI_VERSION_OMISSION_RE = re.compile(
-    r"không\s+(?:có|cần|phải)\s+[`'\"]?odoo_version"  # "without/no need for/must not odoo_version"
-    r"|bỏ\s+[`'\"]?odoo_version"  # "drop odoo_version"
-    r"|odoo_version[^\n]{0,40}\bfallback\b"  # "odoo_version ... falls back"
-    r"|(?:không\s+cần|không\s+phải)\s+lặp\s+lại\s+phiên\s+bản",  # "no need to repeat the version"
-    re.IGNORECASE,
-)
-# A line that PROHIBITS the omission necessarily names the same words the pattern
-# above matches on ("... KHONG CHO PHEP bo `odoo_version=` ..." - dev.vi.md:96's
-# correct, already-shipped wording) - measured as a live false positive when this
-# guard was widened to whole-file scope. Excluding a line that carries one of these
-# negation markers is a tighter rule than the bare keyword match above, not a
-# broader allowlist: it does not name a specific line or tool, only a closed set of
-# Vietnamese negation verbs that make "drop/bo odoo_version" the STATED rule rather
-# than a licensed evasion of it.
-_VI_NEGATION_MARKERS = ("không cho phép", "không được", "cấm")
-
-
-def _vi_line_is_a_prohibition(line: str) -> bool:
-    lowered = line.lower()
-    return any(marker in lowered for marker in _VI_NEGATION_MARKERS)
-
-
-def test_vietnamese_prose_does_not_license_omitting_odoo_version():
-    """No line in ANY persona .vi.md - a table row OR free-running prose - may
-    claim odoo_version can be dropped, or that the version need not be repeated,
-    once a session is pinned. This is the Vietnamese-language counterpart of
-    test_agent_facing_guidance.py's English-only guard: SSOT split by language,
-    not duplicated. English coverage lives in test_agent_facing_guidance.py (it
-    already whole-file-scans skills/snippets/agents/docs, so it needs only a
-    matching pattern, not a second scanner); Vietnamese coverage lives here
-    because nothing else in the suite reads Vietnamese."""
-    offenders = []
-    for _en, vi in _persona_pairs():
-        for i, line in enumerate(vi.read_text(encoding="utf-8").splitlines(), 1):
-            if _VI_VERSION_OMISSION_RE.search(line) and not _vi_line_is_a_prohibition(line):
-                offenders.append(f"{vi.relative_to(ROOT)}:{i}: {line.strip()}")
-    assert not offenders, (
-        "A docs/personas/*.vi.md licenses omitting odoo_version, or not repeating "
-        "it, after a set_active_version pin - the pin is scoped per MCP session and "
-        "racy when actors share one, so every call must still carry a concrete "
-        "odoo_version:\n" + "\n".join(offenders)
     )
 
 

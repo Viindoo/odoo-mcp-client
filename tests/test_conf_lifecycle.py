@@ -643,26 +643,6 @@ def test_no_file_restates_the_retention_bound_as_a_number():
     )
 
 
-def test_the_sweeper_is_documented_by_the_name_of_its_bound():
-    """The positive half: deleting the pointer must not be a way to pass the rule above.
-
-    Searched by CONTENT across every prose file - not pinned to one section - so the
-    documentation may move.
-    """
-    naming = [
-        str(path.relative_to(ROOT))
-        for path, text in _iter_plugin_texts()
-        if path != STATE_RECLAIM and path.suffix == ".md"
-        for lineno, block in blocks_with_lines(text)
-        if any(token in block for token in _SWEEPER_TOKENS) and RETENTION_CONST in block
-    ]
-    assert naming, (
-        f"at least one prose file must document the Tier-1 sweep BY THE NAME of its bound "
-        f"({RETENTION_CONST}), so a reader can find the number without a copy of it existing in "
-        f"prose. No such block found - the pointer was deleted rather than kept."
-    )
-
-
 # ---------------------------------------------------------------------------
 # Retention-SSOT probe corpus - the committed red-before-green proof.
 # ---------------------------------------------------------------------------

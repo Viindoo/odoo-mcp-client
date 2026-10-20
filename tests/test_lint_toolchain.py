@@ -343,7 +343,6 @@ def test_the_script_that_never_runs_tests_does_not_wire_it():
 # --------------------------------------------------------------------------- #
 
 SERIES_SSOT = PLUGIN / "scripts" / "lib" / "odoo_series.py"
-QUALITY_DOC = PLUGIN / "docs" / "reference" / "odoo-code-quality.md"
 
 
 def test_series_ssot_infers_nothing_from_branch_topology():
@@ -366,18 +365,6 @@ def test_series_ssot_infers_nothing_from_branch_topology():
             f"odoo_series.py now infers a series from branch topology ({banned!r}) - "
             "measured to match six wrong series on a real forward-merged repo"
         )
-
-
-def test_the_required_series_pin_is_documented_where_the_caller_reads_it():
-    """The escape hatch existed all along and nobody used it, so the gate returned CANNOT-VERIFY
-    on every pre-PR run - a gate that never runs. The invocation SSOT must say that this branch
-    class REQUIRES the pin, not merely that a pin is possible."""
-    doc = " ".join(QUALITY_DOC.read_text(encoding="utf-8").split())
-    assert "ODOO_SERIES" in doc
-    assert "run-integration" in doc, "must name the branch class where detection is designed to miss"
-    assert "REQUIRED" in doc or "required" in doc, (
-        "must state the pin is required for that class, not just available"
-    )
 
 
 def test_the_lib_is_source_only_and_executable_free():

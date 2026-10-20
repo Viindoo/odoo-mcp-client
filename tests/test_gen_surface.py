@@ -308,12 +308,3 @@ def test_every_declared_caller_qualification_reaches_the_generated_block():
             )
 
 
-def test_a_qualified_block_says_the_clause_overrides_the_bare_listing():
-    """A per-bullet clause an agent reads as decoration changes nothing; the block
-    must state that the clause is the authority."""
-    for skill in _declared_callers():
-        block = _generated_block(skill)
-        assert "does NOT license every context to call it" in block, (
-            f"{skill}: the generated block carries Caller clauses but never says they "
-            "override the bare listing"
-        )

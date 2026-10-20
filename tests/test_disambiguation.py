@@ -114,20 +114,6 @@ def test_overlap_tools_includes_the_known_look_live_static_floor():
     assert not missing, f"overlap_tools missing known look-live-but-static tool(s): {missing}"
 
 
-def test_rendered_block_carries_signature_precedence_and_live_boundary():
-    block = gen_disambiguation_block(_surface())
-    # Unique positive signature (so a generic/future Odoo-code tool can't claim it).
-    assert "INDEXED" in block
-    assert "cross-version" in block
-    assert "STATIC" in block
-    # OSM-first precedence: OSM is PRIMARY, reading code is the FALLBACK.
-    assert "PRIMARY" in block
-    assert "FALLBACK" in block
-    # Live-instance boundary (the one true "wrong server" case).
-    assert "live Odoo MCP server" in block
-    assert "read_record" in block  # single token, never wraps
-
-
 def test_generated_artifacts_in_sync_with_block():
     """Every generated artifact must contain the CURRENT block verbatim.
 

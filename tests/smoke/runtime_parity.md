@@ -50,8 +50,6 @@ pass/fail. Results are recorded in the matrix tables below.
 - **Agent bundles**: depend on the Agent tool which is CC-native. Codex may
   support subagent spawn natively; Gemini typically does not. Documented in
   Known Gaps.
-- **Eval harness** (`evals/*.json`): automated scoring requires `run_loop.py`
-  (AC-D6, separate from this smoke).
 
 ---
 

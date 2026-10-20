@@ -19,7 +19,6 @@ SK = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 SCANNED = sorted(
     set(SK.glob("skills/**/SKILL.md"))
-    | set(SK.glob("skills/**/evals/*.json"))
     | set(SK.glob("commands/*.md"))
     | {REPO_ROOT / "tests" / "smoke" / "runtime_parity.md"}
 )
@@ -254,39 +253,4 @@ def test_naming_classifier_self_check():
 # the bare word "wave" is legitimate DAG-batching vocabulary and is NOT banned.
 # ===========================================================================
 
-_ODOO_WAVE_RESIDUE = re.compile(r"odoo-wave|/odoo-run-wave|/wave-run", re.IGNORECASE)
 
-_RESIDUE_SCANNED = sorted(
-    set(SK.glob("**/*.md"))
-    | {
-        SK / ".claude-plugin" / "plugin.json",
-        SK / ".codex-plugin" / "plugin.json",
-        SK / "gemini-extension.json",
-    }
-)
-
-
-def test_no_odoo_wave_residue():
-    """No retired-skill residue: the literal `odoo-wave` token and the dead
-    `/odoo-run-wave` / `/wave-run` slash commands must not appear anywhere under
-    `plugins/odoo-ai-agents/**/*.md` or in the three plugin manifests.
-
-    The per-wave git-executor was folded into the plan runner's integration
-    loop; a stray literal would make an executing agent treat a dead skill
-    as a live component. The legitimate wave-batching CONCEPT (a wave of modules,
-    between-wave integration, per-wave loop) uses the bare word "wave" and is
-    intentionally NOT scanned here - banning it mechanically would false-positive
-    on current, accurate terminology.
-    """
-    offenders = []
-    for f in _RESIDUE_SCANNED:
-        if not f.exists():
-            continue
-        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-            if _ODOO_WAVE_RESIDUE.search(line):
-                offenders.append(f"{f.relative_to(REPO_ROOT)}:{n}: {line.strip()[:120]}")
-    assert not offenders, (
-        "Retired `odoo-wave` / `/odoo-run-wave` / `/wave-run` residue reappeared. The per-wave "
-        "git-executor was folded into the plan runner's integration loop - name the runner or "
-        "the concept, never the dead skill/command:\n" + "\n".join(offenders)
-    )

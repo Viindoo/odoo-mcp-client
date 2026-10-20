@@ -14,10 +14,10 @@ machine/instance/internal data.
 ## 1. Use the official tooling first
 
 Before hand-writing a skill or agent, reach for the maintained authoring tools - they encode
-the latest Anthropic structure and run evals for you:
+the latest Anthropic structure for you:
 
 - **Skills** - the `plugin-dev` plugin's **`skill-development`** skill (structure, progressive
-  disclosure, description-writing) and the **`skill-creator`** plugin (scaffold, eval, iterate,
+  disclosure, description-writing) and the **`skill-creator`** plugin (scaffold, iterate,
   optimise a description for triggering). Review a finished skill with the `skill-reviewer` agent.
 - **Agents** - the `plugin-dev` plugin's **`agent-development`** skill and the **`agent-creator`**
   agent (scaffold frontmatter + system prompt + triggering examples). Validate with the
