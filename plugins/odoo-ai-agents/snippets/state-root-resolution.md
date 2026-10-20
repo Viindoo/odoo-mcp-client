@@ -7,9 +7,7 @@
 # State-Root Resolution (`~/.odoo-ai/` two-axis convention)
 
 All persistent agent state lives under one machine-global root, `$ODOO_AI_HOME` (default
-`$HOME/.odoo-ai`) - never a project-relative `./.odoo-ai/` (an execute-agent has no guaranteed
-working directory across dispatches, and a project-relative dir collides the moment two sessions
-work the same repo from different cwd). Every artifact belongs to exactly ONE of three tiers.
+`$HOME/.odoo-ai`) - never a project-relative `./.odoo-ai/`. Every artifact belongs to exactly ONE of three tiers.
 
 ## The three tiers
 
@@ -20,7 +18,7 @@ work the same repo from different cwd). Every artifact belongs to exactly ONE of
 | **Tier-2 - ISOLATE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<wt-key>/` | one worktree; concurrent worktrees do NOT see each other's copy | `project_dir` axis `isolate` |
 | **Tier-2 - WORKTREE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<name>/src` | where an agent-created git worktree is checked out; its ISOLATE dir is the parent of `src` | `project_dir` axis `worktree` + `name` |
 
-Keys (sha256, first 12 hex chars, computed by the resolver - never hand-derived):
+Keys (computed by the resolver - never hand-derived):
 
 ```
 repo-key = sha256(realpath(git rev-parse --git-common-dir))[:12]   # same for every linked worktree
@@ -37,18 +35,13 @@ Explicit overrides `$ODOO_AI_PROJECT_DIR` (SHARE) /
 `$ODOO_AI_WORKTREE_DIR` (ISOLATE) win when set. Outside any git repo, the resolver walks UP from
 the cwd to the nearest project marker: an explicit `.odoo-ai-root` sentinel has GLOBAL priority
 (scanned up to `/` first); only when none exists does it fall back to the NEAREST
-`__manifest__.py` dir (a bare "nearest marker of either kind" would mis-root from inside a module,
-since real Odoo layouts nest `__manifest__.py` under EVERY module dir). If NEITHER marker is
-found, the resolver REFUSES rather than hashing the cwd-unstable working directory.
+`__manifest__.py` dir. If NEITHER marker is found, the resolver REFUSES.
 
-**Tier-1 is NEVER namespaced.** The lease registry MUST stay machine-global flat - namespacing it
-under a project/worktree dir would let two sessions in different worktrees allocate the same port
-or database, exactly the collision Tier-1 exists to prevent.
+**Tier-1 is NEVER namespaced.** The lease registry stays machine-global flat.
 
 ## Tier-1 allowlist (flat under `$ODOO_AI_HOME`, MUST NEVER map to a project/worktree dir)
 
-This is the codemod's FIRST check, before any SHARE/ISOLATE rule below - a subpath on this list
-stays flat under `$ODOO_AI_HOME` regardless of what project or worktree the agent is in:
+A subpath on this list stays flat under `$ODOO_AI_HOME` regardless of project or worktree:
 
 | Subpath | Why |
 |---|---|
@@ -59,17 +52,9 @@ stays flat under `$ODOO_AI_HOME` regardless of what project or worktree the agen
 | `i18n.json` | cross-project translation glossary (distinct from the per-project `i18n/<slug>-<date>/` ISOLATE tree below) |
 | `.gitignore` | the defensive `*` gitignore at `$ODOO_AI_HOME` root (setup step `40-instance-profile.sh`) |
 
-`venvs/` and `tools/pylint-<series>/` are Tier-1 today (`45-venv.sh`) but explicitly **not**
-reclassified by this convention - a future reclass must key by a requirements-hash (not bare
-series+profile) to avoid cross-project contamination. Treat them as Tier-1 until then.
+`venvs/` and `tools/pylint-<series>/` are Tier-1 (`45-venv.sh`).
 
 ## Tier-2 SHARE list (`<repo-key>/`, converges across a repo's worktrees)
-
-This table enumerates every `.odoo-ai/`-rooted SHARE subpath used in this repo's prose today.
-Because most consumers reference these paths through the `<SHARE_DIR>`/`<ISOLATE_DIR>` placeholder
-(never a literal `.odoo-ai/...` string), no single grep can mechanically re-verify this table's
-completeness - a NEW subpath is a maintainer responsibility to add here (§ The rule below), not a
-lint finding.
 
 | Subpath | Why |
 |---|---|
@@ -86,8 +71,7 @@ lint finding.
 
 ## Tier-2 ISOLATE list (`<repo-key>/worktrees/<wt-key>/`, distinct per worktree)
 
-Also EXHAUSTIVE. Two groups: explicit non-workflow subpaths, then the 13 workflow `output_dir`
-trees named individually (never "...").
+EXHAUSTIVE: explicit non-workflow subpaths, then the 13 workflow `output_dir` trees.
 
 | Subpath | Why |
 |---|---|
@@ -112,9 +96,7 @@ trees named individually (never "...").
 | `visual/adhoc/<slug>/` | a capture no skill owns (`<slug>` per `visual-evidence-lifecycle-contract.md` Clause 1); 30-day retention |
 | `i18n/<slug>-<date>/` (`glossary-tm-<lang>.json`, `<module>.pot`, `translation-report-<lang>.json`, `consistency-audit-<lang>.md`) | i18n MANDATES a fresh `.pot`/TM re-export every invocation, forbidding artifact reuse - ephemeral, not reusable (contrast `glossary.yml` above) |
 
-Plus the 13 workflow `output_dir` trees, each ISOLATE for the same reason (a per-run deliverable +
-optional `<slug>-state.json` resume state that two concurrent runs must never clobber) - verified
-exactly 13, one per `output_dir:` line across `workflows/*.workflow.yaml`: `bids/`
+Plus the 13 workflow `output_dir` trees, each ISOLATE (one per `output_dir:` line across `workflows/*.workflow.yaml`): `bids/`
 (`odoo-respond-bid.workflow.yaml`), `content/` (`content-production.workflow.yaml`), `debug/`
 (`ui-debug-session.workflow.yaml`), `discovery/` (`discovery-pipeline.workflow.yaml`),
 `implement/` (`odoo-implement-feature.workflow.yaml`), `packaging/`
@@ -123,42 +105,24 @@ exactly 13, one per `output_dir:` line across `workflows/*.workflow.yaml`: `bids
 (`sales-closing-cycle.workflow.yaml`), `support/` (`support-triage.workflow.yaml`),
 `upgrade-plans/` (`odoo-plan-upgrade.workflow.yaml`), `video/` (`video-produce.workflow.yaml`).
 
-**Note the split inside `visual/`:** `visual/baselines/` and `visual/doc/` are SHARE (reusable
-cross-run assets), while `visual/<run_id>/<module>_staging/`, `visual/screenshots/<slug>/`,
-`visual/current/<slug>/`, `visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, `visual/adhoc/<slug>/` and
-`visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` are ISOLATE (transient or terminal,
-run-scoped). FOUR sibling evidence subpaths, four owners, no shared directory: `visual/screenshots/<slug>/`
-(`odoo-ui-reviewer`), `visual/current/<slug>/` (`odoo-visual-regression`),
-`visual/qa/<slug>/<module>/` (`odoo-qa-tester`), `visual/debug/<slug>/` (`odoo-ui-debugger`).
-The demo-recording video is a FILENAME (owned by odoo-demo-recording, same collision-proof
-mechanism) and `visual/adhoc/<slug>/` has no owner, so neither counts among the FOUR. Classify by
-the FULL subpath, never by the top-level directory name alone - `visual/` itself is not a Tier.
+**Split inside `visual/`:** `visual/baselines/` and `visual/doc/` are SHARE; every other
+`visual/` subpath above is ISOLATE. Four sibling evidence subpaths, four owners, no shared
+directory: `visual/screenshots/<slug>/` (`odoo-ui-reviewer`), `visual/current/<slug>/`
+(`odoo-visual-regression`), `visual/qa/<slug>/<module>/` (`odoo-qa-tester`), `visual/debug/<slug>/`
+(`odoo-ui-debugger`). Classify by the FULL subpath, never by the top-level directory name alone.
 
 ## Advisory-glob exception (read-only, never-block hooks)
 
-The general rule above (never a project-relative `./.odoo-ai/`) has exactly ONE sanctioned
-exception, and it is narrow: `hooks/drive-continuation.sh` and `hooks/remind-delegate.sh` each
-resolve `RUN_DIR` via the shared `hooks/run-ownership.sh` (`resolve_project_dir.sh isolate`) and,
-only on the resolver's own documented REFUSAL case, fall back to legacy `<project>/.odoo-ai`
-before globbing `run-*.json`. Tolerated for these two call sites and no others, because all
-three conditions hold simultaneously: (1) **read-only glob, never a
-write** - `run-<id>.json` is written ONLY by the plan runner (`plan-mode-schema.md` § Run file), which always resolves through
-the real two-axis root, so a degraded glob at the wrong location cannot corrupt or fork the lease
-registry; (2) **fail-closed** - only existing record files count, so a wrong-location
-fallback matches no files - the hook emits NO nudge, never a false one; (3) **hard
-resilience contract** -
-both hooks are documented NEVER to hard-fail or block a tool call / turn-end on ANY error, and re-deriving a real two-axis key is not possible in the refusal case anyway (the
-key inputs are exactly what the resolver could not get).
+Only `hooks/drive-continuation.sh` and `hooks/remind-delegate.sh` may fall back to a legacy
+`<project>/.odoo-ai` read-only glob of `run-*.json`, and only when the resolver REFUSES.
 
-No other skill, agent, or hook may adopt this pattern - every other Tier-2 consumer follows the
-resolve-capture-substitute protocol below with no silent fallback, because those call sites WRITE
-state (a wrong-location write is the actual anti-pattern this doc exists to prevent).
+Every other Tier-2 consumer follows the resolve-capture-substitute protocol below with no silent
+fallback.
 
 ## The rule (how to place a NEW subpath)
 
-When you introduce a new `.odoo-ai/`-rooted artifact, ask ONE question and place it accordingly -
-never guess, never default to SHARE "to be safe" (a wrongly-shared run-state file silently breaks
-a continuation hook the same way `run-<id>.json` would):
+When you introduce a new `.odoo-ai/`-rooted artifact, place it by ONE question - never default
+to SHARE:
 
 > Is this RUN/SESSION-scoped active state that a hook or resume-logic treats as "the one active
 > thing", or that two concurrent runs would interleave on if they wrote it at the same time?
@@ -168,8 +132,7 @@ a continuation hook the same way `run-<id>.json` would):
 > worktree, or a later run in the same worktree, should see it)?
 > -> **SHARE.**
 
-If genuinely unsure, treat it as ISOLATE by default (safer: two copies, not a silent overwrite) and
-flag it for a maintainer to add to the tables above.
+If unsure, treat it as ISOLATE and flag it for a maintainer to add to the tables above.
 
 ## Where a captured artifact goes
 
@@ -187,16 +150,12 @@ path inside the target repo or any working tree, never no destination. Pick the 
    target doc resolves (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md`
    § Place finals where the target doc resolves them), then committed via `git-toolkit:git-ops`.
 
-Bucket 3 keeps the committed-deliverable pipeline intact: the doc writers reach a module tree
-only by that explicit `mv`.
-
 Use the session scratchpad only for throwaway output read in the same turn; anything a later step,
 agent or session needs (scripts, facts, plans, captures, venvs) goes under the state root (ISOLATE
 for run working files, SHARE for shared).
 
 **Per family.** chrome-devtools: `filePath` (`take_screenshot`, `take_snapshot`,
-`take_heapsnapshot`, `performance_stop_trace`; never `path` - unknown keys are silently ignored, and
-omitting `filePath` attaches the output inline) or `outputDirPath` (`lighthouse_audit`).
+`take_heapsnapshot`, `performance_stop_trace`; never `path`) or `outputDirPath` (`lighthouse_audit`).
 playwright: `filename` = the absolute path (`browser_take_screenshot`, `browser_start_video`). A
 trace (`browser_stop_tracing`) or a pagecast `.webm` (`stop_recording`) has no destination: `mv` the
 path it returns into `<ISOLATE_DIR>` immediately. Console/network listings return inline - Write
@@ -220,11 +179,9 @@ A scenario is not downgraded to UNVERIFIED for this reason alone when the observ
 
 ## The resolve-capture-substitute protocol (MANDATORY - read this before touching any Tier-2 path)
 
-Agents resolve with the `project_dir` tool; hooks and scripts, which cannot call a tool, run
-`scripts/lib/resolve_project_dir.sh share|isolate` (the same resolver). `Read`/`Write`/`Edit`
-take a **literal absolute path string** and run no shell, so `$ODOO_AI_PROJECT_DIR` never expands
-or persists inside one (step 3 names the exact ban). Every skill/agent touching a Tier-2 subpath
-follows this THREE-STEP protocol:
+Agents resolve with the `project_dir` tool; hooks and scripts run
+`scripts/lib/resolve_project_dir.sh share|isolate`. `Read`/`Write`/`Edit` take a **literal absolute
+path string**. Every skill/agent touching a Tier-2 subpath follows this THREE-STEP protocol:
 
 1. **Resolve ONCE and CAPTURE the returned absolute path(s).** Call `project_dir` with the axis
    the artifact's row names (`share` / `isolate`, or `worktree` + `name` for a new checkout) and
@@ -234,17 +191,14 @@ follows this THREE-STEP protocol:
 2. **Substitute that captured ABSOLUTE STRING, literally, into every subsequent
    Read/Write/Edit/Bash path for this artifact.** No variable, no re-resolution, no shell involved.
 3. **NEVER put `$ODOO_AI_PROJECT_DIR/...`, `$ODOO_AI_WORKTREE_DIR/...`, or a bare
-   `.odoo-ai/...` literal into a Read/Write/Edit call.** It will not expand and will not persist.
-   (A `Bash` call MAY reference the env var within that SAME `bash -c` invocation, but never
-   across a Read/Write/Edit boundary.)
+   `.odoo-ai/...` literal into a Read/Write/Edit call.** (A `Bash` call MAY reference the env var
+   within that SAME `bash -c` invocation.)
 
 ### Worked example
 
 `project_dir` (axis `share`) returns `/home/user/.odoo-ai/projects/ab12cd34ef56`; substitute that
-literal into every later call (`Read /home/user/.odoo-ai/projects/ab12cd34ef56/glossary.yml`) -
-never `Read $ODOO_AI_PROJECT_DIR/glossary.yml` (does not expand) or `Read .odoo-ai/glossary.yml`
-(cwd-relative, wrong root). If you need BOTH the SHARE and ISOLATE dirs in the same step, resolve
-both up front and capture both paths.
+literal into every later call (`Read /home/user/.odoo-ai/projects/ab12cd34ef56/glossary.yml`). If you
+need BOTH the SHARE and ISOLATE dirs in the same step, resolve both up front.
 
 ### Placeholder notation used in skill/agent prose
 
@@ -255,11 +209,7 @@ the literal angle-bracket token into a Read/Write/Edit call.
 
 ## Cross-worktree dispatch (when a pipeline targets a root other than the dispatcher's own cwd)
 
-Some pipelines operate on a TARGET worktree/repo different from the dispatching skill/agent's own
-inherited cwd. `<SHARE_DIR>` is cwd-independent within one repo so this never applies to it;
-`<ISOLATE_DIR>` is NOT (diverges via `--show-toplevel`) - a leaf that resolves it from its OWN cwd
-instead of the pipeline's target root lands its artifact in the WRONG worktree's directory,
-orphaned from every sibling leaf in the run.
+`<SHARE_DIR>` is cwd-independent within one repo; `<ISOLATE_DIR>` is not.
 
 **The rule:** when your dispatch brief names an external logical root distinct from your own
 inherited cwd (`review_root`, `doc_root`, an integration worktree path, or any field the brief
@@ -267,7 +217,5 @@ calls "the target"), the DISPATCHER resolves `<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE 
 THAT root, and passes the CAPTURED
 ABSOLUTE strings to EVERY leaf it dispatches (`SHARE_DIR: <abs-path>` / `ISOLATE_DIR: <abs-path>`).
 A leaf receiving these fields MUST substitute them directly and MUST NOT re-run the resolver from
-its own cwd - re-resolving independently is exactly what causes the divergence this rule exists to
-prevent. A leaf invoked WITHOUT these fields falls back to the normal protocol, resolving from its
-own cwd. Canonical worked example: the
-`odoo-code-review` skill's step 1 (`review_root`).
+its own cwd. A leaf invoked WITHOUT these fields falls back to the normal protocol, resolving from its
+own cwd. Example: the `odoo-code-review` skill's step 1 (`review_root`).

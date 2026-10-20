@@ -1,8 +1,7 @@
 # odoo-doc-site - the writer brief
 
 Fill the universal skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal
-skeleton (read by path) plus the fields below. Inputs only; the writer owns its method. Every path
-is the captured absolute literal.
+skeleton (read by path) plus the fields below. Every path is the captured absolute literal.
 
 ## Launch (`odoo-doc-site-writer`)
 
@@ -45,7 +44,7 @@ value and `none` for `SERVED URLS`.
 | `relabel` | corrects UI terms and alt text to the instance; no new prose |
 | `wire` | adds the toctree entries and cross-references; no new prose |
 | `fill` | fills existing `.po` entries from the module translations and the reused terms |
-| `port` | the page was ported into the worktree from the row's `source_series`: re-verifies it against the series, adapts it, recaptures every image, regenerates and fills the translation (`port.md`) |
+| `port` | the page was ported into the worktree from the row's `source_series`: re-verifies, adapts, recaptures every image, regenerates and fills the translation (`port.md`) |
 | `check-shot` | captures the one screen per language of `check-shot.md`, measures the content width; writes no page |
 
 ## A finding to fix (SendMessage to the same writer)

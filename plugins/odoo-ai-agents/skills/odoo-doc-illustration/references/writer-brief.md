@@ -1,8 +1,7 @@
 # odoo-doc-illustration - the writer brief
 
 Fill the universal skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal
-skeleton (read by path) plus the fields below. Inputs only; the writer's body owns every
-procedure. Every path is the captured absolute literal, never re-resolved by the writer.
+skeleton (read by path) plus the fields below. Every path is the captured absolute literal, never re-resolved by the writer.
 
 ## Launch (`odoo-doc-writer`)
 

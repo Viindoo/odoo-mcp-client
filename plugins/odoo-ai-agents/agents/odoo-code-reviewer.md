@@ -81,8 +81,7 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    block -> MED.
 9. **Tests in the diff**: file registered in `tests/__init__.py` and not imported by the module's
    own `__init__.py`; method names `test_<rule>_<nnn>`; no `raise` to simulate a failure; no
-   `cr.commit`; a test that asserts TRANSLATED or DISPLAY text is a HIGH finding (the wording
-   improves without the suite seeing it); no mock that is the only thing
+   `cr.commit`; a test that asserts TRANSLATED or DISPLAY text is a HIGH finding; no mock that is the only thing
    asserted; data created only from the module and its closure; `test_base_classes` confirms
    each base class for the series; an added `tests/__init__.py` import out of the order of
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py`

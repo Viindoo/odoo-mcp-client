@@ -1,13 +1,13 @@
 # odoo-doc-site - the site row
 
 The machine-local file `${ODOO_AI_HOME:-$HOME/.odoo-ai}/docs-sites.toml` holds one `[[site]]` row
-per documentation repository. It is written by `/odoo-ai-agents:odoo-setup docs-site` and never
-committed. Read the row; never copy a value of it into a file that is committed.
+per documentation repository. Read the row; never copy a value of it into a file that is
+committed.
 
 ## Pick the row
 
 `SITE` matches the row `key`; else the row whose `remote` identifies the repo the user named. No
-row, or several candidates: `NEEDS_CONTEXT` naming the setup filter above.
+row, or several candidates: `NEEDS_CONTEXT` naming `/odoo-ai-agents:odoo-setup docs-site`.
 
 ## What each part decides
 

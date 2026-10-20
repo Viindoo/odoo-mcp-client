@@ -15,20 +15,20 @@ finding must be actionable without re-derivation: a `file:line` pointer or OSM c
 ## Role
 
 Read-only reconnaissance orchestrator. Loaded by the **Skill tool** from the main context, it
-fans out anonymous worker agents to map "can the codebase actually meet this intent, and where
-does the work land?" - at three escalating tiers of cost and depth. Writes analysis artifacts
+fans out anonymous worker agents at three escalating tiers to map whether the codebase can meet
+the intent and where the work lands. Writes analysis artifacts
 under `<SHARE_DIR>/survey/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); never writes Odoo source.
 
 ## When this runs (opt-in only)
 
-`odoo-intake` emits a Proposed Plan from a light Phase R recon, then offers a deep survey. The
-**user** replies `refine: deep-survey` at that plan gate - the PLAN reply set
+`odoo-intake` asks its approach question from a light Phase R recon and offers a deep survey. The
+**user** replies `refine: deep-survey` - the PLAN reply set
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`); `deep-survey` is the feedback, not a
-gate keyword of its own. ONLY THEN does intake invoke this skill via the Skill tool. This is
-the human gate - this skill produces no routed deliverable, only analysis that re-informs the
-plan. It is heavy (many subagents, real tokens), which is why it is opt-in and never automatic.
+reply word of its own. ONLY THEN does intake invoke this skill via the Skill tool. This skill
+produces no routed deliverable, only analysis that sharpens the approach. Never run it
+automatically.
 
 ## Inputs (passed by intake in the invocation)
 
@@ -36,7 +36,7 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
 - **Odoo series + profile** - from the intake version gate, else resolved per
   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. Pin this
   concrete series on every OSM call (see § OSM grounding).
-- **The first Proposed Plan** - so synthesis can express its findings as a *delta* against it.
+- **The recommended approach** - so synthesis can express its findings as a *delta* against it.
 - **Slug** - reuse the feature slug intake already uses for brainstorm artifacts; the survey dir
   is `<SHARE_DIR>/survey/<slug>-<date>/`.
 
@@ -53,33 +53,22 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 4. **Escalate by evidence, not by vibe.** Phase 3 (opus) runs only when a measurable trigger fires
    (see § Phase 3). Default is to stop after Phase 2 and synthesize.
-5. **Zero-trust: descriptions are CLAIMS, source is TRUTH.** Docstrings, comments,
-   README/manifest long-description, commit messages, prior survey/audit reports, AND OSM's
-   DESCRIPTIVE fields (`describe_module` prose, `summary`, indexed docstrings, NL pattern notes)
-   are unverified CLAIMS - confirm each against the resolved structural/behavioral source before
-   marking a finding `RESOLVED`; if a description and the source disagree, source WINS and the
-   description is flagged stale. This does NOT invert OSM-first: OSM's STRUCTURE
-   (`model_inspect` / `entity_lookup` / `resolve_orm_chain` / `find_override_point` /
-   `impact_analysis` / `validate_*`) is still the trusted primary ground truth - only the
-   descriptive TEXT is demoted to a claim. Full rule (inlined into every worker brief):
+5. **Zero-trust: descriptions are CLAIMS, source is TRUTH.** Confirm every description (docstring,
+   comment, manifest prose, prior report, OSM descriptive field) against the resolved source before
+   marking a finding `RESOLVED`; when they disagree, source WINS and the description is flagged
+   stale. OSM STRUCTURE stays the trusted primary. Full rule (inlined into every worker brief):
    `${CLAUDE_PLUGIN_ROOT}/snippets/zero-trust-code-survey.md`.
 
 ## Fan-out budget
 
 Workers are launched as subagents, one per scope unit, using CHP Tier-B `subagent_type: "fork"`
-(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). A fork worker
-inherits the parent's full context (intent decomposition, survey slug, Odoo version pin, the
-full lens block text, OSM grounding instructions) and shares the parent's prompt cache - this
-eliminates per-worker re-passing of the lens block and OSM bootstrap, which is the dominant
-per-worker cost across all three phases. Model varies by phase (haiku / sonnet / opus) - set
+(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). Set the model
 explicitly on each fork's launch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-§ Model-tier selection (Phase 1 gathers at haiku, Phase 2 analyses at sonnet; Phase 3's opus is the
-evidence-gated escalation below, never a default) -
-no custom agentType beyond the fork. Each fork still writes its OWN findings file; forks never
-share mutable state.
-Fallback (Tier C): if `subagent_type: "fork"` is unavailable in the current runtime, dispatch a
-fresh `general-purpose` spawn with an explicit brief per the current behavior. Tier C is always
-correct; the worklog is always written regardless of tier.
+§ Model-tier selection (Phase 1 haiku, Phase 2 sonnet; Phase 3's opus is the evidence-gated
+escalation below, never a default); no custom agentType beyond the fork. Each fork writes its OWN
+findings file; forks never share mutable state.
+Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose`
+spawn with an explicit brief. Write the worklog regardless of tier.
 
 Concurrency follows **Mode B (model-weighted budget)** in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - SSOT for the weight table and
@@ -101,8 +90,8 @@ is the trigger for Phase W (see below).
 
 A LIGHT external-evidence pass, reusing the SAME fork-worker fan-out as Phases 1-3. Full
 procedure + source ladder: `references/web-research.md` (orchestrator inlines the relevant parts
-into each web worker's brief). It is reconnaissance, NOT the built-in `deep-research` skill - do
-**NOT** dispatch or depend on that heavy loop-until-dry / N-vote harness.
+into each web worker's brief). Do **NOT** dispatch or depend on the built-in `deep-research`
+skill.
 
 - **Trigger (conditional-on-intent):** run Phase W **only if** the Bootstrap decomposition has
   at least one sub-question with an EXTERNAL dimension - a third-party library/API, a
@@ -133,12 +122,9 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, which globs BOTH descriptor
   filenames). For a non-code intent, the unit is one persona-domain area implied by the intent.
 - **Fan-out:** one haiku worker per unit, filling the Mode B budget (rolling-window beyond it).
-- **Each worker** (haiku = read-only gathering and classifying; several OSM tools in a row are fine):
-  reads the module's manifest + skims its models/views, and confirms existence with read-only OSM
-  - `check_module_exists`, `module_inspect` (`method='summary'`), and
-  `module_inspect` (`method='tests'`) to enumerate the test classes defined in the module. The test
-  class list from Phase 1 seeds the Phase 2 test blast-radius picture: workers record which
-  `TestCase` subclasses exist so the synthesiser knows where to look for coverage edges.
+- **Each worker**: reads the module's manifest + skims its models/views, and confirms existence
+  with read-only OSM - `check_module_exists`, `module_inspect` (`method='summary'`), and
+  `module_inspect` (`method='tests'`) to enumerate the test classes defined in the module.
   Each worker returns a short bullet map: what the area contains, which 1-3 spots look most
   relevant to the stated intent (the hot-spots) each with a `file:line`, and the module's test
   class list (or "no tests" if the module has none).
@@ -155,7 +141,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 - **Scope** = the Phase-1 hot-spots ranked most-relevant to the intent (narrow the field; ignore
   areas Phase 1 marked irrelevant).
 - **Fan-out:** one sonnet worker per hot-spot, within the Mode B budget.
-- **Each worker** (sonnet = analysis and judgement over the gathered map): traces the hot-spot with
+- **Each worker** traces the hot-spot with
   `model_inspect` (fields/methods), `find_override_point`, `resolve_orm_chain`, and maps
   **bidirectional impact** per `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md` (upstream
   `depends` closure + downstream `impact_analysis`, direct AND transitive). It answers the
@@ -180,17 +166,9 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 
   After `impact_analysis` resolves the blast radius, each worker also calls `tests_covering` for
   the hot-spot's primary model to determine the **test blast radius**: which existing tests
-  already guard this behavior, and therefore which tests would be at risk if the hot-spot
-  changes. Prefer model-level or field-level narrow over method-level; COVERS_METHOD edges are
-  sparse and frequently return 0 even for well-tested methods - 0 results at method-narrow does
-  NOT mean the method is untested. Example (concrete version required):
-
-  ```python
-  tests_covering(model='account.move', field='state', odoo_version='17.0')
-  ```
-
-  If `tests_covering` returns 0 edges for a method of interest, fall back to
-  `find_test_examples(query='<method_name>', odoo_version='17.0')` before concluding zero
+  already guard this behavior. Prefer model-level or field-level narrow over method-level. If
+  `tests_covering` returns 0 edges for a method of interest, fall back to
+  `find_test_examples(query='<method_name>', odoo_version=<series>)` before concluding zero
   coverage. Record the result in the worker's phase2 file as a "Test blast radius" subsection:
   number of test edges, test file paths, and whether the hot-spot has zero test coverage (a
   coverage gap confirmed by BOTH tools). Zero-coverage hot-spots are escalation candidates for
@@ -248,10 +226,7 @@ family delta; never inline that file verbatim into a hard-leaf brief.
    § 2 + § 2.5. A leaf cannot resolve these paths - paste, do not cite-by-path-only.
 8. **Zero-trust stance** - inline the full text of
    `${CLAUDE_PLUGIN_ROOT}/snippets/zero-trust-code-survey.md` into EVERY worker brief (same paste
-   mechanism as the worker brief + lens block): descriptions (docstrings, comments, manifest
-   prose, prior reports, OSM descriptive fields) are CLAIMS; only the resolved structural source
-   grounds a `RESOLVED` finding; source wins over a stale description; OSM STRUCTURE stays the
-   trusted primary. For a Phase W worker, ALSO inline `references/web-research.md` (the source
+   mechanism as the worker brief + lens block). For a Phase W worker, ALSO inline `references/web-research.md` (the source
    ladder + the web-subordinate-to-OSM rule).
 
 ## Synthesis + hand back to intake
@@ -266,14 +241,8 @@ carries `grounded: osm | hybrid | local-source`. Sections:
   + `[LAYER: ...]`), **prior_art** ("read BEFORE coding - do not reinvent"), **side_effects**,
   **tech_debt** (flag-only), **cross_cutting** (flag-only) - aggregated from the Phase-2 lenses.
 - **tests_protecting** - the three-tier test-protection map (own-module / dependency / framework
-  gates). It SUBSUMES the old "test coverage gaps" bullet: a zero-coverage hot-spot is a flagged
-  row. Build tier (i)+(ii) by calling `test_coverage_audit` once per surveyed module:
-
-  ```python
-  test_coverage_audit(module='sale_management', odoo_version='17.0')
-  ```
-
-  Tier (iii) framework gates are `grounded: local-source` (OSM does not index them) - list them
+  gates); a zero-coverage hot-spot is a flagged row. Build tier (i)+(ii) by calling
+  `test_coverage_audit` once per surveyed module. Tier (iii) framework gates are `grounded: local-source` (OSM does not index them) - list them
   from the runbot-parity-checklist cross-ref in `references/survey-lenses.md`, each "verify live".
 - **web_findings** (external evidence, present ONLY when Phase W ran) - rows
   `claim | source-tier | URL | corroborating-source | VERIFIED/UNVERIFIED`; subordinate to
@@ -283,9 +252,9 @@ carries `grounded: osm | hybrid | local-source`. Sections:
 - **open_questions** (`UNRESOLVED`), **recommended_approach_delta**, and **upgrade_symbol_gaps**
   (optional, upgrade-adjacent intent only - non-SURVIVED symbols from the closure drill).
 
-Return to intake: the path to `synthesis.md` plus 3-5 bullets naming what changed versus the first
-plan. Intake fills the `Survey:` field with that path and **re-proposes** the plan; downstream
-skills read `synthesis.md` (and the worklog) to inherit this survey instead of re-deriving it.
+Return to intake: the path to `synthesis.md` plus 3-5 bullets naming what changed versus the
+recommended approach. Downstream skills read `synthesis.md` (and the worklog) to inherit this
+survey.
 
 ## OSM grounding
 
@@ -326,27 +295,17 @@ If the run is interrupted, a re-invocation with the same slug reads `state.json`
 `phase*/` files, skips completed phases, and resumes at `next` (file-existence is the source of
 truth; `state.json` is the fast index).
 
-## Out of Scope
-
-- **NEVER write Odoo source or the routed deliverable.** Analysis artifacts under the machine-global
-  `$ODOO_AI_HOME` state root only (two-axis convention: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`).
-- **NEVER auto-trigger.** This skill exists to be invoked by `odoo-intake` after the `deep-survey`
-  opt-in. It is not a front door and does not classify intent - that is `odoo-intake`'s job.
-- **NEVER spawn from workers.** Workers are leaves; they do not invoke the Skill tool or
-  spawn sub-agents (see worker-brief).
-- **NEVER escalate to opus without a measurable trigger** (§ Phase 3). Default is stop-and-synthesize.
-
 ## Standalone-first fallback
 
 The survey prefers OSM but does not require it. If OSM is unreachable (a `set_active_version` probe
 fails), workers fall back to **read-only disk** - reading each module's descriptor `depends`
-(`__manifest__.py`, or `__openerp__.py` on v8-v9) and
+(the descriptor filename per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`) and
 skimming `models/` and `static/src` for the dependency and asset picture - and the synthesis
-records `OSM: standalone` so intake states plainly that the impact map is disk-derived, not
-graph-resolved. No OSM is forced on any later specialist in this path.
+records `OSM: standalone` so intake states that the impact map is disk-derived, not
+graph-resolved.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced`
-includes `synthesis.md`; `next` hands control back to `odoo-intake` to re-propose the plan.
+includes `synthesis.md`; `next` hands control back to `odoo-intake` to re-ask its approach question.

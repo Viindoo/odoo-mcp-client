@@ -1,13 +1,12 @@
 # odoo-doc-site - browser acceptance
 
-The tester is `odoo-qa-tester` with `MODE: DOCS`; it never sees the writer's context and never
-fixes anything.
+The tester is `odoo-qa-tester` with `MODE: DOCS`.
 
 ## Serve
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/lib/docs_site/build_compare.py serve --work-dir <D> [--port 0]`
 in the background, `<D>` being the work directory of the gate build. It prints the base URL per
-language and runs until stopped. Read the URLs from its output; stop it at teardown. After a
+language. Read the URLs from its output; stop it at teardown. After a
 rebuild, stop it and serve again.
 
 ## Launch (`odoo-qa-tester`)
@@ -44,10 +43,10 @@ opens every image of `IMAGES TO REVIEW` (item 12).
 | # | Item | Pass when |
 |---|---|---|
 | 1 | Reachable | the page opens from the navigation or the toctree of its parent; title and breadcrumb are the planned ones |
-| 2 | Images load | after each image is scrolled into view (lazy loading needs script), its natural width is above zero |
+| 2 | Images load | after each image is scrolled into view, its natural width is above zero |
 | 3 | Language variant | each image shows the interface in the page's language |
 | 4 | Placement | at the reference viewport each image spans the recorded content width and has no text beside it |
-| 5 | Legibility | at the reference viewport, rendered width divided by intrinsic CSS width (natural width divided by the shot's density) is at least 0.75; judged on the desktop viewport only, since a narrow mobile column scales every shot |
+| 5 | Legibility | at the reference viewport, rendered width divided by intrinsic CSS width (natural width divided by the shot's density) is at least 0.75; judged on the desktop viewport only |
 | 6 | No horizontal scroll | the mobile page does not scroll sideways; a wide table scrolls inside its own box |
 | 7 | Internal links | every internal link and anchor answers on the local server; none is a 404 |
 | 8 | External links | every marketplace link answers 200; `UNVERIFIED` when the network is unavailable |
@@ -62,4 +61,4 @@ A `FAIL` row goes to the writer as `FINDINGS` (`<file>:<line>: ACCEPTANCE: <item
 <language> <viewport>`) with the evidence path. After the fix: rebuild, re-run the gates the change
 touches, re-serve, and send the same tester the failed items with the new URLs by `SendMessage`; a
 fix that changes layout or an image re-runs the whole checklist. After the third failed round stop
-and ask the user. `UNVERIFIED` items go to the PR body, not to the writer.
+and ask the user (text question). `UNVERIFIED` items go to the PR body, not to the writer.

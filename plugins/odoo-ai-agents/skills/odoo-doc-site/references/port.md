@@ -27,32 +27,11 @@ Per target:
 3. An area of pages has no commit set: have `git-ops` copy the pages, their images and their
    translation entries from the source branch into the target worktree.
 
-## What the writer does with a ported page
+## Plan rows
 
-Plan rows get `work: port` and `source_series` (`writer-brief.md`). Per row:
-
-- **Text.** Keep and adapt. Re-verify every fact against the TARGET series: `api_version_diff` from
-  source to target for each module on the page, `check_module_exists` on the target, and every
-  menu, button and field name against the target's live UI. The target UI wins over the source
-  text; a difference that matters is a finding.
-- **Shape.** Follow the target series' nearest sibling pages (`repo_facts.py` on the target
-  worktree), not the source page.
-- **Images.** Ship no source-series screenshot. Recapture every image on the target series' branded
-  capture instance, keeping the file names; where an image already exists on the target, keep its
-  size.
-- **Translation.** Regenerate the target template with `po_sync.py`. The source `msgstr` values are
-  translation memory only; every UI term must match the target-language UI of the target series
-  (`ui_terms.py`).
-- **Links.** Marketplace links move to the target series by the policy pattern; follow module
-  renames found by `api_version_diff`.
-
-## Dedupe
-
-The page plan search (`page-plan.md`) runs on the target base branch (the target series' upstream
-branch of `remote`), never on the port worktree. The open-pull-request skip rule excludes the
-source pull request and a bot forward-port pull request for the same source and target. When the
-target already has an equivalent page, the row is `update`: merge the ported content into that
-page and keep its URL; no second page is added.
+Plan rows get `work: port` and `source_series` (`writer-brief.md`). When the target already has an
+equivalent page, the row is `update`: merge the ported content into that page and keep its URL; no
+second page is added.
 
 ## Landing a taken-over branch
 
@@ -65,7 +44,6 @@ page and keep its URL; no second page is added.
 
 ## Then
 
-Gates, browser acceptance and CI run as for any run; landing as § Landing a taken-over branch on a
-taken-over branch, as for any run otherwise. The pull request body names the
-source pull request or commits, the source series and, for a later target, the previous target's
-branch it was ported from.
+Gates, browser acceptance, landing and CI run as for any run; a taken-over branch lands per
+§ Landing a taken-over branch. The pull request body names the source pull request or commits, the
+source series and, for a later target, the previous target's branch it was ported from.

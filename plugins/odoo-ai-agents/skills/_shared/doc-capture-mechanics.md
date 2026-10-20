@@ -1,14 +1,10 @@
 # Doc Capture Mechanics Reference
 
-Browser-capture mechanics for the documentation writers (`odoo-doc-writer`, `odoo-doc-site-writer`),
-which drive a live Odoo instance to shoot the screenshots of a user guide, an App Store landing
-or a docs-site page, then embed them in their own assembly step. This file is the SSOT for HOW
-to capture; the writer body owns the audience and the assembly.
+Browser-capture mechanics for the documentation writers (`odoo-doc-writer`, `odoo-doc-site-writer`).
 
 A writer captures only the shots its shot list names and launches nothing but the read-only
-`Explore` agent for code tracing. The dispatching skill owns provisioning, the per-instance loop,
-verify and commit. Sections 13 and 14 apply to module docs; § 15 overrides sections 3, 7, 10, 12 and 13 for
-`odoo-doc-site-writer`.
+`Explore` agent for code tracing. Section 13 applies to module docs; § 15 states what differs
+for `odoo-doc-site-writer`.
 
 ---
 
@@ -23,8 +19,7 @@ never share a family/instance with another worker. Distinct families MAY run con
 
 - **Pick one server family per run and stay on it - a FAMILY choice, not a page-lifetime one.**
   Staying on one family across the run does not mean keeping a page open across the run; you still
-  close per T2. **The DEFAULT is `chrome-devtools`** - the one EAGER browser MCP (always present via
-  the bundled `.mcp.json`); the others are OPT-IN and require the odoo-setup wiring step
+  close per T2. **The DEFAULT is `chrome-devtools`**; the others are OPT-IN and require the odoo-setup wiring step
   (`/odoo-ai-agents:odoo-setup browser`) before their tools exist:
   - **chrome-devtools (default)** - `mcp__plugin_odoo-ai-agents_chrome-devtools__*`: `navigate_page`,
     `emulate` (viewport + device pixel ratio, section 7), `take_screenshot` (`filePath`, section 3),
@@ -35,14 +30,13 @@ never share a family/instance with another worker. Distinct families MAY run con
     only when the brief explicitly selects it AND it has been wired.
   - **pagecast (OPT-IN)** - use ONLY when the brief asks for a banner GIF / short video
     (`record_and_gif`); also requires the wiring step.
-  The staging constraint (section 3) applies to every family. The generic verbs below
-  (navigate / emulate / screenshot / fill) map to the chosen family's tool names above.
+  The generic verbs below (navigate / emulate / screenshot / fill) map to the chosen family's
+  tool names above.
 
 ## 2. Browser mode - headless by default
 
 Each backend ships a headless default (`...chrome-devtools__*`) and a headed variant
-(`...chrome-devtools-headed__*`, itself opt-in). DEFAULT to headless - the only safe choice on a
-no-display/CI host. Use `-headed` ONLY when the brief states `BROWSER MODE: headed`; never opt in on
+(`...chrome-devtools-headed__*`, itself opt-in). DEFAULT to headless. Use `-headed` ONLY when the brief states `BROWSER MODE: headed`; never opt in on
 your own. Pick one variant for the whole run.
 
 ## 3. Run/module-scoped staging (mandatory for every capture)
@@ -65,7 +59,7 @@ worklog run-or-slug - reuse it, never mint a new id); `<module>` is the module b
 **NEVER stage into a bare `doc-staging/<...>` with no `<run_id>/<module>` prefix.** `mkdir -p` the
 dir first. On chrome-devtools pass the path as `take_screenshot filePath` (never `path`).
 
-**`<ISOLATE_DIR>` resolution.** This staging tree is Tier-2 ISOLATE. Your dispatch brief carries
+**`<ISOLATE_DIR>` resolution.** Your dispatch brief carries
 `ISOLATE_DIR:` (the `odoo-doc-illustration` skill resolves it ONCE against `doc_root` and passes it
 to every writer + reuses it at its own end-of-run cleanup - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - use that
@@ -73,16 +67,12 @@ literal directly; do NOT re-resolve. Only when it is absent (standalone dispatch
 skill's pipeline) resolve it yourself via the resolve-capture-substitute protocol in
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 
-The skill owns end-of-run cleanup of `<ISOLATE_DIR>/visual/<run_id>/` (scoped to `<run_id>` only),
-reusing the SAME `ISOLATE_DIR` literal it passed to every writer this run; do not delete another
-run's subtree. This staging cleanup is a FILES step only - it is not resource teardown (the browser
-page you drove and the instance lease the skill holds are separate obligations); see
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3.
+The skill owns end-of-run cleanup of `<ISOLATE_DIR>/visual/<run_id>/`; never delete another run's
+subtree.
 
 ## 4. INSTANCE_HANDLE - the instance is already provisioned
 
-When the brief carries `INSTANCE_HANDLE: <db>:<port>`, the dispatching skill already provisioned,
-started, and installed the module (as a cumulative delta) on that instance and owns the lease:
+When the brief carries `INSTANCE_HANDLE: <db>:<port>`:
 - **The handle OUTRANKS every other way of resolving the target instance, including section 5's
   fallback.** Set `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` and use the
   handle's DB name for all browser navigation, the `/web/login` step (section 5), and any live Odoo
@@ -91,8 +81,7 @@ started, and installed the module (as a cumulative delta) on that instance and o
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
   owns provisioning. Never drop or release the lease. CLOSE every browser page you drove, opened or
   reused (resource-teardown-contract.md T2).
-- After all writes, report every file path so the skill can verify, commit and install the next
-  module delta. Never install the next module yourself.
+- Report every file path. Never install the next module yourself.
 
 When `INSTANCE_HANDLE` is absent (standalone dispatch), confirm on the instance you capture from
 before anything else: `instance_status` says it is up and where, and the Apps screen of that
@@ -102,16 +91,15 @@ installed -> stop `BLOCKED` and route to `odoo-instance` (`operation: install-mo
 ## 5. Auth
 
 **Resolve the login URL before anything else, and let `INSTANCE_HANDLE` win.** Brief carries
-`INSTANCE_HANDLE` -> `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` (section 4),
-full stop; do NOT consult the declared catalog, whose port is guaranteed to differ. ONLY when the
+`INSTANCE_HANDLE` -> `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` (section 4).
+ONLY when the
 brief carries NO handle (standalone dispatch) resolve `instance_base_url` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
 
 Load `<SHARE_DIR>/visual/baselines/storageState-admin.json` if it exists (cached auth session -
 the file format is family-specific; reuse it only within the family that wrote it). Otherwise
 navigate to `<instance_base_url>/web/login` and fill credentials: the login IDENTIFIER is the
-brief's, else `admin`. The PASSWORD is stored neither in this repo nor in project state - use the
-value the brief supplies, and when the brief supplies none, ask for it ONCE. Never guess a password,
+brief's, else `admin`. The PASSWORD is the value the brief supplies. Never guess a password,
 and never reuse a database credential for the web login. For `odoo-doc-site-writer` the password is
 never in the brief: § 15.
 - **chrome-devtools (default):** `fill_form` (one call for the username + password elements
@@ -127,8 +115,7 @@ Read 1-2 primary design tokens via the family's script-eval tool:
 - **chrome-devtools (default):** `evaluate_script`.
 - **playwright (OPT-IN):** `browser_evaluate`.
 e.g. `getComputedStyle(document.documentElement).getPropertyValue('--primary')` and
-`'--body-bg'`. If either resolves EMPTY (self-referential cycles resolve to empty per CSS spec),
-the render is off-theme - skip this screen, log `WARN: off-theme render detected (token EMPTY)`,
+`'--body-bg'`. If either resolves EMPTY, the render is off-theme - skip this screen, log `WARN: off-theme render detected (token EMPTY)`,
 and move on; emit `NEEDS_CONTEXT` only if every screen fails. Reference:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 
@@ -144,17 +131,14 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
      (section 11), and measure every slot of that module at it.
    - Render the doc in the browser at that width: `index.html` inside a local wrapper page that
      loads Bootstrap 5 CSS from a CDN (the store renders the fragment with it); RST as docutils
-     HTML output. An image in any RST published on the internet has the content column as its slot, the most it can fill: the
-     image's own `:width:` (the captured CSS width, step 7) sets how much of it the image takes,
-     and `img-fluid` caps it at the column - the form is
-     `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images. Save the page
+     HTML output. An image in an RST published on the internet has the content column as its slot; its form
+     is `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images. Save the page
      under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/` and open it as a `file://` URL.
    - Read the slot element's width with the script-eval tool (chrome-devtools `evaluate_script`,
      playwright `browser_evaluate`): `el.getBoundingClientRect().width`.
    - When the doc cannot be rendered (no docutils, Bootstrap unreachable), apply the full-width
      rule: the slot is the reading viewport width.
-3. **Legibility.** The captured CSS width must be at most 1.25 x the slot width, or the store scales
-   UI text below readability. Narrow the viewport toward the slot width, but never so far that the
+3. **Legibility.** The captured CSS width must be at most 1.25 x the slot width. Narrow the viewport toward the slot width, but never so far that the
    web client switches to its mobile layout - when it does, widen back. For a slot narrower than
    that, capture element-scoped: chrome-devtools `take_screenshot` `uid` (from the page snapshot),
    playwright `browser_take_screenshot` `target`.
@@ -175,8 +159,7 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
      completed document, never an empty form - plus the app name, legible at the slot width. A
      full-width slot (hero/banner) may capture the whole viewport at a deliberately chosen width.
 6. **Final format at capture time.** chrome-devtools `take_screenshot` `format` `jpeg` + `quality`,
-   or `png`; playwright `type`. A GIF's width = the slot width: pagecast records at device pixel
-   ratio 1, so record at a viewport within the step-3 cap and pass the slot width as
+   or `png`; playwright `type`. A GIF's width = the slot width: record at a viewport within the step-3 cap and pass the slot width as
    `record_and_gif` `gifWidth` / `convert_to_gif` `width`.
 7. **Verify.** Read the image's pixel width from its file header with the plugin interpreter:
 
@@ -205,8 +188,7 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
    `browser_highlight` unless the brief explicitly requests it (`ANNOTATION: highlight`) AND the
    playwright family has been wired (chrome-devtools has no highlight equivalent - requesting one
    on the default family is a routing signal to the OPT-IN playwright family, never a bare-verb
-   call). NEVER use `browser_annotate` on any family - it opens an interactive dashboard that
-   blocks on headless hosts.
+   call). NEVER use `browser_annotate` on any family.
 
 ## 8. Capture step (per screen)
 
@@ -247,16 +229,15 @@ Applies whenever the resolved language set is larger than English-only. English 
 captured FIRST and in full.
 - **Read-only `screens`:** if the screenshot text does not change with locale, shoot once and share.
   When on-screen text IS locale-dependent, switch locale and re-shoot for each affected screen.
-- **Driven `scenarios`:** a driven capture MUTATES state, so it CANNOT be re-rendered with `?lang=` -
-  re-drive each scenario from its precondition per locale. Loop order: **outer = locale** (set the
+- **Driven `scenarios`:** re-drive each scenario from its precondition per locale. Loop order: **outer = locale** (set the
   screenshot user's `res.users.lang`, or append `?lang=<locale>` on the backend URL, then
   re-establish the precondition), **middle = scenario**, **inner = step**.
 
 ## 11. No silent cap + capture-coverage report
 
-Never trim silently (See-Something-Say-Something). Emit one capture-coverage line per
+Never trim silently. Emit one capture-coverage line per
 `(scenario, locale, step)` marking it `captured / downgraded / downgraded-to-screen / skipped` + the
-reason and the bound that triggered it, so the caller sees exactly what was produced. Open the report
+reason and the bound that triggered it. Open the report
 with the reading viewport width you measured slots at (section 7).
 
 ## 12. Degraded paths
@@ -267,7 +248,7 @@ with the reading viewport width you measured slots at (section 7).
   screenshots used]`. Other locales proceed normally.
 - **No instance / no browser at all:** do not hard-BLOCK. The writer still assembles its artifact
   STRUCTURE + supplied text with `[Image: <slug>]` placeholders at every illustration point, then
-  emits `NEEDS_NEXT -> odoo-instance` so a later pass fills the captures. `BLOCKED` only when even the
+  emits `NEEDS_NEXT -> odoo-instance`. `BLOCKED` only when even the
   structure cannot be written.
 - **OSM unreachable:** disk-grep the module XML for view names + menu ids; prefix
   `WARN: OSM unreachable - screens/labels from disk source`.
@@ -281,7 +262,7 @@ The cover goes to the root of the module's `static/description/` (§ Manifest im
 image there under a convention name keeps that name: your capture replaces it, and every doc
 showing that screen references the one file. An existing off-convention name or location (e.g.
 `shot_form.png`, `ws1-step03.png`, a screenshot at the root of `static/description/`) is moved
-into `assets/` under the convention name, the same way as an off-convention reference below.
+into `assets/` under the convention name.
 
 `mv` (never `cp`) each final from staging into its directory under its final name, renaming it in
 the same `mv` (`mkdir -p` the directory first).
@@ -289,17 +270,11 @@ the same `mv` (`mkdir -p` the directory first).
 In every doc file you write, bring each off-convention image reference into the convention, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
 
-Reference every final per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that
-snippet's reference gate (§ Reference gate) until it exits 0. Every other capture stays where it
-was written, cited by that path.
+Reference every final per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`. Every other
+capture stays where it was written, cited by that path.
 
 ## 14. Hard constraints (capture)
 
-- Every capture names its absolute section-3 staging path; in module docs every image reference
-  and cross-module link in the assembled artifact follows `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
-- Never use `browser_annotate` (playwright-only; chrome-devtools has no equivalent) in the
-  capture loop, on any family; never run concurrently with another browser-driving agent on the
-  SAME MCP family (T2) - a distinct family/instance may run in parallel.
 - Git/GitHub mutations are NOT yours - the dispatching skill commits via git-toolkit `git-ops`.
   Bounded reads (`git status`, `git diff --stat`) may stay inline; never run git mutations, `gh`, or
   the github MCP directly.

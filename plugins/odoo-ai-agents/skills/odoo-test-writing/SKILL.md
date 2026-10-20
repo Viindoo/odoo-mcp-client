@@ -8,8 +8,8 @@ model: inherit
 
 ## Role
 
-QA engineer / backend developer writing automated Odoo tests for every supported series. Every
-test asserts a business contract, never a snapshot of the current implementation.
+Write automated Odoo tests for every supported series. Every test asserts a business contract,
+never a snapshot of the current implementation.
 
 ## Out of Scope
 
@@ -25,8 +25,7 @@ test asserts a business contract, never a snapshot of the current implementation
 ## When to use
 
 `odoo-coder` invokes this skill INLINE for its own node - before the code when an acceptance
-criterion carries a comparable expected value (the first red run is the proof the test can fail),
-after the code for a behaviour discovered while coding (proven by the break in step 5). The
+criterion carries a comparable expected value, after the code for a behaviour discovered while coding (proven by the break in step 5). The
 `odoo-test-writer` agent invokes it for every other caller; standalone use works the same way.
 
 - **`change`** - new or adjusted tests for the behavior the REQUEST changed.
@@ -74,12 +73,11 @@ after the code for a behaviour discovered while coding (proven by the break in s
 
 ## Method
 
-The principles - whether a test is needed, the real break, the exact restore, the brief report -
-are stated once in `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`; what a good test
-looks like in `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`. Read both before writing,
-every time. The steps below are how to apply them here; use judgment where a step does not fit.
+Read `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` (whether a test is needed, the
+real break, the exact restore, the brief report) and `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`
+(what a good test looks like) before writing, every time. Use judgment where a step below does not fit.
 
-Write test files in the brief's `WORKTREE_PATH` (the `odoo-test-writer` agent already `cd`s there).
+Write test files in the brief's `WORKTREE_PATH`.
 Invoked standalone, you hold the caller's duties: with no worktree in scope, provision one through
 `git-toolkit:git-ops` before writing (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`);
 provision the break-check instance through `Skill(odoo-instance)` and release its lease when done;
@@ -93,7 +91,7 @@ test classes, the Form helper, tours, the JS runner, demo data in tests) and the
 the language the test is written in; name each file and heading in `VERSION RULES APPLIED`.
 Resolve series, profile and module scope per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `set_active_version` - never default
-a series; a wrong one selects the wrong framework. Then read how the TARGET series' framework works
+a series. Then read how the TARGET series' framework works
 before writing a line: `test_base_classes` for the menu, `test_class_inspect` for every base class
 or helper you use (base chain, cursor contract - `cr.commit()` is forbidden; isolation is savepoint
 rollback). Where OSM lacks a detail (a `Form` method, a decorator argument), read `odoo/tests/` in
@@ -115,7 +113,7 @@ the target checkout.
 
 `tests_covering`, `find_test_examples` (test-only chunks - not `find_examples`, which mixes in
 production code), `test_coverage_audit`, and a `Grep` of the module's `tests/`, `static/tests/` and
-`static/tours/` in the worktree (the index may not hold this branch). Then per behavior: fully
+`static/tours/` in the worktree. Then per behavior: fully
 covered -> write nothing, but prove the existing test by a break; partly covered -> add a method
 to that test class; an expectation the REQUEST made obsolete (including `OBSOLETE CANDIDATES`) ->
 adjust it and say why; not covered -> write a new test. A duplicate test is a defect.
@@ -124,8 +122,7 @@ adjust it and say why; not covered -> write a new test. A duplicate test is a de
 
 `model_inspect` for real field names and method signatures; `validate_relation` /
 `resolve_orm_chain` for relational paths. For a rule the user triggers in a form, read the form view
-(`model_inspect(model='<model>', method='views', odoo_version='<version>')`, plus the view XML in the worktree for anything the change adds -
-the index never holds code just written). Reuse an existing test helper's fixtures
+(`model_inspect(model='<model>', method='views', odoo_version='<version>')`, plus the view XML in the worktree for anything the change adds). Reuse an existing test helper's fixtures
 (`test_class_inspect`, then read its source) instead of copying setUp code. For core ORM/action
 symbols the test calls directly, apply `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`
 §Test.
@@ -139,8 +136,7 @@ or DISPLAY text, keep it simple. Name each method after the rule it protects
 (`test_discount_cannot_exceed_20pct`). Expected values come from `TARGET BEHAVIOR`, never from the
 code.
 
-- **Own data only.** Create every record the test needs; never read a demo record - the test later
-  runs in the automation-test environment, which on some series loads no demo
+- **Own data only.** Create every record the test needs; never read a demo record
   (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE).
 - **Register the file** in `<addon>/tests/__init__.py` per
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py` import order; the module's own `__init__.py` stays untouched. A JS test or tour asset loaded through a manifest key is the one `__manifest__.py`
@@ -148,8 +144,7 @@ code.
 - **Expected log noise** - wrap with `assertLogs` / `mute_logger` only when the path really logs a
   WARNING or ERROR, and assert the logger and level, never the wording
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`).
-- **Cross-module assertions.** A test class runs at install of its OWN module by default, before
-  any later module of the node exists. A test that asserts behavior contributed by ANOTHER module
+- **Cross-module assertions.** A test that asserts behavior contributed by ANOTHER module
   must be staged into the post-install phase - the only moment the whole node is visible - with the
   mechanism the target series ships (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 8).
   Host it in the last module of the node's dependency order; a node whose modules share no
@@ -176,7 +171,7 @@ Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` sk
    the expected value).
 2. **Break** exactly the rule, keeping a copy of the file first - the code must still load.
    Neutralise a method body or put the old rule back; never delete a field, model, external id or
-   import (that proves only that the code is broken). An accept-path test ("20 is allowed") is
+   import. An accept-path test ("20 is allowed") is
    proven by breaking the rule the other way (tighten it so 20 is refused).
 3. **Run only the affected tests** and watch them fail - at an assertion, or with the business
    exception the broken rule raises. A load error, a missing field or zero tests selected is a

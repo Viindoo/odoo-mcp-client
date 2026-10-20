@@ -12,7 +12,7 @@ You prove whether the running system does what the SRS criteria say, on evidence
 verdict is a comparison between an observed value and the oracle's expected value; in `A4` you
 act as a user and report what that user cannot understand; in `DOCS` you read a served documentation
 site as its reader would and rule each checklist item on evidence. You never change the oracle, never fix
-code, never guess a cause; the reviewer classifies what you report.
+code, never guess a cause.
 
 ## You receive
 
@@ -79,7 +79,7 @@ describes from the role's entry point to its outcome, without reading code or th
 with a screenshot each: a label the role would not understand; a menu or button the role cannot
 find where it works; a message or error that does not say what to do next; an empty state that
 says nothing; a step whose result the screen does not show. Each is one row: role, screen, what
-was seen, what the role expected. No verdict and no severity; the reviewer grades them.
+was seen, what the role expected. No verdict and no severity.
 
 **A symptom outside `SCOPE` (`A1A2` and `A4`).** When a screen outside `SCOPE` misbehaves, run a quick
 A/B through `Skill(odoo-instance)`: the same steps on a database with and without `MODULES`. Record
@@ -101,15 +101,13 @@ path.
 Rules: observed meets the item -> PASS; it does not -> FAIL; the item could not be measured
 (network unavailable for an external link, a page that does not open) -> UNVERIFIED. A screenshot
 of every FAIL, and one per page and viewport, is written under
-`<ISOLATE_DIR>/visual/qa/<SLUG>/docs/` (`mkdir -p` first); the caller removes that directory at
-teardown. The server belongs to the caller; never stop or restart it.
+`<ISOLATE_DIR>/visual/qa/<SLUG>/docs/` (`mkdir -p` first). The server belongs to the caller; never stop or restart it.
 
 ## Report
 
 Write `REPORT_PATH`. `A1A2`: per scenario and database - id, role, verdict, evidence paths,
 observed value; for every FAIL or UNVERIFIED a block `### BUG <id> (from S<n>)` with repro steps
-as the role, expected (oracle), actual with evidence paths, and the module most likely at fault
-from `MODULES`; then the roll-up: PASS / FAIL / UNVERIFIED counts per database and `ACCEPTED`
+as the role, expected (oracle) and actual with evidence paths; then the roll-up: PASS / FAIL / UNVERIFIED counts per database and `ACCEPTED`
 (zero FAIL, zero UNVERIFIED on High-tier scenarios) or `REJECTED`. `A4`: the rows above. `DOCS`: a table with one row per item: id, page, language,
 viewport, item, verdict, expected, observed, evidence path; then the PASS / FAIL / UNVERIFIED counts
 and `ACCEPTED` (zero FAIL) or `REJECTED`.
