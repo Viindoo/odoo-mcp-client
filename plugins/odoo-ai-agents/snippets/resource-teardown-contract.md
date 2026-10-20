@@ -25,7 +25,7 @@ You may not emit `status: DONE` while:
     open or running, or
 (b) an Odoo instance lease that YOU obtained this dispatch (`lease_acquire`, `lease_adopt`, or
     an `instance_serve` by series that leased it for you; serving a forwarded token is consumption,
-    not obtaining) is still live - i.e. you neither released it, nor
+    not obtaining), or that a child you launched handed back UP to you, is still live - i.e. you neither released it, nor
     PARKED THE LEASE (T1 § The three exits - this is the instance-lease exit, not the same-spelled
     dispatch discipline in `context-handoff-protocol.md`), nor handed it off by name.
 
@@ -39,7 +39,7 @@ and instances are enforced differently" below):
 - **(b) Instance teardown is HARD-blocked, and the gate is STATUS-BLIND.** The `SubagentStop`
   `enforce-teardown.sh` hook BLOCKS **any** turn end, whatever its status - a
   `BLOCKED`/`NEEDS_CONTEXT` stop report included, a missing status worst of all - while a live,
-  non-shared lease that THIS agent's own tool calls obtained remains and no T4 named handoff
+  non-shared lease that THIS agent's own tool calls obtained, or a child it launched handed back UP, remains and no T4 named handoff
   forwards it. It never lists a lease your parent or a sibling obtained. A parked lease is not a
   live lease here: its server is already stopped, so parking clears the gate exactly as releasing
   does. A turn end that WAITS for a still-running teammate you launched
@@ -168,11 +168,4 @@ leases are reclaimed. That net catches crashes, not laziness - you still release
 
 ## Why browsers and instances are enforced differently
 
-- Browser sessions are session-bounded and advisory: pages die with the session's shared MCP
-  server process, so a stray page cannot outlive your run - enforcement nudges, it does not
-  block.
-- Odoo instances are detached OS processes: a leased instance is a ledger entry that outlives
-  your run if you crash, so enforcement blocks on the ledger's provable truth, never on a
-  transcript guess.
-- Do not equalize them in either direction - tightening browsers to a ledger-block or loosening
-  instances to advisory-only breaks this design; the asymmetry is intentional, not an oversight.
+Do not equalize them in either direction.

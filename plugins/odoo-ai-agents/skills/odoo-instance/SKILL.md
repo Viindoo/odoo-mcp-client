@@ -16,28 +16,26 @@ block. Programmatic twin of the interactive `/odoo-setup` command (the human dec
 wizard that writes `instances.toml`): use this skill when the caller already knows the operation
 parameters - hand them over, get back a structured `instance-ops` block.
 
-**Single owner of instance provisioning.** This skill is the SINGLE PLACE that OWNS Odoo instance
-fan-out: any component needing a live instance routes here via the Skill tool instead of driving
-the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES (demo by
-build purpose, the GATE_ROLE-conditioned lint-module install, per-version `cli_help` grounding) are
-enforced in one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
-agent-role SSOT, `generator/skill_tool_deps.json`), this skill MUST provision INLINE (see "Inline
-leaf-mode" below) and MUST NOT launch the `odoo-instance-ops` agent** - inline leaf-mode is
-mandatory for a leaf caller, not a judgment call. For a spawner, node-owner or skill caller, provision
-the way that fits the caller's context - run the ops steps INLINE in the caller's own context (see
-"Inline leaf-mode" below), or launch the `odoo-instance-ops` agent per "Brief shape" below; this
-skill is the component that owns launching that agent. However the
-operation is carried out, the SAME HARD RULES apply - the inline path is not a bypass. A provided
-`INSTANCE_HANDLE` ALWAYS wins over self-provisioning either way (contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). A bare `lease_acquire` +
-`instance_build` is never how a caller PROVISIONS an instance: both paths below reach the lease
-tools only after running the HARD RULES, so an acquire that routed around this skill is an acquire
-that skipped them. Tearing your OWN lease down at your terminal status - `lease_release` or
-`lease_park` - is not provisioning and is run directly, per
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
+**Single owner of instance provisioning.** Route every live-instance need here via the Skill tool;
+never drive the lifecycle yourself. The L2 human gate, the instance-allocation rules and the HARD
+RULES (demo by build purpose, the GATE_ROLE-conditioned lint-module install, per-version `cli_help`
+grounding) apply on every path. A provided `INSTANCE_HANDLE` ALWAYS wins over self-provisioning
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). A bare `lease_acquire` +
+`instance_build` is never how a caller PROVISIONS an instance. Tearing your OWN lease down at your
+terminal status - `lease_release` or `lease_park` - is not provisioning and is run directly
+(`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
 
-The `odoo-instance-ops` agent runs at a flat `haiku` tier when launched - there is no
-per-operation model-tier table.
+**Launch by default.** A caller that can launch an agent (skill, spawner, node-owner) has this skill
+LAUNCH `odoo-instance-ops` with `model: haiku` for every build, test run, serve and export, per "Brief
+shape", and keeps the returned `INSTANCE_HANDLE` as the run-level owner of its lease. Run INLINE
+(see "Inline mode") only when:
+
+- (a) the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in
+  `generator/skill_tool_deps.json`): it cannot launch;
+- (b) `MODE_HINT: path-incremental`;
+- (c) the operation is read-only and quick: `status`, or an `ensure-up` that finds the instance
+  already serving;
+- (d) `park`, `drop` or release of a lease the caller itself holds (obtained or handed back up).
 
 ## Dispatch
 
@@ -47,22 +45,23 @@ When invoked, gather the following from the caller's request:
 |-----------|----------------|
 | `operation` | `create` / `drop` / `park` / `resume` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests/resume; optional for status |
-| `lease_token` | required for `park` - the token of the lease to suspend (the `lease_token` field of the `INSTANCE_HANDLE` being finished with). Not used by any other operation. `park` and `drop` of a lease the CALLER holds run inline in the caller's context, never via `odoo-instance-ops`: the ownership gate refuses a token that only reached an agent in its brief |
+| `lease_token` | required for `park` - the token of the lease to suspend (the `lease_token` field of the `INSTANCE_HANDLE` being finished with). Not used by any other operation. `park` and `drop` of a lease the CALLER holds run inline (exception (d)), never via `odoo-instance-ops`: the ownership gate refuses a token that only reached an agent in its brief |
 | `park_ttl_s` | optional for `park` - how long the suspended database is kept before a gc may reclaim it. Omitted keeps the tool's default; the budget is DISK-scoped, so state it in the relay when the caller did not name one |
 | `persist` | What a CALLER may request: `ephemeral` (default) / `exclusive-running` / `shared-running`. What each one means, plus the `exclusive-parked` state a suspended instance sits in (park keeps its db + ports; resume brings it back), is spelled out in ONE place - `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - and is deliberately NOT restated here; read it there before choosing. The one consequence this dispatch table must state itself, because it decides whether a caller may safely run mutating work: an `exclusive-running` instance never converges on `8069` (its port comes from the allocator pool), a `shared-running` one is shared by every reader on that series |
 | `run_id` | the caller's run id - threaded into every brief and passed to every lease tool as the lease owner. Release and park are refused to anyone but the owning run, and a lease tool called with no `run_id` is refused (`RUN_ID_REQUIRED`). Never invent one: a caller that gave none gets `NEEDS_CONTEXT(RUN_ID)` |
-| `PROFILE` | Tenant profile name (the exact name a profile listing returns, e.g. `<distribution>_<series>`); this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's lint-module HARD RULE below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
+| `PROFILE` | Tenant profile name (the exact name a profile listing returns, e.g. `<distribution>_<series>`); this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through, unless the caller passes it (`odoo-doc-site` does: the profile part of the site row's `instance` key); a profile in effect reaches `lease_acquire` as its `profile` ONLY when `catalog_read` (that `series`, that profile) returns a row: the acquire matches the catalog profile exactly and refuses a name no row declares (`NO_INSTANCE`), where an omitted profile takes the series' first row - so an OSM profile name no catalog row declares is never passed to the acquire. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's lint-module HARD RULE below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here. For the stand-alone proof and for acceptance the install set is the node's modules ONLY - Odoo pulls their upstream closure; a dependent or a sibling is added only in the second, explicitly requested build (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md`) |
 | `demo` | `on` / `off` - whether an `init` / `create` build must carry demo data; it reaches `instance_build` as its `demo` argument, which spells the series' own flag. Set it from the build's PURPOSE per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. **There is no flat default** - omitting it makes the agent derive the value from the purpose, and BLOCK where the purpose does not resolve and the output depends on demo; a remembered default of `off` would silently ship a demo-less translation or documentation build. `run-tests` takes NO `demo`: a test build runs the series default, which `instance_build` reads from the lease's checkout (and refuses demo on where that default loads none) - so never set it for a test dispatch |
 | `test_tags` | `run-tests` scope selector - the OTHER half of `modules` (`-i`/`-u` builds the registry, `test_tags` decides whose tests run). Pass the caller's resolved blast radius, normally `/<m>` per module in `modules` (e.g. `/sale,/account`), narrowable to a class or method (`/module:ClassName.method_name` - the CLASS separator is a COLON; a dot there is parsed as a METHOD name and silently selects nothing) for a focused re-run. `full` = run untagged ON PURPOSE (release sweep, CI/Runbot parity, no-code-change smoke) - an explicit declaration, not a blank. OMITTED / `none` = not supplied, and the agent DERIVES `/<m>` per module rather than running untagged; a `-i sale --test-enable` with no tags runs every installed module's suite from `base` up, which is the defect this field exists to prevent. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`; which modules belong in the set: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md` |
 | `GATE_ROLE` | `pre-pr-lint-gate` / `node-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions the lint-class modules into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (the plan's `integrate` node states it explicitly); every OTHER test-run caller (a node verification run, a leaf's own break-check run, an ad-hoc human "run the tests" request) is `node-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
 | `mode` | `fresh` / `reuse` (`run-tests` only) - decided on the DATABASE: `reuse` whenever the target database already has the modules installed, `fresh` only for the FIRST install onto a brand-new database; `fresh` -> `-i` (init+test), `reuse` -> `-u` (re-runs the tests of installed modules on every series, where `-i` runs none of them on recent series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database) |
+| `hand_on` | `yes` / `no` (default `no`; `run-tests` with `mode=fresh` only) - `yes` keeps the lease and forwards its `INSTANCE_HANDLE` to the caller, who owns it from then on; `no` releases it when the run ends |
 | `log_mode` | `info` / `debug` / `sql` (optional; `run-tests` only) - overrides the odoo log verbosity for this run; omitted keeps the default below. `warn` is REFUSED - it hides the pass summary |
 | `fresh_venv` | `true` / `false` (default `false` - build on the venv the catalog declares for the series). `true` makes the executor rebuild the series' venv before it acquires a lease; a catalog row with no venv at all gets one built the same way without asking. Never combine `true` with a forwarded `INSTANCE_HANDLE`: that lease fixes the interpreter |
 | `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` / `run-tests`. It reaches `instance_build` as its `languages` argument; the tool adds `en_US` to every build, so neither the caller nor this skill adds it; omit / pass `none` for `en_US` alone |
 | `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - the executor adds the skip-auto-install flag to every build of the dispatch, where the series' `cli_help` lists it, so `auto_install` modules do not install alongside the target |
 | `context` | `doc` / `default` (default `default`; `doc` auto-sets `demo=on` + `skip_auto_install=true` for a clean documentation instance) |
-| `mode_hint` | `path-incremental` / `default` (default `default`). `path-incremental` = ONE lease held across a sequential delta-install loop on ONE DB (dependency-cluster documentation). It ALWAYS runs INLINE in the driving skill's context per § Inline leaf-mode `MODE_HINT: path-incremental` below and is NEVER dispatched to `odoo-instance-ops` |
+| `mode_hint` | `path-incremental` / `default` (default `default`). `path-incremental` = ONE lease held across a sequential delta-install loop on ONE DB (dependency-cluster documentation). It ALWAYS runs INLINE in the driving skill's context per § Inline mode `MODE_HINT: path-incremental` below and is NEVER dispatched to `odoo-instance-ops` |
 | `WORKTREE_PATH` | (optional) absolute path to the worktree whose code this instance must load. When set, the executor re-roots the addons list passed to `lease_acquire` onto it per § WORKTREE_PATH substitution below, so a verification run cannot silently load the principal checkout. Omit for a catalog-tree instance |
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
@@ -99,8 +98,7 @@ the brief's extra flags, which is placed after the default and therefore wins. T
 longer than one tool call. `instance_build` returns a `job_id` at once; the executor's VERY NEXT
 call MUST be `job_wait(job_id)`, called again with the same `job_id` for as long as its `result` is
 `timeout`, and every response before a terminal `result` MUST carry a tool call - a text-only
-"waiting for the build" reply that ends the turn is forbidden, because nothing resumes an ended
-turn. `timeout` is the ONLY result that means keep waiting; the executor compares the `progress`
+"waiting for the build" reply that ends the turn is forbidden. `timeout` is the ONLY result that means keep waiting; the executor compares the `progress`
 reading between waits and reports `BLOCKED` with `log_path` preserved only once a whole window
 leaves a NON-EMPTY `progress` unchanged, saying the wait could not separate a stopped build from a
 hung one. `success` is the only pass. `inconclusive` means the run FINISHED and refused to certify a
@@ -184,8 +182,10 @@ MODE: <fresh|reuse>           # run-tests only; reuse whenever the target DB alr
 LOG_MODE: <info|debug|sql or 'default'>   # run-tests only; 'default' keeps the build default
 FRESH_VENV: <true|false>
 PERSIST: <ephemeral|exclusive-running|shared-running>   # create only; default ephemeral - see the dispatch table above
+HAND_ON: <yes|no>             # run-tests fresh only; yes = keep the lease and forward its INSTANCE_HANDLE; default no = release it
 LEASE_TOKEN: <token of the lease to suspend>            # park only - REQUIRED there, omitted everywhere else
 PARK_TTL_S: <seconds or 'default'>                      # park only; 'default' keeps the tool's own budget
+INSTANCE_HANDLE: <the caller's forwarded handle, verbatim>    # omit when none; every operation then runs on that lease/database (ensure-up serves it)
 RUN_ID: <the caller's run id>                           # ALWAYS set - the lease-ownership identity; never invent one
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 LANGUAGES: <csv target locales, or 'none'; the tool adds en_US to every build>
@@ -232,7 +232,7 @@ say which exemption applies (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract
 
 A build that must load a worktree's code leases the catalog addons list re-rooted onto that
 worktree: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/references/worktree-addons-path.md`. The
-executor runs it - the dispatched agent from the brief's `WORKTREE_PATH`, inline leaf-mode before
+executor runs it - the dispatched agent from the brief's `WORKTREE_PATH`, inline mode before
 its own `lease_acquire`.
 
 **Memory cap inheritance.** No separate brief field is needed: every `instance_build` runs under
@@ -287,31 +287,24 @@ was not verifying. The run is BOUNDED to the declared scope (`test_tags` you pas
 derives `/<m>` per module in `modules`) and the result is REPORTED with the scope it was decided on -
 both, never one instead of the other. What stays forbidden is narrowing BELOW the declared scope:
 never drop a module in `modules` from the tags, and never add a `skip_auto_install` the caller did
-not ask for, because suppressing tests the caller DID declare manufactures a false green. Relay
+not ask for. Relay
 verbatim in `notes` the agent's tags-used + provenance and its scope figures (modules actually
 loaded, tests actually run), plus its statement of any verdict decided by tests OUTSIDE the module
 under verification; never summarize them away, and never report an out-of-scope `tests-failed` as
 this module's own regression. SSOT: `odoo-instance-ops`'s own Scope transparency section; the
 scoping-vs-suppression rule itself: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
 
-### Inline leaf-mode (dispatched leaf / subagent self-provision)
+### Inline mode (exceptions (a)-(d) only)
 
-Run the ops steps INLINE in the caller's own context - without launching the `odoo-instance-ops`
-agent. **MANDATORY, not a judgment call, when the caller is a declared HARD LEAF** (`agents.<name>.role
-== leaf`) - a hard-leaf caller MUST get inline leaf-mode and this skill MUST NOT launch
-`odoo-instance-ops` for it. For a spawner, node-owner or skill caller, use inline leaf-mode whenever
-that fits the caller's situation better than launching the agent (see "Single owner of instance
-provisioning" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). This
-lets a caller lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral DB directly, and -
-unlike a bare `lease_acquire` + `instance_build` - still under the HARD RULES.
+Run the ops steps INLINE in the caller's own context, without launching `odoo-instance-ops`, and
+still under the HARD RULES.
 
-A provided `INSTANCE_HANDLE` ALWAYS wins: if one is in the brief, consume it and do NOT provision
-(contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) - run the steps as the
-HANDLE-CONSUMER branch below changes them. Only with NO handle does the caller self-provision via
-the numbered steps as written.
+With an `INSTANCE_HANDLE` in the brief, run the steps as the HANDLE-CONSUMER branch below changes
+them; with none, self-provision via the numbered steps as written.
 
 **HANDLE-CONSUMER branch (an `INSTANCE_HANDLE` is in the brief).** Never provision a database (skip
-step 1's acquire) and never release, park or adopt the handle's own lease; an `init` / `update` build or a serve runs on
+step 1's acquire) and never release, park or adopt the handle's own lease; an `init` / `update` build or a serve (including `ensure-up`: `instance_serve` on the handle's `lease_token`, never by `series`, which
+would serve the shared declared instance, another database) runs on
 the handle's token. A test build binds the lease's port, so use judgment: when no server listens on
 the handle's port, run it on the handle's token; when one does, take one small lease of your own on
 the handle's database - one port, creating and dropping nothing - and run every `op test` there with
@@ -330,7 +323,7 @@ Run these steps in order, honoring the SAME HARD RULES as the agent (single sour
    `python` on the series' row, build the venv first with `45-venv.sh create-venv` per
    `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md` § If no suitable venv exists yet - the lease
    copies the catalog's interpreter at acquire time, so acquire only after it exits 0. Then
-   `lease_acquire` (`series`, mode `ephemeral`, your `run_id`, `cwd` = the
+   `lease_acquire` (`series`, `profile` = `PROFILE` when a catalog row declares it (see the `PROFILE` row), mode `ephemeral`, your `run_id`, `cwd` = the
    tree you build, `addons_path` from § WORKTREE_PATH substitution when you work in a worktree;
    `ports` 1 for a test build or a listening instance - a test build binds an HTTP port on every
    series - else 0). Never reuse the single declared db/port for a mutation. A refused acquire
@@ -360,8 +353,7 @@ Run these steps in order, honoring the SAME HARD RULES as the agent (single sour
    (`INSTANCE_HANDLE`, naming the skill that needs the live state). A lease left on none of the
    three at your terminal status is a leak, not a valid handoff. Full rule:
    `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T4. Whichever exit you take,
-   emit the same `instance-ops` block used when the agent is launched instead, so the caller
-   consumes an identical handle either way.
+   emit the same `instance-ops` block the launched agent emits.
 
 **`MODE_HINT: path-incremental` (with `CONTEXT: doc`) - the ONE definition of this loop.** The
 driving skill holds ONE lease across a sequential delta-install walk on ONE database and calls this

@@ -165,11 +165,10 @@ pre-PR lint gate, not here (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md
 
 ### 5. Prove each behavior test, then restore
 
-Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` skill (inline
-leaf-mode, which decides the lease and has you release what you took), `instance_build` op `test`,
-`test_mode` `reuse`, with the brief's `SERVER_WIDE` as `server_wide` when present, tagged at method level - `/<module>:<Class>.<method>[,...]`, never the whole module
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). Read the counts from the final
-`job_wait` summary and the failures from its `findings_path`.
+Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` skill: `run-tests`,
+`MODE: reuse`, the brief's `SERVER_WIDE` when present, tagged at method level - `/<module>:<Class>.<method>[,...]`, never the whole module
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). Read the counts from the
+`instance-ops` block (inline: the final `job_wait` summary) and the failures from its `findings_path`.
 
 1. **Baseline** - the tests you wrote, adjusted or rely on pass on the unbroken code. A test red
    here either misreads the rule (fix the test) or states `TARGET BEHAVIOR` faithfully (the code

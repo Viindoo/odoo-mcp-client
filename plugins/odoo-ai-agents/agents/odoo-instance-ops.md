@@ -94,7 +94,7 @@ handle and `FRESH_VENV: true` is `NEEDS_CONTEXT(FRESH_VENV)`.
 **Step D - Obtain the lease.** A brief carrying an `INSTANCE_HANDLE` has one: use its
 `lease_token` and do NOT call `lease_acquire` - the ONE exception is run-tests `reuse`, which leases
 its own port on the handle's database (operation 5). Otherwise call `lease_acquire` once for the
-operation, with `series` (required - nothing is picked for you), the mode and port count the
+operation, with `series` (required - nothing is picked for you), `profile` = the brief's `PROFILE` only when `catalog_read` (that series, that profile) returns a row (the acquire refuses a profile no catalog row declares, `NO_INSTANCE`; an OSM profile name stays out), the mode and port count the
 operation below names, `run_id`, and `cwd` = the tree you build (`WORKTREE_PATH` when the brief carries one). When the brief carries a `WORKTREE_PATH`
 other than `none`, compute the addons list yourself per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/references/worktree-addons-path.md` (its `BLOCKED` is
@@ -554,14 +554,14 @@ For every lint-class module this build unioned into the install+tag set (the SAM
 Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of the four counters, even a genuine `0/0/0/0`. Record in `notes` which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so a human - or the plan's pre-PR lint gate - can act on evidence rather than a bare status flip.
 
 Release the lease you acquired for this run when done (for `reuse` that drops nothing), unless the
-brief asks you to hand a `fresh` instance on - then forward its `INSTANCE_HANDLE` to the named
-catcher.
+brief says `HAND_ON: yes` on a `fresh` run - then forward its `INSTANCE_HANDLE` to your dispatching
+caller as the named catcher.
 
 ### 6. ensure-up / status
 
 Check whether an instance is running; start it if not.
 
-**Inputs:** series, db name (optional).
+**Inputs:** series, db name (optional), `INSTANCE_HANDLE` (optional).
 
 **Mechanism.** `instance_status(series[, profile], run_id)` reports whether the declared instance
 is up and its `url`, plus the live `shared_lease` and the resumable `parked_lease` for the series
@@ -573,7 +573,11 @@ lease whose session ended.
 - **Status only:** `up` -> `status: up` with its `url` and the shared lease's coordinates. Not up
   but a `parked_lease` exists -> `status: parked` with its db and ports (and token when yours) - never `down`, which tells
   the caller its data is gone. Neither -> `status: down`.
-- **Spin-up requested:** a `parked_lease` -> operation 9, resume-instance. Already `up` -> report it.
+- **Spin-up requested with an `INSTANCE_HANDLE`:** `instance_serve(lease_token=<the handle's lease_token>)` - it serves the handle's own
+  database on that lease (attaches when already listening, resumes when parked, else launches; the
+  database must have been built), creates no lease, and never serves by `series`, which would start the shared declared
+  instance on another database. Skip `instance_status`: it reports the declared instance, not the handle.
+- **Spin-up requested, no handle:** a `parked_lease` -> operation 9, resume-instance. Already `up` -> report it.
   Otherwise `instance_serve(series, run_id)`; it blocks until HTTP answers - do NOT call
   `lease_acquire` for an ensure-up.
   The shared-server rule of operation 1's `shared-running` applies.

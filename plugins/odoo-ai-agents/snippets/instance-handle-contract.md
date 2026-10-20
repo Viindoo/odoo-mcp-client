@@ -69,12 +69,11 @@ receiver-inferred:
 - **Receiver.** `SELF_PROVISION: worktree-addons` present (and no handle) -> self-provision as
   authorized. `INSTANCE_HANDLE` present -> use it, after the coverage assertion below.
   Never self-provision on your own judgment.
-- **The authorized self-provision runs `odoo-instance` INLINE, in your own context** - never via
-  the `odoo-instance-ops` agent. The SubagentStop teardown gate checks only the leases YOUR own
-  tool calls obtained, so provisioning through a sub-agent makes your own leak invisible to it
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). Pass `cwd` = your worktree
-  and `addons_path` naming it; `lease_acquire` refuses a worktree `cwd` without one
-  (`ADDONS_PATH_WORKTREE_MISMATCH`). What you acquire here you release before your terminal status.
+- **The authorized self-provision goes through `Skill(odoo-instance)`**, which applies its own
+  launch rule. Pass `WORKTREE_PATH` (the lease's `cwd` and `addons_path` name it;
+  `lease_acquire` refuses a worktree `cwd` without one: `ADDONS_PATH_WORKTREE_MISMATCH`). The
+  `INSTANCE_HANDLE` it returns is yours; what you acquire here you release before your terminal
+  status.
 
 ### Addons coverage assertion (ONE rule, every consumer points here)
 

@@ -1,8 +1,6 @@
 # Concurrency guard - the OOM envelope for agent fan-out (SSOT)
 
-Root failure log: `unbounded-opus-fanout-oom` - unbounded OPUS fan-out crashed the
-host. The guard has two modes; every fan-out skill references this file instead
-of restating the numbers.
+The guard has two modes; every fan-out skill references this file instead of restating the numbers.
 
 ## Choosing Mode A vs Mode B (decision rule for a NEW fan-out skill)
 
@@ -16,8 +14,7 @@ mode below are EXAMPLES of skills that already resolve to one side of the rule, 
 ## Mode A - subagent batching
 
 Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
-for more work, batch in groups of <=3 (fire <=3, wait, fire the next <=3). None of Mode A's
-current users fan out >1 worker writing a shared module/worktree.
+for more work, batch in groups of <=3 (fire <=3, wait, fire the next <=3).
 
 ## Mode B - model-weighted budget (rolling-window / weighted-batch skills)
 
@@ -29,11 +26,9 @@ current users fan out >1 worker writing a shared module/worktree.
 | fable  | 8 |
 
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
-or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
-case (2 opus) sits within budget.
+or exactly 1 fable (always exclusive). Mixing is allowed up to the budget (worst case 2 opus).
 
-If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
-individual skills.
+If an OOM recurs under Mode B, lower BUDGET to 6 here (one place), never in individual skills.
 
 ## Model-tier selection - the kind of reasoning drives the tier (SSOT)
 
@@ -43,8 +38,8 @@ radius do not move a tier.
 
 | tier | pick when the work is |
 |------|-----------------------|
-| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance mode `A1A2` when no Given needs a fixture built; comparing observed values with stated expected values |
-| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; acceptance `A1A2` when a Given needs a fixture built (a multi-company database, a stubbed external service, device emulation, an upgrade database); debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning |
+| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; mechanical documentation upkeep (recapturing the screenshots of existing pages, relabelling to a changed UI label or menu path, toctree wiring, filling translations that already exist); recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance mode `A1A2` when no Given needs a fixture built; comparing observed values with stated expected values |
+| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; acceptance `A1A2` when a Given needs a fixture built (a multi-company database, a stubbed external service, device emulation, an upgrade database); debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning; composing new documentation |
 | **opus** | design (SRS and design session); any unit whose `business_function` is on the specialist list in `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`; a node that meets 5.2; review `R3`; the one retry a tier up after an evidenced sonnet failure |
 | **fable** | a design that changes an inheritance axis across two or more modules; never a default; always explicit human confirmation |
 
@@ -102,8 +97,11 @@ a file and the report returns the path plus a short summary; every OSM call pass
 
 The launch `model` parameter first, else the agent's frontmatter `model:`, else
 `CLAUDE_CODE_SUBAGENT_MODEL`, else the caller's own model. An agent body never states its own
-tier. A Skill runs in the invoking context's model: a mechanical skill invoked from an opus or
-fable context is wrapped in a haiku or sonnet launch (reason d).
+tier. A skill's frontmatter `model:` takes effect for the rest of the current turn once the skill
+is invoked; a skill without it runs in the invoking context's model, so wrap a mechanical skill
+invoked from an opus or fable context in a haiku or sonnet launch (reason d). `odoo-instance` is
+the rule of its own: launch `odoo-instance-ops` at haiku, inline only in that skill's exceptions
+(a)-(d).
 
 ## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
@@ -117,13 +115,7 @@ subagent's own pin silently overrode the parent's - no error, no warning either 
 Rule for every agent and skill in this plugin, stated as a BAN so it is checkable: in every
 example call and every instruction, `odoo_version` carries a CONCRETE version and
 `profile_name` carries a concrete profile. The sentinel `'auto'` and a bare omission are BOTH
-forbidden - not discouraged. This ban is a POLICY STRICTER than the server's own contract: the
-server itself lets a single-actor session pass `'auto'` to reuse its own pin (ADR-0029) - that
-is a legitimate server feature, not a defect, and this plugin is not working around a bug. The
-ban exists because an agent can never prove at call time that it is the session's only actor: a
-parent may dispatch a subagent at any moment after the pin, silently turning a single-actor
-session into a multi-actor one. "`'auto'` is fine when you are alone" is therefore undecidable
-from inside a single call; "always pass a concrete value" is decidable and costs nothing extra.
+forbidden - not discouraged.
 Still call `set_active_version` (and `set_active_profile` where a tenant profile applies) once
 at bootstrap: they are the reachability probe and keep the server-side default sane, and that is
 their ONLY sanctioned use. Never rely on their ambient state afterwards. Multi-version and

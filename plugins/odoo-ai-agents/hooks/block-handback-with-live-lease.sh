@@ -12,8 +12,9 @@
 # can still be enforced. A denied SubagentHandback delivers NOTHING - the tool_result is an error
 # and the caller receives no message (verified live, see tests/test_handback_gate.py).
 #
-# WHAT IT REFUSES: a SUBAGENT's SubagentHandback while (a) a lease it OBTAINED itself
-# (hooks/lease-correlation.sh _lease_owned_tokens - the SAME correlation the teardown gate and the
+# WHAT IT REFUSES: a SUBAGENT's SubagentHandback while (a) a lease it HOLDS - obtained itself or handed
+# back UP to it by a child it dispatched
+# (hooks/lease-correlation.sh _lease_held_tokens - the SAME correlation the teardown gate and the
 # lease-mutation gate use) is (b) LIVE and non-shared per the allocator's own verdict
 # (hooks/teardown-check.sh - the SAME check and refusal text enforce-teardown.sh emits), and (c) the
 # message being handed back does not forward THAT lease - an INSTANCE_HANDLE carrying its own
@@ -66,8 +67,8 @@ if [[ -z "$TRANSCRIPT" ]]; then
   _pass
 fi
 
-OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
-[[ -n "$OWN_TOKENS" ]] || _pass   # obtained nothing: a pure consumer, whatever it quotes
+OWN_TOKENS="$(_lease_held_tokens "$TRANSCRIPT")"
+[[ -n "$OWN_TOKENS" ]] || _pass   # holds nothing: a pure consumer, whatever it quotes
 
 # The report being handed back IS this call's message: its closed continuation fence is what the
 # caller will read. A lease forwarded there in its own INSTANCE_HANDLE is the named-catcher handoff

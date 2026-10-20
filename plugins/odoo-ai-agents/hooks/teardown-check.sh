@@ -1,12 +1,12 @@
 # teardown-check.sh - SOURCED helper (not a hook): the ONE implementation of the instance-teardown
-# check - "does this agent still hold a LIVE, non-shared lease it obtained itself, and what must it
+# check - "does this agent still hold a LIVE, non-shared lease it holds (obtained itself or handed back UP to it), and what must it
 # do about it". Two gates run it and must never disagree:
 #   - enforce-teardown.sh (SubagentStop): blocks the subagent's turn end.
 #   - block-handback-with-live-lease.sh (PreToolUse on SubagentHandback): denies delivering the
 #     report while the lease is held. The report is delivered the moment SubagentHandback runs,
 #     BEFORE SubagentStop, so a SubagentStop block alone arrives after the caller already acted on
 #     a report whose lease was never given back.
-# Which leases the agent OBTAINED is hooks/lease-correlation.sh's question; which of them its report
+# Which leases the agent HOLDS is hooks/lease-correlation.sh's question; which of them its report
 # forwards (per lease, in next.inputs) is hooks/final-report.sh's. This file only asks the allocator.
 #
 # Ground truth is the allocator's own VERDICT (`allocator.py list --with-verdict`), never the
@@ -99,7 +99,7 @@ _teardown_block_reason() {
   # (snippets/spawner-completion-contract.md R3), so offering exit 3 or "report a continuation block"
   # there sends the agent after a report nobody will receive.
   local head give_back rest
-  head="$(printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) that THIS subagent obtained itself (acquired or adopted by your own calls - read from your own tool calls and their results, never from a run id and never from a lease_token you were handed and merely served or resumed, so a lease of your parent or a sibling is never listed here and is not yours to release) are still held in the allocator ledger. Each is a detached Odoo server process or database that outlives this dispatch until reclaimed.' "$claim" "$n")"
+  head="$(printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) that THIS subagent holds - obtained itself (acquired or adopted by your own calls) or handed back UP to you by a child you dispatched; read from your own transcript, never from a run id and never from a lease_token you were handed DOWN and merely served or resumed, so a lease of your parent or a sibling is never listed here and is not yours to release are still held in the allocator ledger. Each is a detached Odoo server process or database that outlives this dispatch until reclaimed.' "$claim" "$n")"
   give_back='1) release - stops the whole server process group, then drops the DB. 2) park the lease (`lease_park`, or `allocator.py park`; NOT the turn-parking discipline of the same name) - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted - park DEFERS the eventual drop, it never cancels it, and it reports the drop_on_release flag it left untouched so you can see whether the final release will still destroy that DB.'
   if [[ "$exits" == "give-back" ]]; then
     rest="Clear EACH before you stop, by ONE of the two exits still open to you:$lines"$'\n'"$give_back"
