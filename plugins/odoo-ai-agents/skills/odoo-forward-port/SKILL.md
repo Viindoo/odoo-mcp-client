@@ -446,12 +446,10 @@ messaging tool is present, re-invoke `odoo-coding` cold with the full FP-ENRICHE
       `application` with breadcrumb - then lint-fix only.
   Both land in the LINT-ONLY lane. SSOT: `[[fp-installable-false]]`.
 - **8d migration script**: decide each forwarded `migrations/<src-series>.a.b.c/` dir per C2 -
-  retarget only when every module the script acts on is installable at the target tip, else forward
-  it unchanged and record why; a retargeted dir is named FULL `<tgt-series>.V` so it fires on a
-  deployed target DB at manifest `M` (bump the manifest only in the `S<=M` case; a legacy source-only
-  data fix keeps `<src-series>.a.b.c`). This is a migration-threshold action, NOT a conflict-resolution version bump (C1). Full rule +
-  `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`.
-8b writes directly into the integration worktree (§ Git topology), so there is nothing to converge; P10 commits the adapt edits. A Tier-A resume is therefore always safe: the `cd`-on-resume target is the SAME path for the WHOLE run.
+  every module the script acts on must be installable at the target tip; then read the script and the
+  target's code and data model, retarget the dir (FULL `<tgt-series>.V`, `V` from C1) when the target
+  has the problem the script solves, else forward it unchanged and record why. Full rule: `[[fp-merge-absorption]]`.
+8b writes directly into the integration worktree, so there is nothing to converge; P10 commits the adapt edits.
 
 **P9 - Verify by behavior [PER-BATCH, in integration].** DELEGATE the run - do NOT allocate a DB +
 port and run the full suite inline (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`).

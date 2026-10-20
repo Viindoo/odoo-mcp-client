@@ -149,12 +149,12 @@ ESLint / Prettier / ruff rules:
 
 ---
 
-## A2 - No manifest version bump (forward-port)
+## A2 - Manifest version (forward-port)
 
-Forward-port NEVER auto-bumps the manifest. The forward-port merge (`--no-ff`) carries the source manifest as-is; on a
-module-descriptor `version` conflict (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0) keep the **TARGET** file's
-value. The single exception is the C2 migration-threshold bump (when `S <= M`). Both rules: `[[fp-merge-absorption]]`
-(C1 + C2). There is no "bump when the diff touches `.js/.scss/.xml/migrations/`" rule - that gate is removed.
+The manifest `version` follows `[[fp-merge-absorption]]` C1 alone: a module that already exists on the
+target takes `max(M + 1, S)` when the range changes its `version` on the source, and keeps its value
+otherwise. A new module lands with the version the merge carries. Migration dirs follow C2 of the same
+file. There is no "bump when the diff touches `.js/.scss/.xml/migrations/`" rule - that gate is removed.
 
 ---
 
@@ -185,7 +185,7 @@ CARRY is the default.
 - [ ] For new modules: `'auto_install': True` is commented with TODO note
 - [ ] For new modules: `'application': True` is commented with TODO note
 - [ ] Lint is green; no refactoring beyond lint fix
-- [ ] Manifest version NOT bumped on conflict (kept TARGET); migration dirs handled per C2 - [[fp-merge-absorption]]
+- [ ] Manifest version set per C1 (bumped only when the source bumped it); migration dirs handled per C2 - [[fp-merge-absorption]]
 - [ ] For pre-existing dormant / category-3: if merge carried `installable:True`, re-set to False
       + re-comment `auto_install`/`application` with TODO breadcrumb (same as new-module landing)
 - [ ] Breadcrumb note: `# TODO: Uncomment when upgrading module to production-ready status` is the

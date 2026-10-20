@@ -62,7 +62,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | Asset bundles | `assets` key in manifest | v15 | Pre-v15: `qweb` key + bundle XML in views |
 | Version string | Strict `adapt_version` regex enforcement | v17 | Pre-v17: lenient; malformed version strings are rejected at install from v17 |
 | Manifest version - code upgrade | Keep short form `x.y.z`; series-prefixed value CONVERTED, never bumped | CORE | `upg-conventions.md` Convention 1 |
-| Forward-port version conflict | Keep TARGET's value, never bump | CORE | `[[fp-merge-absorption]]` C1 |
+| Forward-port version | `max(M + 1, S)` if source bumped | CORE | `[[fp-merge-absorption]]` C1 |
 
 > `adapt_version` above refers to the install-gate version-string validation (v17+ regex enforcement). The same function also series-prefixes the manifest for migration-runner comparison (its second role) - see C2 in `[[fp-merge-absorption]]`.
 

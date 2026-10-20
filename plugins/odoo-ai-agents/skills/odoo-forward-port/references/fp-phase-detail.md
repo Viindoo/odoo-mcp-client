@@ -453,8 +453,8 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT above was
   built from; never re-resolve>
 WORKLOG: <slug> - read, then append.
-CONSTRAINTS: C1 keep the TARGET version on a descriptor conflict, never bump; C2 retarget or
-  forward a migrations dir; C3 carry pre-existing source bugs faithfully, never inline-fix -
+CONSTRAINTS: C1 set the target version to max(M + 1, S) when the source bumped it; C2 retarget or
+  forward a migrations dir by whether the target has the problem the script solves; C3 carry pre-existing source bugs faithfully, never inline-fix -
   ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md
   [+ NEW MODULE yes: apply the installable:False checklist - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
   [+ LINT-ONLY: the module is installable:False at the target - fix syntax/lint breakage only,
@@ -491,13 +491,12 @@ but the target clean-tip was `installable:False`, re-set to False + re-comment
 dispatching the coder. SSOT: `[[fp-installable-false]]`.
 
 **8d - migration script:** decide each forwarded `migrations/<src-series>.a.b.c/` dir per C2. First
-the condition: retarget only when every module the script acts on is installable at the target tip;
-otherwise forward the dir unchanged under its source-series name and record why on the sha's
-`merge-log.md` row. A retarget renames to FULL `<tgt-series>.V` where `V` is chosen so the dir fires on a deployed target
-DB at manifest `M` (if `S > M`: `V=S`, merge already bumped; if `S <= M`: bump manifest to
-`V = M`'s last component +1, name dir `<tgt-series>.V`). Exception: a legacy source-origin-only
-data fix keeps `<src-series>.a.b.c` untouched. This is a migration-threshold action, NOT a "diff-touched-a-file" bump (C1). Full
-rule + `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`. After the rename, sweep the
+the precondition: every module the script acts on is installable at the target tip; otherwise forward
+the dir unchanged under its source-series name and record why on the sha's `merge-log.md` row. Then
+read the script and the target's code and data model for that module: when the target has the
+problem the script solves, retarget - rename to FULL `<tgt-series>.V`, `V` being the version C1 sets
+for the module; when it does not, forward the dir unchanged and record why on the same row. Full
+rule: `[[fp-merge-absorption]]`. After the rename, sweep the
 migration body for source-series literals still in log strings or version constants:
 
 ```bash

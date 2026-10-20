@@ -80,7 +80,7 @@ rule: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` Convention 1.
 | New module hand-created | Match sibling manifest (short) | `1.0.0` |
 | Existing module - code upgrade to a new series | Short form - keep unchanged, or CONVERTED from long form | `0.1` (unchanged); `17.0.1.0.0` -> `1.0.0` (converted) - see `upg-conventions.md` Convention 1 |
 | Existing module - patch/feature in same series | Keep current value | unchanged |
-| Forward-port `__manifest__.py` conflict | Keep TARGET file's `version` (never invent a bump) | see `[[fp-merge-absorption]]` (C1) |
+| Forward-port, source bumped an existing target module's `version` | `max(M + 1, S)` on the module part | see `[[fp-merge-absorption]]` (C1) |
 
 ---
 
