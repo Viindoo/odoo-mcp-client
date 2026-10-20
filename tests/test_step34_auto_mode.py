@@ -27,10 +27,32 @@ def _sh(cwd, *args):
                         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"})
 
 
+def _push_to_fork(repo, bare):
+    """Make `repo` really push a feature branch to remote `fork` (a local bare repo stands in for
+    the hosted fork; the remote's url keeps the public-looking owner the step reads)."""
+    _sh(repo.parent, "git", "init", "-q", "--bare", str(bare))
+    _sh(repo, "git", "config", "remote.fork.pushurl", str(bare))
+    _sh(repo, "git", "push", "-q", "fork", "HEAD:refs/heads/feat-x")
+
+
+def _fetch_upstream(repo, tmp_path, owner):
+    """Add a remote `upstream` of `owner` the user only FETCHES from: a real fetch of a source
+    repo that carries the series branch and a feature-looking branch, as an upstream's PR refs do."""
+    src = tmp_path / "upstream-src"
+    src.mkdir()
+    _sh(src, "git", "init", "-q", "-b", "17.0")
+    _sh(src, "git", "commit", "-q", "--allow-empty", "-m", "up")
+    _sh(src, "git", "branch", "feat-pr-ref")
+    _sh(repo, "git", "remote", "add", "upstream", f"https://example.org/{owner}/addons-repo.git")
+    _sh(repo, "git", "fetch", "-q", str(src), "+refs/heads/*:refs/remotes/upstream/*")
+    # A branch started from the upstream's series branch tracks the upstream.
+    _sh(repo, "git", "branch", "--track", "from-upstream", "upstream/17.0")
+
+
 @pytest.fixture()
 def machine(tmp_path):
-    """A repo with origin (org acme), a fork remote, branches master/17.0/18.0, and a catalog
-    declaring two addons entries inside it."""
+    """A repo with origin (org acme), a fork remote the user pushed to (alice), branches
+    master/17.0/18.0, and a catalog declaring two addons entries inside it."""
     repo = tmp_path / "work" / "addons-repo"
     (repo / "addons").mkdir(parents=True)
     (repo / "extra").mkdir()
@@ -39,6 +61,7 @@ def machine(tmp_path):
     _sh(repo, "git", "branch", "18.0")
     _sh(repo, "git", "remote", "add", "origin", "git@example.org:acme/addons-repo.git")
     _sh(repo, "git", "remote", "add", "fork", "https://example.org/alice/addons-repo.git")
+    _push_to_fork(repo, tmp_path / "alice-bare.git")
     _sh(repo, "git", "update-ref", "refs/remotes/origin/master", "HEAD")
     _sh(repo, "git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master")
     home = tmp_path / "odoo-ai"
@@ -74,9 +97,53 @@ def test_propose_derives_roots_org_fork_and_branches_from_catalog_and_remotes(ma
     assert f"trusted root: {machine['repo']}" in out.stdout
     assert f"trusted root: {machine['home']}/projects" in out.stdout
     assert "organization (origin owner): acme" in out.stdout
-    assert "fork owner (other remote): alice" in out.stdout
+    assert "fork owner (remote the user pushes to): alice" in out.stdout
     for branch in ("master", "17.0", "18.0"):
         assert f"protected branch: {branch}" in out.stdout
+
+
+def _fork_lines(out):
+    return [ln for ln in out.stdout.splitlines() if ln.startswith("fork owner")]
+
+
+def test_a_remote_the_user_pushes_feature_branches_to_is_a_fork_owner(machine):
+    out = _run(machine, "propose")
+    assert _fork_lines(out) == ["fork owner (remote the user pushes to): alice"]
+
+
+def test_an_upstream_read_only_remote_is_not_a_fork_owner(machine, tmp_path):
+    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
+    out = _run(machine, "propose")
+    assert out.returncode == 0, out.stderr
+    assert _fork_lines(out) == ["fork owner (remote the user pushes to): alice"]
+    assert "bigupstream" not in out.stdout
+    assert _run(machine, "apply").returncode == 0
+    assert "bigupstream" not in json.dumps(_data(machine))
+
+
+def test_a_clone_with_only_an_upstream_remote_has_no_fork_owner(machine, tmp_path):
+    _sh(machine["repo"], "git", "remote", "remove", "fork")
+    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
+    out = _run(machine, "propose")
+    assert _fork_lines(out) == []
+    assert _run(machine, "apply").returncode == 0
+    assert not any("Fork owner" in e for e in _data(machine)["autoMode"]["environment"])
+
+
+def test_a_remote_named_as_the_push_target_by_config_is_a_fork_owner(machine, tmp_path):
+    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
+    _sh(machine["repo"], "git", "config", "remote.pushDefault", "upstream")
+    out = _run(machine, "propose")
+    assert "bigupstream" in " ".join(_fork_lines(out))
+
+
+def test_a_branch_pushed_with_upstream_tracking_to_a_feature_branch_marks_its_remote_a_fork(
+        machine, tmp_path):
+    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
+    repo = machine["repo"]
+    _sh(repo, "git", "config", "branch.from-upstream.merge", "refs/heads/my-feature")
+    out = _run(machine, "propose")
+    assert "bigupstream" in " ".join(_fork_lines(out))
 
 
 def test_propose_without_a_catalog_row_names_what_is_missing_and_exits_1(machine):

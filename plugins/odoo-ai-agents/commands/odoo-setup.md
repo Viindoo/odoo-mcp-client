@@ -541,7 +541,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   run).
 - **34-auto-mode** - `propose` derives, from this machine only, the trusted roots (parent of every
   catalog `addons_path` plus the state root's `projects`), the organization (owner of `origin`), the
-  fork owner (owner of any other remote) and the protected branches (the remote's default branch plus
+  fork owner (owner of each other remote the user pushes to, never a fetch-only upstream) and the protected branches (the remote's default branch plus
   every `<major>.0` branch); show the proposal, then `apply` on consent. It writes tagged
   `odoo-ai-agents: ` entries into `autoMode.allow`, `autoMode.soft_deny`, `autoMode.environment`
   (each array keeps `"$defaults"` first) and `permissions.ask` push rules for the protected
