@@ -45,6 +45,9 @@ def _run(subcmd, settings_path, odoo_ai_home, env_extra=None, stdin_devnull=True
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env["CLAUDE_SETTINGS"] = str(settings_path)
     env["ODOO_AI_HOME"] = str(odoo_ai_home)
+    # The throwaway root lives under the runner's own temp dir, which the step treats as
+    # ephemeral; name a different temp dir so these tests exercise a real (non-ephemeral) root.
+    env["ODOO_AI_TEMP_DIRS"] = str(Path(odoo_ai_home).parent / "system-temp-elsewhere")
     if env_extra:
         env.update(env_extra)
     return subprocess.run(

@@ -17,6 +17,11 @@
 #     list + idempotent, backed-up writes; it also honours the opt-out itself,
 #     so this hook's own check is a defensive, redundant-by-design belt-and-
 #     braces guard, not the only enforcement point).
+#   - A throwaway state root ($ODOO_AI_HOME under a system temp directory or under the
+#     default root's scratch directory) is never granted rules, and the plugin's own
+#     earlier rules for a root that is gone (or sits under a system temp directory) are
+#     removed - the step script owns both decisions (see its EPHEMERAL STATE ROOTS note).
+#     The restart nudge below is shown only when a rule was really added.
 #   - Honours CLAUDE_SETTINGS (the step script reads it) for tests / non-default
 #     homes - never hard-codes the path.
 set -uo pipefail
@@ -42,6 +47,11 @@ _out="$(bash "${_perms}" apply </dev/null 2>&1)"
 _rc=$?
 
 if [ "${_rc}" -eq 0 ]; then
+  # Pruned stale rules, or an ephemeral root that gets none: nothing to announce.
+  case "${_out}" in
+    *"allow-listed in"*) ;;
+    *) exit 0 ;;
+  esac
   _msg="odoo-ai-agents: NEW state-root planning permissions were just added to Claude settings - because permissions are finalized BEFORE SessionStart hooks run, RESTART Claude Code once (or start a new session) for them to take effect this session."
 else
   _msg="odoo-ai-agents: could not auto-allow state-root planning permissions (rc=${_rc}). Run /odoo-ai-agents:odoo-setup permissions. Detail: ${_out}"
