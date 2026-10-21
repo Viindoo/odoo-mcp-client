@@ -68,7 +68,7 @@ phases:
     model_tier: sonnet
     # Runner generates concrete fix guidance for the recommended hypothesis:
     #   1. Step-by-step instructions with exact file paths and code changes
-    #   2. Any migration or manifest changes needed
+    #   2. Any manifest changes needed; a migration is deferred until the loops end (never written here)
     #   3. Odoo-version-safe patterns (inherit_id, xpath, OWL component override)
     # Writes .odoo-ai/debug/<slug>-fix-guidance.md
 

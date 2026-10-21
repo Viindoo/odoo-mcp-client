@@ -63,13 +63,18 @@ data.
 
 ## When to use
 
-Scope: write module-level migration scripts - for a module version bump within a series, or for the
+Scope: write module-level migration scripts - for a change within a series, or for the
 custom modules of a database migration (MIG) project the user asked for separately, using the
 `migration-notes.md` of the code upgrade when the user gives one. It is never a step of a code
 upgrade (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0) and never executes a
 migration.
 
-A migration script is needed when a module version bump introduces any of: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation.
+**Precondition (timing and gate: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+§ 5).** Write a script only when the module was `installable` True before the change and stays True,
+the development loops are done, and a fresh install is proven. Otherwise write nothing, and say
+which condition failed.
+
+A migration script is needed when the change alters data existing databases hold: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation. This step owns the module's one version bump.
 
 ---
 
@@ -106,7 +111,7 @@ into every later state-root Read/Write/Edit - never the placeholder or a bare `.
 > only. Single mode (flat `<SHARE_DIR>/designs/<slug>-*.md`): unchanged. Full contract:
 > `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 
-Confirm: (1) migration type, (2) source/target field/model names, (3) module name and version bump, (4) timing (pre-migrate / post-migrate / both).
+Confirm: (1) migration type, (2) source/target field/model names, (3) module name and its new version, (4) timing (pre-migrate / post-migrate / both).
 
 Simultaneously call (parallel):
 
@@ -126,6 +131,8 @@ For relational fields, call `validate_relation` for each. For openupgradelib hel
 ### Round 3 - Write the script(s)
 
 Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` matches the NEW version string in the module descriptor - `__manifest__.py`, or `__openerp__.py` on v8-v9 (the Tier-2 glob below returns whichever the module has; read that path, never a re-guessed filename).
+
+Set that descriptor's `version` to the new version in the same pass (the module's one bump).
 
 Script rules and code templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/script-rules.md`
 

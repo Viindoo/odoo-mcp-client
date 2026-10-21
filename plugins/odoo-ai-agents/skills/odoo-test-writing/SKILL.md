@@ -184,6 +184,8 @@ Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` sk
    (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Database state); say when a
    break touched a `noupdate` record or the schema, so the caller rebuilds fresh.
 
+A break edit the permission classifier refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
+
 No handle -> the tests stay written and the runs are pending (§ No instance).
 
 Tour/HttpCase: author the tour + `HttpCase` wrapper and prove it the same way; running the suite

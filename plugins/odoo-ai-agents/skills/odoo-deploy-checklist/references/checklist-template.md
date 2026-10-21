@@ -31,7 +31,7 @@
 - [✓/⚠/✗/N/A] Backup age ≤ 24h before deploy window
 
 ### 3. Data migration (database migration project only; N/A for a code upgrade)
-- [✓/⚠/✗/N/A] Migration scripts present for all upgrading modules
+- [✓/⚠/✗/N/A] Migration scripts present for all upgrading modules (installable modules only)
 - [✓/⚠/✗/N/A] Migration tested on prod-size data
 - [✓/⚠/✗/N/A] Custom SQL constraints checked for data conflicts
 - [✓/⚠/✗/N/A] Post-migration data integrity assertions pass

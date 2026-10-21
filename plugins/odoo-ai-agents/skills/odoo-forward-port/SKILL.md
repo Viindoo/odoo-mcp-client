@@ -425,9 +425,8 @@ messaging tool is present, re-invoke `odoo-coding` cold with the full FP-ENRICHE
   returns its file list and P10 commits the batch) + `RUN_ID: <this run's id>` +
   `WORKER_AGENT_ID: <id recorded for this module>` (omit on its first invocation) +
   `DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>` (P3's route-out result) +
-  `CONSTRAINTS` - the forward-port boundaries in ONE field: C1 (set the target `version` to `max(M + 1, S)` when the source bumped it), C2 (migration dir: retarget when the
-  target has the problem the script solves, else forward), C3 (carry pre-existing source bugs faithfully, never
-  inline-fix) - `[[fp-merge-absorption]]`; plus the installable:False checklist for a new module and
+  `CONSTRAINTS` - the forward-port boundaries in ONE field: C1 (manifest version), C3 (carry
+  pre-existing source bugs faithfully, never inline-fix) - `[[fp-merge-absorption]]`; plus the installable:False checklist for a new module and
   `LINT-ONLY` for a module `installable:False` at the target - `[[fp-installable-false]]`. Pass no
   `INSTANCE_HANDLE`: `odoo-coding` resolves the node's instance over that `WORKTREE_PATH`.
   Bucket (b): 3-way merge + adapt. (c): re-implement on the target idiom. (d): no adapt code. (a): no
@@ -445,10 +444,6 @@ messaging tool is present, re-invoke `odoo-coding` cold with the full FP-ENRICHE
       but merge carries `installable:True`): re-set to False + re-comment `auto_install`/
       `application` with breadcrumb - then lint-fix only.
   Both land in the LINT-ONLY lane. SSOT: `[[fp-installable-false]]`.
-- **8d migration script**: decide each forwarded `migrations/<src-series>.a.b.c/` dir per C2 -
-  every module the script acts on must be installable at the target tip; then read the script and the
-  target's code and data model, retarget the dir (FULL `<tgt-series>.V`, `V` from C1) when the target
-  has the problem the script solves, else forward it unchanged and record why. Full rule: `[[fp-merge-absorption]]`.
 8b writes directly into the integration worktree, so there is nothing to converge; P10 commits the adapt edits.
 
 **P9 - Verify by behavior [PER-BATCH, in integration].** DELEGATE the run - do NOT allocate a DB +
@@ -487,9 +482,15 @@ reconciled or escaped - at P12 with the PR.
 **Do NOT hand over the P9 verify instance** to `odoo-i18n`
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4); let it provision.
 
+**P9.6 - Migration dir (C2) [per batch, after P9 is green].** For each module whose range forwards a
+`migrations/<src-series>.a.b.c/` dir, resume that module's coder through `odoo-coding` (8b,
+`WORKER_AGENT_ID`) with `CONSTRAINTS` = C2 (`[[fp-merge-absorption]]`) and the dir list: it retargets
+or forwards each dir and returns the files it moved. Store them on the module's `merge-log.md` row
+(`files:`) with the outcome. No forwarded dir -> no invocation.
+
 **P10 - Conclude the merge [self-decided, per batch].** Write `merge-log.md`, reconcile the file
 list, and commit - no human confirmation (a local merge on `fp/<slug>`; P12 presents it). Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE with the FULL file
-list - the union of every module row's `files:` (8b) plus the files P9.5 returned - and the request
+list - the union of every module row's `files:` (8b) plus the files P9.5 and P9.6 returned - and the request
 "stage these, then conclude the merge with one commit". That closes the batch's single open merge
 window: the whole range lands as ONE merge commit, and every SHA in the range is marked `done` in
 `checkpoint.json` (buckets a/d included - Hard rule 7). Then confirm the tree is clean (`git -C <path>/fp-integration status
@@ -656,11 +657,8 @@ Per-batch checks:
 - **Multi-repo env bootstrap.** When source and target live in different repos/clones, bring
   the source ref into reach (invoke `git-toolkit:git-ops`: add source remote + fetch) BEFORE computing
   the merge-base or merging. Detail: `references/fp-phase-detail.md`.
-- **Manifest version & migration dir.** When the range changes an existing target module's `version` on
-  the source, set the target `<tgt-descriptor>` `version` to `max(M + 1, S)` (C1). A forwarded
-  `migrations/` dir is RETARGETED to the target series when the target has the problem its script
-  solves, else forwarded unchanged (C2) - C1 and C2 are distinct; apply both. SSOT:
-  `[[fp-merge-absorption]]`.
+- **Manifest version & migration dir.** C1 sets the manifest version at the merge, C2 decides each
+  forwarded `migrations/` dir at P9.6; they are distinct, apply both. SSOT: `[[fp-merge-absorption]]`.
 - **Field-label grounding.** When the port renames or re-labels a field, confirm the
   target's canonical label before adapting -
   `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<target>')` - so the

@@ -133,7 +133,7 @@ question; nothing under an approved plan enters Plan Mode again. From there:
   the design into the plan, approved in Plan Mode: a flat DAG of work NODES (`depends_on` edges only), each
   naming the agent, mode and model it launches, followed by the default tail - review R1 then R2
   (R3 for specialist domains), acceptance in parallel, one merged fix round (at most three),
-  i18n and docs behind `when:` conditions, then integrate, monitor and the merge gate
+  i18n, migration and docs behind `when:` conditions, then integrate, monitor and the merge gate
   (`skills/odoo-intake/references/plan-mode-schema.md` § Default tail). `odoo-intake` serializes
   the approved plan to a run file (`<ISOLATE_DIR>/run-<id>.json`) and the **main agent runs it**
   per that file's § Running the plan: pick every ready node, evaluate its `when:` with a tool,
@@ -186,7 +186,7 @@ flowchart TD
     PK -->|"integrate node<br/>(once per repo)"| INT["main agent invokes git-toolkit:git-ops<br/>pre-PR lint, squash, push, open the run's ONE PR"]
     PK -->|"tail: review R1 -> R2 (R3 when due)<br/>|| acceptance A1A2 (A4 when due)"| REV["odoo-code-reviewer + odoo-qa-tester<br/>one merged fix round, max 3"]
     REV --> PK
-    PK -->|"when: new msgids / user-visible feature"| DOC["odoo-translator per language<br/>docs-module: odoo-doc-illustration<br/>docs-site: odoo-doc-site"]
+    PK -->|"when: new msgids / user-visible feature"| DOC["odoo-translator per language<br/>docs-module: odoo-doc-illustration<br/>docs-site: odoo-doc-site<br/>migration: odoo-data-migration"]
 
     DISP --> CC["Continuation Contract"]
     DOC --> CC
@@ -425,12 +425,13 @@ flowchart TD
     subgraph P8_grp["P8 - Adapt (code first, then tests;<br/>ONE resumable worker<br/>per module across ALL its commits)"]
         P7 --> PB["adapt code by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip<br/>(odoo-coding -> odoo-coder, resumed<br/>by WORKER_AGENT_ID; COMMIT: caller)"]
         PB --> PA["node test leg, after the code<br/>(odoo-test-writer adapts source tests,<br/>executed break-check;<br/>bucket-a absorption probe)"]
-        PA --> PC["migration rename gate + i18n compute<br/>(8e records i18n_due; no dispatch here)"]
+        PA --> PC["i18n compute<br/>(8e records i18n_due; no dispatch here)"]
     end
 
     PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, integrated run per batch,<br/>break-check reports carried;<br/>released once P10 concludes the last batch)"]
     P9 --> P95["P9.5 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>odoo-i18n builds its OWN demo-loaded<br/>export instance, never the P9 one)"]
-    P95 --> P10["P10 - Conclude the merge<br/>(self-decided; ONE commit closes the batch's range;<br/>P5 again only per human-approved batch)"]
+    P95 --> P96["P9.6 - migration dir (C2)<br/>(retarget or forward, after P9 is green)"]
+    P96 --> P10["P10 - Conclude the merge<br/>(self-decided; ONE commit closes the batch's range;<br/>P5 again only per human-approved batch)"]
     P10 --> P11["P11 - End-to-end acceptance<br/>(odoo-acceptance, on its own demo-carrying<br/>instance) - MANDATORY cluster-wide,<br/>narrow-escape only; runs BEFORE the P12 PR<br/>opens or its review runs"]
     P11 --> P12["P12 - PR + code-review<br/>(mandatory for new engines);<br/>pushes + opens the PR only after P11 acceptance<br/>and this phase's own diff-based review clear"]
     P12 --> DONE(["Done - <ISOLATE_DIR>/forward-port/"])
@@ -446,9 +447,10 @@ flowchart TD
 | P5 Git merge --no-commit | ONE `git merge --no-ff --no-commit` of the batch's range tip (absorb-all): every source SHA in the range comes with it and the merge window stays open through P10; never one merge per commit | Once per batch | - |
 | P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
 | P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
-| P8 Adapt | Code first, then tests, per module: adapt code by bucket (a=skip/b=3-way/c=reimplement/d=skip) via `odoo-coding` -> `odoo-coder`, then the node test leg (`odoo-test-writer` adapts the source tests and proves each with an executed break-check; a bucket-(a) commit runs its source test first as an absorption probe - GREEN confirms it is absorbed, a failure on the assertion re-buckets it); the node runs with `COMMIT: caller`, so it makes no commit and the batch's merge window stays open; migration dir retarget or forward (C2: retarget when the target has the problem the script solves) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 version formula / C3 source-bug gate | Serial per module (a module touched by several commits is adapted once against the merged result; its coder is launched once and resumed by the id that launch returned) | - |
+| P8 Adapt | Code first, then tests, per module: adapt code by bucket (a=skip/b=3-way/c=reimplement/d=skip) via `odoo-coding` -> `odoo-coder`, then the node test leg (`odoo-test-writer` adapts the source tests and proves each with an executed break-check; a bucket-(a) commit runs its source test first as an absorption probe - GREEN confirms it is absorbed, a failure on the assertion re-buckets it); the node runs with `COMMIT: caller`, so it makes no commit and the batch's merge window stays open; i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 version formula (installable modules only) / C3 source-bug gate | Serial per module (a module touched by several commits is adapted once against the merged result; its coder is launched once and resumed by the id that launch returned) | - |
 | P9 Verify by behavior | Ephemeral instance, integrated run per batch carrying each node's break-check report; every batch reuses it, and the pipeline releases it once P10 concludes the last batch | Per-batch | - |
 | P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; dispatches `odoo-i18n` once, which builds its OWN demo-loaded export instance on the batch worktree - never the P9 test instance, whose database lacks demo terms (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); result presented at P12 | - | - |
+| P9.6 Migration dir | Per batch, after P9 is green: each forwarded `migrations/<src-series>.a.b.c/` dir is retargeted when the target has the problem its script solves, else forwarded unchanged (C2); resumes the module's coder | - | - |
 | P10 Conclude the merge | Self-decided local merge on `fp/<slug>`: ONE commit (via `git-toolkit:git-ops`) stages the batch's full file list and concludes the merge, closing the whole range; what it records is presented at P12; there is no per-commit P5 loop - P5 runs again only for the next human-approved batch | - | - |
 | P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch, with no instance handle - it provisions its own demo-carrying cluster; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the plan's default tail, `skills/odoo-intake/references/plan-mode-schema.md` § Default tail) | - | L2 (human) - verdict carried into the P12 human-merge decision |
 | P12 PR + code-review | Push + open PR only after P11 acceptance and this phase's own diff-based review clear; mandatory code-review for new engines; bot-comment cross-check runs post-PR (the one sub-step that genuinely needs an open PR) | - | STOP - human merges the PR |

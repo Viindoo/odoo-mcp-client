@@ -453,8 +453,7 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT above was
   built from; never re-resolve>
 WORKLOG: <slug> - read, then append.
-CONSTRAINTS: C1 set the target version to max(M + 1, S) when the source bumped it; C2 retarget or
-  forward a migrations dir by whether the target has the problem the script solves; C3 carry pre-existing source bugs faithfully, never inline-fix -
+CONSTRAINTS: C1 manifest version; C3 carry pre-existing source bugs faithfully, never inline-fix -
   ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md
   [+ NEW MODULE yes: apply the installable:False checklist - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
   [+ LINT-ONLY: the module is installable:False at the target - fix syntax/lint breakage only,
@@ -489,19 +488,6 @@ When the merged `<tgt-descriptor>` now shows `installable:True` (upgrade-commit 
 but the target clean-tip was `installable:False`, re-set to False + re-comment
 `auto_install`/`application` with the `# TODO: Uncomment when upgrading` breadcrumb before
 dispatching the coder. SSOT: `[[fp-installable-false]]`.
-
-**8d - migration script:** decide each forwarded `migrations/<src-series>.a.b.c/` dir per C2. First
-the precondition: every module the script acts on is installable at the target tip; otherwise forward
-the dir unchanged under its source-series name and record why on the sha's `merge-log.md` row. Then
-read the script and the target's code and data model for that module: when the target has the
-problem the script solves, retarget - rename to FULL `<tgt-series>.V`, `V` being the version C1 sets
-for the module; when it does not, forward the dir unchanged and record why on the same row. Full
-rule: `[[fp-merge-absorption]]`. After the rename, sweep the
-migration body for source-series literals still in log strings or version constants:
-
-```bash
-grep -rn '<src-series>' migrations/<tgt-series>/
-```
 
 **8e - i18n: COMPUTE and RECORD; the dispatch happens at P9.5.** Do NOT dispatch `odoo-i18n` here.
 Evaluate both mandate conditions now and record them on the module's `merge-log.md` row:
@@ -629,10 +615,26 @@ Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
 ---
 
+## P9.6 - Migration dir (C2) (PER-BATCH, after P9 is green)
+
+Only for a module whose range forwards a `migrations/<src-series>.a.b.c/` dir; none -> skip the phase.
+Resume that module's coder through `odoo-coding` (8b, `WORKER_AGENT_ID`) with `CONSTRAINTS` = C2
+(`${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md`) and the dir list. The coder decides each dir
+per C2, and after a rename sweeps the migration body for source-series literals still in log strings
+or version constants:
+
+```bash
+grep -rn '<src-series>' migrations/<tgt-series>/
+```
+
+Store the files it moved on the module's `merge-log.md` row (`files:`) with the per-dir outcome.
+
+---
+
 ## P10 - Conclude the merge (self-decided, per batch) - ONE commit closes the whole range
 
 No human confirmation (a local merge on `fp/<slug>`; P12 presents it). Before the commit, build the FULL file list:
-the union of every module row's `files:` (8b) plus the files P9.5's `odoo-i18n` result names.
+the union of every module row's `files:` (8b, P9.6) plus the files P9.5's `odoo-i18n` result names.
 Compare it with `git -C <path>/fp-integration status --porcelain` (bounded read): a modified or
 untracked path in neither the list nor the merge's own staged set is work no step accounted for -
 attribute it to its module (or remove it) before you continue. Then invoke the

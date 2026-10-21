@@ -187,7 +187,7 @@ C1-C3 rules). `CONSTRAINTS` naming `LINT-ONLY` means the module is `installable:
 target: fix only lint/syntax breakage, change no behavior (`[[fp-installable-false]]`).
 `CONSTRAINTS` naming `[[fp-merge-absorption]]` applies the paragraph below.
 
-**Forward-port adapt (your brief's `CONSTRAINTS` names `[[fp-merge-absorption]]`).** Do not edit the module descriptor `version` or a forwarded `migrations/` dir - the node's coder sets the version (C1) and decides each dir (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
+**Forward-port adapt (your brief's `CONSTRAINTS` names `[[fp-merge-absorption]]`).** Do not edit the module descriptor `version` or a forwarded `migrations/` dir - the node's coder owns both (`[[fp-merge-absorption]]` C1, C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
 
 **Modules-upgrade adapt (your brief references `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`).** Opposite disposition to Forward-port adapt above: this is a CODE upgrade - modernise to the target series' newest frontend mechanism as if newly developed, break old-series compatibility freely, write NO migration script, do NOT bump `version`, implement any `reuse_candidates[]` target-core mechanism instead of a shim, and FIX defects rather than carrying them faithfully. Full rules: that snippet's § Convention 0.
 

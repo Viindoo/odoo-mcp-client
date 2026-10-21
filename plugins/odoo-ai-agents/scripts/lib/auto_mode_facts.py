@@ -159,11 +159,12 @@ def build_entries(facts: dict) -> dict:
     org_globs = _join(f"{o}/*" for o in orgs) if orgs else "the upstream organization"
     fork_text = f" ({_join(forks)})" if forks else ""
     allow = [
-        TAG + f"Editing, creating, moving and deleting files inside the trusted development roots "
-        f"({_join(roots)}) is routine Odoo development. This includes temporarily removing or "
-        "altering an access check, record rule, guard or data record to prove that a test fails "
-        "when the rule it guards is broken (a break-check), as long as the change stays "
-        "uncommitted and is restored or rebuilt afterwards.",
+        TAG + "Editing, creating, moving and deleting any file inside the trusted development roots "
+        f"({_join(roots)}) and their git worktrees is routine Odoo development, including data, "
+        "security and test files. A deliberate break-check is expected work, not a weakening of "
+        "security: it temporarily alters an access rule, record rule, group, guard or data record "
+        "in a file to prove that a test fails when the rule it guards is broken, stays "
+        "uncommitted, and is restored or rebuilt afterwards.",
         TAG + "Routine git on the repositories inside the trusted roots is allowed: commit, merge, "
         "rebase, cherry-pick (including --continue, --skip and --abort after a conflict was "
         f"resolved on disk), worktree add and remove, tags, pushing branches to the fork{fork_text} "
