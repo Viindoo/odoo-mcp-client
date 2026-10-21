@@ -484,7 +484,8 @@ Check whether an instance is running; start it if not.
 **Inputs:** series, db name (optional), `INSTANCE_HANDLE` (optional).
 
 **Mechanism.** `instance_status(series[, profile], run_id)` reports whether the declared instance
-is up and its `url`, plus the live `shared_lease` and the resumable `parked_lease` for the series
+is up and its `url` (with the handle's `lease_token` instead: whether that lease is served, and its
+own `url`), plus the live `shared_lease` and the resumable `parked_lease` for the series
 (a parked lease carries its full token only when your run owns it and it is this session's or
 its session ended). `lease_list` (scope `mine`, or `run` with your `run_id`) reports what your run
 still holds; another session's row shows only its token prefix, and `session_alive: false` marks a
@@ -494,7 +495,7 @@ lease whose session ended.
   but a `parked_lease` exists -> `status: parked` with its db and ports (and token when yours) - never `down`. Neither -> `status: down`.
 - **Spin-up requested with an `INSTANCE_HANDLE`:** `instance_serve(lease_token=<the handle's lease_token>)` - it serves the handle's own
   database on that lease (attaches when already listening, resumes when parked, else launches; the
-  database must have been built), creates no lease, and never serves by `series`. Skip `instance_status`: it reports the declared instance, not the handle.
+  database must have been built), creates no lease, and never serves by `series`. Ask `instance_status(lease_token=<the handle's lease_token>)` for the handle's state; `instance_status(series)` reports the declared instance, never the handle's.
 - **Spin-up requested, no handle:** a `parked_lease` -> operation 9, resume-instance. Already `up` -> report it.
   Otherwise `instance_serve(series, run_id)`; it blocks until HTTP answers - do NOT call
   `lease_acquire` for an ensure-up.

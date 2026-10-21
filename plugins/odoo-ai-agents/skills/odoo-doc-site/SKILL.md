@@ -62,9 +62,10 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
      fetch and create the worktree plus a new branch from the series' upstream branch there; the
      clone path is never written. Then capture `ISOLATE_DIR` per series worktree with
      `project_dir` and pass the same literals everywhere.
-   - Docs venv: `uv venv <SHARE_DIR>/docs-site/<site>/<series>/venv`, then `uv pip install
-     --python <venv>/bin/python -r <worktree>/requirements.txt`. Record `<venv>/bin/python` as
-     `DOCS PYTHON`.
+   - Docs venv: run `docs_python.py venv --worktree <worktree> --venv
+     <SHARE_DIR>/docs-site/<site>/<series>/venv --json`. It builds the venv on the Python the docs
+     repo states, else the newest interpreter that installs `requirements.txt`; record its `python`
+     as `DOCS PYTHON`. Exit 3 (no interpreter installs them): `NEEDS_CONTEXT` with its `tried` list.
    - Write `<RUN_DIR>policy.json` from `docs_site_config.py show --key <site>` (the row's `policy`
      object); every gate and writer uses that path.
    - Run `repo_facts.py --worktree <worktree> --json` and save the result to

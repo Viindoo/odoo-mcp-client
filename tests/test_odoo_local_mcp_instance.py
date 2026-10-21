@@ -432,6 +432,62 @@ def test_a_test_build_binds_the_leases_port_with_its_series_flag(world, series, 
     assert _odoo_bin_port_flags(world) == [(flag, str(lease["ports"][0]))]
 
 
+def _interface_flags(world):
+    """The (flag, value) pairs for the listen address in the recorded odoo-bin calls."""
+    words = world["calls"].read_text().split()
+    return [(w, words[i + 1]) for i, w in enumerate(words[:-1])
+            if w in ("--http-interface", "--xmlrpc-interface")]
+
+
+@pytest.mark.parametrize("series,expected", [
+    ("19.0", [("--http-interface", "127.0.0.1")]),  # defaults to the wildcard and warns about it
+    ("17.0", []),   # defaults to empty = all interfaces, no warning: nothing to state
+    ("20.0", []),   # already defaults to loopback
+    ("10.0", []),
+])
+def test_a_build_states_loopback_only_on_a_series_that_warns_about_the_wildcard_default(
+        world, series, expected):
+    """A series that logs "missing --http-interface, using 0.0.0.0" on every start turns every
+    clean run into tests-passed-with-warnings; the build states the loopback address itself."""
+    _declare_series(world, series)
+    with McpClient(world["env"](), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world, series=series, ports=1)
+        assert _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])["result"] == "success"
+    assert _interface_flags(world) == expected
+
+
+def test_a_caller_chosen_listen_address_comes_after_the_loopback_the_build_states(world):
+    """Odoo's option parser keeps the last value, so an explicit --http-interface in extra_args
+    (a caller who wants another address) still wins over the tool's loopback."""
+    _declare_series(world, "19.0")
+    with McpClient(world["env"](), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world, series="19.0", ports=1)
+        job = _ok(_build(c, world, lease["token"], extra_args=["--http-interface=0.0.0.0"]))
+        _wait(c, job["job_id"])
+    words = world["calls"].read_text().split()
+    assert words.index("127.0.0.1") < words.index("--http-interface=0.0.0.0")
+
+
+@pytest.mark.parametrize("series,line", [("19.0", "http_interface = 127.0.0.1"), ("17.0", None)])
+def test_a_served_instance_states_loopback_only_on_a_series_that_warns_about_the_wildcard_default(
+        world, series, line):
+    _declare_series(world, series)
+    with McpClient(world["env"](), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world, series=series, ports=1)
+        out = _ok(c.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                         timeout=120))
+        assert out["server_pid"]
+        conf = "\n".join(p.read_text() for p in (world["home"] / "conf").glob("*.conf"))
+        if line:
+            assert line in conf.splitlines(), conf
+        else:
+            assert "interface" not in conf, conf
+        _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
 def test_a_two_port_lease_builds_with_both_ports_under_their_series_flags(client, world):
     lease = _lease(client, world, ports=2)
     job = _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod"))
@@ -548,8 +604,39 @@ def test_serve_by_series_registers_the_shared_render_lease(client, world):
 def test_status_of_a_series_with_nothing_running(client, world):
     world["curl_mode"].write_text("000", encoding="utf-8")
     out = _ok(client.call("instance_status", {"series": SERIES, "cwd": str(world["work"])}))
-    assert out == {"series": SERIES, "up": False, "http_port": None, "url": None, "shared_lease": None,
-                   "parked_lease": None}
+    assert out == {"series": SERIES, "up": False, "http_port": None, "url": None, "lease": None,
+                   "shared_lease": None, "parked_lease": None}
+
+
+def test_status_of_a_served_lease_reports_that_leases_own_port_not_the_declared_instance(client, world):
+    """A handle's lease is served on its own reserved port. The declared instance of the series is
+    another database that may not run at all, so asking by series said up:false for a lease that
+    was serving; asking with the handle's lease_token reports the lease."""
+    world["curl_mode"].write_text("000", encoding="utf-8")  # nothing answers the declared port
+    lease = _lease(client, world, ports=1)
+    by_series = _ok(client.call("instance_status", {"series": SERIES, "cwd": str(world["work"])}))
+    assert by_series["up"] is False and by_series["lease"] is None
+    before = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
+    assert before["up"] is False and before["lease"]["served"] is False and before["series"] == SERIES
+    world["curl_mode"].write_text("boot", encoding="utf-8")  # nothing listens yet, then the server does
+    (world["curl_mode"].parent / "curl-count").unlink(missing_ok=True)
+    _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                    timeout=120))
+    after = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
+    port = lease["ports"][0]
+    assert after["up"] is True and after["http_port"] == port
+    assert after["url"] == "http://localhost:%d" % port and after["lease"]["served"] is True
+    assert after["http_port"] != world["port_base"] - 1, "the lease's port, not the declared one"
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
+def test_status_needs_a_series_or_a_lease_and_the_two_must_agree(client, world):
+    assert _err(client.call("instance_status", {"cwd": str(world["work"])}))["code"] == "INVALID_ARGUMENTS"
+    lease = _lease(client, world, ports=1)
+    err = _err(client.call("instance_status", {"lease_token": lease["token"], "series": "16.0",
+                                               "cwd": str(world["work"])}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "belongs to series" in err["message"]
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
 def test_serve_failure_is_named_and_carries_the_scripts_reason(client, world):

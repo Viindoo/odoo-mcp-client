@@ -52,6 +52,22 @@ OPTIONS = {
     "20.0": (True, _MAIN_NEW, _GEVENT, "value", "test-tags"),
 }
 
+# The HTTP listen-address option per series: (long flag, dest, its my_default). The oldest series
+# spell it `--xmlrpc-interface`; from 11.0 `--http-interface` (with the old spelling as a hidden
+# alias up to 18.0) defaults to '' ("all interfaces") until 19.0 makes the wildcard explicit - the
+# default that series warns about when a launch states none - and 20.0 defaults to loopback.
+_IFACE_OLD = ("--xmlrpc-interface", "xmlrpc_interface", "")
+INTERFACE = {
+    "8.0": _IFACE_OLD, "9.0": _IFACE_OLD, "10.0": _IFACE_OLD,
+    "11.0": ("--http-interface", "http_interface", ""), "12.0": ("--http-interface", "http_interface", ""),
+    "13.0": ("--http-interface", "http_interface", ""), "14.0": ("--http-interface", "http_interface", ""),
+    "15.0": ("--http-interface", "http_interface", ""), "16.0": ("--http-interface", "http_interface", ""),
+    "17.0": ("--http-interface", "http_interface", ""), "18.0": ("--http-interface", "http_interface", ""),
+    "19.0": ("--http-interface", "http_interface", "0.0.0.0"),
+    "20.0": ("--http-interface", "http_interface", "127.0.0.1"),
+}
+_INTERFACE_ALIAS_SERIES = ("11.0", "12.0", "13.0", "14.0", "15.0", "16.0", "17.0", "18.0")
+
 # Short options every series declares with one meaning (long name as declared, value-taking unless
 # a store_true flag), and the series that no longer declare one.
 _SHORTS = (("c", "--config", True), ("s", "--save", False), ("i", "--init", True),
@@ -113,6 +129,10 @@ def _option_lines(series):
         out.append('        group.add_option(%s"%s", dest="%s", type="int")' % (short, flag, dest))
     for flag, dest in second:
         out.append('        group.add_option("%s", dest="%s", type="int")' % (flag, dest))
+    flag, dest, default = INTERFACE[series]
+    out.append('        group.add_option("%s", dest="%s", my_default=\'%s\')' % (flag, dest, default))
+    if series in _INTERFACE_ALIAS_SERIES:
+        out.append('        group.add_option("--xmlrpc-interface", dest="http_interface")')
     if dev == "value":
         out.append("        group.add_option('--dev', dest='dev_mode', type=\"string\")")
     elif dev == "flag":

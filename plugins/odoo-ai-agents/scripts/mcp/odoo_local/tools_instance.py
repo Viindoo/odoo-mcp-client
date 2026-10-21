@@ -12,7 +12,9 @@
                   are the result.
   instance_status `50-instance-spinup.sh check` + the allocator's shared/parked lookups; when the
                   declared server is up, its declared port (the same catalog row the check read,
-                  via instances_io.select_instance) is reported as http_port/url.
+                  via instances_io.select_instance) is reported as http_port/url. Given a
+                  lease_token it reports THAT lease instead (served = a server bound to it, its
+                  own reserved port) and runs no check: the declared instance is another database.
 
 Which interpreter serves a lease: the lease row, never the catalog's first row for the series. The
 server passes the lease's own catalog profile (lease.profile) as --profile, and
@@ -120,7 +122,7 @@ import uuid
 
 from . import cli, jobs, protocol, tools_lease
 from .errors import ToolError
-from .tools_lease import (HANDLE_SCHEMA, NO_RUN_ID, NULLABLE_FOUND_LEASE_SCHEMA, PROFILE_PROP, SERIES_PROP,
+from .tools_lease import (HANDLE_SCHEMA, LEASE_SCHEMA, NO_RUN_ID, NULLABLE_FOUND_LEASE_SCHEMA, PROFILE_PROP, SERIES_PROP,
                           _obj)
 
 OPS_SCRIPT_REL = "scripts/setup-steps/55-instance-ops.sh"
@@ -1321,25 +1323,46 @@ def _declared_port(series, profile, cwd):
 
 def _status(args, ctx):
     cwd = _cwd(args)
-    argv = ["check", "--version", args["series"]]
-    if args.get("profile"):
-        argv += ["--profile", args["profile"]]
-    try:
-        rc, _out, _err = cli.run(cli.interpreter_for(_spinup_script()) + argv, cwd, STATUS_TIMEOUT_S)
-    except cli.SubprocessTimeout:
-        rc = None
+    token, series = args.get("lease_token"), args.get("series")
+    if not token and not series:
+        raise ToolError("INVALID_ARGUMENTS",
+                        "arguments: pass series (the declared instance of a series) or lease_token "
+                        "(the lease of an INSTANCE_HANDLE)")
+    lease = None
+    if token:
+        lease = tools_lease.lease_from_row(_require_row(token))
+        if series and lease.get("series") and series != lease["series"]:
+            raise ToolError("INVALID_ARGUMENTS",
+                            "arguments.series: lease %s belongs to series %s, not %s" % (
+                                token[:8], lease["series"], series),
+                            {"token_prefix": token[:8], "lease_series": lease["series"],
+                             "series": series})
+        series = lease["series"]
     found = {}
     for state in ("shared", "parked"):
-        query = {"series": args["series"], "state": state, "cwd": cwd}
+        query = {"series": series, "state": state, "cwd": cwd}
         if args.get("run_id"):
             query["run_id"] = args["run_id"]
         res = tools_lease._find(query, ctx)
         found[state] = res["lease"] if res["found"] else None
-    up = rc == 0
-    port = _declared_port(args["series"], args.get("profile"), cwd) if up else None
-    return {"series": args["series"], "up": up, "http_port": port,
-            "url": tools_lease.serve_url(port) if port is not None else None,
-            "shared_lease": found["shared"], "parked_lease": found["parked"]}
+    if lease is not None:
+        # A lease is its own instance: up = a server is bound to it, on its own reserved port. The
+        # declared instance of the series (50-instance-spinup.sh check) is another database.
+        up, port, url = bool(lease["served"]), lease["http_port"], lease["url"]
+    else:
+        argv = ["check", "--version", series]
+        if args.get("profile"):
+            argv += ["--profile", args["profile"]]
+        try:
+            rc, _out, _err = cli.run(cli.interpreter_for(_spinup_script()) + argv, cwd,
+                                     STATUS_TIMEOUT_S)
+        except cli.SubprocessTimeout:
+            rc = None
+        up = rc == 0
+        port = _declared_port(series, args.get("profile"), cwd) if up else None
+        url = tools_lease.serve_url(port) if port is not None else None
+    return {"series": series, "up": up, "http_port": port, "url": url,
+            "lease": lease, "shared_lease": found["shared"], "parked_lease": found["parked"]}
 
 
 # --------------------------------------------------------------------------- #
@@ -1710,24 +1733,39 @@ def register(registry, ctx):
     )
     registry.add(
         "instance_status",
-        "Report whether the declared instance of a series is up (its declared port answers and is the "
-        "same project) and, when up, its http_port and base url; plus the live shared lease and the "
-        "resumable parked lease for that series, if any (each with served / http_port / url / "
-        "session_alive, and a full token only when your run_id owns it and it is this session's or "
-        "its session ended - same rule as lease_find). Call it before "
+        "Report whether an instance is up. With series: the declared instance of that series (its "
+        "declared port answers and is the same project) - http_port and base url when up. With "
+        "lease_token (the lease_token of an INSTANCE_HANDLE you were handed or hold): THAT lease - up "
+        "means a server is bound to it, http_port and url are its own reserved port, and lease is "
+        "the lease object; the declared instance says nothing about a lease's database. Always "
+        "also the live shared lease and the resumable parked lease for the series, if any (each "
+        "with served / http_port / url / session_alive, and a full token only when your run_id owns "
+        "it and it is this session's or its session ended - same rule as lease_find). Call it before "
         "instance_serve(series) to see whether a server already runs and where, or to find a parked "
         "instance to resume. Read-only.",
-        _obj({"series": SERIES_PROP, "profile": PROFILE_PROP, "cwd": _CWD_PROP,
+        _obj({"series": dict(SERIES_PROP, description="Series (X.Y) whose declared instance to "
+                                                      "report. At least one of series or lease_token; "
+                                                      "with a lease_token it must be that lease's "
+                                                      "series."),
+              "lease_token": {"type": "string", "minLength": 8,
+                              "description": "Full token of a lease (an INSTANCE_HANDLE's "
+                                             "lease_token): report that lease's served state "
+                                             "instead of the declared instance's."},
+              "profile": PROFILE_PROP, "cwd": _CWD_PROP,
               "run_id": {"type": "string", "minLength": 1,
                          "description": "Your run id: a lease your run owns (anchored to this session, "
                                         "or to one that has ended) is returned with its full "
-                                        "token. " + NO_RUN_ID}}, ["series"]),
+                                        "token. " + NO_RUN_ID}}, []),
         _obj({"series": {"type": "string"}, "up": {"type": "boolean"},
               "http_port": {"type": ["integer", "null"],
-                            "description": "Declared port of the up instance; null when not up."},
+                            "description": "Port of the up instance (the declared port, or the "
+                                           "lease's reserved port for a lease_token); null when not "
+                                           "up."},
               "url": {"type": ["string", "null"],
                       "description": "Base URL of the up instance; null when not up."},
+              "lease": dict(LEASE_SCHEMA, type=["object", "null"],
+                            description="The lease lease_token named; null without one."),
               "shared_lease": NULLABLE_FOUND_LEASE_SCHEMA, "parked_lease": NULLABLE_FOUND_LEASE_SCHEMA},
-             ["series", "up", "http_port", "url", "shared_lease", "parked_lease"]),
+             ["series", "up", "http_port", "url", "lease", "shared_lease", "parked_lease"]),
         _status, title="Odoo instance status", read_only=True, long_running=True,
     )

@@ -28,7 +28,7 @@
     "snippets/osm-first-contract.md": 12471,
     "snippets/planning-gate-contract.md": 7509,
     "snippets/read-before-write-contract.md": 5617,
-    "snippets/scouting-persistence-contract.md": 7129,
+    "snippets/scouting-persistence-contract.md": 7065,
     "snippets/symbol-currency-check.md": 9329,
     "snippets/test-behavior-contract.md": 6860,
     "snippets/test-execution-handoff.md": 6752,
@@ -53,6 +53,6 @@
     "snippets/test-sensitivity-contract.md": 7505,
     "snippets/business-taxonomy.md": 4794,
     "snippets/odoo-platform-design-principles.md": 6025,
-    "skills/_shared/doc-capture-mechanics.md": 17769
+    "skills/_shared/doc-capture-mechanics.md": 17820
   }
 }

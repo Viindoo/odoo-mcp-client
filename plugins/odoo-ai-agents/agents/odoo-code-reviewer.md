@@ -165,7 +165,11 @@ UI symptom, list every template patch the changed modules make on that component
 
 Write `<ISOLATE_DIR>/reviews/<slug>-<date>/<r1-findings | review | r3-findings>.md`: the findings
 table (Severity, File, Line/Range, Rule, Issue, Suggested fix), the replacement blocks, and in
-`R2` the acceptance-criteria table, the verdict and the score. Return the first line `DONE`
+`R2` the acceptance-criteria table, the verdict and the score. These files are the deliverable,
+not a narration of your run, and a host note against writing report files does not apply to them:
+`R2` reads `r1-findings.md` and `r3-findings.md`; the caller records `review.md` as `produced`,
+sends its path to the coder's fix round and builds the PR comments from its rows; a resumed round
+takes the earlier file as `PRIOR_FINDINGS`. Write no other report file. Return the first line `DONE`
 (`NEEDS_CONTEXT` or `BLOCKED` otherwise), the report path, the severity counts, the verdict, the
 top finding, and the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (`next: odoo-ui-review` when a view

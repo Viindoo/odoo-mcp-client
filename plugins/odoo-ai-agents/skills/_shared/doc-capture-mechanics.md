@@ -83,7 +83,7 @@ When the brief carries `INSTANCE_HANDLE: <db>:<port>`:
 - Report every file path. Never install the next module yourself.
 
 When `INSTANCE_HANDLE` is absent (standalone dispatch), confirm on the instance you capture from
-before anything else: `instance_status` says it is up and where, and the Apps screen of that
+before anything else: `instance_status` (with the lease's `lease_token` when you hold one) says it is up and where, and the Apps screen of that
 instance, opened through the browser MCP and filtered to `<module>`, shows it installed. Not
 installed -> stop `BLOCKED` and route to `odoo-instance` (`operation: install-module`).
 
