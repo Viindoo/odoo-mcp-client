@@ -16,6 +16,11 @@
 #         ODOO_CLI_HTTP_PORT_KEY    main port odoo.conf key: http_port | xmlrpc_port
 #         ODOO_CLI_SECOND_PORT_KEY  second port odoo.conf key: gevent_port | longpolling_port
 #         ODOO_CLI_DEV_TAKES_VALUE  1 when `--dev=all` is valid, else 0
+#         ODOO_CLI_HTTP_INTERFACE_KEY  listen-address odoo.conf key: http_interface |
+#                                   xmlrpc_interface (empty when undeclared)
+#         ODOO_CLI_HTTP_INTERFACE_PIN  the loopback address a launch must state (127.0.0.1) on a
+#                                   series whose listen address defaults to the wildcard and warns
+#                                   about it; empty when the launch needs to state none
 #       Returns 1 with the reason on stderr (every variable empty) when the checkout's
 #       tools/config.py is unreadable - a caller that needs a fact refuses then, it never guesses.
 #   odoo_i18n_facts <odoo_root>
@@ -51,6 +56,8 @@ odoo_cli_facts() {
     ODOO_CLI_HTTP_PORT_KEY=""
     ODOO_CLI_SECOND_PORT_KEY=""
     ODOO_CLI_DEV_TAKES_VALUE=""
+    ODOO_CLI_HTTP_INTERFACE_KEY=""
+    ODOO_CLI_HTTP_INTERFACE_PIN=""
     local _ocf_out _ocf_line
     _ocf_out="$(python3 "$_ODOO_CLI_FACTS_PY" cli-facts "${1:-}")" || return 1
     while IFS= read -r _ocf_line; do
@@ -61,6 +68,8 @@ odoo_cli_facts() {
             HTTP_PORT_KEY=*)   ODOO_CLI_HTTP_PORT_KEY="${_ocf_line#*=}" ;;
             SECOND_PORT_KEY=*) ODOO_CLI_SECOND_PORT_KEY="${_ocf_line#*=}" ;;
             DEV_TAKES_VALUE=*) ODOO_CLI_DEV_TAKES_VALUE="${_ocf_line#*=}" ;;
+            HTTP_INTERFACE_KEY=*) ODOO_CLI_HTTP_INTERFACE_KEY="${_ocf_line#*=}" ;;
+            HTTP_INTERFACE_PIN=*) ODOO_CLI_HTTP_INTERFACE_PIN="${_ocf_line#*=}" ;;
         esac
     done <<<"$_ocf_out"
     return 0

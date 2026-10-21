@@ -1464,6 +1464,13 @@ cmd_apply() {
                     echo "server_wide_modules = $_served_load"
                 fi
                 echo "$_port_key = $port"
+                # Listen address: a series whose default is the wildcard and
+                # that warns about it is told the loopback address
+                # (odoo_cli_facts ODOO_CLI_HTTP_INTERFACE_PIN); every other
+                # series keeps its own default.
+                if [[ -n "${ODOO_CLI_HTTP_INTERFACE_PIN:-}" && -n "${ODOO_CLI_HTTP_INTERFACE_KEY:-}" ]]; then
+                    echo "$ODOO_CLI_HTTP_INTERFACE_KEY = $ODOO_CLI_HTTP_INTERFACE_PIN"
+                fi
                 # Second listening port (gevent/longpolling) - emitted when the
                 # agent passed both the port AND its resolved conf key (P5.6).
                 # A half-specified pair is BLOCKED earlier (see the

@@ -24,12 +24,23 @@ the resolved addons path, never from memory.
 
 ## Scope the gate to the PR's modules
 
-Pass the lint module's own scoping options as the build's `conf_options`; read the option names from
-that module's source, never assume them. A lint module whose source names none runs unscoped - say
-so in `notes`. A finding about code outside the PR's modules is repo state, listed in `notes`, never
-in the verdict; a lint test that failed ONLY on such findings is `tests-inconclusive`, never green
-and never this PR's `tests-failed`. An out-of-scope failing TEST is still governed by
-`test-scope-contract.md` § Reporting.
+Read each candidate's own source (its tests and manifest) for the options its tests read to narrow
+what they check - a `tools.config` key or an environment variable - never assume names. Pass them,
+set to the PR's modules, as the build's `conf_options`. A candidate whose source names none is
+UNSCOPED: it checks the whole addons path. Core `test_lint` is always unscoped (its tests walk every
+addon manifest). Name the unscoped candidates in `notes`.
+
+A finding is this PR's only when it points into one of the PR's modules; anywhere else it is repo
+state, listed in `notes`, never in the verdict.
+
+- A finding in a PR module -> `tests-failed`.
+- An unscoped candidate that failed ONLY on repo-state findings, while at least one SCOPED candidate
+  installed, loaded its tests and passed: informational, recorded in `notes`. The scoped candidate's
+  verdict covers the PR's modules, so the gate is not held by debt the PR did not add.
+- Any other lint test that failed only on repo-state findings (no scoped candidate passed, or none
+  exists): `tests-inconclusive`, never green and never this PR's `tests-failed`.
+
+An out-of-scope failing TEST is still governed by `test-scope-contract.md` § Reporting.
 
 ## Companion loaded server-wide
 

@@ -558,15 +558,55 @@ def test_cli_option_facts_prints_every_fact_and_exits_3_when_unreadable(tmp_path
     assert r.returncode == 0, r.stderr
     assert _kv(r.stdout) == {"CORE_PACKAGE": "odoo", "DEMO_OPT_IN": "1", "WITHOUT_DEMO": "1",
                              "HTTP_PORT_KEY": "http_port", "SECOND_PORT_KEY": "gevent_port",
-                             "DEV_TAKES_VALUE": "1"}
+                             "DEV_TAKES_VALUE": "1", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
     old = _config(tmp_path / "old", "openerp", OPTS_LEGACY)
     assert _kv(_cli("cli-facts", str(old)).stdout) == {
         "CORE_PACKAGE": "openerp", "DEMO_OPT_IN": "0", "WITHOUT_DEMO": "1",
         "HTTP_PORT_KEY": "xmlrpc_port", "SECOND_PORT_KEY": "longpolling_port",
-        "DEV_TAKES_VALUE": "0"}
+        "DEV_TAKES_VALUE": "0", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
     r = _cli("cli-facts", str(tmp_path / "absent"))
     assert r.returncode == 3 and r.stdout == "" and "tools/config.py" in r.stderr
     assert _cli("cli-facts").returncode == 2
+
+
+def _iface(tmp_path, line, pkg="odoo"):
+    return _config(tmp_path, pkg, "class C:\n    def __init__(self):\n        %s\n" % line)
+
+
+@pytest.mark.parametrize("default, pinned", [
+    ("0.0.0.0", "127.0.0.1"),   # the series names the wildcard as its default and warns about it
+    ("::", "127.0.0.1"),
+    ("", None),                  # empty = the documented "all interfaces", no warning
+    ("127.0.0.1", None),         # already loopback
+])
+def test_a_launch_states_loopback_only_where_the_series_defaults_to_the_wildcard(tmp_path, default, pinned):
+    root = _iface(tmp_path, 'group.add_option("--http-interface", dest="http_interface", '
+                            'my_default=\'%s\')' % default)
+    assert facts.http_interface_pin(root) == pinned
+    assert facts.http_interface_key(root) == "http_interface"
+
+
+def test_the_listen_address_option_is_found_under_its_older_spelling_and_never_guessed(tmp_path):
+    old = _iface(tmp_path / "old", 'group.add_option("--xmlrpc-interface", dest="xmlrpc_interface", '
+                                   'my_default=\'\')', pkg="openerp")
+    assert facts.http_interface_key(old) == "xmlrpc_interface" and facts.http_interface_pin(old) is None
+    none = _config(tmp_path / "none", "odoo", "# nothing\n")
+    assert facts.http_interface_key(none) is None and facts.http_interface_pin(none) is None
+    assert facts.http_interface_key(tmp_path / "absent") is None
+    assert facts.http_interface_pin(tmp_path / "absent") is None
+    # the alias carries no default of its own: the real option's default decides
+    both = _iface(tmp_path / "both", 'group.add_option("--http-interface", dest="http_interface", '
+                                      'my_default=\'0.0.0.0\')\n        '
+                                      'group.add_option("--xmlrpc-interface", dest="http_interface")')
+    assert facts.http_interface_pin(both) == "127.0.0.1"
+
+
+def test_cli_facts_prints_the_interface_pin(tmp_path):
+    root = _iface(tmp_path, 'group.add_option("--http-interface", dest="http_interface", '
+                            'my_default=\'0.0.0.0\')\n        '
+                            'group.add_option("--http-port", dest="http_port", type="int")')
+    out = _kv(_cli("cli-facts", str(root)).stdout)
+    assert out["HTTP_INTERFACE_KEY"] == "http_interface" and out["HTTP_INTERFACE_PIN"] == "127.0.0.1"
 
 
 # Surveyed by reading each series' odoo/tools/config.py (openerp/ before 10.0) by hand:
@@ -586,6 +626,10 @@ OPTION_SURVEY = {
     "19.0": (True, "http_port", "gevent_port", True, "odoo", "test-tags", "http-port"),
     "20.0": (True, "http_port", "gevent_port", True, "odoo", "test-tags", "http-port"),
 }
+# What each series' own config.py says about the HTTP listen address (read from 17.0-20.0 checkouts;
+# 8.0-16.0 from the indexed CLI catalogue, which lists an empty default there): the declared
+# default and so the loopback address a launch must state. Only 19.0 defaults to the wildcard.
+INTERFACE_PIN = {"19.0": "127.0.0.1"}
 # Short options with one meaning wherever a series declares them (value-taking except -s and -h;
 # long names as odoo-bin accepts them, `_` spelled `-`), and the series that no longer declare
 # one: -l/--language is gone from 19.0, -s/--save from 20.0 (the long options stay).
@@ -605,6 +649,7 @@ def test_real_checkout_option_facts(series):
     assert facts.second_port_key(root) == second
     assert facts.dev_takes_value(root) is dev
     assert facts.core_package(root) == pkg
+    assert facts.http_interface_pin(root) == INTERFACE_PIN.get(series), series
     shorts = facts.short_options(root)
     assert (shorts.get("t") or {}).get("long") == t_long
     assert (shorts.get("p") or {}).get("long") == p_long
@@ -624,8 +669,9 @@ def test_fixture_checkouts_state_the_facts_their_real_series_states(tmp_path, se
     import odoo_tree_fixtures as trees
     fixture = trees.write_checkout(tmp_path / "fx", series)
     real = _checkout(series)
+    assert facts.http_interface_pin(fixture) == INTERFACE_PIN.get(series), series
     for fn in (facts.demo_opt_in, facts.without_demo_declared, facts.http_port_key,
-               facts.second_port_key, facts.dev_takes_value, facts.core_package,
+               facts.http_interface_key, facts.second_port_key, facts.dev_takes_value, facts.core_package,
                facts.core_server_wide_modules):
         assert fn(fixture) == fn(real), (series, fn.__name__)
     assert facts.locate_odoo_root(None, [str(fixture / "addons")]) == str(fixture)

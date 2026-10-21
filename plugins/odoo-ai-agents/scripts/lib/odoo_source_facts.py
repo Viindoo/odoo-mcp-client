@@ -22,8 +22,10 @@ Public API (stable - other scripts import it):
 
   cli_options(odoo_root) -> dict | None
       Every option the core package's `tools/config.py` adds:
-      {"--long-name": {"short", "dest", "takes_value"}}. The readers below
-      answer from it; None when config.py is unreadable.
+      {"--long-name": {"short", "dest", "takes_value", "default"}}, "default"
+      being the string literal of its `my_default` / `default` (None when it
+      states none or a non-string). The readers below answer from it; None
+      when config.py is unreadable.
 
   demo_opt_in(odoo_root) -> bool | None
       True when config.py declares `--with-demo` (demo data is off by default
@@ -34,6 +36,20 @@ Public API (stable - other scripts import it):
       The dest (= odoo.conf key) of the main port option (`--http-port`, else
       `--xmlrpc-port`) and of the second port option (`--gevent-port`, else
       `--longpolling-port`). The odoo-bin flag is `--` + key with `_` as `-`.
+
+  http_interface_key(odoo_root) -> str | None
+      The dest (= odoo.conf key) of the HTTP listen-address option:
+      `--http-interface` where declared, else `--xmlrpc-interface`. None when
+      neither is declared or config.py is unreadable.
+
+  http_interface_pin(odoo_root) -> str | None
+      The loopback address (`127.0.0.1`) a launch must state, or None. Only a
+      series whose listen-address option DEFAULTS to the all-interfaces
+      wildcard (`0.0.0.0` / `::`) needs one: left unstated, that series logs a
+      "missing --http-interface" warning on every start. A series whose default
+      is empty (its documented spelling of "all interfaces", no warning) or is
+      already a loopback address needs none, and one that declares no such
+      option has nothing to pin.
 
   dev_takes_value(odoo_root) -> bool | None
       True when `--dev` takes a value (`--dev=all` is valid), False when it is
@@ -142,7 +158,8 @@ CLI (for shell setup steps; every fact prints as KEY=value on stdout):
       CORE_SERVER_WIDE_MODULES=base,web            exit 0; exit 3 when unreadable
   python3 odoo_source_facts.py cli-facts <odoo_root>
       CORE_PACKAGE=odoo / DEMO_OPT_IN=1|0 (empty when undeclared) /
-      WITHOUT_DEMO=1|0 (--without-demo declared) / HTTP_PORT_KEY=http_port / SECOND_PORT_KEY=gevent_port / DEV_TAKES_VALUE=1|0
+      WITHOUT_DEMO=1|0 (--without-demo declared) / HTTP_PORT_KEY=http_port / SECOND_PORT_KEY=gevent_port / DEV_TAKES_VALUE=1|0 /
+      HTTP_INTERFACE_KEY=http_interface (empty when undeclared) / HTTP_INTERFACE_PIN=127.0.0.1 (empty when none is needed)
                                                    exit 0; exit 3 when config.py is unreadable
   python3 odoo_source_facts.py i18n-facts <odoo_root>
       I18N_FORM=server + I18N_EXPORT_FLAG / I18N_MODULES_FLAG / I18N_LANGUAGE_FLAG, or
@@ -186,6 +203,8 @@ __all__ = [
     "core_server_wide_modules",
     "demo_opt_in",
     "dev_takes_value",
+    "http_interface_key",
+    "http_interface_pin",
     "http_port_key",
     "i18n_export_cli",
     "locate_odoo_launcher",
@@ -519,6 +538,7 @@ def cli_options(odoo_root) -> dict | None:
             continue
         short = next((f[1:] for f in flags if not f.startswith("--") and len(f) == 2), None)
         dest = re.search(_KW_RE % "dest", call)
+        default = re.search(_KW_RE % "my_default", call) or re.search(_KW_RE % "default", call)
         action = re.search(_KW_RE % "action", call)
         action = action.group(2) if action else "store"
         if action == "callback":
@@ -528,7 +548,8 @@ def cli_options(odoo_root) -> dict | None:
             takes_value = action not in _NO_VALUE_ACTIONS
         for name in longs:
             out[name] = {"short": short, "dest": dest.group(2) if dest else None,
-                         "takes_value": takes_value}
+                         "takes_value": takes_value,
+                         "default": default.group(2) if default else None}
     return out
 
 
@@ -578,6 +599,33 @@ def second_port_key(odoo_root) -> str | None:
     `--longpolling-port`. None when neither is declared or config.py is unreadable."""
     entry = _declared(cli_options(odoo_root) or {}, "--gevent-port", "--longpolling-port")
     return entry["dest"] if entry else None
+
+
+# The all-interfaces wildcards, and the loopback address a launch states instead of leaving the
+# series to warn about the wildcard default.
+_WILDCARD_INTERFACES = ("0.0.0.0", "::")
+_LOOPBACK_INTERFACE = "127.0.0.1"
+
+
+def http_interface_key(odoo_root) -> str | None:
+    """The dest (= odoo.conf key) of the HTTP listen-address option: `--http-interface` where
+    declared (a hidden `--xmlrpc-interface` alias may sit beside it), else `--xmlrpc-interface`.
+    None when neither is declared or config.py is unreadable."""
+    entry = _declared(cli_options(odoo_root) or {}, "--http-interface", "--xmlrpc-interface")
+    return entry["dest"] if entry else None
+
+
+def http_interface_pin(odoo_root) -> str | None:
+    """The loopback address a launch must state for the HTTP listen address, or None. Needed only
+    where the option's declared default IS the all-interfaces wildcard: that series warns "missing
+    --http-interface, using 0.0.0.0" on every start that states none, and a local instance has no
+    reason to listen beyond loopback. An empty default (the documented spelling of "all
+    interfaces", no warning), a loopback default, an undeclared option or an unreadable config.py
+    need nothing - never a guess."""
+    entry = _declared(cli_options(odoo_root) or {}, "--http-interface", "--xmlrpc-interface")
+    if entry and (entry.get("default") or "") in _WILDCARD_INTERFACES:
+        return _LOOPBACK_INTERFACE
+    return None
 
 
 def dev_takes_value(odoo_root) -> bool | None:
@@ -983,6 +1031,8 @@ def main(argv) -> int:
         _emit("HTTP_PORT_KEY", http_port_key(args[0]) or "")
         _emit("SECOND_PORT_KEY", second_port_key(args[0]) or "")
         _emit("DEV_TAKES_VALUE", "1" if dev else "0")
+        _emit("HTTP_INTERFACE_KEY", http_interface_key(args[0]) or "")
+        _emit("HTTP_INTERFACE_PIN", http_interface_pin(args[0]) or "")
         return 0
     if cmd == "i18n-facts":
         if len(args) != 1:

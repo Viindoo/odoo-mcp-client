@@ -6,6 +6,7 @@ this package read that repo's TEXT (never import or execute its conf.py), report
 exit non-zero on a failing gate. Each is a CLI:
 
   repo_facts.py     facts the docs repo states about itself (series, languages, hazards, conventions)
+  docs_python.py    the Python a docs repo builds on, and the venv made from it
   images.py         install staged screenshots as JPEG / check every language has its image
   content_gates.py  banned terms, version prose, presentation, links, text captured off screenshots
 

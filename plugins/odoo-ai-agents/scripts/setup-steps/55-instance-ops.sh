@@ -525,6 +525,10 @@ _build_db_conn_args() {
 #   the second port, e.g. gevent_port / longpolling_port - the same pair
 #   50-instance-spinup.sh takes) add `--<key with - for _> <port>`, so a prefork
 #   build (--workers in --extra) does not bind the default second port either.
+#   A series whose listen address defaults to the wildcard and warns about it
+#   (ODOO_CLI_HTTP_INTERFACE_PIN, odoo_source_facts http_interface_pin) gets the
+#   loopback address on its own flag, so that warning never reaches the verdict;
+#   an --http-interface in --extra comes later on the command line and wins.
 # ---------------------------------------------------------------------------
 _build_http_port_args() {
     HTTP_PORT_ARGS=()
@@ -533,6 +537,9 @@ _build_http_port_args() {
     fi
     if [[ -n "${arg_gevent_port:-}" ]]; then
         HTTP_PORT_ARGS+=("--${arg_gevent_port_key//_/-}" "$arg_gevent_port")
+    fi
+    if [[ -n "${ODOO_CLI_HTTP_INTERFACE_PIN:-}" && -n "${ODOO_CLI_HTTP_INTERFACE_KEY:-}" ]]; then
+        HTTP_PORT_ARGS+=("$(odoo_cli_flag "$ODOO_CLI_HTTP_INTERFACE_KEY")" "$ODOO_CLI_HTTP_INTERFACE_PIN")
     fi
     return 0
 }
