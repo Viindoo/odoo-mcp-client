@@ -34,7 +34,8 @@ writes, so the script runs on every python3 the plugin supports):
       Exit 0 when at least one row is declared and every row is complete and valid; 1 otherwise,
       naming each problem (no file: one line naming the remedy); 2 when the file is unreadable.
   propose --repo PATH [--key K] [--instances FILE]
-      READ-ONLY. KEY=VALUE facts derived from the clone at PATH (origin URL, fork candidates,
+      READ-ONLY. KEY=VALUE facts derived from the clone at PATH (origin URL, fork candidates, the fork
+      owners known from the catalog's clones when this clone has no pushed fork,
       series branches, languages, sibling clones per series, candidate catalog instances per
       series) and POLICY_FIELDS_TO_CONFIRM - the fields only the operator can state.
   record --key K --from-json FILE [--instances FILE]
@@ -820,6 +821,11 @@ def cmd_propose(args):
     _emit("OTHER_REMOTES", [r for r in others if r not in pushed])
     for name, value in fork_facts.pairs(fork):
         _emit(name, value)
+    if fork["status"] != fork_facts.PUSHED:
+        known = fork_facts.known_owners(
+            [fork] + [fork_facts.fork_facts(r) for r in auto_mode_facts.catalog_repos(args.instances)])
+        if known:
+            _emit("FORK_KNOWN_OWNERS", known)
     _emit("DEFAULT_BRANCH", default)
     _emit("SERIES", series)
     _emit("SERIES_BRANCHES_ON_ORIGIN", _series_sort(branches))

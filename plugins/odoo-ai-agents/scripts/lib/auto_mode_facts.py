@@ -91,11 +91,10 @@ def _dedup(items):
     return out
 
 
-def derive() -> dict:
-    """Facts of this machine. Keys: catalog, rows, roots, repos, orgs, forks, branches, fork_status."""
+def _catalog_entries(catalog: str) -> tuple[list[str], int]:
+    """(addons_path entries, rows with an addons_path) of the catalog file."""
     import instances_io
 
-    catalog = _catalog_path()
     entries: list[str] = []
     rows = 0
     if os.path.isfile(catalog):
@@ -104,13 +103,25 @@ def derive() -> dict:
             if paths:
                 rows += 1
             entries.extend(p.rstrip("/") for p in paths if p.strip())
-    entries = _dedup(entries)
+    return _dedup(entries), rows
+
+
+def catalog_repos(catalog: str = "") -> list[str]:
+    """The git repositories holding the addons of the catalog (default: this machine's catalog)."""
+    entries, _ = _catalog_entries(catalog or _catalog_path())
+    return _dedup([_git_root(e) for e in entries if os.path.isdir(e)])
+
+
+def derive() -> dict:
+    """Facts of this machine. Keys: catalog, rows, roots, repos, orgs, forks, branches, fork_status,
+    fork (the fork_facts summary of those repositories, grouped by origin)."""
+    catalog = _catalog_path()
+    entries, rows = _catalog_entries(catalog)
     roots = _dedup([os.path.dirname(e) for e in entries])
     roots = _dedup(roots + ([os.path.join(_home(), "projects")] if entries else []))
 
     repos = _dedup([_git_root(e) for e in entries if os.path.isdir(e)])
     orgs: list[str] = []
-    forks: list[str] = []
     branches: list[str] = []
     fork_status: list[dict] = []
     for repo in repos:
@@ -119,7 +130,6 @@ def derive() -> dict:
         default = fork_facts.default_branch(repo)
         if found["origin"]:
             orgs.append(found["origin"]["owner"])
-        forks.extend(r["owner"] for r in found["remotes"] if r["pushed"])
         if default:
             branches.append(default)
         refs = _git(repo, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").splitlines()
@@ -133,10 +143,11 @@ def derive() -> dict:
             if _SERIES_BRANCH.match(short):
                 branches.append(short)
     orgs = _dedup(orgs)
-    forks = [f for f in _dedup(forks) if f not in orgs]
+    forks = fork_facts.known_owners(fork_status)
     branches = [b for b in _dedup(branches) if _BRANCH_OK.match(b)]
     return {"catalog": catalog, "rows": rows, "roots": roots, "repos": repos,
-            "orgs": orgs, "forks": forks, "branches": branches, "fork_status": fork_status}
+            "orgs": orgs, "forks": forks, "branches": branches, "fork_status": fork_status,
+            "fork": fork_facts.summarize(fork_status)}
 
 
 def _join(values) -> str:
@@ -204,9 +215,8 @@ def propose_text(facts: dict, entries: dict) -> str:
     lines += [f"organization (origin owner): {o}" for o in facts["orgs"]]
     lines += [f"fork owner (remote the user pushes to): {o}" for o in facts["forks"]]
     lines += [f"protected branch: {b}" for b in facts["branches"]]
-    for found in facts["fork_status"]:
-        lines.append("FORK_REPO=" + found["repo"])
-        lines += ["%s=%s" % (name, shlex.quote(value)) for name, value in fork_facts.pairs(found)]
+    if facts["fork"]["question"]:
+        lines.append("FORK_QUESTION=" + shlex.quote(facts["fork"]["question"]))
     if not facts["orgs"]:
         lines.append("note: no git remote named origin found - organization-scoped wording is generic")
     if not facts["branches"]:
