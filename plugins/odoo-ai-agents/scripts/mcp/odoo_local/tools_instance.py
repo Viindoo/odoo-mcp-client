@@ -1337,9 +1337,11 @@ def _status(args, ctx):
                                 token[:8], lease["series"], series),
                             {"token_prefix": token[:8], "lease_series": lease["series"],
                              "series": series})
-        series = lease["series"]
-    found = {}
-    for state in ("shared", "parked"):
+        series = lease["series"] or series or ""
+    found = {"shared": None, "parked": None}
+    # A series is what the shared / parked lookups are keyed on: a lease row that records none
+    # (and a call that names none) has nothing to look up, so it is never asked as `--series ""`.
+    for state in (("shared", "parked") if series else ()):
         query = {"series": series, "state": state, "cwd": cwd}
         if args.get("run_id"):
             query["run_id"] = args["run_id"]

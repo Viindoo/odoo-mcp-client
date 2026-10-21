@@ -639,6 +639,23 @@ def test_status_needs_a_series_or_a_lease_and_the_two_must_agree(client, world):
     _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
+def test_status_of_a_lease_row_that_records_no_series_never_borrows_another_leases_answer(client, world):
+    """The allocator matches `--series ""` against rows that record no series, so asking it for the
+    shared / parked lease of an empty series answers with whichever such row exists - here the
+    very lease being asked about, reported as the shared render lease of no series at all."""
+    lease = _lease(client, world, ports=1)
+    path = world["home"] / "runtime" / "leases.json"
+    data = json.loads(path.read_text())
+    for row in data["leases"]:
+        if row["token"] == lease["token"]:
+            row["series"], row["mode"] = "", "shared"
+    path.write_text(json.dumps(data))
+    out = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
+    assert out["series"] == "" and out["lease"]["token"] == lease["token"]
+    assert out["shared_lease"] is None and out["parked_lease"] is None
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
 def test_serve_failure_is_named_and_carries_the_scripts_reason(client, world):
     world["curl_mode"].write_text("000", encoding="utf-8")  # never becomes ready
     lease = _lease(client, world, ports=1)

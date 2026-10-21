@@ -39,8 +39,12 @@ CLI contract
 
   python3 odoo_db.py exists <db> [--db-host H] [--db-user U] [--db-port P] [--db-password P]
                                  [--odoo-root R]
-      Print ``true`` or ``false`` (lowercase) to stdout.
-      Exit 0 always (even when the DB does not exist).
+      Print ``true`` or ``false`` (lowercase) to stdout; ``false`` is a PROVEN absence: Odoo's
+      own answer is False for any failed connection too, so it is confirmed against the cluster's
+      catalog before it is printed.
+      Exit 0 when the question was answered (even when the DB does not exist).
+      Exit 8 / 9 / 1 - authentication refused / cluster unreachable / anything else - when it could
+      not be answered: nothing is printed, and a caller must not read that as "absent".
       Exit 2 on usage error.
       Exit 10 on venv unavailable (as above).
       A non-zero exit doubles as the cluster-REACHABILITY probe (opening the
@@ -49,7 +53,8 @@ CLI contract
   python3 odoo_db.py preflight [--db-host H] [--db-user U] [--db-port P]
                                [--db-password P] [--odoo-root R]
       CAN ODOO AUTHENTICATE? Opens the maintenance-database connection through
-      ``odoo.sql_db.db_connect('postgres')`` - the EXACT route every build takes,
+      ``odoo.sql_db.db_connect(<maintenance db>)`` (``postgres``, or the loaded config's
+      ``db_system`` when it defines one) - the EXACT route every build takes,
       because Odoo's CLI opens that connection for every ``-d <name>`` run before
       any module loads. So this is a precondition of init / update / test alike,
       not of a create alone.
@@ -172,6 +177,7 @@ psycopg2 call that could target a different cluster.
 
 from __future__ import print_function
 
+import inspect
 import io
 import os
 import re
@@ -348,6 +354,19 @@ def _missing_name(exc):
     return found.group(1) if found else None
 
 
+def _is_missing(exc, dotted, leaf):
+    """Is `exc` the ImportError for the module ``dotted`` itself not existing? Python 3 names
+    the full dotted module (``odoo.tools``); Python 2 puts only the last component in its message
+    ("No module named tools"), so ``leaf`` is accepted too - the same missing core must classify
+    the same way on both."""
+    if not isinstance(exc, ImportError):
+        return False
+    name = _missing_name(exc)
+    if getattr(exc, "name", None):  # Python 3: the name is exact, never abbreviated
+        return name == dotted
+    return name in (dotted, leaf)
+
+
 def _pkg_dirs(odoo):
     """Every directory the base package lives in: one for a regular package,
     possibly several for a namespace package (Odoo 19.0 ships no
@@ -434,7 +453,7 @@ def _import_odoo(opts=None):
             importlib.import_module(pkg + sub)
         except Exception as exc:
             where = (_pkg_dirs(odoo) or [None])[0]
-            if isinstance(exc, ImportError) and _missing_name(exc) == pkg + sub:
+            if _is_missing(exc, pkg + sub, sub[1:]):
                 # The name exists but holds no Odoo core - a namespace portion such as
                 # an addons-only install - so the checkout itself is what is missing.
                 raise _base_missing(opts, "{pkg} was found at {where} but holds no "
@@ -533,8 +552,20 @@ def _bootstrap_config(odoo, opts):
     if pw:
         args += ["--db_password", pw]
 
-    # parse_config sets up the logger, sys-path, etc.
-    config.parse_config(args)
+    # parse_config sets up the logger, sys-path, etc. Odoo 20.0 warns (a multi-line
+    # DeprecationWarning) when the caller does not say whether Odoo sets up logging, and this
+    # script's stderr is quoted to the user in a refusal. A warning filter cannot hide it - Odoo's
+    # own logger setup re-enables DeprecationWarning after we installed ours - so, like Odoo's own
+    # CLI commands, the caller says it, for any checkout whose parse_config takes the option.
+    # inspect.signature exists on Python 3 only; Python 2 checkouts never have the option.
+    try:
+        takes_logging_choice = "setup_logging" in inspect.signature(config.parse_config).parameters
+    except (AttributeError, TypeError, ValueError):
+        takes_logging_choice = False
+    if takes_logging_choice:
+        config.parse_config(args, setup_logging=True)
+    else:
+        config.parse_config(args)
 
     # Bypass @check_db_management_enabled (v10+); no-op on v8/v9.
     config["list_db"] = True
@@ -542,14 +573,25 @@ def _bootstrap_config(odoo, opts):
 
 # ---- Commands ----
 
-def _sql_connect_postgres(odoo, db_name="postgres"):
+def _maintenance_db(odoo):
+    """The database for cluster-level questions: the loaded config's ``db_system`` when it
+    defines one (Odoo 20.0 does, and routes its own system operations through it), else
+    ``postgres``. Read from the config, never keyed on a series."""
+    try:
+        name = odoo.tools.config["db_system"]
+    except Exception:  # a config without the option (KeyError, AttributeError, ...)
+        name = None
+    return name or "postgres"
+
+
+def _sql_connect_postgres(odoo, db_name=None):
     """A connection to the maintenance database (or to ``db_name``) through
     Odoo's OWN connection layer (odoo.sql_db, openerp.sql_db on v8-v9), so every
     question asked here resolves the connection EXACTLY like drop/exists do - one
     resolution path, never a second psycopg2 call with hand-rolled parameters.
     ``_import_odoo`` bound ``.sql_db`` through the RESOLVED package name, because
     a bare base-package import does not bind submodules."""
-    return odoo.sql_db.db_connect(db_name)
+    return odoo.sql_db.db_connect(db_name or _maintenance_db(odoo))
 
 
 def _pin_c_messages():
@@ -786,7 +828,7 @@ _STATE_EXITS = {
 }
 
 
-def _query_postgres_ex(opts, sql, params=None, db_name="postgres"):
+def _query_postgres_ex(opts, sql, params=None, db_name=None):
     """(rows, exit_code, state, detail): run one read-only query on the
     maintenance database (or on ``db_name``), CLASSIFYING any failure.
 
@@ -830,7 +872,7 @@ def _query_postgres_ex(opts, sql, params=None, db_name="postgres"):
     return rows, EXIT_OK, "ok", ""
 
 
-def _query_postgres(opts, sql, params=None, db_name="postgres"):
+def _query_postgres(opts, sql, params=None, db_name=None):
     """(rows, exit_code): run one read-only query on the maintenance database.
 
     Returns (rows, EXIT_OK) when the query ran, or (None, <non-zero>) with a
@@ -912,7 +954,8 @@ def cmd_preflight(opts):
     """Can Odoo AUTHENTICATE to this cluster? Emit the verdict and own the refusal.
 
     The connection is opened through Odoo's own resolution
-    (``odoo.sql_db.db_connect('postgres')``), which is the exact route every build
+    (``odoo.sql_db.db_connect(<maintenance db>)``: ``postgres``, or the config's ``db_system``
+    when it defines one), which is the exact route every build
     verb takes: Odoo's CLI opens the maintenance database for every ``-d <name>``
     run before any registry is built, so a probe over any OTHER surface can answer
     confidently about a connection the build never makes.
@@ -1192,6 +1235,19 @@ def cmd_exists(db_name, opts):
                 fn=fn_name, db=db_name, etype=type(exc).__name__, exc=exc)
         )
         return EXIT_FAILURE
+
+    if not exists:
+        # Both APIs answer False for ANY failed connection: an unreachable cluster, a
+        # refused login and a database that refuses connections read exactly like an
+        # absent one. A caller treats "false" as proof of absence (release removes the
+        # filestore and frees the lease), so the False is confirmed in the cluster's
+        # catalog through the classified query path. A failed connection exits 8 / 9 /
+        # 1 and prints nothing: "could not look" is never an answer.
+        rows, rc = _query_postgres(
+            opts, "SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+        if rc != EXIT_OK:
+            return rc
+        exists = bool(rows)
 
     print("true" if exists else "false")
     return EXIT_OK

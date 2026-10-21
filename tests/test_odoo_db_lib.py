@@ -87,7 +87,8 @@ _FAKE_CONFIG = textwrap.dedent("""\
 
 def _build_fake_odoo(tmp_path, *, layout="legacy", pkg_name="odoo", exp_drop_returns=True,
                      exp_db_exist_returns=True, exist_returns=True, in_catalog=True,
-                     connect_error=None, marker_file=None, dirname="fake_odoo_pkg"):
+                     connect_error=None, marker_file=None, dirname="fake_odoo_pkg",
+                     connect_log=None, db_system=None, parse_config_warns=False):
     """Write a minimal fake Odoo package under tmp_path/<dirname>/.
 
     ``layout`` picks the database API the fake ships, as the real series do:
@@ -106,7 +107,9 @@ def _build_fake_odoo(tmp_path, *, layout="legacy", pkg_name="odoo", exp_drop_ret
     that is not there) and ``exist`` answers ``exist_returns`` (False for an absent database
     AND for a cluster it could not reach). ``in_catalog`` is also what the maintenance
     database's pg_database says, and ``connect_error`` makes every connection fail with that
-    message (an unreachable cluster).
+    message (an unreachable cluster). ``connect_log`` is a file that gets one line per database
+    a connection was opened to; ``db_system`` makes the loaded config define that option;
+    ``parse_config_warns`` makes parse_config raise Odoo 20.0's DeprecationWarning.
     """
     pkg_dir = tmp_path / dirname / pkg_name
     tools_dir = pkg_dir / "tools"
@@ -125,6 +128,7 @@ def _build_fake_odoo(tmp_path, *, layout="legacy", pkg_name="odoo", exp_drop_ret
         textwrap.dedent("""\
         _ERROR = {err!r}
         _IN_CATALOG = {in_catalog!r}
+        _LOG = {log!r}
 
 
         class _Cursor(object):
@@ -150,11 +154,30 @@ def _build_fake_odoo(tmp_path, *, layout="legacy", pkg_name="odoo", exp_drop_ret
 
 
         def db_connect(to, allow_uri=False):
+            if _LOG:
+                with open(_LOG, 'a') as fh:
+                    fh.write(to + '\\n')
             if _ERROR:
                 raise RuntimeError(_ERROR)
             return _Connection()
-        """).format(err=connect_error or "", in_catalog=in_catalog),
+        """).format(err=connect_error or "", in_catalog=in_catalog,
+                    log=str(connect_log) if connect_log else ""),
         encoding="utf-8")
+    config_src = _FAKE_CONFIG
+    if parse_config_warns:
+        # Odoo 20.0: a keyword-only choice; leaving it out warns, naming the caller's module.
+        config_src = config_src.replace(
+            "    def parse_config(self, args=None):\n        args = args or []\n",
+            "    def parse_config(self, args=None, *, setup_logging=None):\n"
+            "        import warnings\n"
+            "        if setup_logging is None:\n"
+            "            warnings.warn('As of Odoo 20, it is strongly recommended to specify "
+            "whether you want Odoo to setup its own logging', DeprecationWarning, stacklevel=2)\n"
+            "        args = args or []\n")
+        assert "setup_logging" in config_src
+    if db_system:
+        config_src += "config['db_system'] = %r\n" % db_system
+    (tools_dir / "__init__.py").write_text(config_src, encoding="utf-8")
 
     marker_helpers = textwrap.dedent(f"""\
         from {pkg_name}.tools import config
@@ -303,7 +326,8 @@ def test_exists_prints_true_when_db_present(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_exists_prints_false_when_db_absent(tmp_path):
-    pkg = _build_fake_odoo(tmp_path, exp_db_exist_returns=False, marker_file=None)
+    pkg = _build_fake_odoo(tmp_path, exp_db_exist_returns=False, in_catalog=False,
+                           marker_file=None)
     result = _run("exists", "missing_db", pythonpath_prepend=pkg)
     assert result.returncode == EXIT_OK, (
         f"exit {result.returncode}; stderr={result.stderr!r}"
@@ -371,6 +395,55 @@ def test_an_odoo_namespace_with_no_core_in_it_is_reported_as_a_missing_checkout(
     assert f"odoo not importable by {sys.executable} (odoo_root=undeclared)" in res.stderr, (
         res.stderr)
     assert "holds no odoo.tools" in res.stderr, res.stderr
+
+
+def test_a_missing_core_is_classified_the_same_when_the_error_names_only_the_last_component(tmp_path):
+    """Python 2 reports a missing submodule as "No module named tools" (no dotted name, no
+    .name attribute). The same missing core must still read as a missing checkout, as it does
+    on Python 3, not as a broken module."""
+    pkg = _build_fake_odoo(tmp_path, layout="legacy")
+    (pkg / "odoo" / "__init__.py").write_text("", encoding="utf-8")  # binds no submodule itself
+    (pkg / "odoo" / "tools" / "__init__.py").write_text(
+        "raise ImportError('No module named tools')\n", encoding="utf-8")
+    res = _run("exists", "some_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert "holds no odoo.tools" in res.stderr and "not importable" in res.stderr, res.stderr
+
+
+def test_python_3_names_the_exact_module_so_a_dependency_called_tools_is_not_the_core(tmp_path):
+    """The short form is a Python 2 accommodation only: with an exact .name, another module that
+    happens to be called `tools` failing to import is a broken dependency, not a missing core."""
+    pkg = _build_fake_odoo(tmp_path, layout="legacy")
+    (pkg / "odoo" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "odoo" / "tools" / "__init__.py").write_text(
+        "raise ImportError('No module named tools', name='tools')\n", encoding="utf-8")
+    res = _run("exists", "some_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert "tools failed" in res.stderr and "holds no" not in res.stderr, res.stderr
+
+
+def _docker_has(image):
+    try:
+        return subprocess.run(["docker", "image", "inspect", image], capture_output=True,
+                              timeout=30).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+@pytest.mark.skipif(not _docker_has("python:2.7-slim"),
+                    reason="needs the python:2.7-slim image already pulled (never pulled by a test)")
+def test_python_2_and_python_3_classify_the_same_missing_core_alike(tmp_path):
+    """The real interpreter pair, not a simulation: odoo_db.py is what Odoo 8.0 / 9.0 run under
+    Python 2.7. `openerp` / `odoo` without .tools must be the same diagnosis on both."""
+    (tmp_path / "py2" / "openerp").mkdir(parents=True)
+    (tmp_path / "py2" / "openerp" / "__init__.py").write_text("", encoding="utf-8")
+    res = subprocess.run(
+        ["docker", "run", "--rm", "--entrypoint", "", "-e", "PYTHONDONTWRITEBYTECODE=1",
+         "-v", "{}:/plib:ro".format(ODOO_DB_PY.parent), "-v", "{}:/oroot:ro".format(tmp_path / "py2"),
+         "python:2.7-slim", "python", "/plib/odoo_db.py", "exists", "db", "--odoo-root", "/oroot"],
+        capture_output=True, text=True, timeout=120)
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert "holds no openerp.tools" in res.stderr, res.stderr
 
 
 def test_a_dependency_of_the_package_init_is_named_not_reported_as_a_missing_package(tmp_path):
@@ -1109,11 +1182,70 @@ def test_modern_drop_on_a_cluster_that_refuses_us_is_not_reported_as_absent(
 def test_modern_exists_prints_what_exist_answers(tmp_path, present):
     marker = tmp_path / "marker.txt"
     pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker,
-                           exist_returns=present)
+                           exist_returns=present, in_catalog=present)
     res = _run("exists", "some_db", pythonpath_prepend=pkg)
     assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
     assert res.stdout.strip() == ("true" if present else "false")
     assert _calls(marker) == ["exist"]
+
+
+@pytest.mark.parametrize("layout", ["legacy", "modern"])
+@pytest.mark.parametrize("message,expected", [
+    ("could not connect to server: Connection refused", EXIT_UNREACHABLE),
+    ("FATAL: password authentication failed for user", EXIT_AUTH_DENIED),
+    ("something nobody classified", EXIT_FAILURE),
+])
+def test_exists_on_a_cluster_that_refuses_us_never_answers_false(
+        tmp_path, layout, message, expected):
+    """Both database APIs answer False for ANY failed connection. `exists` is the probe
+    release uses to decide a database is gone and its filestore may go with it, so an
+    unreachable cluster or a refused login must exit 8 / 9 / 1 and print no answer."""
+    pkg = _build_fake_odoo(tmp_path, layout=layout, exp_db_exist_returns=False,
+                           exist_returns=False, connect_error=message)
+    res = _run("exists", "some_db", "--db-host", "h", "--db-user", "nosuchrole",
+               pythonpath_prepend=pkg)
+    assert res.returncode == expected, f"stderr={res.stderr!r}"
+    assert res.stdout.strip() == "", f"no answer may be printed; stdout={res.stdout!r}"
+
+
+@pytest.mark.parametrize("layout", ["legacy", "modern"])
+def test_exists_prints_true_for_a_database_that_refuses_connections(tmp_path, layout):
+    """The API's False also covers a database nobody may connect to; the catalog still
+    lists it, so it exists."""
+    pkg = _build_fake_odoo(tmp_path, layout=layout, exp_db_exist_returns=False,
+                           exist_returns=False, in_catalog=True)
+    res = _run("exists", "locked_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert res.stdout.strip() == "true"
+
+
+@pytest.mark.parametrize("db_system,expected", [("sys_maintenance", "sys_maintenance"),
+                                                  (None, "postgres")])
+@pytest.mark.parametrize("argv", [("preflight",), ("exists", "gone_db")])
+def test_cluster_questions_use_the_configs_system_database_else_postgres(
+        tmp_path, argv, db_system, expected):
+    """Odoo 20.0 routes its own system operations through the `db_system` option; a config that
+    does not define the option leaves the maintenance database `postgres`."""
+    log = tmp_path / "connections.log"
+    pkg = _build_fake_odoo(tmp_path, layout="legacy", exp_db_exist_returns=False,
+                           in_catalog=False, connect_log=log, db_system=db_system)
+    res = _run(*argv, pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert log.read_text(encoding="utf-8").split() == [expected]
+
+
+@pytest.mark.parametrize("refused", [False, True])
+def test_a_deprecation_warning_from_parse_config_never_reaches_stderr(tmp_path, refused):
+    """Odoo 20.0's parse_config warns, on several lines, unless the caller says whether Odoo sets
+    up logging. The allocator quotes this script's stderr in a refusal, so it must not be there."""
+    pkg = _build_fake_odoo(tmp_path, layout="legacy", parse_config_warns=True,
+                           connect_error="FATAL: password authentication failed" if refused else None)
+    res = _run("preflight", pythonpath_prepend=pkg)
+    assert res.returncode == (EXIT_AUTH_DENIED if refused else EXIT_OK), f"stderr={res.stderr!r}"
+    assert "DeprecationWarning" not in res.stderr and "strongly recommended" not in res.stderr, (
+        res.stderr)
+    if refused:
+        assert "DB_AUTH=denied" in res.stdout or "BLOCKED" in res.stderr, (res.stdout, res.stderr)
 
 
 def test_modern_layout_works_as_a_namespace_package(tmp_path):

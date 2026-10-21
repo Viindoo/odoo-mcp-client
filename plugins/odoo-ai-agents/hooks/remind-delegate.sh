@@ -29,8 +29,8 @@
 #   - Self-gates: (1) requires an active run OF THIS SESSION (an ISOLATE run-*.json with status
 #     NEEDS_NEXT, resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md, that this
 #     session wrote last - hooks/run-ownership.sh) -> silent pass otherwise. (2) requires a
-#     resolvable role=leaf match -> silent pass otherwise (no agent-role SSOT, no jq, unresolved
-#     agent_type = stay silent, never guess).
+#     resolvable role=leaf or role=node-owner match -> silent pass otherwise (no agent-role SSOT,
+#     no jq, unresolved agent_type = stay silent, never guess).
 #   - (1) is best-effort MAIN-agent-only (skip when we can tell we are in a subagent - V-52:
 #     ANY populated agent_id/agent_type means "in a subagent", no `!= general-purpose`
 #     special-case, honoring this hook's own "stay silent when unsure" contract). (2) is the
@@ -54,6 +54,13 @@ INPUT="$(cat 2>/dev/null || true)"
 # subagent's own). Unreadable -> every advisory counts as unseen.
 _HOOK_DIR="${BASH_SOURCE[0]%/*}"
 _seen() { return 1; }
+# hooks/command-segments.sh (_logical_segments) is the SSOT for splitting a command into its simple
+# commands; without it the git detector falls back to a plain word match (see _runs_git).
+_HAVE_SEGMENTS=false
+if [[ -r "$_HOOK_DIR/command-segments.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "$_HOOK_DIR/command-segments.sh" && _HAVE_SEGMENTS=true
+fi
 if [[ -r "$_HOOK_DIR/advice-once.sh" && -r "$_HOOK_DIR/lease-correlation.sh" ]]; then
   # shellcheck source=/dev/null
   . "$_HOOK_DIR/advice-once.sh"
@@ -61,6 +68,125 @@ if [[ -r "$_HOOK_DIR/advice-once.sh" && -r "$_HOOK_DIR/lease-correlation.sh" ]];
   . "$_HOOK_DIR/lease-correlation.sh"
   _seen() { _advice_seen "$1" "$2"; }
 fi
+
+# --- does a Bash command RUN git? -------------------------------------------------------------
+# Git counts only as a COMMAND WORD - the first word of a simple command, after any `VAR=x`
+# assignments and wrappers (`env`, `sudo`, `xargs`, `time`, `command`, `find -exec`, ...) - never as
+# an argument of another command (`echo "now git commit it"`, `grep -rn "git status" docs/`,
+# `ls ~/git`), a comment (`make test # git hooks`) or a heredoc body. It is followed by a subcommand
+# or a global option, so a bare `git` or `command -v git` is no git run. Command positions are the
+# start, after `;` `&&` `||` `|` `&` (command-segments.sh), `$(`, a backtick and the string given to
+# `sh -c` / `bash -c` / `eval` (each rescanned as a command). The word may be quoted ("git" status)
+# or an absolute path (/usr/bin/git). An argv-list or call form is matched anywhere, even inside an
+# interpreter's quoted program: ['git','status'], "git", "status", os.system("git status").
+# Residual: a command built at run time, or run by a program this scan does not know takes a command
+# as its argument, is not seen. This only decides whether to REMIND; it never blocks.
+_GITCMD_AWK=$(cat <<'AWK'
+function isw(c) { return c == " " || c == "\t" }
+function unq(w) { gsub(/'/, "", w); gsub(/"/, "", w); gsub(/\\/, "", w); return w }
+function outer(w,   q) {
+  q = substr(w, 1, 1)
+  if (q == "'" || q == "\"") {
+    w = substr(w, 2)
+    if (substr(w, length(w), 1) == q) w = substr(w, 1, length(w) - 1)
+  }
+  return w
+}
+function wordend(s, i, n,   j, c) {
+  j = i
+  while (j <= n) {
+    c = substr(s, j, 1)
+    if (c == "\\") { j += 2; continue }
+    if (c == "'") { j++; while (j <= n && substr(s, j, 1) != "'") j++; j++; continue }
+    if (c == "\"") {
+      j++
+      while (j <= n && substr(s, j, 1) != "\"") { if (substr(s, j, 1) == "\\") j++; j++ }
+      j++; continue
+    }
+    if (isw(c) || c == "<" || c == ">" || c == "`" || c == ")") break
+    if (c == "$" && substr(s, j + 1, 1) == "(") break
+    j++
+  }
+  return j
+}
+function followed(s, i, n,   j) {
+  j = i
+  if (!isw(substr(s, j, 1))) return 0
+  while (j <= n && isw(substr(s, j, 1))) j++
+  return substr(s, j, 1) ~ /[A-Za-z'"-]/
+}
+{
+  s = $0; n = length(s); i = 1
+  cmdpos = 1; wrapopts = 0; shellargs = 0; takec = 0; evalnext = 0; redir = 0
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (isw(c)) { i++; continue }
+    if (c == "#") break
+    if (c == "`") { print "N:" substr(s, i + 1); i++; continue }
+    if (c == "$" && substr(s, i + 1, 1) == "(") { print "N:" substr(s, i + 2); i += 2; continue }
+    if (c == "(" || c == "{" && isw(substr(s, i + 1, 1))) { i++; continue }
+    if (c == ")") { i++; continue }
+    if (c == "<" || c == ">") {
+      i++
+      while (i <= n && substr(s, i, 1) ~ /[<>&|]/) i++
+      redir = 1; continue
+    }
+    e = wordend(s, i, n)
+    if (e == i) { i++; continue }
+    w = substr(s, i, e - i); i = e
+    if (substr(w, 1, 1) != "'") {
+      p = index(w, "$("); if (p) print "N:" substr(w, p + 2)
+      p = index(w, "`"); if (p) print "N:" substr(w, p + 1)
+    }
+    if (redir) { redir = 0; continue }
+    if (takec) { takec = 0; print "N:" outer(w); cmdpos = 0; continue }
+    bare = unq(w)
+    if (cmdpos) {
+      if (evalnext) {
+        evalnext = 0
+        if (substr(w, 1, 1) ~ /["']/) { print "N:" outer(w); cmdpos = 0; continue }
+      }
+      if (wrapopts && (bare ~ /^-/ || bare ~ /^[0-9]+$/)) continue
+      if (bare ~ /^([^ ]*\/)?git$/) {
+        if (followed(s, i, n)) { print "G"; exit }
+        cmdpos = 0; continue
+      }
+      if (bare ~ /^([^ ]*\/)?(env|sudo|doas|xargs|time|nohup|nice|exec|command|builtin|timeout|stdbuf|setsid|ionice|eval|then|do|else|elif|if|while|until)$/ || bare == "!") {
+        wrapopts = 1
+        if (bare ~ /(^|\/)eval$/) evalnext = 1
+        continue
+      }
+      if (bare ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue
+      if (bare ~ /^([^ ]*\/)?(bash|sh|zsh|dash|ksh|ash)$/) shellargs = 1
+      cmdpos = 0; wrapopts = 0; continue
+    }
+    if (shellargs && bare ~ /^-[A-Za-z]*c[A-Za-z]*$/) { takec = 1; continue }
+    if (bare ~ /^-(exec|execdir|ok|okdir)$/) { cmdpos = 1; wrapopts = 0; continue }
+  }
+}
+AWK
+)
+
+# _runs_git <command> [depth]: 0 when the command runs git. Strings the awk hands back ("N:...": a
+# substitution, a `sh -c` program) are rescanned as commands of their own, a few levels deep.
+_runs_git() {
+  local cmd="$1" depth="${2:-0}" out line
+  # argv-list and call forms: matched anywhere in the text, quoted program included.
+  printf '%s' "$cmd" | grep -qE "\\[[[:space:]]*['\"]git['\"][[:space:]]*,|['\"]git['\"][[:space:]]*,[[:space:]]*['\"][-[:alpha:]]|\\([[:space:]]*['\"]git[[:space:]]+[-[:alpha:]]" && return 0
+  if [[ "$_HAVE_SEGMENTS" != true ]]; then
+    printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_.-])git[[:space:]]+[[:alpha:]-]'
+    return
+  fi
+  (( depth <= 4 )) || return 1
+  out="$(printf '%s' "$cmd" | _logical_segments | awk "$_GITCMD_AWK" 2>/dev/null)" || return 1
+  while IFS= read -r line; do
+    case "$line" in
+      G) return 0 ;;
+      N:*) _runs_git "${line#N:}" $((depth + 1)) && return 0 ;;
+    esac
+  done <<<"$out"
+  return 1
+}
 
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
 
@@ -90,11 +216,10 @@ if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
       Agent) [[ "$ROLE" == "leaf" ]] && RISKY=true ;;
       Bash)
         CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
-        # ANY git command: the word `git` as a command word - not part of a longer word or name
-        # (`git-ops`, `.git`, `digit`) - followed by a subcommand or a global option. `/usr/bin/git`
-        # is the binary; `/x/git/y` is a path, no command. No verb list: neither a read nor a
-        # mutation is the agent's to run, so none needs sorting.
-        if printf '%s' "$CMD" | grep -qE '(^|[^[:alnum:]_.-])git[[:space:]]+[[:alpha:]-]'; then
+        # ANY git command (a read, a mutation, `git -C <dir> ...`, inside `bash -c` or `$(...)` alike):
+        # no verb list - neither a read nor a mutation is the agent's to run, so none needs sorting.
+        # What counts as running git is defined at _runs_git above.
+        if _runs_git "$CMD"; then
           RISKY=true
         fi
         ;;

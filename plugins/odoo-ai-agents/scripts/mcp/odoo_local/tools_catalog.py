@@ -310,11 +310,13 @@ REPO_FACTS_OUTPUT = {
         "is_repo": {"type": "boolean", "description": "false = path is outside any repository; every other field is empty."},
         "repo_root": {"type": "string", "description": "Top of the working tree containing path."},
         "principal_root": {"type": "string", "description": "Root of the main checkout; equals repo_root unless "
-                                                           "is_linked_worktree."},
+                                                           "is_linked_worktree. Empty when the repository is bare "
+                                                           "or its main checkout is not recorded (separate git dir)."},
         "is_linked_worktree": {"type": "boolean"},
         "branch": {"type": "string", "description": "Checked-out branch; empty when HEAD is detached."},
         "detached": {"type": "boolean"},
-        "ref": {"type": "string", "description": "branch, else the short SHA when detached; empty in an unborn repository."},
+        "ref": {"type": "string", "description": "branch, else the short SHA when detached; in an unborn repository, the branch "
+                                                    "the first commit will land on."},
         "head_sha": {"type": "string", "description": "Short SHA of HEAD; empty before the first commit."},
         "head_sha_full": {"type": "string"},
         "origin_url": {"type": "string", "description": "URL of remote origin with any embedded credentials removed; empty = none."},
@@ -394,5 +396,5 @@ def register(registry, ctx):
         "path outside any repository is a normal result (is_repo=false), not an error. Anything "
         "beyond these facts (history, diffs, branches, any change) is a request to git-toolkit:git-ops.",
         REPO_FACTS_INPUT, REPO_FACTS_OUTPUT, repo_facts,
-        title="Read repository facts", read_only=True,
+        title="Read repository facts", read_only=True, long_running=True,
     )

@@ -91,6 +91,7 @@ def test_a_repository_without_commits_has_a_branch_but_no_sha(server, tmp_path):
     out = facts(server, fresh)
     assert out["is_repo"] is True and out["branch"] == "main"
     assert out["head_sha"] == "" and out["head_sha_full"] == "" and out["detached"] is False
+    assert out["ref"] == "main", "the branch the first commit lands on is the ref of an unborn repository"
 
 
 def test_a_linked_worktree_points_back_to_the_main_checkout(server, repo, tmp_path):
@@ -230,3 +231,120 @@ def test_a_missing_git_binary_is_a_named_error(home, tmp_path, repo):
     assert result["isError"] is True and structured(result)["error"]["code"] == "GIT_UNAVAILABLE"
     assert structured(result)["error"]["remedy"]
     assert os.path.isdir(str(repo))
+
+
+# --------------------------------------------------------------------------- #
+# the server's own repository-local git environment never decides the answer
+# --------------------------------------------------------------------------- #
+def test_repository_local_git_variables_of_the_server_environment_are_ignored(home, tmp_path, repo):
+    """A server started from a git hook or `git rebase --exec` inherits GIT_DIR / GIT_WORK_TREE /
+    GIT_INDEX_FILE of ANOTHER repository; every fact must still be that of the path asked about."""
+    other = tmp_path / "other"
+    other.mkdir()
+    git(other, "init", "-q", "-b", "elsewhere")
+    commit_file(other, "z.txt", "z\n")
+    (other / "dirty.txt").write_text("x\n")
+    env = hermetic_env(home, GIT_DIR=other / ".git", GIT_WORK_TREE=other,
+                       GIT_INDEX_FILE=other / ".git" / "index", **_GIT_ENV)
+    client = McpClient(env, tmp_path)
+    client.initialize()
+    with client as s:
+        out = facts(s, repo)
+    assert out["repo_root"] == str(repo.resolve())
+    assert out["branch"] == "17.0" and out["head_sha_full"] == git(repo, "rev-parse", "HEAD").stdout.strip()
+    assert out["dirty"]["is_dirty"] is False, "the other repository's untracked file must not show"
+
+
+# --------------------------------------------------------------------------- #
+# principal_root of linked worktrees
+# --------------------------------------------------------------------------- #
+def test_a_worktree_of_a_bare_repository_has_no_principal_checkout(server, tmp_path):
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    git(seed, "init", "-q", "-b", "main")
+    commit_file(seed, "a.txt", "one\n")
+    bare = tmp_path / "bare.git"
+    git(tmp_path, "clone", "-q", "--bare", str(seed), str(bare))
+    wt = tmp_path / "wt"
+    git(bare, "worktree", "add", "-q", str(wt), "main")
+    out = facts(server, wt)
+    assert out["is_linked_worktree"] is True and out["repo_root"] == str(wt.resolve())
+    assert out["principal_root"] == "", "the linked worktree is not the principal checkout"
+
+
+def test_a_worktree_of_a_repository_with_a_separate_git_dir_is_not_its_own_principal(server, tmp_path):
+    main = tmp_path / "main"
+    main.mkdir()
+    git(main, "init", "-q", "-b", "main", "--separate-git-dir", str(tmp_path / "main.gitdir"))
+    commit_file(main, "a.txt", "one\n")
+    wt = tmp_path / "wt"
+    git(main, "worktree", "add", "-q", "-b", "side", str(wt))
+    out = facts(server, wt)
+    assert out["is_linked_worktree"] is True
+    assert out["principal_root"] != out["repo_root"]
+    assert not out["principal_root"].endswith(".gitdir"), "a git dir is not a checkout"
+
+
+def test_a_worktree_added_from_another_worktree_still_names_the_first_checkout(server, repo, tmp_path):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    git(repo, "worktree", "add", "-q", "-b", "one", str(first))
+    git(first, "worktree", "add", "-q", "-b", "two", str(second))
+    assert facts(server, second)["principal_root"] == str(repo.resolve())
+
+
+# --------------------------------------------------------------------------- #
+# credentials never reach the output
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("url,shown", [
+    ("https://user:s3cret@git.example.invalid/acme/x.git", "https://git.example.invalid/acme/x.git"),
+    ("https://user:p@s3cret@git.example.invalid/acme/x.git", "https://git.example.invalid/acme/x.git"),
+    ("https://user:s3cret@git.example.invalid:8443/acme/x.git", "https://git.example.invalid:8443/acme/x.git"),
+    ("https://tok:s3/cret@git.example.invalid/acme/x.git", "https://git.example.invalid/acme/x.git"),
+    ("https://s3cret@git.example.invalid/acme/x.git?ref=a@b#f", "https://git.example.invalid/acme/x.git?ref=a@b#f"),
+    ("ssh://git@git.example.invalid:2222/acme/x.git", "ssh://git.example.invalid:2222/acme/x.git"),
+    ("https://git.example.invalid/acme/@scope/x.git", "https://git.example.invalid/acme/@scope/x.git"),
+    ("https://git.example.invalid:8443/a@b.git", "https://git.example.invalid:8443/a@b.git"),
+    ("git@git.example.invalid:acme/x.git", "git@git.example.invalid:acme/x.git"),
+    ("/srv/git/x.git", "/srv/git/x.git"),
+])
+def test_remote_urls_lose_their_userinfo_whatever_it_contains(server, repo, url, shown):
+    git(repo, "remote", "add", "origin", url)
+    out = facts(server, repo)
+    assert out["origin_url"] == shown and out["remotes"] == {"origin": shown}
+    assert "s3cret" not in str(out)
+
+
+# --------------------------------------------------------------------------- #
+# a multi-commit cherry-pick or revert paused between commits
+# --------------------------------------------------------------------------- #
+def test_a_paused_multi_commit_cherry_pick_is_still_an_operation_in_progress(server, repo):
+    git(repo, "checkout", "-q", "-b", "other")
+    commit_file(repo, "a.txt", "other\n", "c1")
+    commit_file(repo, "b.txt", "b\n", "c2")
+    git(repo, "checkout", "-q", "17.0")
+    commit_file(repo, "a.txt", "main\n", "main")
+    git(repo, "cherry-pick", "other~1", "other", check=False)
+    assert facts(server, repo)["operation_in_progress"] == "cherry-pick"
+    (repo / "a.txt").write_text("resolved\n")
+    git(repo, "add", "a.txt")
+    git(repo, "commit", "-q", "--no-edit")
+    assert not (repo / ".git" / "CHERRY_PICK_HEAD").exists(), "only the sequencer is left to say so"
+    assert facts(server, repo)["operation_in_progress"] == "cherry-pick"
+    git(repo, "cherry-pick", "--abort")
+    assert facts(server, repo)["operation_in_progress"] == "none"
+
+
+def test_a_paused_multi_commit_revert_is_reported_as_a_revert(server, repo):
+    commit_file(repo, "a.txt", "two\n", "r1")
+    commit_file(repo, "a.txt", "three\n", "r2")
+    commit_file(repo, "b.txt", "b\n", "r3")
+    git(repo, "revert", "--no-edit", "HEAD~2", "HEAD", check=False)  # stops: r1 conflicts with r2
+    assert facts(server, repo)["operation_in_progress"] == "revert"
+    (repo / "a.txt").write_text("resolved\n")
+    git(repo, "add", "a.txt")
+    git(repo, "commit", "-q", "--no-edit")
+    assert not (repo / ".git" / "REVERT_HEAD").exists(), "only the sequencer is left to say so"
+    assert facts(server, repo)["operation_in_progress"] == "revert"
+    git(repo, "revert", "--abort")
+    assert facts(server, repo)["operation_in_progress"] == "none"

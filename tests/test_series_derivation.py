@@ -65,10 +65,9 @@ ERA_FLOOR_MAJOR = 8
 
 # ---------------------------------------------------------------------------- #
 # The manifest-version corpus, pinned in ONE place so a new observation is added
-# once. The real values are what the OSM index reports for core (`Viindoo/odoo`)
-# and for the Viindoo addon repos (`tvtmaaddons`, `erponline-enterprise`) across
-# the 12 indexed series, joined by the shapes this plugin's own manifest and
-# upgrade conventions name in prose.
+# once. The real values are what the OSM index reports for core and for third-party
+# addon repos across the 12 indexed series, joined by the shapes this plugin's own
+# manifest and upgrade conventions name in prose.
 # ---------------------------------------------------------------------------- #
 ADDON_OWN_VERSIONS = (
     # 2 segments - real, core and Viindoo addons alike

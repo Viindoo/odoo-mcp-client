@@ -26,10 +26,13 @@ first stated version, else the string "UNKNOWN" - a fact the repo does not state
 
 A failed attempt is recorded (`interpreter-unavailable` or `requirements-failed`) and the next one
 runs; nothing is hardcoded, so a new Python release is tried first without an edit here.
+Every attempt is built in the sibling `<venv>.new` and swapped in only once it installed the
+requirements, so a rebuild that fails everywhere leaves an existing venv as it was. An existing
+`--venv` path with no `pyvenv.cfg` is not a virtualenv and is refused (exit 2), never cleared.
 Report keys: `ok`, `python` (the venv interpreter), `version`, `source` (`stated:<file>` or
 `newest-installing`), `tried` (each attempt and why it failed).
-Exit: `facts` 0, 2 (worktree is not a directory); `venv` 0 (a venv was built), 2, 3 (no interpreter
-installs the requirements), 4 (uv missing).
+Exit: `facts` 0, 2 (worktree is not a directory); `venv` 0 (a venv was built), 2 (also: --venv
+exists and is not a virtualenv), 3 (no interpreter installs the requirements), 4 (uv missing).
 """
 from __future__ import annotations
 
@@ -225,23 +228,91 @@ def _run(argv, timeout):
     return res.returncode, (res.stderr or res.stdout or "").strip()[-400:]
 
 
+def venv_refusal(venv):
+    """Why `venv` may not be built over, else None. An existing path that is not a virtualenv
+    (no pyvenv.cfg) is somebody's directory: replacing it would destroy it."""
+    if os.path.lexists(venv) and not os.path.isfile(os.path.join(venv, "pyvenv.cfg")):
+        return "%s exists and is not a virtualenv (no pyvenv.cfg); it was not touched" % venv
+    return None
+
+
+def _repoint(tree, built_at, final):
+    """Rewrite the path a venv was built at to the path it will live at, in every regular text
+    file under bin/ and in pyvenv.cfg (script shebangs, activate scripts). The sibling's bare
+    name is rewritten too, so the shell prompt does not carry the staging suffix."""
+    swaps = [(built_at.encode(), final.encode()),
+             (os.path.basename(built_at).encode(), os.path.basename(final).encode())]
+    names = [os.path.join(tree, "pyvenv.cfg")]
+    bindir = os.path.join(tree, "bin")
+    if os.path.isdir(bindir):
+        names += [os.path.join(bindir, n) for n in sorted(os.listdir(bindir))]
+    for name in names:
+        if os.path.islink(name) or not os.path.isfile(name):
+            continue
+        with open(name, "rb") as fh:
+            data = fh.read()
+        if b"\0" in data:
+            continue
+        out = data
+        for src, dst in swaps:
+            out = out.replace(src, dst)
+        if out != data:
+            with open(name, "wb") as fh:
+                fh.write(out)
+
+
+def _swap_in(built, venv):
+    """Put `built` at `venv`, keeping the previous venv until the move has succeeded. Both paths
+    are siblings, so each step is a rename on one filesystem."""
+    old = venv + ".old"
+    shutil.rmtree(old, ignore_errors=True)
+    had = os.path.lexists(venv)
+    if had:
+        os.rename(venv, old)
+    try:
+        os.rename(built, venv)
+    except OSError:
+        if had:
+            os.rename(old, venv)
+        raise
+    shutil.rmtree(old, ignore_errors=True)
+
+
 def build_venv(worktree, venv, requirements, uv="uv"):
+    """Build the docs venv. Every attempt is made in the sibling `<venv>.new` (same filesystem,
+    never a temp dir) and only a venv that installed the requirements is swapped into place, so a
+    rebuild that fails everywhere leaves the existing venv exactly as it was."""
+    refused = venv_refusal(venv)
+    if refused:
+        return {"ok": False, "python": None, "version": None, "source": None, "tried": [],
+                "refused": refused}
+    venv = os.path.abspath(venv)
+    staging = venv + ".new"
+    old = venv + ".old"
+    if not os.path.lexists(venv) and os.path.isdir(old):
+        os.rename(old, venv)  # a run that died between its two renames
     tried = []
     attempts = plan(collect(worktree)["stated"], available_minors(uv))
-    for version, source in attempts:
-        rc, tail = _run([uv, "venv", "--clear", "--python", version, venv], VENV_TIMEOUT_S)
-        if rc != 0:
-            tried.append({"version": version, "source": source, "failed": "interpreter-unavailable",
-                          "detail": tail})
-            continue
-        python = os.path.join(venv, "bin", "python")
-        rc, tail = _run([uv, "pip", "install", "--python", python, "-r", requirements],
-                        INSTALL_TIMEOUT_S)
-        if rc == 0:
-            return {"ok": True, "python": python, "version": version, "source": source,
-                    "tried": tried}
-        tried.append({"version": version, "source": source, "failed": "requirements-failed",
-                      "detail": tail})
+    try:
+        for version, source in attempts:
+            shutil.rmtree(staging, ignore_errors=True)
+            rc, tail = _run([uv, "venv", "--clear", "--python", version, staging], VENV_TIMEOUT_S)
+            if rc != 0:
+                tried.append({"version": version, "source": source,
+                              "failed": "interpreter-unavailable", "detail": tail})
+                continue
+            rc, tail = _run([uv, "pip", "install", "--python", os.path.join(staging, "bin", "python"),
+                             "-r", requirements], INSTALL_TIMEOUT_S)
+            if rc != 0:
+                tried.append({"version": version, "source": source, "failed": "requirements-failed",
+                              "detail": tail})
+                continue
+            _repoint(staging, staging, venv)
+            _swap_in(staging, venv)
+            return {"ok": True, "python": os.path.join(venv, "bin", "python"), "version": version,
+                    "source": source, "tried": tried}
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     return {"ok": False, "python": None, "version": None, "source": None, "tried": tried}
 
 
@@ -269,10 +340,17 @@ def main(argv=None):
     if not os.path.isfile(requirements):
         sys.stderr.write("requirements file not found: %s\n" % requirements)
         return 2
+    refused = venv_refusal(args.venv)
+    if refused:
+        sys.stderr.write(refused + "\n")
+        return 2
     if shutil.which("uv") is None:
         sys.stderr.write("uv is not installed\n")
         return 4
     report = build_venv(args.worktree, args.venv, requirements)
+    if report.get("refused"):
+        sys.stderr.write(report["refused"] + "\n")
+        return 2
     lines = ["DOCS PYTHON: %s (%s, %s)" % (report["python"], report["version"], report["source"])
              if report["ok"] else "no interpreter installs %s" % requirements]
     lines += ["tried %s (%s): %s" % (t["version"], t["source"], t["failed"]) for t in report["tried"]]
