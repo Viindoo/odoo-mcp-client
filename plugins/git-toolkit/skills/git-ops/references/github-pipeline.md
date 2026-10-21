@@ -1,6 +1,7 @@
 # GitHub pipeline recipes - MCP-first
 
-All GitHub ops follow `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: the
+Agent-facing: `github-operator` cites this file; no dispatcher does, and a brief never copies from
+it. All GitHub ops follow `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: the
 `mcp__plugin_github_github__*` tools are PRIMARY; `gh` is the fallback; never both for one op; note
 `DONE_WITH_CONCERNS` when `gh` was used. Unbounded reads (a PR body, a diff, a long issue thread)
 are summarized to a findings file - never echoed whole to the caller.
@@ -24,7 +25,7 @@ labels for issues) - the full body/diff is fetched only on explicit request.
 | Merge | `merge_pull_request` | `gh pr merge <n> --squash/--merge/--rebase` |
 | Update branch from base | `update_pull_request_branch` | `gh pr update-branch <n>` |
 
-Scale: for a large PR, read `--name-only` first, cluster, then read scoped diffs - obey
+Scale: for a large PR, read the file list first, cluster, then read scoped diffs - obey
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`.
 
 PR title + body follow `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` (business subject,
@@ -80,5 +81,5 @@ gh pr create --repo <upstream-owner>/<repo> --base <branch> \
 
 ```bash
 git rebase --signoff <base>     # add Signed-off-by to each commit
-git push --force-with-lease     # S2
+git push --force-with-lease <remote> <branch>     # S2, S13
 ```

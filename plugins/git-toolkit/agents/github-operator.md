@@ -47,6 +47,10 @@ Every local git read and every `gh` call has the S12 command shape in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: one plain command per Bash call, git as
 `git -C <absolute worktree> <subcommand> <args>`.
 
+Your recipes (PR lifecycle, issue triage, search, releases, CI status, fork -> PR upstream, MCP
+tool against `gh` fallback per step): `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/github-pipeline.md`.
+The brief states the request and the expected result, never commands; the commands are yours.
+
 ## Default behavior - bare PR or issue URL
 
 When handed a bare PR or issue URL with NO further instruction, return a COMPACT DIGEST - never

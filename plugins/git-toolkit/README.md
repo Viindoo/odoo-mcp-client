@@ -1,8 +1,8 @@
 # git-toolkit
 
 A safe, scale-aware **git + GitHub toolkit for AI agents**. One front-door skill (`git-ops`) takes
-any git/github request, runs it in a delegated or inline-bounded context so the calling agent's
-context stays clean, and never loses code - from a few lines up to thousands of files.
+any git/github request, runs it in a delegated agent so the calling agent's context stays clean,
+and never loses code - from a few lines up to thousands of files.
 
 Licensed **Apache-2.0**. Part of the [`odoo-mcp-client`](https://github.com/Viindoo/odoo-mcp-client)
 monorepo, but domain-agnostic: it has no Odoo dependency.
@@ -13,12 +13,12 @@ monorepo, but domain-agnostic: it has no Odoo dependency.
   bisect, branch/tag/worktree, fetch/pull/merge/cherry-pick, rebase, forward-port/backport,
   conflict resolution, history rewrite, recovery, large-diff analysis) and GitHub intent (PR/issue/
   review/release/CI/fork), in whatever language the user writes.
-- **Three execution modes**, chosen by output size and risk:
-  - **INLINE** - bounded, low-risk reads (`git status`, `git log -n`) run directly.
-  - **SINGLE-DELEGATE** - one medium op cold-spawns one leaf agent.
-  - **PHASED-PIPELINE** - a large change (>500 files / >10k LOC / multi-commit rewrite) cold-spawns
-    `git-pipeline-lead`, which runs map -> evaluate -> strategy -> execute -> verify below the
-    caller.
+- **Request in, result out.** The caller describes what it wants and what it needs back; it never
+  writes git or gh commands. Every op, a one-line read included, goes to an agent that owns the
+  commands and the safety steps:
+  - a read -> `git-surveyor`; a local mutation -> `git-operator`; a GitHub op -> `github-operator`.
+  - a large change (>500 files / >10k LOC / multi-commit rewrite) -> `git-pipeline-lead`, which runs
+    map -> evaluate -> strategy -> execute -> verify below the caller.
 - **Never loses code** - destructive ops back up first and verify tree-identity after. A human
   confirms only one op: changing a protected branch without a pull request.
 - **One plain command per call** - every git call is `git -C <worktree> <subcommand> <args>`, and

@@ -1,15 +1,15 @@
 # git-toolkit architecture
 
 `git-toolkit` is a routing + orchestration layer made of Markdown: one front-door skill classifies a
-git/github request and runs it in a delegated (or inline-bounded) context, so the CALLER'S context
-stays clean and code is never lost. No application logic - the skill and agents are prose with YAML
+git/github request and hands it to a delegated agent, so the CALLER'S context stays clean and code
+is never lost. No application logic - the skill and agents are prose with YAML
 frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue at runtime.
 
 ## Components
 
 - **1 skill - `git-ops`.** The universal front door. Auto-triggers on all git + GitHub intent
-  (the user may write in any language; the description is English). Classifies the op, picks an execution mode, points at the safety/scale/convention
-  snippets and the detailed recipes in `references/`.
+  (the user may write in any language; the description is English). Classifies the op, picks the agent
+  and its tier, and states the request and the expected result. It holds no command know-how.
 - **4 agents.**
   - `git-surveyor` - READ-ONLY cognition (map / evaluate / verify). Tool grant excludes write and
     spawn tools.
@@ -17,23 +17,29 @@ frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue 
     No spawn tool.
   - `github-operator` - GitHub API, MCP-first / gh-fallback. No spawn tool.
   - `git-pipeline-lead` - the BRAIN + ORCHESTRATOR for large changes; the ONLY agent that spawns.
-- **10 snippets (SSOT).** safety-contract, scale-protocol, nesting-protocol, delegation-decision,
-  model-tiers, squash-push, github-mcp-first, commit-convention, language-mirroring,
-  completion-reporting. Each rule is declared ONCE; the skill and agents POINT at it via
-  `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never duplicate it.
-- **6 references.** large-change-pipeline, history-rewrite, conflict-resolution, github-pipeline,
-  and the two commit-convention standards (general, odoo) - deterministic recipes loaded on demand.
+- **11 snippets (SSOT).** safety-contract, scale-protocol, scale-recipes, nesting-protocol,
+  delegation-decision, model-tiers, squash-push, github-mcp-first, commit-convention,
+  language-mirroring, completion-reporting. Each rule is declared ONCE; the skill and agents POINT at
+  it via `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never duplicate it. The rules a dispatcher reads
+  (delegation-decision, scale-protocol, model-tiers) state outcomes; command recipes live only in
+  files the agents read (scale-recipes, squash-push, the references).
+- **6 references.** large-change-pipeline (cited by `git-pipeline-lead`), history-rewrite and
+  conflict-resolution (`git-operator`), github-pipeline (`github-operator`), and the two
+  commit-convention standards (general, odoo, loaded by the detection protocol) - deterministic
+  recipes the agents load on demand. The skill cites none of them.
 
-## Execution modes (the skill decides)
+## Routing (the skill decides)
+
+The caller's brief states the request and the expected result, never git or gh commands; the agent
+chosen below owns the commands, the flags and the safety steps.
 
 ```mermaid
 flowchart TD
     U[git / github request] --> C{classify + size + risk}
-    C -->|bounded output, low risk| INLINE[INLINE: run safe command directly]
-    C -->|one medium op| SD{which leaf?}
+    C -->|one op| SD{which leaf?}
     C -->|large: >500 files / >10k LOC / multi-commit rewrite| PL[cold-spawn git-pipeline-lead]
 
-    SD -->|read cognition| SV[git-surveyor]
+    SD -->|read, bounded or not| SV[git-surveyor]
     SD -->|local mutation| OP[git-operator]
     SD -->|GitHub API| GH[github-operator]
 
@@ -65,7 +71,7 @@ its own agent-launch tool before launching, and that tool alone decides how it c
 ```mermaid
 flowchart TD
     L[launcher about to start a leaf] --> T{which agent-launch tool<br/>does this context hold?}
-    T -->|launch tool absent: at the nesting cap| F[do the work inline under the contract<br/>or return BLOCKED with resumable state]
+    T -->|launch tool absent: at the nesting cap| F[run nothing<br/>return NEEDS_CONTEXT: needs a context that can launch git-ops agents]
     T -->|launch tool has a run_in_background parameter| B[launch with run_in_background false<br/>independent leaves in ONE message<br/>every result returns in this turn<br/>never end the turn while a leaf runs]
     T -->|launch tool has no run_in_background parameter| A[launch, then END THE TURN<br/>woken once per leaf<br/>re-check who is still outstanding on every wake]
 ```
@@ -96,10 +102,10 @@ flowchart TD
 ## Consuming this toolkit
 
 `git-toolkit` is a provider library; it does not know its consumers by name. An orchestrating
-CALLER - any skill, agent, or pipeline that needs git/GitHub work done - delegates every local
-git mutation and GitHub API op to these agents (dispatching `git-operator`, `git-surveyor`, or
-`github-operator` by launching them) rather than running git inline. The caller is responsible
-for:
+CALLER - any skill, agent, or pipeline that needs git/GitHub work done - delegates every git read, local
+git mutation and GitHub API op to these agents through the `git-ops` skill, describing the request
+and the expected result (never commands), rather than running git itself. The caller is
+responsible for:
 
 - Worktree isolation per mutation - never operate on the primary/shared checkout (S9 in
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`).

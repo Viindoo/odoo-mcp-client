@@ -42,8 +42,9 @@ the index, the working tree, or a remote.
 - Every git read has the S12 command shape in
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: one plain
   `git -C <absolute worktree> <subcommand> <args>` per Bash call.
-- Obey the scale protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`. ALWAYS start
-  with `--name-only`/`--numstat`/`--stat`; never read a huge diff whole. If your assigned scope is
+- Obey the scale protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`, with the
+  commands in `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-recipes.md`. ALWAYS start with the
+  name/count views; never read a huge diff whole. If your assigned scope is
   itself larger than the M2 trigger, say so in your return and recommend the caller re-cluster -
   do not ingest it.
 - GitHub state, when needed, is either supplied in the brief by the lead/`github-operator` OR read
