@@ -117,10 +117,10 @@ solution-level summary) is OWNED by the verification node whose `modules` cover 
 spans; name that ownership on the owning node's Block 3 line (Round 2).
 
 After the last verification node, copy the **default tail** of `plan-mode-schema.md` § Default tail
-(review R1 then R2, acceptance in parallel, one fix round, i18n, `docs-module`, `docs-site`,
+(review R1 then R2, acceptance in parallel, one fix round, i18n, `migration`, `docs-module`, `docs-site`,
 integrate, monitor, merge - each with its `when:`), tagged with its repo, and adapt it only with a
 reason written in the plan (an SRS with a language criterion moves i18n before acceptance; a run
-with no user-visible feature keeps both doc nodes with their `when:`). The doc nodes follow the
+with no user-visible feature keeps both doc nodes with their `when:`, and `migration` always keeps its `when:`). The doc nodes follow the
 documentation target the brief carries: `docs-module` and `docs-site` are kept or dropped to match;
 `docs-site` is tagged with the docs repo and followed only by `monitor-site` and `merge-site`, which
 also depends on the code repo's `merge` (no `integrate`, no `run-integration` branch; its `repos[]`

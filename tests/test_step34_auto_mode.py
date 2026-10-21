@@ -9,6 +9,7 @@ Drives throwaway settings (CLAUDE_SETTINGS), state root (ODOO_AI_HOME) and catal
 """
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -264,6 +265,20 @@ def test_entries_name_only_the_machine_owners_never_a_hardcoded_vendor(machine):
     assert "acme" in text and "alice" in text
     for vendor in ("viindoo", "davidtranhp", "tvtmaaddons"):
         assert vendor not in text.lower()
+
+
+def test_the_edit_allowance_covers_a_break_check_of_data_security_and_test_files(machine):
+    """A break-check temporarily alters a security or data file and restores it: the classifier
+    must be told that is expected work, or it blocks the proof every test relies on."""
+    _run(machine, "apply")
+    entries = _data(machine)["autoMode"]["allow"]
+    texts = [" ".join(e.lower().split()) for e in entries if e.startswith(TAG)]
+    covering = [t for t in texts
+                if "break-check" in t
+                and re.search(r"\b(data|security|test)(?:,| and| or)[^.;]{0,30}files?\b"
+                              r"|\b(data|security|test) files?\b", t)
+                and ("restored" in t or "rebuilt" in t)]
+    assert covering, "no allow entry covers a break-check of a data, security or test file"
 
 
 def test_ask_rules_name_every_protected_branch_in_all_three_push_forms(machine):

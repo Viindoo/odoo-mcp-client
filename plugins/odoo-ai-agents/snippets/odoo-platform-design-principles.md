@@ -1,14 +1,11 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by every agent that touches Odoo architecture,
-     code, review, or debug (architect, coder, frontend-coder, code-reviewer, ui-reviewer,
-     backend-debugger, ui-debugger). Edit here only; consumers point at
+<!-- SSOT snippet. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md. -->
 
 # Odoo Platform Design Principles (binding checklist)
 
-Odoo is a platform with non-negotiable architectural conventions. Any design, code, review, or
-diagnosis that touches business structure MUST respect the three principles below. Verify each
-against OSM / live source - never assume (see `osm-first-contract.md`). When a change *cannot*
-satisfy a principle, that is a deliberate deviation: state it and the justification in the worklog
+Any design, code, review or diagnosis touching business structure MUST respect the
+principles below. Verify each against OSM / live source - never assume
+(see `osm-first-contract.md`). When a change *cannot* satisfy a principle, that is a deliberate deviation: state it and the justification in the worklog
 (`worklog-contract.md`), do not let it pass silently.
 
 ## 1. Multi-company (and multi-branch from v17+)
@@ -23,18 +20,18 @@ satisfy a principle, that is a deliberate deviation: state it and the justificat
   resolved version first; pre-17 has no `res.branch`. Do not bolt on a custom branch concept when
   the standard `res.branch` exists for the target version.
 - Stored computes, defaults, and domains must respect the active company/branch context - a value
-  correct for one company must not leak across the boundary (SaaS multi-tenancy safety).
+  correct for one company must not leak across the boundary.
 
 ## 2. Generic and international before localization
 
-Odoo's design law is: the generic, country-neutral behavior lives in a **shared** module; a
+The generic, country-neutral behavior lives in a **shared** module; a
 localization (`l10n_*`) module only **seeds** the rules/data/COA/taxes that differ per country.
 
 - When a change touches a localized feature, FIRST evaluate reuse across countries: would >= 2
   countries share this behavior? If yes, the behavior belongs in the **generic/shared** module and
   each `l10n_*` only adds country-specific records (rules, data, sequences, tax/account templates).
 - Do NOT build a parallel architecture inside one country's `l10n` module for something other
-  countries will also need - that is duplication waiting to drift. Lift it to the shared layer and
+  countries will also need Lift it to the shared layer and
   seed per country.
 - Keep user-facing strings translatable (`_()`, no hardcoded language/currency/locale) so the
   generic layer serves every locale.
@@ -77,10 +74,13 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
 Within a series; a cross-series code upgrade follows
 `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0.
 
-- **One `__manifest__.py` version bump per module per PR**, only when the PR needs a data
-  update or a migration. The migration directory of that version holds at most ONE file per
-  stage (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`); files named after business
-  topics are not accepted even when they run.
+- **Migrations are decided last (SSOT).** Write no migration script and no version bump inside
+  the code, test, review, acceptance, debug or i18n loops. After the loops end and the modules
+  are proven on a FRESH install, a module that was `installable` True before the PR (an absent
+  key counts as True) and whose change alters data existing databases hold gets at most ONE
+  `__manifest__.py` version bump per PR, and its migration directory holds at most ONE file per
+  stage (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never files named after
+  business topics. A module `installable: False` before the PR or within it takes neither.
 - **Retire, do not delete.** A module, model or field that customer databases hold data in stays
   in place with a TODO naming the next major that removes it. Only a pre-migration script removes
   data that carries an XML ID.

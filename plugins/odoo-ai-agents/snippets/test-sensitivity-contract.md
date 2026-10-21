@@ -5,8 +5,7 @@
 
 # Test-Sensitivity Contract (code first, then a test proven by breaking the rule)
 
-These are principles, not a script. Real changes vary more than any list can foresee: apply each
-one with judgment and say what you decided.
+These are principles, not a script: apply each with judgment and say what you decided.
 
 ## Code first, then the test leg
 
@@ -18,8 +17,9 @@ production code only and returns `OBSOLETE TESTS` (existing tests the REQUEST ma
 from the code. Nothing is committed between the coders and the test leg.
 
 While the test-writer works it breaks production code on purpose, so nobody else builds, edits or
-commits in that node until it returns. It edits test files only, plus `__manifest__.py` solely to
-register test assets (a JS test or tour bundle), and says so in its report.
+commits in that node until it returns. It edits test files, and a production file only for a
+break-check, restoring it before it returns; `__manifest__.py` changes solely to register test
+assets (a JS test or tour bundle). It says so in its report.
 
 ## No test leg
 
@@ -48,8 +48,8 @@ Prove it for real, e.g. for "a line discount above 20% is refused":
 
 A test that stays green guards nothing: strengthen or replace it, then break-check it again.
 
-**Restore is your own duty.** Never leave production code broken - not on success, not on failure,
-not when you stop early. If you cannot restore a file, return `BLOCKED` naming it.
+**Restore is your own duty.** Never leave production code broken on any path, an early stop
+included. If you cannot restore a file, return `BLOCKED` naming it.
 
 **Instance.** Run through `Skill(odoo-instance)` inline on the forwarded `INSTANCE_HANDLE`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle);

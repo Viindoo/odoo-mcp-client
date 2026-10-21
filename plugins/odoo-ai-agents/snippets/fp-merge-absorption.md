@@ -68,11 +68,15 @@ across every module's adapt work, and closes once. All work happens here - in th
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
    see [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
    against the range's combined result - re-resolving it per commit is the banned shape above.
-2a. **Manifest version (C1) - set by formula, only when the source bumped.** `--no-ff` already
-    carries whatever the source commit did to the module descriptor - which filename applies on
-    which series is owned by `odoo-era-boundaries.md` row 6, never restated here. For a module that
-    already exists on the target and whose `version` the range changes on the source, set the target
-    descriptor's `version` to `max(M + 1, S)`, whether or not the merge conflicted on that field:
+2a. **Manifest version (C1) - set by formula, only when the source bumped and the module is
+    installable at the target.** `--no-ff` already carries whatever the source commit did to the
+    module descriptor - which filename applies on which series is owned by
+    `odoo-era-boundaries.md` row 6, never restated here. For a module that already exists on the
+    target with `installable_false=no` on its `merge-log.md` row (an absent `installable` key counts
+    as installable - `[[fp-installable-false]]` § Discriminator) and whose `version` the range
+    changes on the source, set the target descriptor's `version` to `max(M + 1, S)`, whether or not
+    the merge conflicted on that field. A module with `installable_false=yes` keeps the target's
+    `M`: restore it when the merge carried the source's value.
     `M` = the target module's version BEFORE this forward-port, `S` = the module's version in the
     source tip, both read on the module part after the series prefix and compared as dotted integer
     tuples; `+ 1` adds one to the last component. Write the result in the form the target
@@ -92,12 +96,13 @@ no-commit merge while one is in progress (git index is shared; git-toolkit enfor
 ## Migration dir retarget (C2) - distinct from C1
 
 A source-series commit adds `migrations/<src-series>.a.b.c/`. `M` and `S` are as in C1. A migration
-runs only on UPGRADE and only when `installed < dir_version <= manifest`. Decide each dir in this
-order:
+runs only on UPGRADE and only when `installed < dir_version <= manifest`. Decide each dir at P9.6,
+after P9 is green and before P10 concludes the merge - never inside P8's adapt loop - in this order:
 
 1. **Precondition - installability.** Every module the script acts on (the owner of the dir and
    each module whose tables, fields or records the script reads or writes) is `installable` at the
-   target tip (the clean-tip read of `[[fp-installable-false]]`). Otherwise FORWARD the dir
+   target tip (the clean-tip read of `[[fp-installable-false]]`, where an absent `installable` key
+   counts as installable). Otherwise FORWARD the dir
    unchanged under its source-series name and record why on the commit's `merge-log.md` row
    (`<sha> | C2 forwarded | <module> not installable at target tip`): a script run where the
    modules it acts on are not upgraded meets a schema that is not there. A module

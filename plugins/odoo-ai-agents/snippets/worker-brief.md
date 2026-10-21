@@ -1,7 +1,5 @@
-<!-- SSOT snippet. The single source for the dispatched-subagent worker brief: OSM
-     grounding + worktree isolation. This is a worker brief, not a spawn guard - the
-     two rails it carries are "do the work directly" and "no git, write only in WORKTREE_PATH".
-     Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md so it has one home. -->
+<!-- SSOT snippet: the dispatched-subagent worker brief (OSM grounding + worktree isolation).
+     Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md. -->
 
 # Worker Brief (OSM grounding + worktree isolation)
 
@@ -34,10 +32,11 @@ agent body.
   spawner that launched you commits them through `Skill(git-toolkit:git-ops)`. A leaf never
   invokes git-ops, not even through the Skill tool. Full policy:
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
-- **Write only inside your `WORKTREE_PATH`** (and `ISOLATE_DIR` for scratch). Resolve every path
-  you write against `WORKTREE_PATH`, never against your cwd or another worktree under
-  `<SHARE>/worktrees/`. A change another node's tree needs is reported upward (file + change) for
-  that node's owner.
+- **Write only inside your `WORKTREE_PATH`** (and `ISOLATE_DIR` for scratch). Before your first
+  write, confirm that every target path resolves inside `WORKTREE_PATH` - not your cwd, not a
+  sibling worktree under `<SHARE>/worktrees/`; otherwise stop and report the path. How you confirm
+  is your choice, and never a git command. A change another node's tree needs is reported upward
+  (file + change) for that node's owner. This rule binds a node-owner too.
 - **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
   Unlike git-ops, an instance-touching leaf (e.g. `odoo-qa-tester`) MAY invoke
   `Skill(odoo-instance)` to self-provision a live Odoo instance when handed NO `INSTANCE_HANDLE`,

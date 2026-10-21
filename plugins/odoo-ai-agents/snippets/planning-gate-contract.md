@@ -20,8 +20,7 @@ Planning is enforced at ADMISSION: the FRONT DOOR (`odoo-intake`, `odoo-brl`, or
 `odoo-implement-feature` workflow) MUST establish an **approved plan artifact in scope** before it
 dispatches any executor (`odoo-coding`, its `odoo-coder` node owner and the leaves that coder
 launches) for any code-writing work, trivial included. Only DESIGN, via `odoo-solution-design`, may
-be skipped: it is RECOMMENDED for non-trivial work, never required, and nothing downstream refuses a
-plan whose design was skipped. Checked ONCE, at the door; executors trust the admission decision
+be skipped: it is RECOMMENDED for non-trivial work, never required. Checked ONCE, at the door; executors trust the admission decision
 and do not re-check it. "Approved plan artifact in scope" is TRUE when ANY of the three signals in
 § Approved-plan-artifact detection is present.
 
@@ -60,7 +59,7 @@ mandatory-planning rule. When choosing its Continuation-Contract `next`, `odoo-s
 route directly to `next: odoo-data-migration` (or `next: odoo-coding` for the migration script),
 bypassing `odoo-planning`, IFF ALL THREE conditions hold:
 
-1. the design is a data/schema **migration script**; AND
+1. the design is a data/schema **migration script** for a module that was `installable` before the change; AND
 2. it touches **exactly ONE module** (no new sibling module, no in-set `depends` edge added); AND
 3. it has **no multi-layer `dag_layers`** (a single layer).
 

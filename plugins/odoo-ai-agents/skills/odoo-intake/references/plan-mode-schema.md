@@ -83,11 +83,14 @@ Template:
   [i18n] [repo: fleet-addons] [agent: odoo-translator @ sonnet]
       depends-on: fix-round
       when: the .pot exported on the stable tip has a msgid the committed .pot lacks
+  [migration] [repo: fleet-addons] [skill: odoo-data-migration]
+      depends-on: i18n
+      when: a changed module was installable before this change, the change alters data existing databases hold, and a fresh install of it passed
   [docs-module] [repo: fleet-addons] [skill: odoo-doc-illustration]
       depends-on: i18n
       when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
   [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
-      depends-on: docs-module
+      depends-on: docs-module, migration
   [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring]
       depends-on: integrate
   [merge] [repo: fleet-addons] [skill: odoo-pr-monitoring]   human gate, always
@@ -103,7 +106,9 @@ Template:
     acceptance --> fix-round
     fix-round --> i18n
     i18n --> docs-module
+    i18n --> migration
     docs-module --> integrate
+    migration --> integrate
     integrate --> monitor
     monitor --> merge
 ```
@@ -193,6 +198,11 @@ place; the rest keep their order.
   model: sonnet
   depends_on: [fix-round]
   when: instance_i18n_export on the stable tip yields a msgid the committed .pot lacks or changed
+- id: migration   # decided last: the loops are over and a fresh install is proven
+  approach: odoo-data-migration   # owns the module's one version bump; never a node of a code upgrade
+  approach_kind: skill
+  depends_on: [i18n]
+  when: a changed module was installable before this change, the change alters data existing databases hold, and a fresh install of it passed
 - id: docs-module
   approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer
   approach_kind: skill
@@ -206,7 +216,7 @@ place; the rest keep their order.
 - id: integrate
   approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo
   approach_kind: integrate
-  depends_on: [docs-module]
+  depends_on: [docs-module, migration]
 - id: monitor
   approach: odoo-pr-monitoring
   approach_kind: skill
@@ -285,7 +295,7 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    agent with `SendMessage`, never to a new launch.
 6. **Verdict currency.** Before `integrate`, compare the `run-integration` tip the last green
    verification recorded with the live tip (a bounded `git-ops` read); they differ -> re-run that
-   verification node on the new tip. A `.po` or `.pot` change alone does not change behaviour and
+   verification node on the new tip. A `.po`, `.pot` or `migration` change alone does not change behaviour and
    does not trigger it.
 7. **Human gates** under the approved plan are exactly `merge` and any other outward or
    irreversible operation (send, publish, push, delete), each a text question. At a gate: write
@@ -318,7 +328,9 @@ cross-module assertions). Return: the commit range `<base>..<head>` on the node'
 node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
 `odoo-i18n`, `odoo-doc-illustration`) with `WORKTREE_PATH: <repo>/run-integration` and
 `SELF_PROVISION: worktree-addons` where the agent builds its own instance (i18n always: an export
-build needs demo data and the target languages, which a test lease cannot provide). `odoo-doc-site`
+build needs demo data and the target languages, which a test lease cannot provide). `migration`
+(`odoo-data-migration`) gets `WORKTREE_PATH: <repo>/run-integration`, `ODOO VERSION`, `DESIGN_DOC` and the changed
+modules that satisfy its `when:`. `odoo-doc-site`
 gets `CODE_WORKTREE: <code repo>/run-integration`, `RUN_ID` and `FROM CHANGE` instead of
 `WORKTREE_PATH`: the docs repo has no run-integration tree. A verification
 node: `OPERATION: run-tests`, `SERIES`, `MODULES` (= `node.modules`), `MODE: fresh`,

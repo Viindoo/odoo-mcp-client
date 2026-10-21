@@ -25,6 +25,12 @@ must also be INSTALLED in the target DB or the tag silently selects nothing (fal
 > fires deterministically on security-rule patterns like sql-injection (labeled `[pattern]`) but
 > is a hint, not the full gate.
 
+## Python wrapping - W503 and W504
+
+Never hand-wrap a boolean `and` / `or` across lines (pycodestyle W503 fires on a break before the
+operator, W504 on a break after it). Bind the sub-conditions to named booleans, or use `all()` /
+`any()`.
+
 ## JS lint gate - repo-pinned eslint oracle
 
 Frontend JS is linted by `verify-frontend.sh` Tier 1 using the **repo-pinned** eslint toolchain,

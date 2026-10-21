@@ -501,7 +501,8 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
   5. Tests: none here - the node's test leg adapts them after the code
      (${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md § Code first, then the test leg).
   The coders run NO git; after they write their files the orchestrating skill (odoo-coding) commits
-  via the git-toolkit:git-ops skill (DCO -s sign-off; per snippets/git-delegation.md).
+  via the git-toolkit:git-ops skill (sign-off only where the repo requires it - git-ops decides; per
+  snippets/git-delegation.md).
   Commit request: files touched + business outcome (<module> <source_version>-><target_version> -
   <ACTION> <one-line summary>) + `WORKTREE_PATH`; git-ops composes the message.
 
