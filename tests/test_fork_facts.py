@@ -178,3 +178,82 @@ def test_reading_the_fork_changes_nothing_in_the_clone(clone):
     after = subprocess.run(["git", "-C", str(clone), "config", "--list"], capture_output=True,
                            text=True).stdout
     assert before == after
+
+
+# ------------------------------------------------------------------ across many clones
+
+def _clone_of(tmp_path, name, origin):
+    repo = tmp_path / name
+    repo.mkdir()
+    _sh(repo, "git", "init", "-q", "-b", "17.0")
+    _sh(repo, "git", "commit", "-q", "--allow-empty", "-m", "init")
+    _sh(repo, "git", "remote", "add", "origin", origin)
+    return repo
+
+
+@pytest.fixture()
+def machine(tmp_path, clone):
+    """Three clones of two origins: `clone` (acme/addons-repo, pushed fork of alice), a second clone
+    of the same origin and a clone of acme/themes, both without any fork remote."""
+    _add_fork(clone)
+    copy = _clone_of(tmp_path, "addons-repo-copy", "git@example.org:acme/addons-repo.git")
+    themes = _clone_of(tmp_path, "themes", "https://example.org/acme/themes.git")
+    return [str(clone), str(copy), str(themes)]
+
+
+def _all(paths):
+    return [fork_facts.fork_facts(p) for p in paths]
+
+
+def test_clones_of_one_origin_are_one_origin_and_a_fork_anywhere_counts_for_all_of_them(machine):
+    summary = fork_facts.summarize(_all(machine))
+    assert [o["origin"] for o in summary["origins"]] == ["acme/addons-repo", "acme/themes"]
+    addons = summary["origins"][0]
+    assert len(addons["clones"]) == 2 and addons["fork_owners"] == ["alice"]
+    assert summary["without_fork"] == ["acme/themes"]
+
+
+def test_the_fork_owner_found_in_any_clone_is_known_and_no_question_is_raised(machine):
+    summary = fork_facts.summarize(_all(machine))
+    assert summary["known_owners"] == ["alice"]
+    assert summary["question"] == ""
+    assert "FORK_QUESTION" not in dict(fork_facts.summary_pairs(summary))
+
+
+def test_with_no_pushed_fork_anywhere_one_question_covers_every_origin(machine):
+    _sh(Path(machine[0]), "git", "remote", "remove", "fork")
+    summary = fork_facts.summarize(_all(machine))
+    assert summary["known_owners"] == []
+    assert sorted(summary["without_fork"]) == ["acme/addons-repo", "acme/themes"]
+    questions = [v for k, v in fork_facts.summary_pairs(summary) if k == "FORK_QUESTION"]
+    assert len(questions) == 1
+
+
+def test_a_pushed_owner_that_owns_an_origin_is_an_organization_not_a_fork(tmp_path):
+    repo = _clone_of(tmp_path, "r", "https://example.org/acme/r.git")
+    _sh(repo, "git", "remote", "add", "team", "https://example.org/acme/r2.git")
+    _sh(repo, "git", "config", "remote.pushDefault", "team")
+    assert fork_facts.known_owners(_all([str(repo)])) == []
+
+
+def test_summary_prints_one_line_per_origin_never_per_clone(machine):
+    lines = fork_facts.summary_pairs(fork_facts.summarize(_all(machine)))
+    assert [k for k, _ in lines].count("FORK_ORIGIN_WITH_FORK") == 1
+    assert [k for k, _ in lines].count("FORK_ORIGIN_WITHOUT_FORK") == 1
+
+
+def test_cli_summary_groups_several_repos_and_never_prints_a_credential(machine):
+    out = _cli(Path(machine[0]), "--summary", "--repo", machine[1], "--repo", machine[2])
+    assert out.returncode == 0, out.stderr
+    lines = [ln.partition("=")[::2] for ln in out.stdout.splitlines()]
+    assert ("FORK_KNOWN_OWNERS", "alice") in lines
+    without = [shlex.split(v)[0] for k, v in lines if k == "FORK_ORIGIN_WITHOUT_FORK"]
+    assert without == ["acme/themes (1 clone)"]
+    for secret in ("token123", "secret456", "https://"):
+        assert secret not in out.stdout
+
+
+def test_cli_with_several_repos_but_no_summary_is_refused(machine):
+    out = _cli(Path(machine[0]), "--repo", machine[1])
+    assert out.returncode == 2
+    assert out.stdout == ""

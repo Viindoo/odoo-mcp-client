@@ -182,10 +182,9 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    no clones, no edits.
 
    For each repo in the confirmed set:
-   - **MATCHED** → record the local absolute path; show it to the user. For a repo of role `own`,
-     run `python3 "$STEPS_DIR/../lib/fork_facts.py" --repo <path>` and follow
-     **Fork resolution** when its `FORK_STATUS` is not `fork-remote-pushed`; an `inherited` repo
-     gets none.
+   - **MATCHED** → record the local absolute path; show it to the user. After the last repo, run
+     `python3 "$STEPS_DIR/../lib/fork_facts.py" --summary --repo <path> [--repo <path> ...]` once over
+     every matched repo of role `own` and follow **Fork resolution**; an `inherited` repo gets none.
    - **MISSING** → compose and print for the user (the agent does NOT run it) a clone
      command: git clone with -b BRANCH, --no-single-branch, SSH_URL, into a local
      directory named `odoo<major>` - where BRANCH and SSH_URL come from OSM at runtime
@@ -383,18 +382,34 @@ server-wide.
 Applies only to repos the user pushes to: AI-3 repos of role `own`, the docs repo, the auto-mode
 repos. Never to a read-only core or enterprise checkout.
 
-Follow this for every such clone whose `FORK_STATUS` (from `34`/`60` `propose`, or
-`python3 "$STEPS_DIR/../lib/fork_facts.py" --repo <path>`) is not `fork-remote-pushed`:
+The fork belongs to an ORIGIN (`owner/repo`), never to a clone: ask at most once per origin, and
+never once per clone. Read the facts first:
 
-1. Ask the operator `FORK_QUESTION`: which GitHub account holds their fork of `FORK_ORIGIN`.
-   Never guess or infer an account name; `FORK_UNPUSHED_REMOTES` are candidates to offer, not answers.
-2. The fork exists but no local remote points at it: on the operator's yes, add a remote named
-   `fork` for it through `git-toolkit:git-ops`.
-3. No fork exists: ask whether to create it. Create it only on an explicit yes, through `git-toolkit:git-ops` (it forks
-   and adds the `fork` remote); on a no, print the command for them to run.
-4. The operator has no GitHub fork workflow: record no fork (`60`: ask which existing remote
+- `34-auto-mode`: `propose` prints a `FORK_QUESTION` only when no fork owner is known on this
+  machine. A `fork owner` line means step 34 has its answer: ask nothing.
+- `60-docs-site`: `propose` prints `FORK_STATUS` for the docs repo and `FORK_KNOWN_OWNERS` when
+  another clone on this machine has a pushed fork.
+- AI-3: `fork_facts.py --summary` prints `FORK_KNOWN_OWNERS`, one `FORK_ORIGIN_WITHOUT_FORK` per
+  origin none of whose clones has a pushed fork, and `FORK_QUESTION` only when no owner is known.
+
+Resolve:
+
+1. A fork owner is known (`FORK_KNOWN_OWNERS`): ask ONE combined AskUserQuestion (multi-select)
+   listing `<owner>/<repo>` for every origin without a pushed fork (step `60`: the docs repo);
+   the operator ticks the origins whose fork lives under that owner. With several known owners,
+   ask which owner in the same turn.
+2. No fork owner is known: ask `FORK_QUESTION` once - which GitHub account holds their fork. The
+   answer is the owner for every origin; continue with item 1 using it (step `34` needs nothing more).
+3. Never guess or infer an account name; `FORK_UNPUSHED_REMOTES` and `FORK_CANDIDATE_OWNERS` are
+   candidates to offer, not answers.
+4. A ticked origin whose fork exists but no local remote points at it: add a remote named `fork`
+   in each of its clones through `git-toolkit:git-ops`, in one delegation.
+5. A ticked origin whose fork does not exist: ask once whether to create the forks. Create them
+   only on an explicit yes, through `git-toolkit:git-ops` (it forks and adds the `fork` remote); on
+   a no, print the commands for the operator to run.
+6. The operator has no GitHub fork workflow: record no fork (`60`: ask which existing remote
    receives their branches; `fork_remote` needs one).
-5. Re-run the step's `propose`. A `fork` remote the operator just confirmed is the answer even
+7. Re-run the step's `propose`. A `fork` remote the operator just confirmed is the answer even
    while it is still unpushed: do not ask again, and record it only as the operator confirms it
    (`60`: `fork_remote`; `34` writes a fork owner only once a push to it exists).
 
@@ -438,7 +453,7 @@ Follow this for every such clone whose `FORK_STATUS` (from `34`/`60` `propose`, 
   instructs ONE restart.
 - **34-auto-mode** - `propose` derives, from this machine only, the trusted roots (parent of every
   catalog `addons_path` plus the state root's `projects`), the organization (owner of `origin`), the
-  fork owner (owner of each other remote the user pushes to, never a fetch-only upstream; `FORK_STATUS` per repository, plus `FORK_QUESTION` when none was pushed to - see **Fork resolution**) and the protected branches (the remote's default branch plus
+  fork owner (owner of each other remote the user pushes to, never a fetch-only upstream; one `FORK_QUESTION` only when no clone has a pushed fork - see **Fork resolution**) and the protected branches (the remote's default branch plus
   every `<major>.0` branch); show the proposal, then `apply` on consent. It writes tagged
   `odoo-ai-agents: ` entries into `autoMode.allow`, `autoMode.soft_deny`, `autoMode.environment`
   (each array keeps `"$defaults"` first) and `permissions.ask` push rules for the protected
@@ -507,7 +522,7 @@ Follow this for every such clone whose `FORK_STATUS` (from `34`/`60` `propose`, 
   from `propose` on another clone), ask the operator to run it and re-run `docs-site`; never clone
   automatically. Then:
   1. Run `"$STEPS_DIR/60-docs-site.sh" propose --repo <path> [--key <id>]` (read-only). Read
-     `REMOTE`, `FORK_STATUS`, `FORK_QUESTION`, `FORK_CANDIDATES`, `OTHER_REMOTES`, `SERIES`, `SERIES_<X_Y>_CLONES`,
+     `REMOTE`, `FORK_STATUS`, `FORK_QUESTION`, `FORK_KNOWN_OWNERS`, `FORK_CANDIDATES`, `OTHER_REMOTES`, `SERIES`, `SERIES_<X_Y>_CLONES`,
      `SERIES_<X_Y>_INSTANCES`, `LANGUAGES` (`UNKNOWN` = the repo states none) and `DECLARED`.
      When `FORK_STATUS` is not `fork-remote-pushed`, follow **Fork resolution** before step 2.
   2. Show the facts. Put `FACTS_TO_CONFIRM` and `POLICY_FIELDS_TO_CONFIRM` to the operator with

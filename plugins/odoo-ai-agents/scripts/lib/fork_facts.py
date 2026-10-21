@@ -20,7 +20,12 @@ from `R/<series>` tracks R, and a fetch of an upstream also brings its feature a
 When the status is not `fork-remote-pushed`, `question` is a fact only the operator can answer
 (which GitHub account holds their fork); nothing here guesses it. Remote URLs are never printed.
 
-  fork_facts.py --repo PATH [--json]     KEY=VALUE lines (default) or one JSON object
+Across many clones the fork is a property of the ORIGIN (`owner/repo`), not of the clone: `summarize`
+groups clones by origin, lists the fork owners found anywhere (`known_owners`) and the origins no
+clone has a pushed fork for, and raises ONE question, only when no fork owner is known at all.
+
+  fork_facts.py --repo PATH [--json]               one clone: KEY=VALUE lines or one JSON object
+  fork_facts.py --repo PATH --repo PATH --summary  many clones: grouped by origin (also --json)
 """
 from __future__ import annotations
 
@@ -160,16 +165,103 @@ def pairs(facts: dict) -> list[tuple[str, str]]:
     return out
 
 
+def origin_key(facts: dict) -> str:
+    """`owner/repo` of a clone's origin; '' when it has none."""
+    origin = facts["origin"]
+    return "%s/%s" % (origin["owner"], origin["repo"]) if origin and origin["owner"] and origin["repo"] else ""
+
+
+def known_owners(all_facts: list[dict]) -> list[str]:
+    """Owners of the remotes the user pushed to in ANY of the clones, first seen first. An owner that
+    is also the owner of some origin is the organization pushed to directly, not a fork."""
+    orgs = {f["origin"]["owner"] for f in all_facts if f["origin"]}
+    out: list[str] = []
+    for found in all_facts:
+        for r in found["remotes"]:
+            if r["pushed"] and r["owner"] and r["owner"] not in orgs and r["owner"] not in out:
+                out.append(r["owner"])
+    return out
+
+
+def summarize(all_facts: list[dict]) -> dict:
+    """The fork facts of many clones, grouped by origin.
+
+    {known_owners, origins: [{origin, clones, fork_owners, candidate_owners}], without_fork, question}.
+    `without_fork` lists the origins none of whose clones has a pushed fork remote. `question` is set
+    only when `without_fork` is not empty AND no fork owner is known from any clone."""
+    known = known_owners(all_facts)
+    by_origin: dict[str, dict] = {}
+    for found in all_facts:
+        key = origin_key(found)
+        if not key:
+            continue
+        row = by_origin.setdefault(key, {"origin": key, "clones": [], "fork_owners": [],
+                                         "candidate_owners": []})
+        row["clones"].append(found["repo"])
+        for r in found["remotes"]:
+            bucket = "fork_owners" if r["pushed"] else "candidate_owners"
+            if r["owner"] and r["owner"] not in row[bucket]:
+                row[bucket].append(r["owner"])
+    origins = list(by_origin.values())
+    without = [o["origin"] for o in origins if not o["fork_owners"]]
+    question = ""
+    if without and not known:
+        target = (without[0] if len(without) == 1
+                  else "%s and %d other repositories" % (without[0], len(without) - 1))
+        question = ("Which GitHub account holds your fork of %s? Answer an account name, "
+                    "or none when you use no GitHub fork workflow." % target)
+    return {"known_owners": known, "origins": origins, "without_fork": without, "question": question}
+
+
+def summary_pairs(summary: dict) -> list[tuple[str, str]]:
+    """The summary as (NAME, value) pairs, one line per origin and never per clone."""
+    out: list[tuple[str, str]] = []
+    if summary["known_owners"]:
+        out.append(("FORK_KNOWN_OWNERS", ",".join(summary["known_owners"])))
+    for row in summary["origins"]:
+        if row["fork_owners"]:
+            out.append(("FORK_ORIGIN_WITH_FORK", "%s=%s" % (row["origin"], ",".join(row["fork_owners"]))))
+        else:
+            n = len(row["clones"])
+            out.append(("FORK_ORIGIN_WITHOUT_FORK",
+                        "%s (%d clone%s)" % (row["origin"], n, "" if n == 1 else "s")))
+    if summary["question"]:
+        candidates: list[str] = []
+        for row in summary["origins"]:
+            candidates += [c for c in row["candidate_owners"] if c not in candidates]
+        if candidates:
+            out.append(("FORK_CANDIDATE_OWNERS", ",".join(candidates)))
+        out.append(("FORK_QUESTION", summary["question"]))
+    return out
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Report where a clone's fork lives (read-only).")
-    ap.add_argument("--repo", required=True, help="path inside a git clone")
+    ap.add_argument("--repo", required=True, action="append",
+                    help="path inside a git clone (repeat with --summary)")
+    ap.add_argument("--summary", action="store_true",
+                    help="group the clones by origin: known fork owners, origins without a fork")
     ap.add_argument("--json", action="store_true", help="print one JSON object")
     args = ap.parse_args(argv)
-    root = git(args.repo, "rev-parse", "--show-toplevel")
-    if not root:
-        print("x %s is not inside a git clone" % args.repo, file=sys.stderr)
-        return 1
-    facts = fork_facts(root)
+    if len(args.repo) > 1 and not args.summary:
+        ap.error("several --repo need --summary")
+    roots: list[str] = []
+    for path in args.repo:
+        root = git(path, "rev-parse", "--show-toplevel")
+        if not root:
+            print("x %s is not inside a git clone" % path, file=sys.stderr)
+            return 1
+        if root not in roots:
+            roots.append(root)
+    if args.summary:
+        summary = summarize([fork_facts(r) for r in roots])
+        if args.json:
+            print(json.dumps(summary))
+        else:
+            for name, value in summary_pairs(summary):
+                print("%s=%s" % (name, shlex.quote(value)))
+        return 0
+    facts = fork_facts(roots[0])
     if args.json:
         print(json.dumps(facts))
     else:

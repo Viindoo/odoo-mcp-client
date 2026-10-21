@@ -116,8 +116,6 @@ def test_an_upstream_read_only_remote_is_not_a_fork_owner(machine, tmp_path):
     out = _run(machine, "propose")
     assert out.returncode == 0, out.stderr
     assert _fork_lines(out) == ["fork owner (remote the user pushes to): alice"]
-    assert "FORK_PUSHED_REMOTES=fork=alice" in out.stdout
-    assert "FORK_PUSHED_REMOTES=upstream" not in out.stdout
     assert _run(machine, "apply").returncode == 0
     assert "bigupstream" not in json.dumps(_data(machine))
 
@@ -131,8 +129,8 @@ def test_a_clone_with_only_an_upstream_remote_has_no_fork_owner(machine, tmp_pat
     assert not any("Fork owner" in e for e in _data(machine)["autoMode"]["environment"])
 
 
-def _fork_facts_of(out):
-    return dict(ln.partition("=")[::2] for ln in out.stdout.splitlines() if ln.startswith("FORK_"))
+def _questions(out):
+    return [ln for ln in out.stdout.splitlines() if ln.startswith("FORK_QUESTION=")]
 
 
 def test_propose_asks_which_account_holds_the_fork_when_nothing_was_pushed(machine, tmp_path):
@@ -140,24 +138,52 @@ def test_propose_asks_which_account_holds_the_fork_when_nothing_was_pushed(machi
     _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
     out = _run(machine, "propose")
     assert out.returncode == 0, out.stderr
-    facts = _fork_facts_of(out)
-    assert facts["FORK_STATUS"] == "fork-remote-unpushed"
-    assert "acme/addons-repo" in facts["FORK_QUESTION"]
-    assert "FORK_PUSHED_REMOTES" not in facts
+    [question] = _questions(out)
+    assert "acme/addons-repo" in question
 
 
 def test_propose_asks_the_fork_question_for_a_clone_with_no_other_remote(machine):
     _sh(machine["repo"], "git", "remote", "remove", "fork")
-    facts = _fork_facts_of(_run(machine, "propose"))
-    assert facts["FORK_STATUS"] == "no-fork-remote"
-    assert "acme/addons-repo" in facts["FORK_QUESTION"]
+    [question] = _questions(_run(machine, "propose"))
+    assert "acme/addons-repo" in question
 
 
-def test_propose_proposes_the_pushed_remote_and_asks_nothing(machine):
-    facts = _fork_facts_of(_run(machine, "propose"))
-    assert facts["FORK_STATUS"] == "fork-remote-pushed"
-    assert facts["FORK_PUSHED_REMOTES"] == "fork=alice"
-    assert "FORK_QUESTION" not in facts
+def test_propose_asks_nothing_when_a_remote_was_pushed_to(machine):
+    assert _questions(_run(machine, "propose")) == []
+
+
+def _second_machine_clone(machine, tmp_path, name, origin):
+    """Another clone beside the first one, with origin `origin` and no fork remote; its addons
+    directory joins the catalog."""
+    repo = tmp_path / "work" / name
+    (repo / "addons").mkdir(parents=True)
+    _sh(repo, "git", "init", "-q", "-b", "17.0")
+    _sh(repo, "git", "commit", "-q", "--allow-empty", "-m", "init")
+    _sh(repo, "git", "remote", "add", "origin", origin)
+    with machine["catalog"].open("a", encoding="utf-8") as fh:
+        fh.write('\n[[instance]]\nseries = "18.0"\naddons_path = ["%s"]\n' % (repo / "addons"))
+    return repo
+
+
+def test_a_fork_owner_known_from_one_clone_silences_the_question_for_every_other_clone(
+        machine, tmp_path):
+    """Two origins, three clones; only one clone has a pushed fork."""
+    _second_machine_clone(machine, tmp_path, "addons-repo-copy", "git@example.org:acme/addons-repo.git")
+    _second_machine_clone(machine, tmp_path, "themes", "git@example.org:acme/themes.git")
+    out = _run(machine, "propose")
+    assert out.returncode == 0, out.stderr
+    assert _fork_lines(out) == ["fork owner (remote the user pushes to): alice"]
+    assert _questions(out) == []
+
+
+def test_without_any_pushed_fork_the_operator_is_asked_exactly_once_for_many_clones(
+        machine, tmp_path):
+    _sh(machine["repo"], "git", "remote", "remove", "fork")
+    _second_machine_clone(machine, tmp_path, "addons-repo-copy", "git@example.org:acme/addons-repo.git")
+    _second_machine_clone(machine, tmp_path, "themes", "git@example.org:acme/themes.git")
+    out = _run(machine, "propose")
+    assert out.returncode == 0, out.stderr
+    assert len(_questions(out)) == 1
 
 
 def test_propose_never_prints_a_credential_from_a_remote_url(machine):

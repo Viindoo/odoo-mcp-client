@@ -213,6 +213,27 @@ def test_propose_asks_which_account_holds_the_fork_when_nothing_was_pushed(machi
     assert "token123" not in res.stdout
 
 
+def test_propose_offers_a_fork_owner_known_from_another_clone_of_the_catalog(machine):
+    """The docs repo has no pushed fork; another clone in the catalog does (alice)."""
+    other = machine["tmp"] / "work" / "addons"
+    (other / "addons").mkdir(parents=True)
+    _sh(other, "git", "init", "-q", "-b", "17.0")
+    _sh(other, "git", "commit", "-q", "--allow-empty", "-m", "init")
+    _sh(other, "git", "remote", "add", "origin", "https://example.org/acme/addons.git")
+    _sh(other, "git", "remote", "add", "fork", "https://example.org/alice/addons.git")
+    bare = machine["tmp"] / "alice-addons-bare.git"
+    _sh(machine["tmp"], "git", "init", "-q", "--bare", str(bare))
+    _sh(other, "git", "config", "remote.fork.pushurl", str(bare))
+    _sh(other, "git", "push", "-q", "fork", "HEAD:refs/heads/feat-x")
+    machine["catalog"].write_text(
+        '[[instance]]\nseries = "17.0"\naddons_path = ["%s"]\n' % (other / "addons"), encoding="utf-8")
+    _sh(machine["docs"], "git", "remote", "remove", "fork")
+    facts = _facts(_run(machine, "propose", "--repo", str(machine["docs"])).stdout)
+    assert facts["FORK_STATUS"] == "fork-remote-unpushed"
+    assert facts["FORK_KNOWN_OWNERS"] == "alice"
+    assert "acme/documentation" in facts["FORK_QUESTION"]
+
+
 def test_propose_never_prints_a_credential_from_a_remote_url(machine):
     res = _run(machine, "propose", "--repo", str(machine["docs"]))
     assert "token123" not in res.stdout
