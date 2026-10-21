@@ -91,7 +91,7 @@ These are platform invariants, not suggestions - apply them whenever you design 
 - odoo://{version}/method/{model}/{method}  # = entity_lookup(kind='method', ...)
 - odoo://{version}/module/{name}            # = module_inspect(name=<module>, method='summary', odoo_version='<version>')
 - odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view', ...)
-- odoo://{version}/pattern/{name}           # canonical pattern catalogue entry
+- odoo://{version}/pattern/{pattern_id}     # canonical pattern catalogue entry (ids from suggest_pattern)
 - odoo://{version}/stylesheet/{module}/{file_path*}   # CSS/SCSS/LESS record
 - odoo://{version}/test/{module}/{class_name}         # = test_class_inspect(name=<class_name>, method='summary', ...)
 - odoo://{version}/testcoverage/{model}     # = tests_covering(model=<model>, ...)
@@ -247,7 +247,7 @@ In `~/.cursor/mcp.json` (or project `.cursor/mcp.json`):
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.19.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
 > **Pick the right tool first.** Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.
 >

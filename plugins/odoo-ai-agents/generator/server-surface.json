@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
-  "server_version": "0.15.0",
-  "generated_at": "2026-06-19T00:00:00Z",
+  "server_version": "0.19.1",
+  "generated_at": "2026-10-21T00:00:00Z",
   "disambiguation": {
     "identity": "Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.",
     "precedence": "This is your PRIMARY, context-efficient source for Odoo source/structure questions - the Odoo codebase is huge and reading it directly burns context, so prefer Odoo Semantic first. Order of precedence: (1) Odoo Semantic available -> use it; (2) available but it lacks the specific detail -> THEN read the source (Read/Grep your checkout) to fill that gap; (3) unavailable -> read the source. Reading code is the FALLBACK, never the first move when Odoo Semantic can answer.",
@@ -26,7 +26,7 @@
       "name": "model_inspect",
       "version_added": "0.5.0",
       "version_removed": null,
-      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. method ∈ {summary, fields, methods, views, field, method, extenders}. method='field' drills into one field (requires field=); method='method' drills into one method (requires method_name=) - prefer entity_lookup(kind='field'|'method', ...) for a single-entity lookup unless you're already mid model_inspect dispatch. method='extenders' paginates the full 'Extended by' module list (start_index cursor). Field/method/view enumerations are page-capped server-side (50/20/10) and the summary '…and N more' shares the extenders' NOT-is_definition predicate (count parity). Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
+      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. method ∈ {summary, fields, methods, views, field, method, extenders}. method='field' drills into one field (requires field=); method='method' drills into one method (requires method_name=) - prefer entity_lookup(kind='field'|'method', ...) for a single-entity lookup unless you're already mid model_inspect dispatch. method='extenders' paginates the full 'Extended by' module list (start_index cursor). Field/method/view enumerations are page-capped server-side (50 fields, 20 methods/views/extenders, 10 JS patches; page with start_index, not limit) and the summary '…and N more' shares the extenders' NOT-is_definition predicate (count parity). name_filter= is a case-insensitive substring filter on field and method names for browsing a large model (method='fields' or 'methods' only, ignored otherwise); use entity_lookup for an exact name. profile_name= filters to that profile, its ancestor profiles the caller can access (the declared parent chain) and the shared base profiles; it only narrows the caller's scope. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
       "persona_tags": [
         "dev",
         "CEO",
@@ -45,7 +45,8 @@
         "limit",
         "from_module",
         "kind",
-        "view_type"
+        "view_type",
+        "name_filter"
       ],
       "return_type": "object",
       "example_call": "model_inspect(model='sale.order', method='fields', odoo_version='17.0')",
@@ -67,7 +68,7 @@
       "name": "module_inspect",
       "version_added": "0.5.0",
       "version_removed": null,
-      "description": "Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call. method ∈ {summary, views, owl, qweb, js, dependencies, tests}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0. method='tests' returns TestClass nodes in the module (ADR-0051, v0.15.0). method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) - surface it to the user; do not retry or fabricate omitted content.",
+      "description": "Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call. method ∈ {summary, views, owl, qweb, js, dependencies, tests}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0; it also lists the modules auto_install brings in when the module is installed (each row names the triggers that fired, or the auto-installed module it is a dependency of; capped at 20 entries with an '... and N more' row), collapses the modules gated by a manifest `countries` list on a series that applies that gate to ONE capped line because Odoo installs them only for a company in one of those countries, and advises passing profile_name= when the result spans several profiles. profile_name= filters to that profile, its ancestor profiles the caller can access and the shared base profiles. method='tests' returns TestClass nodes in the module (ADR-0051, v0.15.0). method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) - surface it to the user; do not retry or fabricate omitted content.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -152,7 +153,7 @@
       "name": "profile_inspect",
       "version_added": "0.13.1",
       "version_removed": null,
-      "description": "Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call. method ∈ {summary, repos, modules, coverage}. summary = ancestor/inheritance chain + direct children + deduped repos (own/inherited, indexed status) + inheritance-inclusive module count (requires name=). repos = distinct repos across the full ancestor chain, deduped on (url, branch). modules = paginated module list scoped to the profile (server-enforced cap 50, start_index cursor), optional repo= URL-substring filter. coverage = module count by category for this profile plus a superset-diff (indexed_elsewhere = modules of that category visible to the caller but NOT in this profile) as a 'may be incomplete' signal (requires name=) - absence from the list is NOT proof of absence from the product; cross-check live ir.module.module to confirm. Use this to answer 'is this genuinely absent, or just absent from the index' instead of hand-rolling a repos= proxy. name omitted on repos/modules spans all caller-visible profiles. Drill into a specific model via model_inspect, a specific module via module_inspect. RBAC: ADR-0034 tenant choke denies non-visible profiles.",
+      "description": "Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call. method ∈ {summary, repos, modules, coverage}. summary = ancestor/inheritance chain + direct children + deduped repos (own/inherited, indexed status) + two module counts, owned by the profile and including its ancestor profiles (requires name=). repos = distinct repos across the full ancestor chain, deduped on (url, branch). modules = paginated module list scoped to the profile (server-enforced cap 50, start_index cursor), optional repo= URL-substring filter. coverage = module count by category as own (this profile) and with_ancestors (plus its ancestor profiles; the number a profile_name= filter returns), paged over categories by start_index/limit (max 50), plus a superset-diff (indexed_elsewhere = modules of that category visible to the caller but in neither) as a 'may be incomplete' signal (requires name=) - absence from the list is NOT proof of absence from the product; cross-check live ir.module.module to confirm. Use this to answer 'is this genuinely absent, or just absent from the index' instead of hand-rolling a repos= proxy. name omitted on repos/modules spans all caller-visible profiles. Drill into a specific model via model_inspect, a specific module via module_inspect. RBAC: ADR-0034 tenant choke denies non-visible profiles.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -220,7 +221,7 @@
       "name": "impact_analysis",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.",
+      "description": "Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields. Also lists, apart from the risk score, the modules auto_install installs together with the defining module (country-gated ones collapsed to one capped line). profile_name= scopes every sub-query to that profile, its ancestor profiles the caller can access and the shared base profiles.",
       "persona_tags": [
         "CEO",
         "dev"
@@ -306,7 +307,7 @@
       "name": "find_deprecated_usage",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Scan the indexed codebase for usages of deprecated API patterns.",
+      "description": "Scan the indexed codebase for usages of deprecated API patterns. profile_name= scans that profile, its ancestor profiles the caller can access and the shared base profiles; it can only narrow the caller's scope.",
       "persona_tags": [
         "CEO",
         "dev"
@@ -417,7 +418,7 @@
       "name": "check_module_exists",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.",
+      "description": "Verify module availability, edition (CE/EE/Viindoo), and cross-version presence. For a name that is not indexed the answer carries its lifecycle: the removing commit, a successor shown as 'Renamed to' or, when the module was folded into one existing module, 'Merged into', and cross-version renames and merges from OpenUpgrade apriori data with every hop confirmed against the index (the old name of a renamed module answers 'Renamed to: <new name>'), plus a Next hint to the successor. profile_name= narrows the check to that profile, its ancestor profiles the caller can access (the declared parent chain) and the shared base profiles; under that filter a module that exists only outside it is reported with the profiles that carry it.",
       "persona_tags": [
         "CEO",
         "dev",
@@ -477,7 +478,7 @@
       "name": "describe_module",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Module manifest + defined/extended model counts + view/JS inventory in one call. include_description=True appends the module's full manifest description (the long marketing/RST write-up) as a 'Description' block - default False keeps the overview lean; turn it on for sales/marketing/documentation work that needs the full text. Note: module_inspect with method='summary' returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default - the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content.",
+      "description": "Module manifest + defined/extended model counts + view/JS inventory in one call. For a name that is not indexed it returns the lifecycle history (removed, renamed or merged, excluded) and the other versions where the name is indexed. include_description=True appends the module's full manifest description (the long marketing/RST write-up) as a 'Description' block - default False keeps the overview lean; turn it on for sales/marketing/documentation work that needs the full text. Note: module_inspect with method='summary' returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default - the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content.",
       "persona_tags": [
         "CEO",
         "dev",
@@ -536,7 +537,7 @@
       "name": "set_active_profile",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. The pin is server-side state shared per (api_key_id, mcp_session_id) - i.e. per MCP session, last-write-wins - so a concurrent actor SHARING this session can overwrite it; independent sessions never interfere. The clobber is authz-safe: the pinned profile is re-validated at read time through a narrowing-only, fail-closed tenant check, so it can only narrow a view, never widen or leak it. Pass profile_name explicitly on every call regardless.",
+      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. A profile_name (pinned or passed per call) selects that profile, its ancestor profiles the caller can access (the declared parent chain) and the shared base profiles; it only narrows, never widens, the caller's scope, and an ancestor outside the caller's scope is dropped (fail-closed per tenant). The pin is server-side state shared per (api_key_id, mcp_session_id) - i.e. per MCP session, last-write-wins - so a concurrent actor SHARING this session can overwrite it; independent sessions never interfere. The clobber is authz-safe: the pinned profile is re-validated at read time through a narrowing-only, fail-closed tenant check, so it can only narrow a view, never widen or leak it. Pass profile_name explicitly on every call regardless.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -834,7 +835,7 @@
       "name": "test_class_inspect",
       "version_added": "0.15.0",
       "version_removed": null,
-      "description": "Inspect a TestClass or TestHelper by name: base chain (INHERITS_TEST), setUpClass cursor contract (test_type, commit_allowed), test methods with assert counts, and subclassed-by list. Does not return setUpClass fixture contents - Read the source for those. method discriminator: summary | hierarchy | methods | setup.",
+      "description": "Inspect a TestClass or TestHelper by name: base chain (INHERITS_TEST), setUpClass cursor contract (test_type, commit_allowed), test methods with assert counts, and subclassed-by list. Does not return setUpClass fixture contents - Read the source for those. method discriminator: summary | hierarchy | methods | setup. summary previews the first 6 subclasses; hierarchy lists every subclass one page at a time: start_index (zero-based, default 0) and limit (default 20, clamped to 1-50) apply to method='hierarchy' only and are ignored by the other methods. The subclass count line states the total and the shown range, a truncated page ends with the exact start_index of the next page, and a start_index past the end names the last page instead of an empty list.",
       "persona_tags": [
         "dev"
       ],
@@ -846,7 +847,9 @@
         "module",
         "file_path",
         "method",
-        "profile_name"
+        "profile_name",
+        "start_index",
+        "limit"
       ],
       "return_type": "object",
       "example_call": "test_class_inspect(name='TestSaleOrder', odoo_version='17.0', module='sale')",
@@ -1005,8 +1008,8 @@
       "when_to_use": "Already know the module name; want manifest + summary without a tool call."
     },
     {
-      "uri_template": "odoo://{version}/pattern/{name}",
-      "description": "Pattern catalogue entry: code snippet, gotchas, language, min version.",
+      "uri_template": "odoo://{version}/pattern/{pattern_id}",
+      "description": "Pattern catalogue entry by pattern_id (discover ids with suggest_pattern): code snippet, gotchas, language, min version.",
       "persona_tags": [
         "dev",
         "consultant"

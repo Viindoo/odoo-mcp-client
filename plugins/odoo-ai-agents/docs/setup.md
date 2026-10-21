@@ -671,7 +671,7 @@ In addition to the tool calls, the server exposes **9 MCP Resources** addressabl
 | `odoo://{version}/method/{model}/{method}` | Method record (override chain, super_ratio) |
 | `odoo://{version}/module/{name}` | Module record (manifest, defines/extends counts) |
 | `odoo://{version}/view/{xmlid}` | View record (xpath chain, inherit_id) |
-| `odoo://{version}/pattern/{name}` | Pattern catalogue entry (code snippet + gotchas) |
+| `odoo://{version}/pattern/{pattern_id}` | Pattern catalogue entry by pattern_id (code snippet + gotchas) |
 | `odoo://{version}/stylesheet/{module}/{file_path*}` | Stylesheet record (selectors, imports, variables) |
 | `odoo://{version}/test/{module}/{class_name}` | Test class record (base chain, setUp fixtures, test methods) |
 | `odoo://{version}/testcoverage/{model}` | Test coverage record (static COVERS_* reference edges for a model) |
