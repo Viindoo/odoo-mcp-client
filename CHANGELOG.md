@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.0.2] - 2026-10-21
+
+### Fixed
+
+- repo - the repo's venv setup (`make setup` and every target that needs the venv) no longer deletes
+  a working venv when a rebuild fails, and rebuilds only when the content of `requirements.txt`
+  changes. The new venv is built beside the old one and swapped in only after it works, a Python
+  without `ensurepip` falls back to `uv`, and a fresh worktree sharing a venv through `VENV=...` no
+  longer triggers a rebuild because its `requirements.txt` is newer. An older venv with an empty
+  stamp is rebuilt once.
+
 ## [8.0.1] - 2026-10-21
 
 ### Fixed
