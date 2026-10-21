@@ -1,4 +1,4 @@
-.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check help setup bump bump-dry bump-patch bump-minor bump-major
+.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check help setup bump bump-dry bump-patch bump-minor bump-major FORCE
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -19,23 +19,11 @@ help:
 	@echo "make bump-minor      - bump minor (x.Y.z -> x.Y+1.0) for backward-compatible features"
 	@echo "make bump-major      - bump major (X.y.z -> X+1.0.0) for breaking changes"
 
-# Venv stamp: rebuilt whenever requirements.txt changes so new deps are always
-# installed (no stale-venv silent-skip). The build is atomic - on any failure
-# the partial venv is removed and the stamp is NOT written, so the next run
-# retries instead of trusting a broken venv.
-$(VENV_STAMP): requirements.txt
-	@base=""; \
-	for c in python3.12 python3.13 python3.14 python3 python; do \
-	  if command -v $$c >/dev/null 2>&1 && $$c -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,12) else 1)' 2>/dev/null; then base=$$c; break; fi; \
-	done; \
-	if [ -z "$$base" ]; then echo "ERROR: need Python >= 3.12 (tried python3.12/3.13/3.14/python3/python)"; exit 1; fi; \
-	echo "Creating venv with $$base ($$($$base --version 2>&1))"; \
-	rm -rf $(VENV); \
-	{ $$base -m venv $(VENV) && \
-	  $(VENV)/bin/python -m pip install --quiet --upgrade pip && \
-	  $(VENV)/bin/python -m pip install -r requirements.txt; } || \
-	  { echo "ERROR: venv setup failed - removing partial $(VENV)"; rm -rf $(VENV); exit 1; }
-	@touch $(VENV_STAMP)
+# Venv stamp: scripts/ensure-venv.sh decides by content and never removes a working venv (rules in its header).
+$(VENV_STAMP): requirements.txt FORCE
+	@bash scripts/ensure-venv.sh "$(VENV)" requirements.txt
+
+FORCE:
 
 setup: $(VENV_STAMP)
 	@echo "venv ready: $(PYTHON)"

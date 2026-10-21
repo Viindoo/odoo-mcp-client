@@ -60,13 +60,10 @@ how to avoid the version-drift and generated-artifact failures that block PRs.
 make setup
 ```
 
-If you prefer `uv` (faster, no ensurepip dependency):
-
-```bash
-uv venv .venv --python 3.12
-uv pip install -r requirements.txt
-touch .venv/.stamp   # let Makefile targets reuse this venv
-```
+The venv is rebuilt only when the content of `requirements.txt` changes, never because a file
+is newer, and a rebuild is built beside the old venv and swapped in only once it works, so a
+failed build keeps the venv you had. A Python without `ensurepip` falls back to `uv` when `uv` is
+on `PATH`. To share one venv between worktrees, pass `make test VENV=/path/to/.venv`.
 
 `.venv/` is gitignored and must never be staged.
 
