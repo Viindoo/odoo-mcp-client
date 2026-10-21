@@ -37,23 +37,25 @@ MODULES = [("base", "installed", True), ("my_mod", "installed", True),
 
 
 def _fake_odoo(tmp_path, pkg_name="odoo", raise_on_connect=False, demo=True,
-               active="en_US,vi_VN", unreachable_dbs=(), existing_dbs=("the_db", "postgres")):
+               active="en_US,vi_VN", unreachable_dbs=(), existing_dbs=("the_db", "postgres"),
+               layout="legacy"):
     """A fake Odoo whose sql_db.db_connect records the database it was asked to open and answers
-    the res_lang / ir_module_module queries from LANGS / MODULES."""
+    the res_lang / ir_module_module queries from LANGS / MODULES. `layout` "modern" is the Odoo
+    20.0 shape: modules/db.py and no service/ at all (these questions never need either)."""
     root = tmp_path / ("fake_" + pkg_name)
     pkg = root / pkg_name
-    (pkg / "service").mkdir(parents=True)
-    (pkg / "tools").mkdir()
-    (pkg / "__init__.py").write_text("from %s import tools, service\n" % pkg_name, encoding="utf-8")
+    (pkg / "tools").mkdir(parents=True)
+    (pkg / "__init__.py").write_text("from %s import tools\n" % pkg_name, encoding="utf-8")
     (pkg / "tools" / "__init__.py").write_text(textwrap.dedent("""\
         class _Config(dict):
             def parse_config(self, args=None):
                 pass
         config = _Config()
         """), encoding="utf-8")
-    (pkg / "service" / "__init__.py").write_text("from %s.service import db\n" % pkg_name,
-                                                 encoding="utf-8")
-    (pkg / "service" / "db.py").write_text("", encoding="utf-8")
+    api_dir = pkg / ("modules" if layout == "modern" else "service")
+    api_dir.mkdir()
+    (api_dir / "__init__.py").write_text("", encoding="utf-8")
+    (api_dir / "db.py").write_text("", encoding="utf-8")
     (pkg / "sql_db.py").write_text(textwrap.dedent("""\
         import os
         LANGS = %r
@@ -138,6 +140,18 @@ def test_it_works_under_the_openerp_namespace(tmp_path):
                           pkg_name="openerp")
     assert res.returncode == EXIT_OK, res.stderr
     assert "LANG=vi_VN ISO=vi ACTIVE=1" in res.stdout.splitlines()
+
+
+@pytest.mark.parametrize("verb,args", [
+    ("i18n-state", ("the_db", "--languages", "vi_VN", "--modules", "my_mod")),
+    ("db-facts", ("the_db",)),
+])
+def test_it_answers_on_a_checkout_that_has_no_service_db_module(tmp_path, verb, args):
+    """Odoo 20.0 has no odoo/service/db.py. These are plain catalog questions, so they must
+    not depend on it (issue #272: every one failed there)."""
+    res, _opened = _state(tmp_path, *args, verb=verb, layout="modern")
+    assert res.returncode == EXIT_OK, res.stderr
+    assert res.stdout.strip() != ""
 
 
 def test_a_database_it_cannot_reach_prints_nothing_and_exits_classified(tmp_path):

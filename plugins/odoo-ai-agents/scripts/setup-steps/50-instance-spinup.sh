@@ -107,10 +107,8 @@
 #              unleased).
 #
 # HARD RULES:
-#   - Never writes a password into the generated conf. A local developer cluster is
-#     reached with passwordless authentication (run /odoo-ai-agents:odoo-setup); a
-#     cluster that cannot be reconfigured is reached with PGPASSWORD exported from
-#     $ODOO_PG_PASSWORD for this launch only. No secret is written anywhere.
+#   - Never writes a credential into the generated conf. A local developer cluster
+#     is set up by /odoo-ai-agents:odoo-setup. No secret is written anywhere.
 #   - Never launches until Odoo's OWN connection has been probed: `pg_isready`
 #     answers whatever the credentials are, so only `odoo_db.py preflight` can
 #     prove this launch will get past its first connection.
@@ -124,9 +122,6 @@
 #   ODOO_AI_INSTANCES  full-path override for instances.toml
 #   ODOO_BIN           path to odoo-bin (source mode). Auto-detected from
 #                      the 'core' addons_path entry if unset.
-#   ODOO_PG_PASSWORD   the escape hatch for a cluster that cannot be reconfigured
-#                      (managed or remote). Exported to libpq as PGPASSWORD for the
-#                      launch only, never written to a file.
 #   SPINUP_TIMEOUT     poll timeout seconds (default 120).
 #   SPINUP_STOP_GRACE  seconds to wait for a failed spin-up's process group to
 #                      exit on SIGTERM before escalating to a group SIGKILL
@@ -1413,8 +1408,16 @@ cmd_apply() {
                         echo "" >&2
                         echo "x PREFLIGHT FAILED: see the refusal above. NOTHING was launched." >&2
                         return 1 ;;
+                    10)
+                        # This interpreter cannot drive Odoo. odoo_db.py printed WHY
+                        # just above (package not importable, a module or dependency
+                        # that failed, or an unrecognised database API); repeating a
+                        # canned remedy here would name a cause it did not observe.
+                        echo "  Warning: odoo_db.py preflight was NOT probed (exit 10) -" >&2
+                        echo "  the reason is printed above. That is not a cluster fact," >&2
+                        echo "  so it does not block the launch." >&2 ;;
                     *)
-                        # 10 = this venv cannot import odoo; 124/125 = no answer; 1 =
+                        # 124/125 = no answer; 1 =
                         # undeterminable. None is a cluster fact, so none blocks the
                         # launch - and none is reported as a green verdict either.
                         # The RUNG is named, so a cut-off probe is distinguishable
@@ -1558,11 +1561,9 @@ cmd_apply() {
             # --dev=reload watchdog) in one os.killpg before dropping the DB.
             # A bare `&` would leave the server in the launching shell's group,
             # which has no clean target to kill. `$!` is still the leader's pid.
-            # The escape-hatch credential is handed to libpq under its OWN variable,
-            # for this launch only: Odoo passes no password to psycopg2 when
-            # db_password is unset, so libpq resolves PGPASSWORD itself. A local
-            # developer cluster needs none of this - passwordless authentication
-            # covers it.
+            # A credential in the launch environment is handed to libpq under its OWN
+            # variable, for this launch only: Odoo passes no password to psycopg2
+            # when db_password is unset, so libpq resolves it itself.
             [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
             # "$conf" is the ONLY config file the server reads: before 19.0 Odoo
             # loads its default rc file (~/.odoorc) at import time and `-c` only

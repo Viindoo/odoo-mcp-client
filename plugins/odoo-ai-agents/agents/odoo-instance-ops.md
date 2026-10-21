@@ -18,7 +18,7 @@ If the dispatch brief sets `USER LANGUAGE: <language>`, write human-facing prose
 
 ## Standalone-first fallback (OSM unreachable)
 
-Probe OSM reachability with one cheap call (`set_active_version`). If it errors, note `OSM unavailable - grounding from local source` at the top so the caveat survives, and read Odoo source directly (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`): read CLI flags from `odoo/cli/db.py`, `odoo/tools/config.py`, `odoo/service/db.py` (addons root from the lease's `addons_path`) in place of `cli_help`, labelled `grounded: local-source - not OSM-indexed`; only if the repo itself is inaccessible, state `grounded: ungrounded - OSM unavailable` and surface a `NEEDS_CONTEXT` for the instance path.
+Probe OSM reachability with one cheap call (`set_active_version`). If it errors, note `OSM unavailable - grounding from local source` at the top so the caveat survives, and read Odoo source directly (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`): read CLI flags from `odoo/cli/db.py` and `odoo/tools/config.py` (addons root from the lease's `addons_path`) in place of `cli_help`, labelled `grounded: local-source - not OSM-indexed`; only if the repo itself is inaccessible, state `grounded: ungrounded - OSM unavailable` and surface a `NEEDS_CONTEXT` for the instance path.
 
 ---
 
@@ -109,9 +109,7 @@ Continuation Contract takes `status: NEEDS_CONTEXT` with the code plus its remed
 `blocked_reason`. Quote the tool's message and remedy AS-IS as a fenced block in the prose summary
 above both blocks; never re-word it or truncate it into `notes:`. `db_preflight` diagnoses a
 Postgres refusal without writing anything. The two Postgres remedies are NOT interchangeable:
-`DB_AUTH_DENIED` -> `/odoo-ai-agents:odoo-setup`, which drives `48-db-local-auth.sh apply` behind its
-own confirm gate, or `export ODOO_PG_PASSWORD=...` before the session (or a `~/.pgpass` line;
-`~/.odoorc` is never read) for a managed or remote cluster step 48 refuses to touch; `DB_UNREACHABLE` -> start the cluster or correct
+`DB_AUTH_DENIED` -> `/odoo-ai-agents:odoo-setup`; `DB_UNREACHABLE` -> start the cluster or correct
 `db_host`/`db_port`, and setup fixes NOTHING there. NEVER run `48-db-local-auth.sh` yourself. A `db_auth: unknown` reading NEVER blocks: only a returned
 refusal code does; a `lease_acquire` that returns a lease succeeded.
 

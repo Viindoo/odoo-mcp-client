@@ -8,8 +8,12 @@ contract without a real Odoo installation:
      before the call; never spawns raw dropdb/psql.
   2. ``drop foo``  - NEVER invokes dropdb/psql even if they are on PATH.
   3. ``exists foo``- prints 'true' when fake exp_db_exist returns True, 'false' otherwise.
-  4. No-venv path - when import odoo fails, exit code is EXIT_NO_VENV (10) and stderr
-     carries the ``odoo_db: cannot import odoo (no venv?)`` marker.
+  4. Route-unavailable path - when Odoo cannot be driven the exit code is EXIT_NO_VENV (10)
+     and stderr names the cause that was observed: the base package missing (naming the
+     interpreter and odoo_root), a module or dependency that failed to import (naming it),
+     or a checkout whose database API is not recognised.
+  5. The database API (legacy service/db.py on 8.0-19.0, modern modules/db.py on 20.0) is
+     read from the imported package's source; read-only subcommands need neither.
 
 Each test is red without the implementation and green with it per ETHOS #10.
 """
@@ -57,85 +61,103 @@ def _run(*args, env_extra=None, pythonpath_prepend=None):
     )
 
 
-def _build_fake_odoo(tmp_path, *, exp_drop_returns=True, exp_db_exist_returns=True,
-                     marker_file=None):
-    """Write a minimal fake ``odoo`` package under tmp_path/fake_odoo_pkg/.
+# A sql_db for fakes that never open a connection. The real package always has one and
+# _import_odoo binds it for EVERY subcommand, so a fake without it is not a loadable Odoo.
+_NO_CONNECTION_SQL_DB = (
+    "def db_connect(to, allow_uri=False):\n"
+    "    raise RuntimeError('this stub opens no connection')\n"
+)
 
+_FAKE_CONFIG = textwrap.dedent("""\
+    class _Config(dict):
+        def parse_config(self, args=None):
+            args = args or []
+            i = 0
+            while i < len(args):
+                a = args[i]
+                if a in ('--db_host', '--db_user', '--db_password') and i + 1 < len(args):
+                    self[a.lstrip('-')] = args[i + 1]
+                    i += 2
+                else:
+                    i += 1
+
+    config = _Config()
+    """)
+
+
+def _build_fake_odoo(tmp_path, *, layout="legacy", pkg_name="odoo", exp_drop_returns=True,
+                     exp_db_exist_returns=True, exist_returns=True, in_catalog=True,
+                     connect_error=None, marker_file=None, dirname="fake_odoo_pkg"):
+    """Write a minimal fake Odoo package under tmp_path/<dirname>/.
+
+    ``layout`` picks the database API the fake ships, as the real series do:
+      "legacy"  <pkg>/service/db.py with exp_drop / exp_db_exist (8.0 - 19.0; the package
+                is ``openerp`` on 8.0 / 9.0, hence ``pkg_name``)
+      "modern"  <pkg>/modules/db.py with drop / exist and NO service/ (20.0)
+      "both"    the two together
+      "none"    neither (a series this script has never seen)
     The fake records:
-      - config['list_db'] value AT THE MOMENT exp_drop/exp_db_exist is called
+      - config['list_db'] value AT THE MOMENT a db function is called
         (written to marker_file as a line ``list_db=<value>``)
       - a line ``called=<fn_name>`` for which function fired
-      - optionally raises if the return value is an Exception instance
+      - optionally raises if a legacy return value is an Exception instance
+
+    Modern ``drop`` raises when ``in_catalog`` is False (the real one raises for a database
+    that is not there) and ``exist`` answers ``exist_returns`` (False for an absent database
+    AND for a cluster it could not reach). ``in_catalog`` is also what the maintenance
+    database's pg_database says, and ``connect_error`` makes every connection fail with that
+    message (an unreachable cluster).
     """
-    pkg_root = tmp_path / "fake_odoo_pkg"
-
-    odoo_dir = pkg_root / "odoo"
-    odoo_dir.mkdir(parents=True)
-
-    service_dir = odoo_dir / "service"
-    service_dir.mkdir()
-
-    tools_dir = odoo_dir / "tools"
-    tools_dir.mkdir()
-
-    # Marker file path as a Python string literal for embedding in source
+    pkg_dir = tmp_path / dirname / pkg_name
+    tools_dir = pkg_dir / "tools"
+    tools_dir.mkdir(parents=True)
     marker_str = repr(str(marker_file)) if marker_file else "None"
 
-    # ---- odoo/__init__.py ----
-    (odoo_dir / "__init__.py").write_text(
+    # The package __init__ imports only tools, so a submodule the layout does not ship is
+    # never reached through it - the script must bind what it needs itself.
+    (pkg_dir / "__init__.py").write_text(
+        "from {pkg} import tools\n".format(pkg=pkg_name), encoding="utf-8")
+    (tools_dir / "__init__.py").write_text(_FAKE_CONFIG, encoding="utf-8")
+    (tools_dir / "config.py").write_text("# placeholder\n", encoding="utf-8")
+
+    # sql_db answers the catalog question the modern drop asks.
+    (pkg_dir / "sql_db.py").write_text(
         textwrap.dedent("""\
-        from odoo import tools, service
-        """),
-        encoding="utf-8",
-    )
+        _ERROR = {err!r}
+        _IN_CATALOG = {in_catalog!r}
 
-    # ---- odoo/tools/__init__.py ----
-    (tools_dir / "__init__.py").write_text(
-        textwrap.dedent("""\
-        from odoo.tools import config as _config_module
 
-        class _Config(dict):
-            def parse_config(self, args=None):
-                # Parse --db_host / --db_user / --db_password from args list
-                args = args or []
-                i = 0
-                while i < len(args):
-                    a = args[i]
-                    if a in ('--db_host', '--db_user', '--db_password') and i + 1 < len(args):
-                        key = a.lstrip('-').replace('db_', 'db_')
-                        self[a.lstrip('-')] = args[i + 1]
-                        i += 2
-                    else:
-                        i += 1
+        class _Cursor(object):
+            def execute(self, sql, params=None):
+                low = " ".join(sql.split()).lower()
+                if "from pg_database where datname" in low:
+                    self._rows = [(1,)] if _IN_CATALOG else []
+                elif low.startswith("select 1"):
+                    self._rows = [(1,)]
+                else:
+                    raise AssertionError("unexpected SQL: " + sql)
 
-        config = _Config()
-        """),
-        encoding="utf-8",
-    )
+            def fetchall(self):
+                return self._rows
 
-    # ---- odoo/tools/config.py (imported by __init__ as config module) ----
-    (tools_dir / "config.py").write_text(
-        textwrap.dedent("""\
-        # placeholder - actual config object lives in tools/__init__.py
-        """),
-        encoding="utf-8",
-    )
+            def close(self):
+                pass
 
-    # ---- odoo/service/__init__.py ----
-    (service_dir / "__init__.py").write_text(
-        textwrap.dedent(f"""\
-        from odoo.service import db
-        """),
-        encoding="utf-8",
-    )
 
-    drop_ret = repr(exp_drop_returns)
-    exist_ret = repr(exp_db_exist_returns)
+        class _Connection(object):
+            def cursor(self, *args, **kwargs):
+                return _Cursor()
 
-    # ---- odoo/service/db.py ----
-    (service_dir / "db.py").write_text(
-        textwrap.dedent(f"""\
-        from odoo.tools import config
+
+        def db_connect(to, allow_uri=False):
+            if _ERROR:
+                raise RuntimeError(_ERROR)
+            return _Connection()
+        """).format(err=connect_error or "", in_catalog=in_catalog),
+        encoding="utf-8")
+
+    marker_helpers = textwrap.dedent(f"""\
+        from {pkg_name}.tools import config
 
         _MARKER_FILE = {marker_str}
 
@@ -143,27 +165,58 @@ def _build_fake_odoo(tmp_path, *, exp_drop_returns=True, exp_db_exist_returns=Tr
             if _MARKER_FILE is None:
                 return
             with open(_MARKER_FILE, 'a', encoding='utf-8') as fh:
-                fh.write(f'list_db={{config.get(\"list_db\", \"NOT_SET\")}}\\n')
+                fh.write(f'list_db={{config.get("list_db", "NOT_SET")}}\\n')
                 fh.write(f'called={{fn_name}}\\n')
 
-        def exp_drop(db_name):
-            _write_marker('exp_drop')
-            ret = {drop_ret}
-            if isinstance(ret, BaseException):
-                raise ret
-            return ret
+        """)
 
-        def exp_db_exist(db_name):
-            _write_marker('exp_db_exist')
-            ret = {exist_ret}
-            if isinstance(ret, BaseException):
-                raise ret
-            return ret
-        """),
-        encoding="utf-8",
-    )
+    if layout in ("legacy", "both"):
+        (pkg_dir / "service").mkdir()
+        (pkg_dir / "service" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg_dir / "service" / "db.py").write_text(
+            marker_helpers + textwrap.dedent(f"""\
+            def exp_drop(db_name):
+                _write_marker('exp_drop')
+                ret = {exp_drop_returns!r}
+                if isinstance(ret, BaseException):
+                    raise ret
+                return ret
 
-    return pkg_root
+            def exp_db_exist(db_name):
+                _write_marker('exp_db_exist')
+                ret = {exp_db_exist_returns!r}
+                if isinstance(ret, BaseException):
+                    raise ret
+                return ret
+            """),
+            encoding="utf-8",
+        )
+    if layout in ("modern", "both"):
+        (pkg_dir / "modules").mkdir()
+        (pkg_dir / "modules" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg_dir / "modules" / "db.py").write_text(
+            marker_helpers + textwrap.dedent(f"""\
+            def drop(db_name):
+                _write_marker('drop')
+                if not {in_catalog!r}:
+                    raise RuntimeError('database %r does not exist' % db_name)
+
+            def exist(db_name):
+                _write_marker('exist')
+                return {exist_returns!r}
+            """),
+            encoding="utf-8",
+        )
+
+    return tmp_path / dirname
+
+
+def _calls(marker):
+    """The ``called=<fn>`` lines a fake wrote, in order ([] when it was never called)."""
+    if not marker.exists():
+        return []
+    return [line.split("=", 1)[1] for line in marker.read_text(encoding="utf-8").splitlines()
+            if line.startswith("called=")]
 
 
 # ---------------------------------------------------------------------------
@@ -264,21 +317,73 @@ def test_exists_prints_false_when_db_absent(tmp_path):
 # Test 4: no venv -> EXIT_NO_VENV + stderr marker
 # ---------------------------------------------------------------------------
 
-def test_no_venv_exits_10_with_marker_on_stderr(tmp_path):
-    """When import odoo fails, exit code must be 10 and stderr must contain
-    the 'odoo_db: cannot import odoo (no venv?)' marker."""
+def test_missing_base_package_exits_10_and_names_the_interpreter_and_odoo_root(tmp_path):
+    """When the base package is not importable the exit is 10 and stderr names what a
+    reader can act on: the interpreter that failed and the declared (or undeclared)
+    odoo_root - not a guess about a venv."""
     # PYTHONPATH pointing to an empty dir ensures neither odoo nor openerp is importable.
     empty = tmp_path / "empty_pythonpath"
     empty.mkdir()
 
-    result = _run("drop", "some_db", pythonpath_prepend=empty)
-    assert result.returncode == EXIT_NO_VENV, (
-        f"expected exit {EXIT_NO_VENV} (venv unavailable); got {result.returncode}; "
-        f"stderr={result.stderr!r}"
+    undeclared = _run("drop", "some_db", pythonpath_prepend=empty)
+    assert undeclared.returncode == EXIT_NO_VENV, (
+        f"expected exit {EXIT_NO_VENV} (route unavailable); got {undeclared.returncode}; "
+        f"stderr={undeclared.stderr!r}"
     )
-    assert "odoo_db: cannot import odoo (no venv?)" in result.stderr, (
-        f"stderr must carry the venv-unavailable marker; stderr={result.stderr!r}"
-    )
+    assert f"odoo not importable by {sys.executable} (odoo_root=undeclared)" in undeclared.stderr, (
+        f"stderr must name the interpreter and the undeclared odoo_root; "
+        f"stderr={undeclared.stderr!r}")
+
+    declared = _run("drop", "some_db", "--odoo-root", str(tmp_path / "no_such_checkout"),
+                    pythonpath_prepend=empty)
+    assert declared.returncode == EXIT_NO_VENV
+    assert f"odoo_root={tmp_path / 'no_such_checkout'} (not a directory)" in declared.stderr, (
+        f"a declared odoo_root that is not a directory must be named as such; "
+        f"stderr={declared.stderr!r}")
+
+
+def test_a_dependency_that_fails_to_import_is_named_and_odoo_root_is_not_blamed(tmp_path):
+    """The package IS found, a module under it fails on a missing dependency: stderr says
+    where Odoo was imported from and WHICH module failed. Telling this reader to check the
+    venv or declare odoo_root would send them after a fault they do not have."""
+    pkg = _build_fake_odoo(tmp_path, layout="legacy")
+    (pkg / "odoo" / "__init__.py").write_text("", encoding="utf-8")  # 19.0: binds nothing
+    (pkg / "odoo" / "tools" / "__init__.py").write_text(
+        "import psycopg2_missing_dependency\n", encoding="utf-8")
+
+    res = _run("drop", "some_db", "--odoo-root", str(pkg), pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert f"odoo imported from {pkg / 'odoo'}, but psycopg2_missing_dependency failed" in res.stderr, (
+        f"stderr must name the package location and the failing module; stderr={res.stderr!r}")
+    assert "odoo_root" not in res.stderr and "no venv" not in res.stderr, (
+        f"a found package must not be diagnosed as a missing venv or odoo_root; "
+        f"stderr={res.stderr!r}")
+
+
+def test_an_odoo_namespace_with_no_core_in_it_is_reported_as_a_missing_checkout(tmp_path):
+    """An addons-only install leaves a bare `odoo` namespace on the import path: the name
+    resolves, the core does not. That is a checkout that is missing - odoo_root is the
+    fact to look at - not a broken dependency."""
+    portion = tmp_path / "addons_only" / "odoo" / "addons" / "some_addon"
+    portion.mkdir(parents=True)
+    res = _run("drop", "some_db", pythonpath_prepend=tmp_path / "addons_only")
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert f"odoo not importable by {sys.executable} (odoo_root=undeclared)" in res.stderr, (
+        res.stderr)
+    assert "holds no odoo.tools" in res.stderr, res.stderr
+
+
+def test_a_dependency_of_the_package_init_is_named_not_reported_as_a_missing_package(tmp_path):
+    """Before 19.0 `import odoo` itself runs the package __init__, which imports its
+    dependencies: a missing one must not read as "odoo not importable"."""
+    pkg = _build_fake_odoo(tmp_path, layout="legacy")
+    (pkg / "odoo" / "__init__.py").write_text("import psycopg2_missing_dependency\n",
+                                              encoding="utf-8")
+    res = _run("exists", "some_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert "psycopg2_missing_dependency failed" in res.stderr, res.stderr
+    assert "not importable" not in res.stderr, (
+        f"the package was found; it must not be reported as missing: {res.stderr!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +449,7 @@ def _build_fake_odoo_with_pw_record(tmp_path, marker_file):
         encoding="utf-8",
     )
     (tools_dir / "config.py").write_text("# placeholder\n", encoding="utf-8")
+    (odoo_dir / "sql_db.py").write_text(_NO_CONNECTION_SQL_DB, encoding="utf-8")
 
     (service_dir / "__init__.py").write_text(
         "from odoo.service import db\n",
@@ -437,6 +543,7 @@ def _build_fake_odoo_recording_conn(tmp_path, marker_file):
         encoding="utf-8",
     )
     (tools_dir / "config.py").write_text("# placeholder\n", encoding="utf-8")
+    (odoo_dir / "sql_db.py").write_text(_NO_CONNECTION_SQL_DB, encoding="utf-8")
     (service_dir / "__init__.py").write_text(
         "from odoo.service import db\n", encoding="utf-8",
     )
@@ -520,44 +627,30 @@ def test_drop_observability_already_absent_uses_libpq_default(tmp_path):
     )
 
 
-def test_import_odoo_binds_tools_and_service_db(tmp_path, monkeypatch):
-    """_import_odoo() must bind .tools and .service.db even when a bare import does NOT
+def test_import_odoo_binds_tools_and_sql_db_and_nothing_a_series_may_lack(tmp_path, monkeypatch):
+    """_import_odoo() must bind .tools and .sql_db even when a bare import does NOT
     (Odoo 19.0 behaviour: the base package's __init__ no longer re-exports submodules
-    transitively). Regression guard for #154.
+    transitively - regression guard for #154), and it must NOT demand ``.service.db``:
+    Odoo 20.0 has no such module, and every read-only subcommand needs only the two it
+    binds (issue #272).
 
-    Unlike ``_build_fake_odoo`` above (whose ``odoo/__init__.py`` does
-    ``from odoo import tools, service`` - a bare import that DOES bind them), this fixture's
-    fake ``odoo`` module is an in-memory package whose bare import binds NEITHER submodule.
-    Only ``.tools`` / ``.service`` live on disk (reachable via ``__path__``), so
-    ``importlib.import_module(pkg + ".tools")`` performs a genuine fresh load and lets
-    Python's own submodule-to-parent binding do the work - exactly what the fix in
-    ``_import_odoo()`` relies on. RED on current code (bare import leaves `.tools` unbound in
-    this fixture), GREEN after the fix.
+    The fake ``odoo`` is an in-memory package whose bare import binds NOTHING; only
+    ``.tools`` and ``.sql_db`` live on disk (reachable via ``__path__``) - there is no
+    ``service/`` at all, exactly like a 20.0 checkout.
     """
     pkg_dir = tmp_path / "fake_odoo_pkg_root"
-    tools_dir = pkg_dir / "tools"
-    service_dir = pkg_dir / "service"
-    tools_dir.mkdir(parents=True)
-    service_dir.mkdir()
+    (pkg_dir / "tools").mkdir(parents=True)
+    (pkg_dir / "tools" / "__init__.py").write_text(
+        "class _Config(dict):\n    pass\n\nconfig = _Config()\n", encoding="utf-8")
+    (pkg_dir / "sql_db.py").write_text(_NO_CONNECTION_SQL_DB, encoding="utf-8")
 
-    (tools_dir / "__init__.py").write_text(
-        "class _Config(dict):\n    pass\n\nconfig = _Config()\n",
-        encoding="utf-8",
-    )
-    (service_dir / "__init__.py").write_text("", encoding="utf-8")
-    (service_dir / "db.py").write_text("# stand-in for odoo.service.db\n", encoding="utf-8")
-
-    # Fake 'odoo' package registered directly under sys.modules (not on disk) so a bare
-    # `import odoo` resolves to it via the import-cache without binding any submodule.
-    # __path__ points at the real .tools/.service dirs so importlib.import_module(pkg +
-    # ".tools") can find and load them fresh, targeting this fake.
     fake_odoo = types.ModuleType("odoo")
     fake_odoo.__path__ = [str(pkg_dir)]
     monkeypatch.setitem(sys.modules, "odoo", fake_odoo)
 
-    # Confirm the fixture's own premise: bare import leaves both submodules unbound.
+    # Confirm the fixture's own premise: bare import leaves the submodules unbound.
     assert not hasattr(fake_odoo, "tools")
-    assert not hasattr(fake_odoo, "service")
+    assert not hasattr(fake_odoo, "sql_db")
 
     try:
         spec = importlib.util.spec_from_file_location("odoo_db_under_test", ODOO_DB_PY)
@@ -566,23 +659,17 @@ def test_import_odoo_binds_tools_and_service_db(tmp_path, monkeypatch):
 
         result = odoo_db_mod._import_odoo()
 
-        assert hasattr(result, "tools"), (
-            "_import_odoo() must bind .tools even when a bare import does not"
-        )
-        assert hasattr(result.tools, "config"), (
-            "the bound .tools must be the real fake odoo.tools module (with .config)"
-        )
-        assert hasattr(result, "service"), (
-            "_import_odoo() must bind .service even when a bare import does not"
-        )
-        assert hasattr(result.service, "db"), (
-            "the bound .service must expose .db (odoo.service.db)"
-        )
+        assert hasattr(result, "tools") and hasattr(result.tools, "config"), (
+            "_import_odoo() must bind .tools (with .config) even when a bare import does not")
+        assert hasattr(result, "sql_db"), (
+            "_import_odoo() must bind .sql_db even when a bare import does not")
+        assert not hasattr(result, "service") and "odoo.service.db" not in sys.modules, (
+            "_import_odoo() must not require the legacy database API module: a series "
+            "without service/db.py must still load")
     finally:
-        # Self-cleaning: importlib.import_module() adds 'odoo.tools' / 'odoo.service' /
-        # 'odoo.service.db' to sys.modules as a side effect of the fresh load; monkeypatch
-        # only reverts the 'odoo' key set explicitly above, so remove the rest ourselves.
-        for name in ("odoo.tools", "odoo.service", "odoo.service.db"):
+        # Self-cleaning: importlib.import_module() adds the submodules to sys.modules as a
+        # side effect of the fresh load; monkeypatch only reverts the 'odoo' key set above.
+        for name in ("odoo.tools", "odoo.sql_db"):
             sys.modules.pop(name, None)
 
 
@@ -599,20 +686,21 @@ def test_import_odoo_binds_tools_and_service_db(tmp_path, monkeypatch):
 
 def _build_fake_odoo_with_sql_db(tmp_path, *, rolcreatedb=True, databases=("a_db",),
                                  age=1234.5, size=4096, raise_on_connect=False,
-                                 pkg_name="odoo", dirname="fake_odoo_sqldb"):
+                                 pkg_name="odoo", dirname="fake_odoo_sqldb",
+                                 layout="legacy"):
     """A fake Odoo package that also exposes sql_db.db_connect.
 
     `pkg_name` is a parameter because v8/v9 ship the SAME api under `openerp`:
     the script resolves the namespace and imports `<pkg>.sql_db` through it, so
-    the openerp case must be exercised, not assumed.
+    the openerp case must be exercised, not assumed. `layout` is "legacy"
+    (service/db.py, 8.0-19.0), "modern" (modules/db.py and NO service/, 20.0) or "none".
     """
     pkg_root = tmp_path / dirname
     pkg_dir = pkg_root / pkg_name
-    (pkg_dir / "service").mkdir(parents=True)
-    (pkg_dir / "tools").mkdir()
+    (pkg_dir / "tools").mkdir(parents=True)
 
     (pkg_dir / "__init__.py").write_text(
-        f"from {pkg_name} import tools, service\n", encoding="utf-8")
+        f"from {pkg_name} import tools\n", encoding="utf-8")
     (pkg_dir / "tools" / "__init__.py").write_text(
         textwrap.dedent("""\
         class _Config(dict):
@@ -628,11 +716,18 @@ def _build_fake_odoo_with_sql_db(tmp_path, *, rolcreatedb=True, databases=("a_db
 
         config = _Config()
         """), encoding="utf-8")
-    (pkg_dir / "service" / "__init__.py").write_text(
-        f"from {pkg_name}.service import db\n", encoding="utf-8")
-    (pkg_dir / "service" / "db.py").write_text(
-        "def exp_drop(db_name):\n    return True\n\n"
-        "def exp_db_exist(db_name):\n    return True\n", encoding="utf-8")
+    if layout == "legacy":
+        (pkg_dir / "service").mkdir()
+        (pkg_dir / "service" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg_dir / "service" / "db.py").write_text(
+            "def exp_drop(db_name):\n    return True\n\n"
+            "def exp_db_exist(db_name):\n    return True\n", encoding="utf-8")
+    elif layout == "modern":
+        (pkg_dir / "modules").mkdir()
+        (pkg_dir / "modules" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg_dir / "modules" / "db.py").write_text(
+            "def drop(db_name):\n    return None\n\n"
+            "def exist(db_name):\n    return True\n", encoding="utf-8")
 
     (pkg_dir / "sql_db.py").write_text(
         textwrap.dedent(f"""\
@@ -657,6 +752,8 @@ def _build_fake_odoo_with_sql_db(tmp_path, *, rolcreatedb=True, databases=("a_db
                     self._rows = [] if _AGE is None else [(_AGE,)]
                 elif "pg_database_size" in low:
                     self._rows = [] if _SIZE is None else [(_SIZE,)]
+                elif "from pg_database where datname" in low:
+                    self._rows = [(1,)] if params[0] in _DATABASES else []
                 elif low.startswith("select 1"):
                     self._rows = [(1,)]
                 else:
@@ -838,8 +935,9 @@ def test_no_subcommand_ever_spawns_a_client_binary(tmp_path, argv):
 # must never be, because the database is still in use.
 # ---------------------------------------------------------------------------
 def _build_fake_odoo_drop_raising(tmp_path, *, exc_class, pgcode, message,
-                                  dirname="fake_odoo_drop_raise"):
-    """A fake `odoo` whose exp_drop raises a psycopg2-SHAPED exception.
+                                  dirname="fake_odoo_drop_raise", layout="legacy"):
+    """A fake `odoo` whose drop raises a psycopg2-SHAPED exception (``exp_drop`` on the
+    legacy layout, ``drop`` on the modern one - which reports the database present).
 
     `exc_class` and `pgcode` are what a caller has to classify on: psycopg2 reports
     a connection or handshake failure as OperationalError with NO SQLSTATE, and
@@ -847,29 +945,44 @@ def _build_fake_odoo_drop_raising(tmp_path, *, exc_class, pgcode, message,
     """
     pkg_root = tmp_path / dirname
     pkg = pkg_root / "odoo"
-    (pkg / "service").mkdir(parents=True)
-    (pkg / "tools").mkdir()
-    (pkg / "__init__.py").write_text("from odoo import tools, service\n", encoding="utf-8")
+    (pkg / "tools").mkdir(parents=True)
+    (pkg / "__init__.py").write_text("from odoo import tools\n", encoding="utf-8")
     (pkg / "tools" / "__init__.py").write_text(
         "class _Config(dict):\n"
         "    def parse_config(self, args=None):\n"
         "        pass\n\n"
         "config = _Config()\n", encoding="utf-8")
-    (pkg / "service" / "__init__.py").write_text(
-        "from odoo.service import db\n", encoding="utf-8")
-    (pkg / "service" / "db.py").write_text(
-        textwrap.dedent("""\
+    (pkg / "sql_db.py").write_text(_NO_CONNECTION_SQL_DB, encoding="utf-8")
+    exception = textwrap.dedent("""\
         class {cls}(Exception):
             pgcode = {code!r}
 
 
-        def exp_drop(db_name):
-            raise {cls}({msg!r})
+        """).format(cls=exc_class, code=pgcode)
+    if layout == "legacy":
+        (pkg / "service").mkdir()
+        (pkg / "service" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "service" / "db.py").write_text(
+            exception + textwrap.dedent("""\
+            def exp_drop(db_name):
+                raise {cls}({msg!r})
 
 
-        def exp_db_exist(db_name):
-            return True
-        """).format(cls=exc_class, code=pgcode, msg=message), encoding="utf-8")
+            def exp_db_exist(db_name):
+                return True
+            """).format(cls=exc_class, msg=message), encoding="utf-8")
+    else:
+        (pkg / "modules").mkdir()
+        (pkg / "modules" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "modules" / "db.py").write_text(
+            exception + textwrap.dedent("""\
+            def drop(db_name):
+                raise {cls}({msg!r})
+
+
+            def exist(db_name):
+                return True
+            """).format(cls=exc_class, msg=message), encoding="utf-8")
     return pkg_root
 
 
@@ -890,10 +1003,11 @@ def _build_fake_odoo_drop_raising(tmp_path, *, exc_class, pgcode, message,
     ("not a connection failure", "RuntimeError", None,
      "filestore removal failed", EXIT_FAILURE),
 ])
+@pytest.mark.parametrize("layout", ["legacy", "modern"])
 def test_drop_classifies_a_connection_failure_apart_from_a_failed_drop(
-        tmp_path, case, exc_class, pgcode, message, expected):
+        tmp_path, layout, case, exc_class, pgcode, message, expected):
     pkg = _build_fake_odoo_drop_raising(
-        tmp_path, exc_class=exc_class, pgcode=pgcode, message=message,
+        tmp_path, exc_class=exc_class, pgcode=pgcode, message=message, layout=layout,
         dirname="fake_odoo_drop_" + case.replace(" ", "_"))
     pgpass = tmp_path / "pgpass-empty"
     pgpass.write_text("", encoding="utf-8")
@@ -903,3 +1017,242 @@ def test_drop_classifies_a_connection_failure_apart_from_a_failed_drop(
     assert res.returncode == expected, (
         "[{c}] expected exit {e}; got {rc}, stderr={err!r}".format(
             c=case, e=expected, rc=res.returncode, err=res.stderr))
+
+
+# ---------------------------------------------------------------------------
+# The database API is chosen from the SOURCE of the package the interpreter imported
+# (issue #272). Odoo 20.0 has no service/db.py: its drop / exist are module-level
+# functions in modules/db.py, and `drop` raises for a database that is not there.
+# ---------------------------------------------------------------------------
+
+def _load_odoo_db():
+    spec = importlib.util.spec_from_file_location("odoo_db_probe_under_test", ODOO_DB_PY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.mark.parametrize("layout", ["modern", "none"])
+@pytest.mark.parametrize("argv,stdout", [
+    (("preflight", "--db-host", "h"), "DB_AUTH=ok"),
+    (("can-createdb", "--db-host", "h"), "true"),
+    (("list-databases", "--db-host", "h"), "a_db"),
+    (("db-age-s", "some_db", "--db-host", "h"), "1234.5"),
+    (("db-size-bytes", "some_db", "--db-host", "h"), "4096"),
+])
+def test_read_only_subcommands_need_no_database_api_module(tmp_path, layout, argv, stdout):
+    """Every read-only question needs only odoo.tools and odoo.sql_db, so it must be
+    answered on a checkout that has no service/db.py - and even on one whose database
+    API this script does not recognise. Before #272 all of these exited 10 on 20.0."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, layout=layout)
+    res = _run(*argv, pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert stdout in res.stdout, f"stdout={res.stdout!r}"
+
+
+def test_modern_drop_of_an_existing_database_is_performed_once(tmp_path):
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker,
+                           exist_returns=True, in_catalog=True)
+    res = _run("drop", "live_db", "--db-host", "pghost", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert "odoo_db: drop 'live_db' on pghost:libpq-default -> performed" in res.stderr
+    assert _calls(marker).count("drop") == 1, f"drop must run exactly once: {_calls(marker)}"
+    lines = marker.read_text(encoding="utf-8").splitlines()
+    assert all(line == "list_db=True" for line in lines if line.startswith("list_db=")), (
+        f"config['list_db'] must be True whenever the db API is called; marker={lines}")
+
+
+def test_modern_drop_of_an_absent_database_is_idempotent_and_never_calls_drop(tmp_path):
+    """The real `drop` raises for a missing database, so reaching it would turn the
+    idempotent verb into a failure the allocator then retains the lease for."""
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker,
+                           exist_returns=False, in_catalog=False)
+    res = _run("drop", "gone_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert "-> already-absent" in res.stderr, res.stderr
+    assert "drop" not in _calls(marker), f"drop() must not be called: {_calls(marker)}"
+
+
+def test_modern_drop_proceeds_for_a_database_that_exists_but_refuses_connections(tmp_path):
+    """`exist` answers False for any OperationalError, a database nobody may connect to
+    included. The catalog still lists it, so it is dropped rather than called absent."""
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker,
+                           exist_returns=False, in_catalog=True)
+    res = _run("drop", "locked_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert "-> performed" in res.stderr, res.stderr
+    assert _calls(marker).count("drop") == 1
+
+
+@pytest.mark.parametrize("message,expected", [
+    ("could not connect to server: Connection refused", EXIT_UNREACHABLE),
+    ("FATAL: password authentication failed for user", EXIT_AUTH_DENIED),
+])
+def test_modern_drop_on_a_cluster_that_refuses_us_is_not_reported_as_absent(
+        tmp_path, message, expected):
+    """`exist` swallows the connection failure and says False. Reporting that as
+    "already absent" (exit 0) would let a caller release the lease over a database that
+    is still there. The refusal must surface as the classified exit, with nothing dropped."""
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker,
+                           exist_returns=False, connect_error=message)
+    res = _run("drop", "some_db", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode == expected, f"stderr={res.stderr!r}"
+    assert "already-absent" not in res.stderr and "performed" not in res.stderr
+    assert "drop" not in _calls(marker)
+
+
+@pytest.mark.parametrize("present", [True, False])
+def test_modern_exists_prints_what_exist_answers(tmp_path, present):
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker,
+                           exist_returns=present)
+    res = _run("exists", "some_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert res.stdout.strip() == ("true" if present else "false")
+    assert _calls(marker) == ["exist"]
+
+
+def test_modern_layout_works_as_a_namespace_package(tmp_path):
+    """Odoo 19.0+ ships no odoo/__init__.py: the package is a namespace package, whose
+    __path__ is not a list. The API must still be found and driven."""
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="modern", marker_file=marker)
+    (pkg / "odoo" / "__init__.py").unlink()
+    res = _run("drop", "live_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert "-> performed" in res.stderr
+    assert _calls(marker).count("drop") == 1
+
+
+def test_legacy_layout_under_the_openerp_namespace_still_drops_and_answers(tmp_path):
+    """8.0 / 9.0: package `openerp`, service/db.py with exp_drop / exp_db_exist."""
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="legacy", pkg_name="openerp",
+                           marker_file=marker, dirname="fake_openerp")
+    dropped = _run("drop", "old_db", pythonpath_prepend=pkg)
+    assert dropped.returncode == EXIT_OK, f"stderr={dropped.stderr!r}"
+    assert "-> performed" in dropped.stderr
+    exists = _run("exists", "old_db", pythonpath_prepend=pkg)
+    assert exists.returncode == EXIT_OK and exists.stdout.strip() == "true"
+    assert _calls(marker) == ["exp_drop", "exp_db_exist"]
+
+
+def test_a_checkout_shipping_both_apis_is_driven_through_the_modern_one(tmp_path):
+    marker = tmp_path / "marker.txt"
+    pkg = _build_fake_odoo(tmp_path, layout="both", marker_file=marker)
+    res = _run("drop", "live_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert _calls(marker) == ["exist", "drop"], (
+        f"modern wins when both are defined; calls={_calls(marker)}")
+
+
+_NOT_A_DB_API = {
+    "no database module at all": {},
+    "legacy module missing one of the two functions": {
+        "service/db.py": "def exp_drop(db_name):\n    return True\n"},
+    "modern module missing one of the two functions": {
+        "modules/db.py": "def drop(db_name):\n    return None\n"},
+    "functions only mentioned in comments": {
+        "modules/db.py": "# def drop(db_name):\n# def exist(db_name):\nx = 1\n"},
+    "functions that are methods of a class, not module-level": {
+        "modules/db.py": "class A:\n    def drop(self, n):\n        pass\n"
+                         "    def exist(self, n):\n        pass\n"},
+}
+
+
+@pytest.mark.parametrize("case", sorted(_NOT_A_DB_API))
+@pytest.mark.parametrize("verb", ["drop", "exists"])
+def test_a_checkout_with_no_recognisable_database_api_is_refused_not_guessed(
+        tmp_path, case, verb):
+    pkg = _build_fake_odoo(tmp_path, layout="none")
+    for relpath, text in _NOT_A_DB_API[case].items():
+        target = pkg / "odoo" / relpath
+        target.parent.mkdir(exist_ok=True)
+        (target.parent / "__init__.py").write_text("", encoding="utf-8")
+        target.write_text(text, encoding="utf-8")
+    res = _run(verb, "some_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_NO_VENV, f"[{case}] stderr={res.stderr!r}"
+    assert "ODOO_SOURCE_FACT_UNKNOWN" in res.stderr, res.stderr
+    assert res.stdout.strip() == "", "no answer may be printed for an unrecognised API"
+    assert "performed" not in res.stderr and "already-absent" not in res.stderr
+
+
+@pytest.mark.parametrize("verb", ["drop", "exists"])
+def test_a_database_api_module_that_fails_to_import_names_the_failing_dependency(
+        tmp_path, verb):
+    pkg = _build_fake_odoo(tmp_path, layout="modern")
+    (pkg / "odoo" / "modules" / "db.py").write_text(
+        "import a_dependency_nobody_installed\n\n"
+        "def drop(db_name):\n    pass\n\ndef exist(db_name):\n    return True\n",
+        encoding="utf-8")
+    res = _run(verb, "some_db", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_NO_VENV, f"stderr={res.stderr!r}"
+    assert "a_dependency_nobody_installed failed" in res.stderr, res.stderr
+    assert "odoo_root" not in res.stderr
+
+
+def test_preflight_reports_the_real_reason_and_a_remedy_that_fits_it(tmp_path):
+    """A refusal must not blame a cause that was not observed. Package missing -> the
+    remedy is to declare it; package found but a dependency broken -> the remedy is to
+    repair that, and `odoo_root` is not mentioned at all."""
+    empty = tmp_path / "empty_pythonpath"
+    empty.mkdir()
+    missing = _run("preflight", "--db-host", "h", pythonpath_prepend=empty)
+    assert missing.returncode == EXIT_NO_VENV
+    assert "DB_AUTH=unknown" in missing.stdout
+    assert f"DB_AUTH_WHY=odoo not importable by {sys.executable} (odoo_root=undeclared)" in (
+        missing.stdout)
+    assert "/odoo-ai-agents:odoo-setup" in missing.stderr
+    assert "not importable by" in missing.stderr
+
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, layout="modern")
+    (pkg / "odoo" / "sql_db.py").write_text("import a_dependency_nobody_installed\n",
+                                            encoding="utf-8")
+    broken = _run("preflight", "--db-host", "h", pythonpath_prepend=pkg)
+    assert broken.returncode == EXIT_NO_VENV
+    assert "a_dependency_nobody_installed failed" in broken.stdout
+    assert "odoo_root" not in broken.stdout + broken.stderr, (
+        f"a found package must not be blamed on odoo_root; got {broken.stdout + broken.stderr!r}")
+    assert "odoo-setup" not in broken.stderr, "setup cannot repair a broken dependency"
+    assert "missing or incompatible dependency" in broken.stderr
+
+
+# --- real checkouts (skipped when absent) ------------------------------------------
+
+CHECKOUTS = Path(os.environ.get("ODOO_SOURCE_CHECKOUTS") or (Path.home() / "git"))
+
+# Surveyed by reading each series' own source: service/db.py defines exp_drop and
+# exp_db_exist on 8.0 - 19.0 (19.0 also has modules/db.py, but without drop / exist);
+# 20.0 has no service/db.py and defines drop / exist in modules/db.py.
+REAL_SERIES_API = dict({s: "legacy" for s in (
+    "8.0", "9.0", "10.0", "11.0", "12.0", "13.0", "14.0", "15.0", "16.0", "17.0", "18.0",
+    "19.0")}, **{"20.0": "modern"})
+
+
+@pytest.mark.parametrize("series", sorted(REAL_SERIES_API, key=float))
+def test_real_checkout_database_api_is_read_from_its_source(series):
+    root = CHECKOUTS / ("odoo_%s" % series)
+    pkg = next((p for p in ("odoo", "openerp") if (root / p / "modules").is_dir()), None)
+    if pkg is None:
+        pytest.skip("no Odoo %s checkout at %s" % (series, root))
+    base = types.ModuleType(pkg)
+    base.__path__ = [str(root / pkg)]
+    kind, _relpath = _load_odoo_db()._detect_db_api(base)
+    assert kind == REAL_SERIES_API[series], (
+        f"{series}: expected the {REAL_SERIES_API[series]} database API, read {kind}")
+
+
+def test_every_directory_of_a_namespace_package_is_searched(tmp_path):
+    """A namespace package's __path__ can name several directories; the module is
+    wherever one of them holds it."""
+    (tmp_path / "first").mkdir()
+    (tmp_path / "second" / "modules").mkdir(parents=True)
+    (tmp_path / "second" / "modules" / "db.py").write_text(
+        "def drop(n):\n    pass\n\ndef exist(n):\n    return True\n", encoding="utf-8")
+    base = types.ModuleType("odoo")
+    base.__path__ = [str(tmp_path / "first"), str(tmp_path / "second")]
+    assert _load_odoo_db()._detect_db_api(base)[0] == "modern"

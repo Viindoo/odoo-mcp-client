@@ -88,8 +88,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
        `/odoo-semantic-mcp:connect`, then restart Claude Code and open a NEW
        session (MCP servers do not hot-reload), then re-run
        `/odoo-ai-agents:odoo-setup`.
-     - Tool returns a 401 / auth error → the API key is likely invalid. Stop and
-       suggest re-running `/odoo-semantic-mcp:connect` to re-enter the key.
+     - Tool returns a 401 / auth error → Stop and suggest re-running
+       `/odoo-semantic-mcp:connect`.
      - Tool returns some other error (server down, self-hosted instance offline)
        → this is a server issue, not a session issue. You MAY continue with a
        clear warning that indexed-codebase grounding will be unavailable until
@@ -266,12 +266,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    that `48-db-local-auth.sh revert` undoes it. It changes PostgreSQL config, so it
    is **never** silent: wait for **CONFIRM #5**, then run `48 apply --series <X.Y>
    [--profile <name>]`. Forward its output verbatim. On a refusal (a `tcp-only`,
-   managed or remote cluster) the alternative it names is `$ODOO_PG_PASSWORD`, read
-   from the environment of the process that runs each step; it must be exported BEFORE
-   `50 apply`, in the SAME shell that runs it and every later build. NEVER ask for it, echo it, or
-   put it on a command line. When you do not control the shell that runs `50 apply`, name the
-   durable route instead: one `${PGPASSFILE:-~/.pgpass}` line for that host/port/user. Those two are
-   the only password sources; never propose a `db_password` in `~/.odoorc`. Then continue.
+   managed or remote cluster) report it to the user as-is and continue; builds on that cluster
+   stay refused with `DB_AUTH_DENIED`.
 
    **AI-6 - Server-wide modules (CONFIRM #6)**
 
@@ -539,7 +535,7 @@ Resolve:
      at least one series: offer the `--repo` path. `record` refuses an instance the catalog does not
      declare: route the operator to `/odoo-ai-agents:odoo-setup instance` first, then re-run
      `docs-site`. Never edit `docs-sites.toml` by hand.
-  `check` / `show [--key <id>]` read the file; `apply` only advises. Never put a credential in a row.
+  `check` / `show [--key <id>]` read the file; `apply` only advises.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths
@@ -547,7 +543,7 @@ Resolve:
   (the only filter is path existence). Hard mode (`apply --hard`): wipes all entries
   unconditionally. `check` always exits 0.
 - **48-db-local-auth** *(instance sub-step - runs between 45 and 50)* - lets Odoo
-  reach the declared PostgreSQL role from THIS host without a password, via one
+  reach the declared PostgreSQL role from THIS host, via one
   delimited managed block in that cluster's `pg_hba.conf`:
   `host all <declared db_user> <discovered-addr>/32 trust` - one `/32`, one role.
   Idempotent; backs up before every edit; undone with `48-db-local-auth.sh revert`. REFUSES and
@@ -556,7 +552,7 @@ Resolve:
   `db_run_mode`: ONE container publishing the declared `db_port` is edited; TWO publishers is
   refused with both named (declare `db_container` to resolve it); a native SERVER (no container
   publishes that port) gets printed instructions instead; a `tcp-only`, managed or remote cluster
-  is refused - AI-5 owns the alternative it names.
+  is refused - AI-5 owns how that refusal is reported.
 - **50-instance-spinup** - before launching anything, runs a **fail-loud
   preflight**: (a) `odoo-bin --version` runs under the instance's Python, then
   (b) Odoo's OWN connection through the instance's `python`; `pg_isready` is only a note and never
@@ -573,10 +569,6 @@ Resolve:
   server *registry* (step 10 never writes there). `$CLAUDE_SETTINGS`
   (`~/.claude/settings.json`) holds *permissions* - steps 30 and 32 write there. Do not edit
   either file by hand with `Edit`/`Write`.
-- **Never echo secrets, and store no DB password anywhere.** Step 48 makes the
-  local cluster accept the declared role without one; `$ODOO_PG_PASSWORD` is the
-  escape hatch for a cluster that cannot be reconfigured (scope + ordering: AI-5) -
-  never `instances.toml`, never a generated conf, never any output.
 - **Never sudo silently.** ffmpeg, system packages and a native SERVER's
   `pg_hba.conf` are only *advised*; the user runs any privileged change themselves.
 - **Idempotent.** Always run a step's `check` before its `apply`. Re-running

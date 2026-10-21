@@ -50,7 +50,7 @@ Modes:
                  (create-on-init) and dropped through Odoo on release. A raw client
                  drop is the FALLBACK, and it is reached only on the three exits
                  that prove the Odoo route never touched the database (8 denied,
-                 9 unreachable, 10 venv unavailable) and only when
+                 9 unreachable, 10 the interpreter cannot drive Odoo) and only when
                  `_client_drop_allowed` permits it. Ports only when --ports N>0.
                  Default for tests / -i verification.
                  REFUSES (exit 6 no CREATEDB / exit 7 undeterminable / exit 8
@@ -382,8 +382,7 @@ the cluster.
 8 and 9 are checked BEFORE 6/7 and for every mode that will build: Odoo's CLI
 opens the maintenance-database connection for every `-d <name>` run before any
 module loads, so a cluster that refuses Odoo kills the build whatever the role's
-privileges are. 8 is fixed by `/odoo-ai-agents:odoo-setup` (or by exporting
-ODOO_PG_PASSWORD for a cluster that cannot be reconfigured), 9 by starting the
+privileges are. 8 is fixed by `/odoo-ai-agents:odoo-setup`, 9 by starting the
 cluster. Both are skipped for `--no-create`, `readonly` and `shared`, and an
 UNDETERMINABLE authentication state never blocks - only a PROVEN 8 or 9 does.
 
@@ -1429,7 +1428,7 @@ PG_OP_TIMEOUT_MULTIPLE = 30
 # `timeout`'s own "bound elapsed" code, reused here so the shell and python halves
 # report an unanswered probe identically. Callers MUST read it as UNDETERMINED.
 EXIT_PROBE_TIMEOUT = 124
-# odoo_db.py's "venv unavailable" sentinel (its EXIT_NO_VENV).
+# odoo_db.py's "this interpreter cannot drive Odoo" sentinel (its EXIT_NO_VENV).
 EXIT_NO_VENV = 10
 # odoo_db.py's CONNECTION verdicts, mirrored here so this script never re-derives
 # them: 8 = Odoo was refused authentication, 9 = the cluster did not answer.
@@ -1521,8 +1520,9 @@ def _pg_client_argv(mode, container, binary, host, user, port, args):
 # routes below can never disagree about WHAT is being asked.
 _CREATEDB_SQL = "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user"
 _RECORD_ENV_HINT = (
-    "run `45-venv.sh record-env --series <X.Y> [--profile <P>]` to declare "
-    "`python` + `odoo_root` (and the `db_run_mode` client surface) for this instance"
+    "fix the cause stated above; when it is a missing `python` / `odoo_root` (or the "
+    "`db_run_mode` client surface), `45-venv.sh record-env --series <X.Y> [--profile <P>]` "
+    "declares them for this instance"
 )
 
 
@@ -1586,13 +1586,13 @@ def _can_createdb_via_python(inst, host, user, port):
                       "the cluster, or raise ${env}".format(
                           s=_probe_timeout_s(), env=PROBE_TIMEOUT_ENV))
     if rc == EXIT_NO_VENV:
-        # odoo_db.py's own wording here is "cannot import odoo (no venv?)", which
-        # MISDIAGNOSES the usual cause: a source checkout is never pip-installed,
-        # so `import odoo` resolves only via `odoo_root` - the venv is fine and the
-        # missing thing is a DECLARED key.
-        return None, ("the declared `python` cannot import odoo: for a source checkout "
-                      "that means `odoo_root` is not declared (the venv itself is fine) - "
-                      + _RECORD_ENV_HINT)
+        # odoo_db.py names the cause it OBSERVED (the base package missing, with the
+        # interpreter and odoo_root; a module or dependency that failed to import; a
+        # database API it does not recognise). That text is forwarded as it is: a
+        # canned sentence here would name a cause - usually odoo_root - that the
+        # child did not see.
+        return None, "the declared `python` cannot drive Odoo: {msg}".format(
+            msg=err.strip() or "odoo_db.py reported no reason")
     if rc in (EXIT_AUTH_DENIED, EXIT_UNREACHABLE):
         # The route WORKED and the connection did not. Mapping this to "could not
         # answer" is what let the ladder fall through and ask a client surface
@@ -1720,9 +1720,9 @@ def _db_auth(inst, host, user, port):
                            "not answer at all (psycopg2 opens the connection with no "
                            "libpq connect timeout)".format(s=_probe_timeout_s()))
     if rc == EXIT_NO_VENV:
-        return "unknown", ("the declared `python` cannot import odoo: for a source "
-                           "checkout that means `odoo_root` is not declared - "
-                           + _RECORD_ENV_HINT)
+        # `why` is the child's own DB_AUTH_WHY: the cause it observed, not a guess.
+        return "unknown", "the declared `python` cannot drive Odoo: {msg}".format(
+            msg=why or err.strip() or "odoo_db.py reported no reason")
     return "unknown", (why or "odoo_db.py preflight exited {rc}: {msg}".format(
         rc=rc, msg=err.strip() or "no output"))
 
@@ -1936,7 +1936,8 @@ def _client_drop_allowed(lease, instances_path=None):
     surface instead of through Odoo?
 
     Two gates, and they make the equivalence argument a PRECONDITION rather than a
-    hope. `exp_drop` closes a connection pool, issues DROP DATABASE and removes a
+    hope. Odoo's own drop (`exp_drop` or the module-level `drop`, whichever the
+    checkout defines) closes a connection pool, issues DROP DATABASE and removes a
     filestore; the client route matches that only for a throwaway database whose
     owning process group the caller has already stopped:
 
@@ -2002,12 +2003,18 @@ def _drop_through_odoo(lease, instances_path=None):
     reach the database at all:
       - the lease carries no `python` interpreter path, OR
       - odoo_db.py is missing on disk, OR
-      - odoo_db.py exits 10 (venv-unavailable sentinel), OR
+      - odoo_db.py exits 10 ("this interpreter cannot drive Odoo": the base package
+        is not importable, a module or dependency of it failed to import, or the
+        checkout defines no database API odoo_db.py recognises - its stderr says
+        which, and is forwarded below), OR
       - odoo_db.py exits 8 / 9 - authentication refused / cluster unreachable. A
         connection failure necessarily precedes any DROP DATABASE, so those two
         codes are a POSITIVE statement that nothing was attempted.
+    Exit 10 keeps its meaning for every one of those causes because each is a
+    statement that the through-Odoo route NEVER RAN, and a code older allocators
+    do not know would read as a failed drop and keep the lease forever.
 
-    Any OTHER non-zero exit is a genuine exp_drop failure: the drop WAS attempted
+    Any OTHER non-zero exit is a genuine Odoo-drop failure: the drop WAS attempted
     and failed. The allocator then consults no client surface, does NOT drop the
     filestore, and does NOT remove the lease (so gc can retry / a human can
     investigate) - papering a real failure over with a client-side drop would
@@ -2058,10 +2065,13 @@ def _drop_through_odoo(lease, instances_path=None):
             _drop_filestore(db)
             return True
         elif rc == 10:
-            # venv-unavailable sentinel: the through-Odoo route never ran at all.
+            # route-unavailable sentinel: the through-Odoo route never ran at all.
+            # The child's stderr says why (package missing, a module failed to
+            # import, or an unrecognised database API) and is forwarded as it is.
             sys.stderr.write(
-                "allocator: WARNING - venv unavailable ({python}), consulting the declared "
-                "client surface to drop {db}\n".format(python=venv_python, db=db)
+                "allocator: WARNING - {python} cannot drive Odoo ({err}); consulting the "
+                "declared client surface to drop {db}\n".format(
+                    python=venv_python, err=err.strip() or "no reason reported", db=db)
             )
             if not _client_drop(lease, host, user, db, port, mode, container,
                                 instances_path):
@@ -2095,7 +2105,7 @@ def _drop_through_odoo(lease, instances_path=None):
             _drop_filestore(db)
             return True
         else:
-            # Genuine exp_drop failure - the drop WAS attempted. Retain the DB and
+            # Genuine Odoo-drop failure - the drop WAS attempted. Retain the DB and
             # the lease for retry; no client surface is consulted, because a real
             # failure must never be papered over with a second drop command.
             sys.stderr.write(
@@ -2971,7 +2981,7 @@ ERROR_CODES = {
                                 "remedy": "45-venv.sh record-env, declare db_run_mode, or "
                                           "start the cluster"},
     "DB_AUTH_DENIED": {"rc": 8, "summary": "Odoo cannot authenticate to the cluster",
-                       "remedy": "run /odoo-ai-agents:odoo-setup or export ODOO_PG_PASSWORD"},
+                       "remedy": "run /odoo-ai-agents:odoo-setup"},
     "DB_UNREACHABLE": {"rc": 9, "summary": "the database cluster did not answer",
                        "remedy": "start the cluster"},
     "RUN_ID_REQUIRED": {"rc": 10, "summary": "no --run-id (ownership not established)",
@@ -3728,8 +3738,8 @@ def cmd_acquire(opts):
                     "drop_on_release": drop_on_release,
                     # Drop context: venv interpreter + connection params so _drop_through_odoo
                     # can invoke odoo_db.py under the right Odoo installation at release/gc
-                    # time, even if the caller process is long gone.  Password is NOT stored
-                    # here - read from ODOO_PG_PASSWORD at drop time.
+                    # time, even if the caller process is long gone.  No credential is stored
+                    # on the lease.
                     "python": inst.get("python", ""),
                     # odoo_root makes `import odoo` resolve for a source checkout (the
                     # through-Odoo drop's precondition); db_run_mode/db_container decide

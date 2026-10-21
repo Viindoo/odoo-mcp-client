@@ -103,7 +103,7 @@ TOOL_REMEDIES = {
     "ADDONS_PATH_WORKTREE_MISMATCH": "Your cwd is a different worktree of a catalog addons repo: call lease_acquire again with addons_path = the catalog row's addons_path (catalog_read shows it) with the entry that covers this repo replaced by your worktree path.",
     "NO_CREATEDB": "The database role may not CREATE DATABASE: ask the user to grant CREATEDB, or pass no_create true if you create no database, or mode exclusive and say in your report that isolation is NOT provided.",
     "CREATEDB_UNDETERMINABLE": "CREATEDB could not be determined: run /odoo-ai-agents:odoo-setup for this series (declares python/odoo_root/db_run_mode) or start the cluster, then call again.",
-    "DB_AUTH_DENIED": "Odoo cannot authenticate to Postgres: run /odoo-ai-agents:odoo-setup, or ask the user to export ODOO_PG_PASSWORD before the session starts.",
+    "DB_AUTH_DENIED": "Odoo cannot authenticate to Postgres: run /odoo-ai-agents:odoo-setup.",
     "DB_UNREACHABLE": "The Postgres cluster did not answer: start it (or ask the user to), then call again.",
     "RUN_ID_REQUIRED": "Pass run_id: the run id you were given (INSTANCE_HANDLE.run_id, or the run_id of your own earlier lease). Never invent one; if you were given none, report NEEDS_CONTEXT(RUN_ID).",
     "RECLAIM_IN_PROGRESS": "The lease is being released or reclaimed right now by another call (lease_list shows state reclaiming): do not retry the mutation; call lease_list again in a minute - once the lease is gone it is done, and if it is still listed unchanged, report it to the user.",

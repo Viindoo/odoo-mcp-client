@@ -159,7 +159,7 @@ Every non-zero exit names one code with one exit code. Remedies are the CLI's; t
 | `NO_CREATEDB` | 6 | the role lacks CREATEDB | grant CREATEDB, or use `--mode exclusive`, or `--no-create` |
 | `RESUME_RACE` | 6 | another caller already resumed this lease | stop the server you launched and attach to the running one |
 | `CREATEDB_UNDETERMINABLE` | 7 | CREATEDB could not be determined | `45-venv.sh record-env`, declare `db_run_mode`, or start the cluster |
-| `DB_AUTH_DENIED` | 8 | Odoo cannot authenticate to the cluster | run `/odoo-ai-agents:odoo-setup` or export `ODOO_PG_PASSWORD` |
+| `DB_AUTH_DENIED` | 8 | Odoo cannot authenticate to the cluster | run `/odoo-ai-agents:odoo-setup` |
 | `DB_UNREACHABLE` | 9 | the database cluster did not answer | start the cluster, or correct `db_host` / `db_port` |
 | `RUN_ID_REQUIRED` | 10 | no `--run-id` (ownership not established) | pass the run id you were given; never invent one |
 | `RECLAIM_IN_PROGRESS` | 11 | another process is reclaiming this lease | wait for that gc/release to finish, then re-check |
