@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.0.1] - 2026-10-21
+
+### Fixed
+
+- `odoo-ai-agents` - setup asks for the fork once per origin, and not at all for auto mode when the
+  fork owner is already known on the machine.
+
 ## [8.0.0] - 2026-10-20
 
 ### Added
