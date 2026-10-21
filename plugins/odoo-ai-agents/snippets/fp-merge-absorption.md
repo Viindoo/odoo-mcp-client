@@ -1,14 +1,14 @@
 <!-- SSOT snippet. Referenced (not copy-pasted) by odoo-forward-port (orchestrator),
      the future fp-intent-4outcome, fp-symbol-survival-check, and any agent that runs
-     a git merge step or a verify step during continuous forward-port.
+     a merge step or a verify step during continuous forward-port.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md. -->
 
-# FP Merge Absorption (git merge protocol + per-batch verify)
+# FP Merge Absorption (merge protocol + per-batch verify)
 
 ## Git operation - ONE merge for the whole range, ONE merge commit
 
 **The unit of the git operation is the RANGE, never the commit.** A forward-port run absorbs
-every commit in `<merge-base>..<source-ref>` with a SINGLE merge of the range's TIP commit, and
+every commit after the merge base of the target and `<source-ref>` with a SINGLE merge of the range's TIP commit, and
 closes it with a SINGLE merge commit - exactly the shape an ordinary branch-level merge has.
 Every commit in the range becomes an ancestor of that merge commit, so every source SHA is
 preserved and the merge-base advances to the tip in one step.
@@ -16,22 +16,22 @@ preserved and the merge-base advances to the tip in one step.
 **Continuous forward-port** (recurring, source repo keeps evolving):
 
 Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
-- `op: merge --no-ff --no-commit <src-tip-SHA>` (request worktree isolation), where `<src-tip-SHA>`
+- `op: merge the range ending at <src-tip-SHA> as ONE true merge and stop before committing it` (request worktree isolation), where `<src-tip-SHA>`
   is the LAST (newest) commit of the range this run forwards - after any `--since` filter.
 
 On return from git-ops, the working tree is the absorption zone for the WHOLE range. All adapt
 work (steps 1-4 in "Absorption window" below) happens there, driven by the per-commit intent
 records, inside this one open merge window. When adapt is complete, invoke
 **`git-toolkit:git-ops`** again, ONCE:
-- `op: commit`, `message: "fp: absorb <src-first-SHA>..<src-tip-SHA> - <one-line summary>"`
+- `op: conclude the merge with one commit`, `message: "fp: absorb <src-first-SHA>..<src-tip-SHA> - <one-line summary>"`
 
-`--no-ff` forces a true merge commit so the source history enters the DAG of the target branch.
-The merge-base advances to `<src-tip-SHA>` after the commit. Next run, the scoped log
-(src..tgt) will no longer see ANY commit in the range - no re-resolution ever.
+The merge is a true merge commit (never a fast-forward) so the source history enters the DAG of the target branch.
+The merge base advances to `<src-tip-SHA>` after the commit. Next run, the range listing
+will no longer see ANY commit in the range - no re-resolution ever.
 
 ### Two banned shapes (both produce the defects this protocol exists to prevent)
 
-1. **BANNED - one merge per commit.** Never loop `merge <sha-1>` / commit / `merge <sha-2>` /
+1. **BANNED - one merge per commit.** Never loop merge-one-commit / commit / merge-the-next-commit /
    commit over the range. It mints N merge commits for ONE logical forward-port (the target
    history reads as N unrelated integrations), and every hunk touched by more than one source
    commit is conflict-resolved once per commit instead of once per run. An ordinary branch-level
@@ -56,9 +56,9 @@ A frozen source needs nothing special either; it merges like any other. These we
 justifications for the removed `--one-shot` cherry-pick mode, and the merge shape serves both
 without giving up SHA preservation - which is why that mode is gone rather than renamed.
 
-## Absorption window (inside the ONE no-commit merge)
+## Absorption window (inside the ONE uncommitted merge)
 
-Between the no-commit merge opened by git-ops and the subsequent commit step, the
+Between the uncommitted merge opened by git-ops and the subsequent commit step, the
 working tree is the absorption zone **for the whole range**. There is exactly ONE such window per
 run (or per batch, when the human split the run at the plan gate) - it opens once, stays open
 across every module's adapt work, and closes once. All work happens here - in this order:
@@ -69,7 +69,7 @@ across every module's adapt work, and closes once. All work happens here - in th
    see [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
    against the range's combined result - re-resolving it per commit is the banned shape above.
 2a. **Manifest version (C1) - set by formula, only when the source bumped and the module is
-    installable at the target.** `--no-ff` already carries whatever the source commit did to the
+    installable at the target.** The true merge already carries whatever the source commit did to the
     module descriptor - which filename applies on which series is owned by
     `odoo-era-boundaries.md` row 6, never restated here. For a module that already exists on the
     target with `installable_false=no` on its `merge-log.md` row (an absent `installable` key counts
@@ -91,7 +91,7 @@ across every module's adapt work, and closes once. All work happens here - in th
    translation cost.
 
 Do NOT ask git-ops to commit until verify is green (P9, below). Do NOT open a second
-no-commit merge while one is in progress (git index is shared; git-toolkit enforces this).
+uncommitted merge while one is in progress (the index is shared; git-toolkit enforces this).
 
 ## Migration dir retarget (C2) - distinct from C1
 
@@ -254,7 +254,7 @@ The same FP-delta / pre-existing discriminator above governs WHERE a bug is fixe
 - **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY forward -
   do NOT inline-fix on the destination. Surface it to the SOURCE series so the source is fixed too and the
   fix forward-ports up naturally. The orchestrator invokes **`git-toolkit:git-ops`** to open a source-series
-  issue, **conditional on a resolvable source remote** (mirror P12's `git remote get-url origin`); if none,
+  issue, **conditional on a resolvable source remote** (mirror P12: the `origin_url` of `repo_facts`); if none,
   record the deferred bug in `merge-log.md` and the Continuation Contract instead of opening an issue.
 - **FP-delta** (green on source, red after adapt): fix it here, now (already the rule above).
 - **Security/safety EXCEPTION:** fix on the destination IMMEDIATELY, then still open a source-series issue.
@@ -287,5 +287,5 @@ the target branch stays consistent even if one WI worktree is abandoned mid-flig
 
 **git-toolkit owns the worktree lifecycle** (S9 invariant - SSOT in git-toolkit
 `snippets/git-safety-contract.md`). All worktree creation, removal, and
-topology changes must be delegated to git-toolkit via the `git-ops` skill. This skill may read topology state (e.g.
-via `git worktree list`) but never mutates it directly.
+topology changes must be delegated to git-toolkit via the `git-ops` skill. This skill may read topology state (ask git-ops
+for the worktree list) but never mutates it directly.

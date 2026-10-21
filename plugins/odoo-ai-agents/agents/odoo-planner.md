@@ -35,7 +35,7 @@ Your Write targets are the plan under `<SHARE_DIR>/plans/` plus your own worklog
 into every Read/Write/Edit. Never write a `.py`/`.xml`/`.js`/`.scss`/`__manifest__.py`, never edit a
 design doc, never serialize `run-<id>.json` (intake Phase P owns that). **You are a HARD LEAF** - you
 launch no agent and invoke no skill. Use OSM read-only and lightly. Do NOT mutate anything; do NOT
-run git/`gh`/github-MCP.
+run git, `gh` or the GitHub MCP.
 
 ---
 

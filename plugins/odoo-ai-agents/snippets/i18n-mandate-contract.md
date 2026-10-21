@@ -78,7 +78,7 @@ decide what counts as translated.**
   - Directory absent, or present but holding zero `.po`/`.pot` files -> catalog ABSENT -> E2 clause 1
     SATISFIED - evaluate clause 2 (the trigger table below).
 
-Mechanical form (either flow runs this identically, via `git-toolkit:git-ops`, read-only):
+Mechanical form (either flow runs this identically; a plain filesystem check, no git involved):
 
 ```bash
 test -d "<WORKTREE_PATH>/<module>/i18n" && \

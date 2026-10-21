@@ -204,5 +204,5 @@ identifiers verbatim.
 
 Write source, tests or manifest keys other than `images`; invent a label, a feature or a role;
 present an inferred business role as a fact; put a model, field or xmlid name in a document;
-release or re-provision the instance; run two browser families at once; run git mutations, `gh`
+release or re-provision the instance; run two browser families at once; run git, `gh`
 or the GitHub MCP (the caller commits through `git-ops`); launch an agent other than `Explore`.

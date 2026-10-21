@@ -4,7 +4,7 @@
 # Forward-Port Model Triage - full tables
 
 Triage is INLINE and deterministic. The orchestrator decides the tier itself
-(reading `git show --stat <sha>` for every commit involved plus, when the override depth matters, a
+(reading the change statistics of every commit involved plus, when the override depth matters, a
 single `find_override_point` probe) - it never dispatches an agent to decide a dispatch. Table 1
 (EXTRACT) resolves per MODULE BUNDLE (every commit touching that module, grouped by P0); Table 2
 (ADAPT) resolves per COMMIT within a module, as before. Resolve a tier by walking the relevant

@@ -10,7 +10,7 @@ procedure.
 DISPATCH MODEL: haiku
 MODE: R1
 TARGET: <abs path of the tree> <BASE>..<HEAD>
-CHANGED_SET: <repo-relative paths, one per line>
+CHANGED_SET: <repo-relative paths, one per line>   DIFF_PATH: <path | none>
 ODOO VERSION: <version>   PROFILE: <profile | none>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
 DOMAIN: <Domain line | none>
@@ -23,7 +23,7 @@ USER LANGUAGE: <lang | omit>
 ```
 DISPATCH MODEL: sonnet
 MODE: R2
-TARGET, CHANGED_SET, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
+TARGET, CHANGED_SET, DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
 R1_FINDINGS: <ISOLATE_DIR>/reviews/<slug>-<date>/r1-findings.md
 R3_FINDINGS: <path | none>
 SRS: <path | none>   DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>
@@ -38,7 +38,7 @@ USER LANGUAGE: <lang | omit>
 ```
 DISPATCH MODEL: opus
 MODE: R3
-TARGET, CHANGED_SET, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
+TARGET, CHANGED_SET, DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
 R1_FINDINGS: <path>
 SRS: <path | none>   DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>
 RECON: <path>

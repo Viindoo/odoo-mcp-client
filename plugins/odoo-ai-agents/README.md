@@ -835,7 +835,7 @@ The bundled `.mcp.json` also registers `odoo-local`, a stdlib-only stdio MCP ser
 to lease an isolated database and ports, build and serve an instance, wait on long builds, and
 release or park what they hold, and export translation files (`lease_*`, `instance_*` including
 `instance_i18n_export`, `job_wait`, `catalog_*`, `db_preflight`, `series_detect`, `project_dir`,
-`server_info`). The tools apply every build fact themselves - server-wide modules (`--load`: the
+`repo_facts` (branch, HEAD, remote, dirty and in-progress merge/rebase of a repo, so agents run no git), `server_info`). The tools apply every build fact themselves - server-wide modules (`--load`: the
 series' core default first + the catalog row's `server_wide_modules`; a call may exclude declared
 modules or include extra ones with `server_wide` `{exclude, include}` when the task needs a different
 set, while the catalog stays the default for every other call), languages (`en_US` always) and

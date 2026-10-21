@@ -62,7 +62,7 @@ There is exactly ONE shape and no mode flag: an SHA-preserving merge of the rang
 merge commit. To land only PART of a source branch, pass that sub-range's TIP SHA as `<source-ref>`.
 
 Parsed from `$ARGUMENTS` in P0 (missing `source-ref`/`target-branch` -> ask once, one message,
-before any read or git op).
+before any read or git-ops request).
 
 ### When to use
 
@@ -85,7 +85,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
 
 2. **ONE merge, ONE merge commit - the range is the git unit, never the commit.** A
-   forward-port opens a SINGLE no-ff no-commit merge of the range's TIP SHA (delegated to
+   forward-port opens a SINGLE true merge of the range's TIP SHA, left uncommitted (delegated to
    git-toolkit via `git-ops`; see `[[fp-merge-absorption]]`) and closes it with a SINGLE merge
    commit - exactly the shape an ordinary branch-level merge produces. Every commit in the range
    becomes an ancestor of that merge commit, so every source SHA is preserved and the merge-base
@@ -151,8 +151,8 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
 to git-toolkit via `git-ops`) from B's HEAD. All absorption, adapt, and verify happen inside this integration
 worktree. The target branch B is read-only for the whole run; only the final, human-confirmed PR merge lands on B.
 
-**WORK tier - NOT used by P8 adapt.** P8 is SERIAL, and P5 opens the run's SINGLE merge of the range tip
-(`--no-commit`) that only P10 commits, so `MERGE_HEAD` is live in the integration worktree for the
+**WORK tier - NOT used by P8 adapt.** P8 is SERIAL, and P5 opens the run's SINGLE merge of the range tip,
+left uncommitted, that only P10 commits, so the merge stays in progress in the integration worktree for the
 batch's whole P6-P9 span. P8 8a/8b always adapt DIRECTLY in the integration worktree - never a
 per-module child worktree. § P8 gives the brief field: one run-long `Worktree path` naming the
 integration worktree. JOB tier is the only worktree tier in this skill.
@@ -168,7 +168,7 @@ target agent's family delta; never inline that file verbatim into a hard-leaf br
 
 Run phases in order. Intent + classify + design + the Plan Mode gate ALL precede the merge.
 Concurrency for any fan-out follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-(Mode B). Full per-phase dispatch briefs, git commands, and worklog templates:
+(Mode B). Full per-phase dispatch briefs, git-ops requests, and worklog templates:
 `references/fp-phase-detail.md`.
 
 **Orphan sweep (every run, BEFORE P0 below).**
@@ -179,7 +179,7 @@ Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Cla
 
 **P0 - Recon & triage [read-only, NO stop].** Parse `$ARGUMENTS` (`source-ref` / `target-branch` /
 `--scope` / `--since`); if `source-ref` or `target-branch` is missing, ask once in a
-single brief message before any read or git op.
+single brief message before any read or git-ops request.
 
 **"one-shot" / "one-time" in a request means ONE RUN, not a different git shape.** Never read those
 words as a licence to cherry-pick; if the caller meant "land only part of the branch", point them
@@ -188,8 +188,10 @@ at the sub-range recipe in Hard rule 2. Read any existing worklog
 Checkpoint section: skip ONLY `status=done`; do NOT re-run design for a `status=designed` commit -
 resume it at the P4 plan gate with its recorded `design_doc`; a `status=extracted` commit resumes
 at P2; a `status=adapted` commit resumes at P9). Invoke the `git-toolkit:git-ops` skill (via the
-Skill tool) to enumerate commits (range `<merge-base>..<source-ref>`, --no-merges; read-only, no
-worktree or branch yet); apply `--scope` / `--since` filters to the returned list. Map each
+Skill tool) to enumerate the commits (every non-merge commit after the merge base of the target and
+the source ref, up to the source ref, oldest first; read-only, no worktree or branch yet); apply the
+`--scope` / `--since` filters to the returned list. The same request returns the merge base (record
+it as `merge_base:` in `range.md`) and the files and change statistics of each commit. Map each
 `--scope` module name to its directory path before requesting git-ops to filter by path (module `l10n_vn` ->
 `l10n_vn/`; resolve via manifest location, may be at repo root or under an addons subdir).
 
@@ -198,16 +200,15 @@ worktree or branch yet); apply `--scope` / `--since` filters to the returned lis
 range with them and the P10 commit message spans them. An EMPTY filtered list: report `DONE`
 (nothing to forward) and stop; never open a merge window on an empty range.
 
-**Group by MODULE first, then by commit within that module (R2a).** Invoke the
-`git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree) to list touched files
-per commit (`--name-only`) for every commit in the range, and map each touched path to its owning
+**Group by MODULE first, then by commit within that module (R2a).** `range.md` (above) lists the touched files
+per commit for every commit in the range; map each touched path to its owning
 module (same resolution rule as `--scope` above). Build
 `module -> [ordered sha list]` (chronological order, oldest first); a commit touching 3 modules
 appears in each of the 3 modules' lists. This map is what P1 dispatches over and what Table 1 (EXTRACT
 tier) resolves against below.
 
-TRIAGE each MODULE's commit bundle to an EXTRACT model tier INLINE (`git show --stat` per commit in
-the bundle + one `find_override_point` probe when override depth matters; never dispatch an agent
+TRIAGE each MODULE's commit bundle to an EXTRACT model tier INLINE (the per-commit change statistics in `range.md` for the bundle
++ one `find_override_point` probe when override depth matters; never dispatch an agent
 to decide a dispatch). Recon only: no gate, no worktree, no branch yet. Triage tier table (module-bundle-scoped): `references/fp-triage-table.md`.
 
 **P1 - Intent extract [PARALLEL, READ-ONLY, MODULE-SCOPED].** ONE PARALLEL UNIT PER MODULE (never per
@@ -273,12 +274,12 @@ Pre-step (for EVERY touched module):
 invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files - the
 clean-tip manifest (`<module>/<tgt-descriptor>`
 at `target_ref`) to `manifest_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`,
-and the patched manifest history (log-with-patch of manifest modifications against `source_ref`) to
+and the patched manifest history (the commits that modified the source-side descriptor up to `source_ref`, as patches) to
 `history_dump_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`. Include
 `repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Dispatcher inputs
 (canonical contract, pass exactly, when the prober IS dispatched for category-3 disambiguation):
 `{ module, repo_root, source_ref, target_ref, target_version, manifest_path, history_dump_path }`.
-`repo_root` is the MAIN checkout root where git runs (the integration worktree does not exist at
+`repo_root` is the MAIN checkout root, the `repo_root` of a `repo_facts` call (the integration worktree does not exist at
 P2). `manifest_path` / `history_dump_path` are absolute paths to the pre-step files - both mandatory.
 Whether resolved directly (categories 1-2) or via the prober (category 3), record
 `installable_false=yes|no` as the module's OWN row in `merge-log.md`, keyed by module, distinct
@@ -323,9 +324,9 @@ its EXTRACT tier + its ordered commits, each with bucket + ADAPT tier + installa
 design-doc link + merge batch) as the resume RECORD that later phases and the checkpoint/continuation read. plan.md template:
 `references/fp-phase-detail.md` P4.
 
-**P5 - Merge --no-commit [critical section, in integration; ABSORB-ALL - runs ONCE per batch].**
+**P5 - Merge, left uncommitted [critical section, in integration; ABSORB-ALL - runs ONCE per batch].**
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE for the whole batch, absorbing
-its ENTIRE commit range in one operation: a no-ff no-commit merge of `<src-tip-SHA>` (the batch's
+its ENTIRE commit range in one operation: ONE true merge of `<src-tip-SHA>`, left uncommitted (the batch's
 LAST/newest source commit - absorbing every earlier commit in the range as an ancestor). **Never iterate P5 per source
 commit** (Hard rule 2). For semantic
 conflicts, use the stateless-resume recipe in
@@ -400,7 +401,7 @@ in the FP-ENRICHED brief and `odoo-coding` resumes it. Send the P9 failure outpu
 park-and-be-resumed semantics - R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`
 decides whether you end your turn or wait inside it; never carry on with the next module before the result
 is in hand. On resume the coder MUST `cd` to the integration worktree before any Bash command (CHP
-snippet "Tier-A workers in a git worktree - cd on resume").
+snippet "Tier-A workers in a linked worktree - cd on resume").
 Fallback (Tier C): when no id is recorded for the module, the recorded id no longer resolves, or no
 messaging tool is present, re-invoke `odoo-coding` cold with the full FP-ENRICHED brief - the same
 **Worktree path: `<path>/fp-integration`** field and, for a re-adapt, the P9 failure output.
@@ -493,8 +494,8 @@ list, and commit - no human confirmation (a local merge on `fp/<slug>`; P12 pres
 list - the union of every module row's `files:` (8b) plus the files P9.5 and P9.6 returned - and the request
 "stage these, then conclude the merge with one commit". That closes the batch's single open merge
 window: the whole range lands as ONE merge commit, and every SHA in the range is marked `done` in
-`checkpoint.json` (buckets a/d included - Hard rule 7). Then confirm the tree is clean (`git -C <path>/fp-integration status
---porcelain` empty, `MERGE_HEAD` gone - bounded reads); a leftover path is a file the list missed:
+`checkpoint.json` (buckets a/d included - Hard rule 7). Then confirm the tree is clean (a `repo_facts` call on `<path>/fp-integration`: `dirty.is_dirty` false,
+`operation_in_progress` = `none`); a leftover path is a file the list missed:
 record it in `merge-log.md` for P12, never amend. Full brief: `references/fp-phase-detail.md` P10.
 
 **There is no P5 loop.** A single-batch run reaches P10 exactly once, then P11. Only when the human
@@ -532,7 +533,7 @@ P12 human-merge decision below.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `merge-log.md`.
 **P12 - PR + review [runs AFTER P11 acceptance clears].** Push `fp/<slug>` (invoke
-`git-toolkit:git-ops`; resolve origin URL via `git remote get-url origin`). Run `odoo-code-review`
+`git-toolkit:git-ops`; resolve the origin URL from the `origin_url` of a `repo_facts` call). Run `odoo-code-review`
 inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
 JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
 so the skill reviews the fp integration tree, not the principal tree - this lint-class review gate
@@ -547,8 +548,8 @@ a clean merge of one path proves nothing about the others. For a mandatory revie
    (xlsx/csv), print (PDF/QWeb)). The review is not done until every enumerated path is accounted
    for (adapted, or explicitly N/A with a reason).
 2. **Attribution diff before rating any finding.** A finding only belongs to THIS port if
-   it sits on a line this port changed. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
-   (`origin/<target-branch>...fp/<slug>`) and attribute each finding to either a
+   it sits on a line this port changed. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the diff of what this port
+   added (the changes on `fp/<slug>` since it left `origin/<target-branch>`) and attribute each finding to either a
    forward-ported line (in scope, fix now) or a pre-existing target line (out of scope). Rate
    findings only after this attribution.
 
@@ -609,7 +610,7 @@ Resolve a tier by walking each table top-down, first match wins. Record every ch
 ## Absorb-all - the ONE git shape, and the only one
 
 **Absorb-all** is this pipeline's ONLY git shape: P5 takes the batch's ENTIRE commit range in ONE
-operation as a no-ff no-commit merge of the range TIP, P6-P9 work inside that one open window, and
+operation as a true merge of the range TIP, left uncommitted, P6-P9 work inside that one open window, and
 P10 closes it with ONE commit. Stepping the range one source commit at a time is banned (Hard rule
 2), and so is a cherry-pick at any granularity. The SEMANTIC work stays strictly per-commit (P1
 intent, P2 bucket, per-commit ADAPT tier and `merge-log.md` rows).
@@ -624,10 +625,10 @@ recorded `design_doc`, so a crash between design-approval and re-entry resumes c
 crash mid-batch, re-read the checkpoint + the on-disk `<module>/intents/` per-module
 subdirectories, `plan.md`, and `merge-log.md` (file existence is the source of truth).
 
-**Resuming a crash INSIDE the absorption window.** A crash during P6-P9 leaves `MERGE_HEAD`
-live and partial adapt on disk; that state IS the resume point: check for it
-FIRST (`git -C <path>/fp-integration rev-parse -q --verify MERGE_HEAD`, a bounded read), and when
-it is live, RESUME the existing window at the phase `checkpoint.json` last recorded - never re-run
+**Resuming a crash INSIDE the absorption window.** A crash during P6-P9 leaves the merge
+in progress and partial adapt on disk; that state IS the resume point: check for it
+FIRST (`repo_facts` on `<path>/fp-integration`: `operation_in_progress` = `merge`), and when
+it is, RESUME the existing window at the phase `checkpoint.json` last recorded - never re-run
 P5 on top of it and never abort it in order to restart the range commit-by-commit. Abort and re-open the WHOLE range only when the window is already gone or
 the working tree is unrecoverable, and record that decision in `merge-log.md`. Record the executor's
 `INSTANCE_HANDLE` (and its instance log path) in the batch worklog so a resumed run reuses the same
@@ -656,7 +657,7 @@ Per-batch checks:
 
 - **Multi-repo env bootstrap.** When source and target live in different repos/clones, bring
   the source ref into reach (invoke `git-toolkit:git-ops`: add source remote + fetch) BEFORE computing
-  the merge-base or merging. Detail: `references/fp-phase-detail.md`.
+  the merge base or merging. Detail: `references/fp-phase-detail.md`.
 - **Manifest version & migration dir.** C1 sets the manifest version at the merge, C2 decides each
   forwarded `migrations/` dir at P9.6; they are distinct, apply both. SSOT: `[[fp-merge-absorption]]`.
 - **Field-label grounding.** When the port renames or re-labels a field, confirm the

@@ -18,7 +18,8 @@ file and nothing else; you never edit source and never launch an agent.
 |---|---|
 | `MODE` | `R1`, `R2` or `R3` |
 | `TARGET` | the worktree or integration branch to review and the diff range (`BASE..HEAD`) |
-| `CHANGED_SET` | the changed files, repo-relative, from a bounded `git-ops` read by the caller |
+| `CHANGED_SET` | the changed files, repo-relative, listed by the caller |
+| `DIFF_PATH` | optional: a file holding the diff of `TARGET`'s range, written by the caller through git-ops; absent = review the changed files as they stand |
 | `ODOO VERSION`, `PROFILE` | concrete; every OSM call passes them |
 | `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals; the report goes under `<ISOLATE_DIR>/reviews/<slug>-<date>/` |
 | `SRS`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `RECON`, `IMPACT_MAP`, `DOMAIN` | paths or `none`; `R2` and `R3` need `SRS` or `DESIGN_DOC` to judge behaviour |
@@ -38,7 +39,7 @@ index lagging, never a finding.
 ## Common ground (every mode)
 
 `set_active_version`; read the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`);
-read the diff of `TARGET` through a bounded `git-ops` read. Open
+read the diff in `DIFF_PATH` when given. Open
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and read every file its
 "By file type" rows name for the file types in `CHANGED_SET` - your own reading, never the coder's
 `VERSION RULES APPLIED` block. Severity and the fold-in rule:
@@ -175,5 +176,5 @@ CRITICAL and HIGH findings to the worklog.
 
 Edit a file under review; approve on simulated reasoning about runtime state (a stored value
 surviving a write is proven by a test, not by reading); widen or soften a finding to approve;
-run git mutations, `gh` or the GitHub MCP; launch an agent. The Skill tool serves only the three
+run git, `gh` or the GitHub MCP; launch an agent. The Skill tool serves only the three
 audit skills above.

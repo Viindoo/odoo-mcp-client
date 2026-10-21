@@ -149,7 +149,7 @@ cross-check (a sum that must reconcile, a count that must match, a re-derivation
 before you trust the aggregate, so the lead can detect and correct a bad leaf. Do this at each
 aggregation point, not only at the end.
 
-## Tier-A workers in a git worktree - cd on resume
+## Tier-A workers in a linked worktree - cd on resume
 
 Worktree lifecycle (creation, removal, topology changes) is owned exclusively by **git-toolkit**
 (S9 invariant - SSOT in git-toolkit `snippets/git-safety-contract.md`). Tier-A workers do NOT

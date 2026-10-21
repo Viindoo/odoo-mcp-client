@@ -1,4 +1,4 @@
-<!-- Reference for `odoo-forward-port` § The pipeline: per-phase git commands, dispatch-brief templates, worklog formats. -->
+<!-- Reference for `odoo-forward-port` § The pipeline: per-phase git-ops requests (outcome + result), dispatch-brief templates, worklog formats. -->
 
 # Forward-Port Pipeline - per-phase execution detail
 
@@ -15,30 +15,30 @@ source/target series (`<source-series>-to-<target-series>`). Artifacts live unde
 Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `isolate` and
 `cwd` = the target repo root, and substitute the returned absolute path for `<ISOLATE_DIR>` below.
 
-```bash
-# 1 - resume: read prior state, skip done commits
-cat "<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json" 2>/dev/null   # {<sha>: status}
-
-# 2 - enumerate the commits to forward (read-only; no worktree, no branch yet)
-# Same-repo (both refs on origin): compute merge-base locally
-MB=$(git merge-base <target-branch> <source-ref>)
-# Cross-repo: invoke git-ops (add source remote + fetch), then compute:
-#   MB=$(git merge-base <target-branch> source/<branch>)
-# Invoke git-ops: enumerate commits (--no-merges, range MB..<source-ref>,
-#   apply --scope <paths> / --since <date>); git-ops writes the commit list.
-```
+1. Resume: read prior state from `<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json` (`{<sha>: status}`)
+   when it exists, and skip done commits.
+2. Enumerate the commits to forward (read-only; no worktree, no branch yet) with ONE git-ops request.
+   A cross-repo port (the source is another repository) adds the source repository as a remote and
+   fetches it first (`repo: <main-checkout-root>`). Results, all written to
+   `<ISOLATE_DIR>/forward-port/<slug>/range.md`:
+   - `merge_base:` - the merge base of `<target-branch>` and the source ref (the fetched source
+     branch on a cross-repo port); later phases read it from this file.
+   - the non-merge commits after it up to the source ref, oldest first, narrowed by the `--scope`
+     paths and the `--since` date when the user gave them;
+   - per commit, the files it touches with their change statistics (the input of the EXTRACT-tier
+     triage below).
 
 Map each `--scope` module name to its directory path before requesting git-ops to filter
 by path (module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root
 or under an addons subdir, e.g. `addons/l10n_vn/`).
 
-**Group by module first (R2a).** Invoke `git-toolkit:git-ops` (read-only) to list touched files
-per commit (`--name-only`) for every commit in the range, then map each touched path to its owning
+**Group by module first (R2a).** `range.md` lists the touched files per commit for every commit in
+the range; map each touched path to its owning
 module (same resolution rule as `--scope` above). Build `module -> [ordered sha list]`
 (chronological, oldest first); a commit touching 3 modules appears in each of the 3 modules' lists.
 This map is what P1 dispatches over.
 
-For each MODULE's commit bundle, triage the EXTRACT tier INLINE (`git show --stat <sha>` for every
+For each MODULE's commit bundle, triage the EXTRACT tier INLINE (the change statistics in `range.md` for every
 commit in the bundle; for an override-depth question, one `find_override_point` probe) per
 `references/fp-triage-table.md` Table 1 - the tier is the HIGHEST-priority row any commit in the
 bundle matches; triage inline, never dispatch an agent to decide a dispatch.
@@ -64,7 +64,7 @@ Tier-C superseding replacement): `SKILL.md` § P1.
 Pre-step (once before the parallel dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
 in a batch pass to write per-commit dump files. For each commit SHA in the range:
 
-- op: full-patch commit show (full message + diff) for the sha
+- op: write the commit's full message and diff for the sha
 - `output: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`
 - `repo: <main-checkout-root>`   (cross-repo ports only)
 
@@ -131,8 +131,8 @@ cross-repo ports include `repo: <main-checkout-root>`:
 
 - `manifest_path`: read `<module>/<tgt-descriptor>` at `target_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`
-- `history_dump_path`: run a log-with-patch of manifest modifications (--follow --diff-filter=M
-  on `<module>/<src-descriptor>` - the SOURCE side's name) against `source_ref` and write to
+- `history_dump_path`: the history, as patches and following renames, of the commits that modified
+  `<module>/<src-descriptor>` (the SOURCE side's name) up to `source_ref`, written to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`
 
 Assign the resulting absolute paths before launching the prober (both fields mandatory).
@@ -266,7 +266,7 @@ Fable-declined / gate-suppressed downgrades (if any, ADAPT tier): <m>: opus (fab
 
 ---
 
-## P5 - Merge --no-commit (critical section) - ABSORB-ALL, runs ONCE per batch
+## P5 - Merge, left uncommitted (critical section) - ABSORB-ALL, runs ONCE per batch
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE for the batch's ENTIRE commit
 range. Dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
@@ -277,7 +277,8 @@ For semantic conflicts use the stateless-resume recipe in that snippet.
 
 ```
 # one merge of the range TIP
-op: merge --no-ff --no-commit <src-tip-SHA>
+op: merge the source range ending at <src-tip-SHA> into the integration worktree as ONE true merge,
+    and stop before committing it (never a cherry-pick or a rebase)
 worktree: <path>/fp-integration
 ```
 
@@ -297,8 +298,9 @@ the dispatches and record what comes back; do NOT run the conflict scan, the fil
 the OSM grounding in this context.
 
 1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the conflict-marker scan AND the
-   `<merge-base>..<src-SHA>` file list in ONE dispatch (--name-only; git-ops writes both to a
-   findings file, filtered to non-empty entries, and returns the path). For cross-repo ports include
+   list of files the ported range changed (everything after `merge_base` up to the source SHA) in
+   ONE dispatch (git-ops writes both to a findings file, filtered to non-empty entries, and returns
+   the path). For cross-repo ports include
    `repo: <main-checkout-root>`.
 2. Dispatch `Explore` (read-only, `model: haiku` on the launch) over that returned file list to ground every Odoo symbol it
    references (field / method / model / view ref / external-id / manifest depend / ORM chain)
@@ -328,7 +330,7 @@ collection itself would fail.
 **Enumerate scope - two lanes. Dispatched, never run inline** (`[[fp-symbol-survival-check]]`
 § Who runs this check):
 
-Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list files changed in range `<merge-base>..<src-SHA>` (--name-only;
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list the files the ported range changed (everything after `merge_base` up to the source SHA;
 git-ops writes the file list). Include `repo: <main-checkout-root>` in the dispatch for
 cross-repo ports. From the returned list the delegate derives:
 
@@ -381,9 +383,9 @@ re-merge, or re-stage per source commit. Dispatch the adapt unit DIRECTLY in the
 worktree (`<path>/fp-integration`) and process modules serially; a module touched by several commits
 is adapted ONCE, against the combined merged result. Never create a per-module child worktree.
 
-**Open-merge window.** From P5 (`--no-commit`) through P10 (`commit`), `MERGE_HEAD` is live in the
+**Open-merge window.** From P5 (the merge left uncommitted) through P10 (its commit), the merge stays in progress in the
 integration worktree: ONE window per batch, opened by P5 and closed only by P10. SSOT:
-`[[fp-merge-absorption]]` § Absorption window (inside the ONE no-commit merge).
+`[[fp-merge-absorption]]` § Absorption window (inside the ONE uncommitted merge).
 
 **One `odoo-coding` invocation per module.** Code is adapted FIRST, then the node's single test leg
 forwards and adapts the module's source tests, proves each FP-delta test by breaking its rule, and
@@ -635,7 +637,7 @@ Store the files it moved on the module's `merge-log.md` row (`files:`) with the 
 
 No human confirmation (a local merge on `fp/<slug>`; P12 presents it). Before the commit, build the FULL file list:
 the union of every module row's `files:` (8b, P9.6) plus the files P9.5's `odoo-i18n` result names.
-Compare it with `git -C <path>/fp-integration status --porcelain` (bounded read): a modified or
+Compare it with the `dirty.entries` of a `repo_facts` call on `<path>/fp-integration`: a modified or
 untracked path in neither the list nor the merge's own staged set is work no step accounted for -
 attribute it to its module (or remove it) before you continue. Then invoke the
 `git-toolkit:git-ops` skill (via the Skill tool) ONCE:
@@ -651,9 +653,8 @@ message: |
 worktree: <path>/fp-integration
 ```
 
-After it returns, confirm the tree is clean: `git -C <path>/fp-integration status --porcelain` is
-empty and `git -C <path>/fp-integration rev-parse -q --verify MERGE_HEAD` finds nothing (bounded
-reads). A leftover path is a file the list missed - record it with the path in `merge-log.md` for P12;
+After it returns, confirm the tree is clean: a `repo_facts` call on `<path>/fp-integration` reports
+`dirty.is_dirty` false and `operation_in_progress` = `none`. A leftover path is a file the list missed - record it with the path in `merge-log.md` for P12;
 never amend the merge commit.
 
 That single commit lands the whole range; every SHA in the range is marked `done` in
@@ -672,27 +673,28 @@ later batch.
 Runs AFTER P11 (`SKILL.md` § P11): acceptance, then this review gate, THEN the PR opens
 (`SKILL.md` Hard rule 9; `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail).
 
-Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve origin URL via `git remote get-url origin`):
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve the origin URL from the `origin_url` of a `repo_facts` call):
 
 ```
 op: push fp/<slug> to origin (NOT B)
 scope: branch fp/<slug>
 worktree: <path>/fp-integration
-remote: resolve via `git remote get-url origin`
+remote: origin (`origin_url` of repo_facts)
 ```
 
 Run `odoo-code-review` inline (via the Skill tool) for the forward-port pitfall (a forwarded test
 still coupled to the source API) on the pushed branch BEFORE the PR is created.
 
-**Attribute every finding to the FP diff before rating it.** Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
-(`origin/<target-branch>...fp/<slug> -- <file>`, only what the FP added to `<file>`).
+**Attribute every finding to the FP diff before rating it.** Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the diff of
+`<file>` that shows only what the FP added to it (the changes on `fp/<slug>` since it left
+`origin/<target-branch>`).
 
 A finding on a line NOT in this diff is pre-existing - note it separately, never block the PR on it.
 
 **Per finding, apply C3 (fix old version first).** Check whether the same defect exists at the source
 series. If it does, it is a **pre-existing source bug** (inherited - forwarded faithfully, not introduced
 by this port): route the fix UPSTREAM via a source-series issue (invoke git-ops when a source
-remote resolves via `git remote get-url`, else record it in `merge-log.md` + the Continuation Contract);
+remote resolves from `repo_facts` `remotes`, else record it in `merge-log.md` + the Continuation Contract);
 do NOT patch it inside the FP. Record `<sha> | C3 | source issue <ref|DEFERRED> | <evidence>` in
 `merge-log.md` and carry it faithfully forward. EXCEPTION: a serious security/safety bug is fixed on the
 destination immediately (still open a source issue). SSOT: `[[fp-merge-absorption]]` § Triage / C3.
@@ -715,7 +717,7 @@ base: <target-branch>
 head: fp/<slug>
 title: "..."
 body: "..."
-remote: resolve from `git remote get-url origin`
+remote: origin (`origin_url` of repo_facts)
 ```
 
 **Cross-check every static-review bot comment on the PR (post-PR).** Once the PR is open and CI has
@@ -730,15 +732,11 @@ together, and wait for the human to merge.
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to remove the integration worktree and delete the integration branch.
 
-```bash
-# Invoke git-ops:
-#   op: worktree remove <path>/fp-integration
-#   confirmed: yes - forward-port is merged
-git worktree list          # confirm no dangling fp/<slug>-* child worktrees
-# Invoke git-ops:
-#   op: branch delete fp/<slug>
-#   confirmed: yes - forward-port is merged
-```
+Requests (each `confirmed: yes - forward-port is merged`):
+
+- remove the integration worktree `<path>/fp-integration`;
+- delete the integration branch `fp/<slug>`;
+- confirm that no dangling `fp/<slug>-*` child worktrees remain (git-ops reports them in its reply).
 
 Confirm no instance of this run is still leased: call `mcp__plugin_odoo-ai-agents_odoo-local__lease_list`
 with scope `run` and this run's `run_id`, and `lease_release` any lease the P9 instance release step left

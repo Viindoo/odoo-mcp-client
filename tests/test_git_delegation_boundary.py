@@ -1,55 +1,58 @@
 """Guard: odoo-ai-agents must route all git/GitHub work through the git-toolkit ``git-ops`` skill.
 
-Business rule (the seam this file protects): git-toolkit is the ONLY plugin allowed to
-execute git mutations, call the ``gh`` CLI, or invoke GitHub MCP tools. A consumer skill
-that needs a git/GitHub operation MUST INVOKE the ``git-toolkit:git-ops`` skill via the Skill
-tool (git-ops then classifies the op and runs it on the right git agent under the safety
-contract). Consumers NO LONGER name or cold-spawn the git leaf agents (git-operator,
-git-surveyor, github-operator, git-pipeline-lead) directly via the Agent tool.
+Business rule (the seam this file protects): git-toolkit is the ONLY plugin that knows how to operate
+git - which commands, which flags. A consumer skill/agent that needs a git/GitHub operation INVOKES
+the ``git-toolkit:git-ops`` skill via the Skill tool and states the REQUEST and the expected RESULT,
+never a git command or flag (git-ops then classifies the op and runs it on the right git agent under
+the safety contract). Repo facts an agent used to read with inline git (root, branch, short SHA,
+origin URL, dirty paths, merge/rebase in progress) come from the odoo-local ``repo_facts`` tool, whose
+script calls git. Consumers also never name or cold-spawn the git leaf agents (git-operator,
+git-surveyor, github-operator, git-pipeline-lead) directly.
 
 Two complementary boundaries are enforced here:
 
-A. NO INLINE EXECUTION (``test_no_git_delegation_bypass``) - a consumer must not run a git
-   mutation, a ``gh`` call, or a GitHub MCP tool inline in a code span (only bounded reads
-   may appear inline; even own-worktree add/commit/stash are forbidden - workers never run git,
-   the orchestrator commits via git-ops). Scanned in code spans.
+A. NO GIT COMMAND IN PROSE (``test_no_git_command_in_agent_prose``) - NO ``git <verb>`` (any
+   subcommand, with or without ``-C <dir>`` / ``-c k=v`` / other global flags, wrapped across lines or
+   not) in ANY odoo-ai-agents agent-facing text: code spans, fenced blocks, plain prose, workflow YAML
+   comments. No git-only flag (``--no-ff``, ``--name-only``, ...) either, and no ``op:`` request line
+   carrying flags (``--skip``, ``--continue``, ``-s``). A bounded read is not an exception: there is no
+   allowlist. ``gh`` CLI calls and GitHub MCP tools stay forbidden in code spans. Allowlisted SHAPES
+   only (``_allowed_shape``): the ``git clone`` line ``/odoo-ai-agents:odoo-setup`` prints for the
+   HUMAN, an external quote naming ``core.hooksPath``. Out of scope by construction: ``scripts/``
+   (code, not prose) and the plugin's human-only ``docs/`` and ``README.md``.
 
 B. NO GIT-TOOLKIT AGENT MENTION (``test_no_git_toolkit_agent_mention``) - a consumer must not
    NAME one of the git-toolkit leaf agents (git-operator, git-surveyor, github-operator,
    git-pipeline-lead) in ANY phrasing - dispatch instruction OR informational aside alike. Only
    ``git-toolkit:git-ops`` may be named. Scanned across the odoo-ai-agents executor-facing prose set.
 
+The developer session of THIS repo is governed by CLAUDE.md, which may keep bounded reads inline;
+``test_agent_facing_docs_route_git_through_git_ops`` scans CLAUDE.md and docs/authoring-skills-and-agents.md
+with that dev-session allowance (``_DEV_SESSION_READS``) and nothing more.
+
 FP-avoidance choices (do NOT loosen these without an accompanying test update):
 
-1. CODE SPANS ONLY (boundary A) - inline backtick spans AND fenced ````` blocks are scanned;
-   plain prose is NOT. Prevents flagging English words like "commit", "push", "merge",
-   "branch" in descriptive sentences ("each commit is replayed ...", "the feature branch").
-
-2. GENERATED REGIONS SKIPPED - content between
+1. GENERATED REGIONS SKIPPED - content between
    ``<!-- BEGIN GENERATED ... -->`` / ``<!-- END GENERATED ... -->`` markers is excluded
    (both boundaries). Generated regions are MCP tool descriptions emitted by ``make gen``.
 
-3. HYPHEN BOUNDARY - ``\\bgit\\s+`` (space, not zero-width) never matches ``git-operator``,
-   ``git-surveyor``, ``git-toolkit`` (hyphen, no space after "git"). ``git -C <path>`` form
-   is explicitly handled.
+2. HYPHEN BOUNDARY - ``git`` followed by a space and a subcommand is the only shape matched, so
+   ``git-ops``, ``git-toolkit``, ``odoo-git-rebase`` (hyphen, no space) never match.
 
-4. GH CLI CHECK - ``gh `` (trailing space) is required, so ``github``, ``ghci``, and path
+3. GH CLI CHECK - ``gh `` (trailing space) is required, so ``github``, ``ghci``, and path
    segments like ``.github/`` never match.
 
-5. git-toolkit EXCLUDED - the plugin that legitimately wraps raw git (and whose OWN ``git-ops``
+4. git-toolkit EXCLUDED - the plugin that legitimately wraps raw git (and whose OWN ``git-ops``
    skill legitimately dispatches the git leaf agents) is not in the scan scope; its agents are
    the target delegates, not the source of violations.
 
-6. MENTION == VIOLATION (boundary B) - the rule is strict: a git-toolkit leaf-agent name must
+5. MENTION == VIOLATION (boundary B) - the rule is strict: a git-toolkit leaf-agent name must
    NEVER appear in odoo-ai-agents executor-facing prose, because even an informational mention
-   gives a runtime executor a specialist name to imitate and dispatch directly. This is a strict
-   SUPERSET of the old "no active dispatch" rule (a name that never appears categorically cannot
-   be dispatched), so it is implemented as a single presence check - simpler than, and strictly
-   stronger than, the retired dispatch/delegation-verb heuristics it replaces. The scan scope now
+   gives a runtime executor a specialist name to imitate and dispatch directly. The scan scope
    covers ``skills/``, ``snippets/``, ``commands/``, ``agents/`` and ``docs/`` markdown PLUS the
    plugin's own ``README.md`` and the ``generator/skill_tool_deps.json`` orchestration SSOT text -
-   everything an executing agent may read. ``plugins/git-toolkit/**`` stays out of scope (it
-   legitimately owns and names its own 4 agents); the scan never reaches repo-root ``CHANGELOG.md``.
+   everything an executing agent may read. ``plugins/git-toolkit/**`` stays out of scope; the scan
+   never reaches repo-root ``CHANGELOG.md``.
 """
 
 from __future__ import annotations
@@ -68,24 +71,25 @@ AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 # ---------------------------------------------------------------------------
 # File discovery
-# skills/** is recursive (includes references/ and other subdirectories).
-# agents/commands/snippets are also scanned recursively to catch any nested
-# files, though in practice they are currently flat.
-# docs/ broadly and CONTRIBUTING.md are OUT of the boundary-A/B scan scope (human-reference
-# material; see F8 in the review - CONTRIBUTING.md keeps the manual `git commit -s` human path).
-# EXCEPTION: two root-level agent-facing docs that CLAUDE.md mandates agents read/obey - CLAUDE.md
-# itself and docs/authoring-skills-and-agents.md - ARE now scanned by
-# test_agent_facing_docs_route_git_through_git_ops (via _scan_agent_doc), which flags a raw
-# commit/push/gh/GitHub-MCP in a code span but carves out the confidentiality core.hooksPath install.
+# Boundary A scans every odoo-ai-agents file an executing agent may read as INSTRUCTIONS: skills/,
+# agents/, commands/, snippets/ (markdown, recursive) and workflows/ (YAML). Out of scope by
+# construction: scripts/ (code - a script may call git), docs/ and README.md (human reference;
+# boundary B still scans them), repo-root CONTRIBUTING.md (the human guide keeps `git commit -s`).
+# Two repo-root agent-facing docs that CLAUDE.md mandates agents read - CLAUDE.md itself and
+# docs/authoring-skills-and-agents.md - are scanned by test_agent_facing_docs_route_git_through_git_ops
+# with the developer-session allowance.
 # ---------------------------------------------------------------------------
 
-def _md_files() -> list[Path]:
-    """All odoo-ai-agents authored markdown (boundary A: inline-execution scan)."""
+def _agent_prose_files() -> list[Path]:
+    """All odoo-ai-agents agent-facing instruction text (boundary A)."""
     files: list[Path] = []
     for subdir in ("skills", "agents", "commands", "snippets"):
         d = AGENTS_PLUGIN / subdir
         if d.exists():
             files.extend(d.rglob("*.md"))
+    d = AGENTS_PLUGIN / "workflows"
+    if d.exists():
+        files.extend(d.glob("*.yaml"))
     return sorted(set(files))
 
 
@@ -180,11 +184,8 @@ def _code_spans(text: str) -> list[tuple[int, str]]:
 
 
 # ---------------------------------------------------------------------------
-# Boundary A: inline-execution detection
+# Boundary A: no git command in agent-facing prose
 # ---------------------------------------------------------------------------
-
-# Git verbs that are ALWAYS safe regardless of additional arguments.
-_ALWAYS_ALLOWED: frozenset[str] = frozenset({"status", "rev-parse", "merge-base"})
 
 # gh CLI: trailing space required to distinguish from "github", "ghci", ".github/", etc.
 _GH_RE = re.compile(r"\bgh\s")
@@ -192,101 +193,111 @@ _GH_RE = re.compile(r"\bgh\s")
 # GitHub MCP tools: the full qualified tool-call prefix.
 _GITHUB_MCP_RE = re.compile(r"\bmcp__plugin_github_github__\w+")
 
-# git command token: handles both plain `git <verb>` and `git -C <path> <verb>`.
-# [a-z][a-z-]* captures hyphenated verbs like "merge-base", "rev-parse"
-# so that `merge` and `merge-base` are distinct verbs and "git-operator" (no
-# space) is never matched.
-_GIT_RE = re.compile(r"\bgit(?:\s+-C\s+\S+)?\s+([a-z][a-z-]*)")
+# Every git subcommand an agent could spell. A verb here after the word `git` is a command, whatever
+# the surrounding markup: the rule is "no `git <verb>` in prose", so English use of the same words
+# ("the git branch", "a git merge step") is reworded rather than exempted.
+_GIT_VERBS = (
+    "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "cat-file", "checkout",
+    "cherry-pick", "clean", "clone", "commit", "commit-tree", "config", "describe", "diff", "diff-tree",
+    "fetch", "filter-repo", "for-each-ref", "format-patch", "gc", "grep", "hash-object", "init", "log",
+    "ls-files", "ls-remote", "ls-tree", "merge", "merge-base", "mktree", "mv", "name-rev", "notes",
+    "patch-id", "pull", "push", "range-diff", "read-tree", "rebase", "reflog", "remote", "reset",
+    "restore", "rev-list", "rev-parse", "revert", "rm", "shortlog", "show", "show-ref", "stash",
+    "status", "submodule", "switch", "symbolic-ref", "tag", "update-index", "update-ref", "worktree",
+    "write-tree",
+)
+
+# Between `git` and its subcommand: whitespace (a span may wrap lines, with a markdown quote `>`, a
+# comment `#` or a bullet `*` at the start of the continuation) and global options (`-C <dir>`,
+# `-c k=v`, `--no-pager`, `--git-dir=...`).
+_SEP = r"[\s>#*]+"
+_GLOBAL_OPT = r"(?:-[Cc]%s\S+|--?[A-Za-z][\w-]*(?:=\S+)?)" % _SEP
+_GIT_RE = re.compile(
+    r"(?<![\w./-])git(?:%s%s)*%s(%s)(?![\w-])" % (
+        _SEP, _GLOBAL_OPT, _SEP, "|".join(sorted(_GIT_VERBS, key=len, reverse=True))
+    )
+)
+
+# Flags only git understands: naming one is spelling a git command even without the word `git`.
+_GIT_FLAG_RE = re.compile(
+    r"(?<![\w-])--(?:no-ff|ff-only|no-commit|force-with-lease|name-only|name-status|porcelain|"
+    r"rebase-merges|show-current|abbrev-ref|show-toplevel|git-common-dir|is-ancestor|first-parent|"
+    r"no-merges|no-verify|amend|left-right|diff-filter|cherry-pick)(?![\w-])"
+)
+
+# A git-ops request line (`op: ...`) states the request, so it carries no command flag at all.
+_OP_FLAG_RE = re.compile(r"(?:^|[\s`#])op:.*?(?<![\w-])(--[a-z][a-z-]*|-[A-Za-z])(?![\w-])")
 
 
-def _git_allowed(verb: str, line: str) -> bool:
-    """Return True iff this `git <verb>` invocation is in the bounded-read allowlist.
+def _line_of(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
 
-    Bounded-read allowlist (may appear inline in code spans):
-      status                            - always safe
-      rev-parse [...]                   - always safe (read SHA/ref)
-      merge-base [...]                  - always safe (read common ancestor)
-      branch --show-current             - read current branch name
-      remote get-url [...]              - read remote URL
-      worktree list                     - list only (not add/remove)
-      diff (--stat|--name-only|--shortstat|--quiet|--check)  - bounded output
-      log (--oneline | -n<digits>)      - bounded output
-      show --stat                       - header+stat only (not full patch)
 
-    Everything else - including add / commit / stash (workers never run git; the orchestrator
-    commits via git-toolkit:git-ops) - is a violation requiring routing through git-toolkit:git-ops.
+def _allowed_shape(rel: str, verb: str, line: str) -> bool:
+    """The ONLY shapes of `git <verb>` that may stay in agent-facing prose.
+
+    - an external quote that names `core.hooksPath` (the coding guideline's own sentence);
+    - the `git clone` line `/odoo-ai-agents:odoo-setup` prints for the HUMAN to run (the agent never
+      runs it; that file names the commands it prints).
+    Everything else - every read included - is a request to `git-toolkit:git-ops` or a `repo_facts` call.
     """
-    if verb in _ALWAYS_ALLOWED:
+    if "core.hooksPath" in line:
         return True
-    if verb == "branch":
-        # Only the current-branch read is safe; listing, creating, or deleting are not.
-        return "--show-current" in line
-    if verb == "remote":
-        # Only the URL read is safe; `remote add/remove/set-url` are mutations.
-        return "get-url" in line
-    if verb == "worktree":
-        # `git worktree list` is safe; `add` / `remove` / `prune` are mutations.
-        # Use a word boundary so "list" != "listall" etc.
-        return bool(re.search(r"\bgit\s+worktree\s+list\b", line))
-    if verb == "diff":
-        # Bounding flags that limit output to a summary or boolean exit code.
-        # A bare `git diff <ref>` (no bounding flag) is unbounded -> violation.
-        return any(f in line for f in ("--stat", "--name-only", "--shortstat", "--quiet", "--check"))
-    if verb == "log":
-        # Accept -n<digits>, -n <digits>, -n<placeholder> (e.g. -n<N>), or --oneline.
-        # A bare `git log <range>` or `git log --no-merges` without a count/format
-        # bound is unbounded -> violation.
-        return bool(re.search(r"-n\s*(?:\d+|<\w+>)|--oneline\b", line))
-    if verb == "show":
-        # `git show --stat` is bounded (header + stat only).
-        # `git show <sha>` (full patch) is unbounded -> violation.
-        return "--stat" in line
-    # add / commit / stash are NO LONGER allowed inline: workers never run git (they write
-    # files and return; the orchestrator commits via git-toolkit:git-ops). See the "No worker
-    # git" section in snippets/git-delegation.md.
-    # All other verbs (add, commit, stash, push, fetch, pull, rebase, merge, cherry-pick,
-    # checkout, switch, reset, tag, apply, format-patch, range-diff, worktree-add,
-    # branch-delete, ...) are mutations or unbounded reads -> route through git-ops.
+    if rel.endswith("commands/odoo-setup.md") and verb == "clone":
+        return True
     return False
 
 
 def _scan_file(f: Path) -> list[str]:
-    """Return formatted boundary-A (inline-execution) violation strings for one file."""
+    """Return formatted boundary-A violation strings for one file (whole text: code spans, fenced
+    blocks, prose, spans wrapped across lines, YAML comments alike)."""
     text = f.read_text(encoding="utf-8")
     rel = str(f.relative_to(REPO_ROOT))
+    lines = text.splitlines()
     gen_regions = _generated_line_ranges(text)
     violations: list[str] = []
 
+    def src(n: int) -> str:
+        return lines[n - 1].strip()[:90] if 0 < n <= len(lines) else ""
+
+    seen: set[tuple[int, str]] = set()
+    for m in _GIT_RE.finditer(text):
+        n = _line_of(text, m.start())
+        verb = m.group(1)
+        if _in_generated(n, gen_regions) or (n, verb) in seen:
+            continue
+        seen.add((n, verb))
+        window = " ".join(lines[max(n - 2, 0):n + 1])
+        if _allowed_shape(rel, verb, window):
+            continue
+        violations.append(f"{rel}:{n}: git {verb}  [{src(n)!r}]")
+
+    for m in _GIT_FLAG_RE.finditer(text):
+        n = _line_of(text, m.start())
+        if _in_generated(n, gen_regions) or "core.hooksPath" in src(n):
+            continue
+        violations.append(f"{rel}:{n}: git flag {m.group()}  [{src(n)!r}]")
+
+    for i, raw in enumerate(lines, start=1):
+        if _in_generated(i, gen_regions):
+            continue
+        m = _OP_FLAG_RE.search(raw)
+        if m:
+            violations.append(f"{rel}:{i}: op request carries flag {m.group(1)}  [{raw.strip()[:90]!r}]")
+
+    # gh CLI / GitHub MCP tools stay forbidden in code spans.
     for span_start, span_content in _code_spans(text):
-        base_line = text.count("\n", 0, span_start) + 1
+        base_line = _line_of(text, span_start)
         for offset, raw_line in enumerate(span_content.splitlines()):
             line_no = base_line + offset
             if _in_generated(line_no, gen_regions):
                 continue
-
-            # --- gh CLI (always forbidden) ---
             if _GH_RE.search(raw_line):
-                ctx = raw_line.strip()[:90]
-                violations.append(f"{rel}:{line_no}: gh CLI  [{ctx!r}]")
+                violations.append(f"{rel}:{line_no}: gh CLI  [{raw_line.strip()[:90]!r}]")
+            for mm in _GITHUB_MCP_RE.finditer(raw_line):
+                violations.append(f"{rel}:{line_no}: GitHub MCP  [{mm.group()!r}]")
 
-            # --- GitHub MCP tool (always forbidden) ---
-            for m in _GITHUB_MCP_RE.finditer(raw_line):
-                violations.append(f"{rel}:{line_no}: GitHub MCP  [{m.group()!r}]")
-
-            # --- git command (allowlist filter) ---
-            # Dedup per line per verb to avoid double-reporting the same verb
-            # appearing twice on one line (e.g. `git push && git push`).
-            seen_verbs: set[str] = set()
-            for m in _GIT_RE.finditer(raw_line):
-                verb = m.group(1)
-                if verb in seen_verbs:
-                    continue
-                seen_verbs.add(verb)
-                if not _git_allowed(verb, raw_line):
-                    ctx = raw_line.strip()[:80]
-                    violations.append(f"{rel}:{line_no}: git {verb}  [{ctx!r}]")
-
-    return violations
+    return sorted(set(violations), key=lambda v: (v.split(":")[0], int(v.split(":")[1]), v))
 
 
 # ---------------------------------------------------------------------------
@@ -330,27 +341,17 @@ def _scan_file_for_agent_mention(f: Path) -> list[str]:
 # The guard tests
 # ---------------------------------------------------------------------------
 
-def test_no_git_delegation_bypass():
-    """Boundary A: odoo-ai-agents must not EXECUTE git mutations / GitHub-API / unbounded
-    reads inline; only bounded reads may appear in code spans (workers never run git - not even
-    add/commit/stash; the orchestrator commits via git-ops).
+def test_no_git_command_in_agent_prose():
+    """Boundary A: no ``git <verb>``, git-only flag or flag-carrying ``op:`` line anywhere in
+    odoo-ai-agents agent-facing text - reads included.
 
-    Business rule: git-toolkit holds exclusive authority over git mutations and GitHub API
-    ops. odoo-ai-agents skills/agents/commands/snippets must NEVER contain inline git mutations
-    or unbounded reads; every such op is routed through the git-toolkit:git-ops skill.
-
-    Allowed inline in code spans (bounded, read-only):
-      git status / rev-parse / branch --show-current / remote get-url / merge-base /
-      worktree list / diff --stat|--name-only|--shortstat|--quiet|--check /
-      log --oneline|-n<digits> / show --stat
-
-    Forbidden inline (must route through git-ops):
-      add, commit, stash, push, fetch, pull, rebase, merge, cherry-pick, checkout, switch,
-      reset, tag, apply, format-patch, range-diff, worktree add/remove, bare git diff <ref>, bare git log
-      <range>, git show <sha> (full patch), gh CLI calls, mcp__plugin_github_github__* tools.
+    Business rule: how to operate git (which commands, which flags) is git-toolkit's know-how, and
+    only there. A skill/agent that needs a git fact reads it from the odoo-local ``repo_facts`` tool;
+    one that needs anything else asks ``git-toolkit:git-ops`` for a RESULT. An inline command - even a
+    harmless-looking read - lets a runtime agent copy it and run git itself.
     """
     all_violations: list[str] = []
-    for f in _md_files():
+    for f in _agent_prose_files():
         all_violations.extend(_scan_file(f))
 
     n = len(all_violations)
@@ -358,13 +359,66 @@ def test_no_git_delegation_bypass():
     tail = f"\n... and {n - 120} more" if n > 120 else ""
 
     assert not all_violations, (
-        f"odoo-ai-agents: {n} inline git/GitHub reference(s) bypass the git-toolkit "
-        f"delegation boundary. Route each through the git-toolkit:git-ops skill (invoke it "
-        f"via the Skill tool); git-ops resolves the op to the right git agent and runs it "
-        f"under the safety contract. See snippets/git-delegation.md for the allowlist.\n"
+        f"odoo-ai-agents: {n} git command(s)/flag(s) in agent-facing prose. State the REQUEST and the "
+        f"expected RESULT to git-toolkit:git-ops (invoke it via the Skill tool), or read a repo fact "
+        f"with the odoo-local repo_facts tool; never write the command. See snippets/git-delegation.md.\n"
         + "\n".join(head)
         + tail
     )
+
+
+# A GRANT is prose that PERMITS an inline git read ("bounded reads may stay inline", "the bounded-read
+# allowlist"). There is no such permission for plugin prose, so no file may hand one out - a grant
+# is the sentence that re-opens the door the command scan closes.
+_GRANT_RE = re.compile(
+    r"bounded[- ]reads?\b[^.\n]{0,80}\b(?:inline|allowlist)|"
+    r"\b(?:inline|read-only)[- ]git\b[^.\n]{0,40}\b(?:ok|allowed|legal)|"
+    r"may (?:stay|run) inline|inline-legal|inline[- ]OK|bounded[- ]read allowlist",
+    re.IGNORECASE,
+)
+
+
+def _scan_file_for_grant(f: Path) -> list[str]:
+    text = f.read_text(encoding="utf-8")
+    rel = str(f.relative_to(REPO_ROOT))
+    gen_regions = _generated_line_ranges(text)
+    flat = re.sub(r"[ \t]*\n[ \t>#*]*", " ", text)  # a grant wrapped over two lines still counts
+    out = []
+    for i, raw_line in enumerate(text.splitlines(), start=1):
+        if _in_generated(i, gen_regions):
+            continue
+        if _GRANT_RE.search(raw_line):
+            out.append(f"{rel}:{i}: grants an inline git read  [{raw_line.strip()[:90]!r}]")
+    if not out and _GRANT_RE.search(flat):
+        out.append(f"{rel}: grants an inline git read (wrapped over lines)")
+    return out
+
+
+def test_no_prose_grants_an_inline_git_read():
+    """Boundary A, GRANT half: odoo-ai-agents agent-facing text never PERMITS an inline git read
+    ("bounded reads may stay inline", "the bounded-read allowlist"). Every actor reads a repo fact
+    with `repo_facts` and asks git-ops for anything else; a permission sentence anywhere re-opens
+    the door the command scan closes."""
+    violations: list[str] = []
+    for f in _agent_prose_files():
+        violations.extend(_scan_file_for_grant(f))
+    assert not violations, "prose grants an inline git read:\n" + "\n".join(violations[:60])
+
+
+def test_grant_detection_red_before_green(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    for label, text in {
+        "may stay inline": "Bounded reads (status) may stay inline.\n",
+        "allowlist": "See the bounded-read allowlist in git-delegation.md.\n",
+        "inline-legal": "the same class the snippet keeps inline-legal\n",
+        "wrapped": "bounded reads\nmay stay inline\n",
+    }.items():
+        f = tmp_path / "x.md"
+        f.write_text(text, encoding="utf-8")
+        assert _scan_file_for_grant(f), f"grant detector must FLAG: {label}"
+    ok = tmp_path / "ok.md"
+    ok.write_text("Run no git. A bounded grep of the log is fine; ask git-ops for history.\n", encoding="utf-8")
+    assert _scan_file_for_grant(ok) == []
 
 
 def test_no_git_toolkit_agent_mention():
@@ -437,46 +491,58 @@ def test_agent_mention_detection_red_before_green(tmp_path, monkeypatch):
     )
 
 
-def test_inline_git_detection_red_before_green(tmp_path, monkeypatch):
-    """Self-check that boundary A can FAIL for the right reason (red-before-green).
+def test_git_command_detection_red_before_green(tmp_path, monkeypatch):
+    """Self-check that boundary A FAILS for the right reason, and passes what it must.
 
-    Boundary A (``test_no_git_delegation_bypass``) previously had NO self-check, so a future edit
-    that loosened the allowlist or the scanner could pass silently. This exercises the REAL module
-    functions (``_git_allowed`` + ``_scan_file``) on synthetic inputs so any such loosening trips
-    here:
-
-      - inline git MUTATIONS (push / cherry-pick / merge / rebase) are NEVER allowed;
-      - own-worktree writes (add / commit / stash) are NO LONGER allowed inline (workers never run git);
-      - the scanner FLAGS a fenced ``git push origin HEAD`` span and PASSES a bounded
-        ``git diff --stat`` read.
-
-    If the allowlist were widened to admit a mutation, or the scanner stopped flagging it, this
-    test goes red.
+    Exercises the REAL scanner on synthetic files. Every spelling of "the agent runs git" must be
+    flagged - mutation or read, code span, fence, plain prose, a span wrapped over two lines, the
+    ``-C <dir>`` / ``-c k=v`` / ``--no-pager`` forms, a YAML comment, an ``op:`` line with flags - and
+    nothing else may be: ``git-ops``, ``odoo-git-rebase``, ``github``, the human ``git clone`` line,
+    the external ``core.hooksPath`` quote.
     """
-    # --- allowlist: mutations rejected (incl. add/commit/stash - workers never run git) ---
-    for verb in ("push", "cherry-pick", "merge", "rebase", "add", "commit", "stash"):
-        assert _git_allowed(verb, f"git {verb} origin HEAD") is False, (
-            f"boundary A allowlist must REJECT inline `git {verb}` (workers never run git)"
-        )
-
-    # --- scanner: flag a known-bad fenced span, pass a bounded read ---
-    # _scan_file formats violations relative to REPO_ROOT, so point REPO_ROOT at the tmp dir
-    # the synthetic fixtures live under (reverted automatically by monkeypatch).
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
 
-    bad = tmp_path / "bad-inline-git.md"
-    bad.write_text("Example:\n\n```bash\ngit push origin HEAD\n```\n", encoding="utf-8")
-    bad_hits = _scan_file(bad)
-    assert any("git push" in h for h in bad_hits), (
-        f"scanner must FLAG a fenced `git push origin HEAD` span; got {bad_hits!r}"
-    )
+    def hits(text, name="x.md"):
+        f = tmp_path / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8")
+        return _scan_file(f)
 
-    good = tmp_path / "good-inline-git.md"
-    good.write_text("Bounded read:\n\n```bash\ngit diff --stat\n```\n", encoding="utf-8")
-    good_hits = _scan_file(good)
-    assert good_hits == [], (
-        f"scanner must PASS a bounded `git diff --stat` read; got {good_hits!r}"
-    )
+    flagged = {
+        "inline mutation": "Run `git push origin HEAD` now.\n",
+        "inline bounded read": "Check with `git status --porcelain`.\n",
+        "inline read, was allowlisted": "Use `git rev-parse --short HEAD`.\n",
+        "fenced block": "```bash\ngit diff --stat\n```\n",
+        "plain prose": "Then you git rebase the branch onto main.\n",
+        "-C form": "Run `git -C <dir> rm file`.\n",
+        "-c form": "Run `git -c core.quotepath=off log`.\n",
+        "global flag": "Run `git --no-pager log`.\n",
+        "wrapped span": "Run `git\n  rebase --onto a b`.\n",
+        "wrapped under a quote": "> run git\n> merge-base a b\n",
+        "yaml comment": "    # `git -C <root> status --porcelain`\n",
+        "git-only flag": "Merge it with --no-ff and look at --name-only.\n",
+        "op line with a flag": "op: continue the rebase --skip\n",
+        "op line with a short flag": "- op: rm -r module dir + commit -s\n",
+        "gh cli": "Run `gh pr list`.\n",
+        "github mcp": "Call `mcp__plugin_github_github__get_me`.\n",
+    }
+    for label, text in flagged.items():
+        assert hits(text), f"boundary A must FLAG: {label}"
+
+    clean = {
+        "git-ops name": "Invoke `git-toolkit:git-ops` and ask it for the merge base.\n",
+        "hyphenated skill": "Hand over to odoo-git-rebase, then odoo-forward-port.\n",
+        "github word": "Open the github page; see .github/workflows.\n",
+        "request without command": "op: create an integration worktree at the feature tip\n",
+        "repo_facts": "Read the branch with `repo_facts`.\n",
+        "git as a noun": "The git index is shared.\n",
+        "core.hooksPath quote": "* Changes your git config's `core.hooksPath` to the tooling hooks.\n",
+    }
+    for label, text in clean.items():
+        assert hits(text) == [], f"boundary A must PASS: {label}; got {hits(text)!r}"
+
+    assert hits("Print `git clone -b BRANCH <ssh-url> odoo17` for the user.\n", "commands/odoo-setup.md") == []
+    assert hits("Print `git clone -b BRANCH <ssh-url> odoo17` for the user.\n", "skills/other/SKILL.md")
 
 
 # ---------------------------------------------------------------------------
@@ -493,10 +559,37 @@ def test_inline_git_detection_red_before_green(tmp_path, monkeypatch):
 AGENT_FACING_DOCS = [REPO_ROOT / "CLAUDE.md", REPO_ROOT / "docs" / "authoring-skills-and-agents.md"]
 
 
+# The developer session of THIS repo (CLAUDE.md governs it) may keep these BOUNDED reads inline:
+# status, rev-parse, branch --show-current, remote get-url, merge-base, worktree list, and
+# diff / log / show only with a bounding flag. Every mutation still goes through git-toolkit:git-ops.
+# This allowance is for CLAUDE.md and docs/authoring-skills-and-agents.md ONLY; plugin prose has none.
+_DEV_SESSION_ALWAYS = frozenset({"status", "rev-parse", "merge-base"})
+_DEV_GIT_RE = re.compile(r"\bgit(?:\s+-C\s+\S+)?\s+([a-z][a-z-]*)")
+
+
+def _dev_session_read(verb: str, line: str) -> bool:
+    if verb in _DEV_SESSION_ALWAYS:
+        return True
+    if verb == "branch":
+        return "--show-current" in line
+    if verb == "remote":
+        return "get-url" in line
+    if verb == "worktree":
+        return bool(re.search(r"\bgit\s+worktree\s+list\b", line))
+    if verb == "diff":
+        return any(f in line for f in ("--stat", "--name-only", "--shortstat", "--quiet", "--check"))
+    if verb == "log":
+        return bool(re.search(r"-n\s*(?:\d+|<\w+>)|--oneline\b", line))
+    if verb == "show":
+        return "--stat" in line
+    return False
+
+
 def _scan_agent_doc(f: Path) -> list[str]:
-    """Boundary-A-style scan for an agent-facing doc, with ONE carve-out: the one-time
-    confidentiality-hook install `git config --local core.hooksPath .githooks/` is a legitimate
-    HUMAN setup command, not an agent commit op, and is not flagged."""
+    """Scan an agent-facing repo doc: code spans may hold a dev-session bounded read; a mutation,
+    an unbounded read, a gh call or a GitHub MCP tool is flagged. ONE carve-out: the one-time
+    confidentiality-hook install `git config --local core.hooksPath .githooks/` is a HUMAN setup
+    command, not an agent op."""
     text = f.read_text(encoding="utf-8"); rel = str(f.relative_to(REPO_ROOT))
     gen = _generated_line_ranges(text); out = []
     for span_start, span in _code_spans(text):
@@ -507,30 +600,46 @@ def _scan_agent_doc(f: Path) -> list[str]:
             if "core.hooksPath" in line:      continue   # confidentiality-hook install carve-out
             if _GH_RE.search(line):           out.append(f"{rel}:{ln}: gh CLI")
             for m in _GITHUB_MCP_RE.finditer(line): out.append(f"{rel}:{ln}: GitHub MCP")
-            for m in _GIT_RE.finditer(line):
+            for m in _DEV_GIT_RE.finditer(line):
                 v = m.group(1)
-                if not _git_allowed(v, line):  out.append(f"{rel}:{ln}: git {v}  [{line.strip()[:80]!r}]")
+                if not _dev_session_read(v, line):  out.append(f"{rel}:{ln}: git {v}  [{line.strip()[:80]!r}]")
     return out
 
 
 def test_agent_facing_docs_route_git_through_git_ops():
-    """CLAUDE.md + docs/authoring are agent instructions; they must route git through
-    git-toolkit:git-ops, never a raw commit/push in a code span. The confidentiality-hook
-    `git config core.hooksPath` install is carved out. Guards the Problem-3 docs/root leak."""
+    """CLAUDE.md + docs/authoring govern the DEVELOPER session of this repo: a bounded read may stay
+    inline there, but any mutation, unbounded read, gh call or GitHub MCP tool in a code span must
+    route through git-toolkit:git-ops. The confidentiality-hook `git config core.hooksPath` install
+    is carved out."""
     v = []
     for f in AGENT_FACING_DOCS:
         if f.exists(): v.extend(_scan_agent_doc(f))
-    assert not v, ("agent-facing repo docs contain a raw git command in a code span; route through "
-                   "the git-toolkit:git-ops skill.\n" + "\n".join(v))
+    assert not v, ("agent-facing repo docs contain a raw git mutation or unbounded read in a code span; "
+                   "route through the git-toolkit:git-ops skill.\n" + "\n".join(v))
+
+
+def test_dev_session_allowance_flags_what_it_must(tmp_path, monkeypatch):
+    """The dev-session scan accepts bounded reads and flags every mutation / unbounded read, so the
+    allowance cannot widen silently."""
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    ok = tmp_path / "ok.md"
+    ok.write_text("Reads: `git status`, `git diff --stat`, `git log -n5`, `git rev-parse HEAD`.\n", encoding="utf-8")
+    assert _scan_agent_doc(ok) == []
+    for cmd in ("git commit -s", "git push origin x", "git rebase main", "git diff main", "git log main..x",
+                "git -C d add f", "git show abc", "git rm f"):
+        bad = tmp_path / "bad.md"
+        bad.write_text(f"Run `{cmd}`.\n", encoding="utf-8")
+        assert _scan_agent_doc(bad), f"dev-session scan must flag `{cmd}`"
 
 
 # ---------------------------------------------------------------------------
 # Boundary C: the ADVISORY reminder hook must never auto-approve the git
 # mutation it exists to discourage
 #
-# `hooks/remind-delegate.sh` (PreToolUse) reminds a role=leaf subagent that it must route git
-# mutations through git-toolkit:git-ops instead of running them itself (boundary A/B above are
-# the build-time/static guarantee; this hook is only a same-turn, runtime nudge). Being
+# `hooks/remind-delegate.sh` (PreToolUse) reminds a role=leaf or role=node-owner subagent that it
+# runs no git itself - a repo fact comes from repo_facts, anything else is a git-ops request
+# (boundary A/B above are the build-time/static guarantee; this hook is only a same-turn, runtime
+# nudge, and its fire/no-fire cases are tested in tests/test_advisory_hooks_context_cost.py). Being
 # advisory means it must NEVER hand back a `permissionDecision` that DECIDES the call for the
 # permission system - "allow" silently auto-approves the exact git mutation this whole file's
 # boundary exists to stop, defeating the delegation contract at the one layer (PreToolUse) that

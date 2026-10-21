@@ -4,7 +4,7 @@
 
 # Forward-Port Symbol Survival Check (P6)
 
-**When to run:** after git-ops has opened the no-commit merge window (P5), before any adapt work (P8).
+**When to run:** after git-ops has opened the uncommitted merge window (P5), before any adapt work (P8).
 **What it catches:** git auto-merge silently carries source-side lines that reference a symbol
 (field, method, model, view-id, external-id) REMOVED or RENAMED at the target version - no conflict
 marker appears, because the target branch never touched that line. Lint and install stay green; the
@@ -16,20 +16,14 @@ feature breaks at runtime when execution reaches that line.
 
 Check BOTH categories - do NOT limit to files with conflict markers:
 
-1. **Files with conflict markers** (`git diff --check` or `grep -r "<<<<<<" .`)
+1. **Files with conflict markers** (the conflict-marker scan git-ops reports)
 2. **Merge-clean-but-source-touched files** - files modified by the source commits being
    merged but with no conflict marker in the result. To enumerate:
 
-```bash
-# compute merge-base first (allowed bounded reads):
-# Same-repo: MB=$(git merge-base <target-branch> <source-ref>)
-# Cross-repo: ask git-ops to add the source remote first, then:
-#             MB=$(git merge-base <target-branch> source/<branch>)
-```
-
 Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to enumerate the source-touched files:
-`op: list files changed by commits in ${MB}..<source-ref>` (scoped log with name-only output).
-git-ops writes the sorted unique file list to a findings file and returns the path.
+the files changed by the commits after the merge base of the target and the source ref, up to the
+source ref (`merge_base:` in the run's `range.md`; on a cross-repo port git-ops adds the source
+remote first). git-ops writes the sorted unique file list to a findings file and returns the path.
 Use that list as the scope for categories 1 and 2 below.
 
 Cross-reference that list against the clean working tree files. Category 2 is where
@@ -227,10 +221,10 @@ NOT to appear there). The merge has no conflict because only one side touched th
 
 **Enumerate** every manifest in the merge delta and check the flag on each side:
 
+The manifests are the descriptor files (the series' filename) in the source-touched file list of
+Section 1. Read the TARGET end-state installable flag per found manifest:
+
 ```bash
-# Get changed manifests (bounded read - allowed):
-git diff --name-only <merge-base>..<source-ref> -- '*/__manifest__.py'
-# then read the TARGET end-state installable flag per found manifest:
 grep -nE "installable" <target-tree>/<module>/__manifest__.py
 ```
 

@@ -113,6 +113,11 @@ translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_
   `--load-language` (`en_US` + `languages`) and the series' demo flag (from `demo`, on `init` only),
   and `extra_args` refuses those flags. `instance_i18n_export` runs Odoo's own exporter (`.pot`
   first, then one `.po` per language, from one database). One build or export runs on a database at a time (`DATABASE_BUSY`).
+- **Repo facts come from a tool, never from agent-run git.** `repo_facts` (script:
+  `scripts/lib/repo_facts.py`, the one place that reads git for an agent) returns the root, the main
+  checkout behind a linked worktree, branch/ref, short HEAD SHA, origin URL (credentials removed),
+  dirty paths and an in-progress merge/rebase. Plugin prose never spells a git command or flag - it
+  calls this tool or asks `git-toolkit:git-ops` for a result (`tests/test_git_delegation_boundary.py`).
 - **Tool-launched Odoo never reads `~/.odoorc`.** Every `odoo-bin` the scripts launch reads a
   generated config file, named by `-c` and by `$ODOO_RC` (`scripts/lib/odoo_cli_facts.sh`
   `odoo_isolated_rc_env` - where Odoo loads its default rc file at import time, `-c` alone does not
@@ -234,10 +239,11 @@ Branch from `master`, keep PRs to one logical change, run `make validate && make
 gen-check`. **Never hand-run git in this repo**: route EVERY git operation - staging, commit, push,
 branch, merge - including your own one-line edits and repo self-maintenance, through the
 `git-toolkit:git-ops` skill, which detects the commit convention and applies the required DCO
-sign-off for you. This binds the main agent and every skill/agent alike. Bounded reads on the
-`git-delegation.md` "Bounded-read allowlist" MAY run inline; every git MUTATION - staging, commit,
-push, branch, merge, and everything else in this paragraph - routes through `git-toolkit:git-ops`.
-The equivalent rule for
-dispatched skills/agents lives in `plugins/odoo-ai-agents/snippets/git-delegation.md` (Universal
-rule); keep the two in lockstep. Human contributor / release / marketplace-pinning details:
-`CONTRIBUTING.md`.
+sign-off for you. This paragraph governs YOUR developer session in this repo, where bounded reads
+MAY run inline: `git status`, `git rev-parse`, `git branch --show-current`, `git remote get-url`,
+`git merge-base`, `git worktree list`, `git diff --stat` (or `--name-only`, `--shortstat`, `--quiet`,
+`--check`), `git log --oneline` (or `-n<N>`) and `git show --stat`. Every git
+MUTATION and every unbounded read - staging, commit, push, branch, merge, full diffs, ranges, and
+everything else in this paragraph - routes through `git-toolkit:git-ops`. The plugin's own skills
+and agents are stricter: they run no git at all, not even a read (`plugins/odoo-ai-agents/snippets/git-delegation.md`).
+Human contributor / release / marketplace-pinning details: `CONTRIBUTING.md`.

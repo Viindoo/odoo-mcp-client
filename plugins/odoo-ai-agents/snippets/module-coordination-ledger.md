@@ -37,7 +37,7 @@ LEDGER_ROOT="$SHARE_DIR/coordination/modules"
 
 Each module's entry lives at `$LEDGER_ROOT/<module>/entry.json`.
 
-WHY SHARE (not ISOLATE): keyed off `sha256(realpath(git rev-parse --git-common-dir))` - the same
+WHY SHARE (not ISOLATE): keyed off a hash of the repository's shared common dir (`project_dir`, axis `share`) - the same
 path for every linked worktree, so a per-worktree ISOLATE dir (blind to a sibling's claim) does
 not fit. Do NOT collapse this to a bare `$ODOO_AI_HOME/coordination/` - two unrelated repos on
 one host would then see each other's claims.

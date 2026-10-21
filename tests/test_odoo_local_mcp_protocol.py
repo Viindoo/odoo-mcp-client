@@ -135,7 +135,7 @@ def test_non_object_params_are_invalid_params(ready):
 def test_every_tool_is_fully_described(ready):
     tools = ready.request("tools/list")["result"]["tools"]
     names = [t["name"] for t in tools]
-    assert {"server_info", "catalog_read", "catalog_locate", "series_detect", "project_dir"} <= set(names)
+    assert {"server_info", "catalog_read", "catalog_locate", "series_detect", "project_dir", "repo_facts"} <= set(names)
     assert len(names) == len(set(names))
     for tool in tools:
         assert tool["description"].strip(), tool["name"]
@@ -185,6 +185,7 @@ def test_registry_refuses_duplicates_and_missing_description():
     ("project_dir", {"cwd": "/", "axis": "sideways"}, "arguments.axis"),
     ("project_dir", {"axis": "share"}, "arguments.cwd"),
     ("catalog_locate", {"path": ""}, "arguments.path"),
+    ("repo_facts", {"path": "/", "status_paths": "x"}, "arguments.status_paths"),
 ])
 def test_invalid_arguments_are_a_tool_error_naming_the_field(ready, tool, args, field):
     result = ready.call(tool, args)

@@ -16,7 +16,7 @@ keyed on `run_id`) is what prevents a collision outright. The modes themselves a
 ## The structural backstop's exact scope (belt-and-braces detail)
 
 `lease_acquire` refuses (`ADDONS_PATH_WORKTREE_MISMATCH`) an acquire in `shared`/`ephemeral`/
-`exclusive` mode whenever the caller's `cwd` is a linked git worktree of the SAME repository as a
+`exclusive` mode whenever the caller's `cwd` is a linked worktree of the SAME repository as a
 catalog `addons_path` entry at a DIFFERENT checkout path AND no `addons_path` was passed - the exact
 "silently defaults to the principal checkout" shape the worktree-addons carve-out exists to
 prevent. `readonly` mode is exempt (it never builds, so there is nothing to mis-verify). The refusal

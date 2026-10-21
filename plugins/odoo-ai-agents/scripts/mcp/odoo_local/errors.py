@@ -52,6 +52,8 @@ SERVER_CODES = {
     "CATALOG_UNREADABLE": "Fix the TOML syntax or file permissions of the catalog named in the message, then call again.",
     "PATH_NOT_DIRECTORY": "Pass an absolute path to an existing directory.",
     "PROJECT_DIR_UNRESOLVED": "Pass a cwd inside a git repo or below an Odoo module or .odoo-ai-root marker, or set ODOO_AI_PROJECT_DIR / ODOO_AI_WORKTREE_DIR.",
+    "GIT_UNAVAILABLE": "git is not installed or not on the PATH of the odoo-local server: tell the user to install git (or fix PATH) and restart the session.",
+    "GIT_FAILED": "Read stderr in diagnostics: git refused the read (for example an unsafe-ownership directory or a damaged repository). Tell the user what it says; ask git-toolkit:git-ops for the fact instead.",
     "SUBPROCESS_TIMEOUT": "The helper exceeded its time bound and was killed. A killed lease_release, lease_park or lease_gc is taken over by the next call on the same lease (its reclaiming marker names a dead pid), so retry that call once; after a timed-out lease_acquire call lease_list (scope mine) first and lease_release any lease your run holds but never received, then acquire again; for any other tool read diagnostics, then retry once or report to the user.",
     "SUBPROCESS_FAILED": "Read stderr in diagnostics, fix the cause it names, then call again.",
     "ALLOCATOR_OUTPUT_INVALID": "The allocator returned no JSON envelope; report diagnostics to the user and use the Bash CLI fallback.",

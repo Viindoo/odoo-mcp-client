@@ -3,9 +3,8 @@
 Run this before `lease_acquire` whenever the build must load a worktree's code. `WORKTREE_PATH`
 absent or `none` -> skip it; the catalog list is used as-is. Never edit the catalog.
 
-1. `WT=$(cd <WORKTREE_PATH> && pwd -P)` and
-   `PRINCIPAL=$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)`; strip a trailing
-   `/.git` from `$PRINCIPAL` to get the principal checkout root.
+1. `WT=$(cd <WORKTREE_PATH> && pwd -P)` and `PRINCIPAL` = the `principal_root` of a `repo_facts`
+   call on `$WT` (the principal checkout root).
 2. Start from the `addons_path` list of the catalog row serving this series (`catalog_read`, or
    `catalog_locate` with `$WT`), in its order.
 3. DROP every entry whose `pwd -P` equals `$PRINCIPAL` or lies under `$PRINCIPAL/`.

@@ -33,6 +33,7 @@ CLI). Schemas: `tools/list`.
 | `catalog_locate` | `instances_io.find_covering_instance` | |
 | `series_detect` | `scripts/lib/odoo_series.py` `detect` | |
 | `project_dir` | `scripts/lib/paths.py` `share_dir` / `isolate_dir` | |
+| `repo_facts` | `scripts/lib/repo_facts.py` `facts` (read-only git: `rev-parse`, `symbolic-ref`, `remote get-url`, `status --porcelain`, plus the operation markers in the worktree's git dir) | the facts agents used to read with inline git; a path outside any repository is `is_repo: false`, not an error; remote URLs come back with embedded credentials removed; errors `GIT_UNAVAILABLE`, `GIT_FAILED`, `SUBPROCESS_TIMEOUT`, `PATH_NOT_DIRECTORY`. Not `long_running`: every git call is bounded by a 20 s timeout. CLI fallback (Codex/Gemini, or `TOOL_UNAVAILABLE`): `python3 scripts/lib/repo_facts.py <dir> [--status-path <p> ...] --json` |
 | `server_info` | the server itself: version, Python, plugin root, session anchor | |
 
 No tool: a server thread runs `allocator.py heartbeat --session mine` every 600s

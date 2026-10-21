@@ -47,7 +47,7 @@ they are what makes the target series READABLE off a checkout when nothing has d
 
 When no declared instance covers the repo (rung 2 of
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), derive the series with the
-`series_detect` tool on the repository root (`git rev-parse --show-toplevel`, else the working
+`series_detect` tool on the repository root (`repo_root` from `repo_facts`, else the working
 directory), not a hand-rolled probe. Only `status` `OK` resolves a series (cite its `evidence`);
 on `NEEDS_CONTEXT` the series is empty, and neither `hint` nor `era` may be promoted to one.
 
@@ -60,7 +60,7 @@ NEVER overrides an earlier one; only steps 1-2 resolve a series:
    (`(17, 0, 0, FINAL, 0, '')` -> `17.0`). A SaaS spelling (`'saas~17.2'`) yields the numeric major
    with the minor forced to `0`. A candidate contradicting its own package dir is discarded,
    never returned.
-2. **A series-named git branch** - for an addons-only repo with no core package. Accepted ONLY when
+2. **A series-named branch** - for an addons-only repo with no core package. Accepted ONLY when
    the name matches `^[0-9]{1,2}\.0$`, optionally after a remote prefix (`origin/17.0`); a
    feature-branch name is not evidence.
 3. **The manifest `version` key - a HINT, never a series.** Only a series-PREFIXED `<major>.0.x.y`

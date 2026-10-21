@@ -40,12 +40,10 @@ phases:
     # under <OUT>/<run>/ or <DOC> (avoids flat-path collision when the run covers several modules).
     # FIRST classify doc_root - classify only, this phase writes nothing to any module tree.
     # doc_root = the worktree the run passes (the plan runner or the caller made it), else the top
-    # level of the repo holding the modules. One bounded read tells the kinds apart
-    # (snippets/git-delegation.md § Bounded-read allowlist):
-    # `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir` - two
-    # different paths = doc_root_kind: worktree (used as is for the whole run); the same path
-    # twice = doc_root_kind: principal (scoped and planned read-only here; the docs worktree is
-    # created only once the workflow plan is decided).
+    # level of the repo holding the modules. One `repo_facts` call on doc_root tells the kinds
+    # apart (snippets/git-delegation.md): is_linked_worktree true = doc_root_kind: worktree (used
+    # as is for the whole run); false = doc_root_kind: principal (scoped and planned read-only
+    # here; the docs worktree is created only once the workflow plan is decided).
     # Then resolve target modules from the `modules` input (module name or absolute path; walk
     # __manifest__.py files for multi-module repos), every abs_path under doc_root, and fill the
     # scope block fields - version, languages, doc_layer, has_demo, depends_in_scope,
@@ -56,8 +54,8 @@ phases:
     # proposed target_market once.
     # Set `change: whole` on every module named by the `modules` input: a packaging run re-documents
     # a module that already has docs on disk, so none is skipped as existing-on-disk.
-    # For a principal doc_root, once the modules are resolved, run the bounded read
-    # `git -C <doc_root> status --porcelain -- <each module abs_path>` and record what it lists as
+    # For a principal doc_root, once the modules are resolved, call `repo_facts` with
+    # `status_paths` = each module abs_path and record what `dirty` lists as
     # uncommitted: the docs worktree starts at HEAD, so those changes would go undocumented.
     # Emits scope block: doc_root, doc_root_kind, uncommitted + modules[] with {name, abs_path,
     # languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc, change, target_market}.

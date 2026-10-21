@@ -16,7 +16,7 @@ not a merge decision. Get it wrong here and every downstream step is wasted or d
 
 | # | Name | Signal | Action |
 |---|---|---|---|
-| (a) | **Already satisfied** | Base HEAD already ships the behavior; re-applying would duplicate it | Skip the commit - invoke the `git-toolkit:git-ops` skill to run "rebase --skip"; record reason in `rebase-log.md` |
+| (a) | **Already satisfied** | Base HEAD already ships the behavior; re-applying would duplicate it | Skip the commit - invoke the `git-toolkit:git-ops` skill to skip it in the rebase; record reason in `rebase-log.md` |
 | (b) | **Adapt and apply** | Intent survives; base renamed, moved, or refactored the symbols the commit touches | Replay intent on the new base idiom; do NOT copy-paste the old diff verbatim |
 | (c) | **Re-implement** | Base evolution made the original diff irrelevant or unsafe; intent is still needed | Rebuild from scratch using current base idioms; oracle = forwarded source test |
 | (d) | **Drop as irrelevant** | Base design superseded the need entirely; the original problem no longer exists | Drop the commit; record reason + evidence in `rebase-log.md` |
@@ -49,7 +49,7 @@ entity_lookup(kind='method', model='<model>', method_name='<method_name>', odoo_
 **Bucket (a) evidence gate:** grep/OSM each key identifier (field name, method, XML id,
 security rule) on base HEAD. If EXACTLY ONE definition already exists and it covers the
 intent, confirmed (a). Any code change required = bucket (b) or (c). A confirmed (a) commit is
-`rebase --skip`ped, so it never reaches the adapt step: never forward `BUCKET: a` to
+skipped in the rebase, so it never reaches the adapt step: never forward `BUCKET: a` to
 `odoo-coding` (no absorption probe runs in a rebase).
 
 **`odoo_version=` is mandatory** in every OSM call - never omit, never rely on a default.
@@ -113,5 +113,5 @@ a citation.
 ## Cross-references
 
 - [[fp-intent-4outcome]] - cross-version analogue (API removal, replaced hooks, version diff)
-- [[rb-phase-detail]] - verbatim git commands: merge-base, `rebase --onto`, conflict loop, range-diff
+- [[rb-phase-detail]] - the per-phase git-ops requests: merge base, replay onto the new base, conflict loop, range-diff
 - [[osm-first-contract]] - full grounding protocol (Tier 1/2/3 fallback when OSM is down)

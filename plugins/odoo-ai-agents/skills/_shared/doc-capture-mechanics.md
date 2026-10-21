@@ -260,9 +260,8 @@ capture stays where it was written, cited by that path.
 
 ## 14. Hard constraints (capture)
 
-- Git/GitHub mutations are NOT yours - the dispatching skill commits via git-toolkit `git-ops`.
-  Bounded reads (`git status`, `git diff --stat`) may stay inline; never run git mutations, `gh`, or
-  the github MCP directly.
+- You run no git, `gh` or GitHub MCP call: a repo fact comes from `repo_facts`; the dispatching
+  skill commits via git-toolkit `git-ops`.
 
 ## 15. Docs-site writer
 
