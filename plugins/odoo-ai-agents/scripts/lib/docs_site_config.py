@@ -21,7 +21,8 @@ documentation repository for the odoo-doc-site skill:
     banned_terms = [...]  banned_terms_exempt_paths = [...]  forbid_version_prose = true
     marketplace_url = "https://.../{series}/{module}"  site_url_prefix = "https://.../"
     demo_company = { <lang> = "..." }  commit = "one-per-pr"|"per-area"
-    check_shot = "first-per-series"|"always"  semantic_classes = [...]
+    check_shot = "first-per-series"|"always"  # when the self-judged check shot runs
+    semantic_classes = [...]
     forward_port_branch_pattern = "<text>{series}<text>{pr}"   # optional; absent = no bot
 
 A row declares at least one `clone` (any series): a worktree of any series is made from any clone

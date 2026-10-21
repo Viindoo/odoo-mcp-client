@@ -81,7 +81,7 @@ caveat survive into the final artifact your orchestrator returns (per `osm-first
 ## Asking a human
 
 Escalate to the caller (`NEEDS_CONTEXT`) **only** for inputs that are genuinely unobtainable
-by any tier above: secrets/credentials, or a business decision that no source encodes. Never
+by any tier above: a business decision that no source encodes. Never
 ask a human to re-supply code, field lists, manifests, module lists, changelogs, CRM data, or
 email threads - those are Tier-2 fetches. If the repo/instance is truly inaccessible, say so
 and return `BLOCKED(<reason>)` rather than soliciting a paste.

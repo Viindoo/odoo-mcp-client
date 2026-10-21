@@ -34,7 +34,7 @@ USER LANGUAGE: <lang | omit>
 Write the checklist to `<SHARE_DIR>/docs-site/<site>/<series>/acceptance-checklist.md` from the
 table below, unchanged, under one header line:
 `reference_viewport: <WxH> | content_width: <px> | density: 2 | mobile_viewport: 390x844`
-(`reference_viewport` and `content_width` from the check-shot record). The tester covers every
+(`reference_viewport` and `content_width` from the content-width record). The tester covers every
 plan row whose action is not `skip`, in every language, at a desktop and a mobile viewport, and
 opens every image of `IMAGES TO REVIEW` (item 12).
 
@@ -60,5 +60,5 @@ opens every image of `IMAGES TO REVIEW` (item 12).
 A `FAIL` row goes to the writer as `FINDINGS` (`<file>:<line>: ACCEPTANCE: <item> <page>
 <language> <viewport>`) with the evidence path. After the fix: rebuild, re-run the gates the change
 touches, re-serve, and send the same tester the failed items with the new URLs by `SendMessage`; a
-fix that changes layout or an image re-runs the whole checklist. After the third failed round stop
-and ask the user (text question). `UNVERIFIED` items go to the PR body, not to the writer.
+fix that changes layout or an image re-runs the whole checklist. After the third failed round return
+`BLOCKED` with the failed items and their evidence. `UNVERIFIED` items go to the PR body, not to the writer.

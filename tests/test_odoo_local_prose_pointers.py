@@ -44,7 +44,6 @@ CALL_PREFIX = "mcp__plugin_odoo-ai-agents_odoo-local__"
 NON_TOOL_IDENTIFIERS = frozenset({
     "instance_base_url",    # odoo-ui-reviewer brief field: the served base URL
     "instance_base_url_b",  # its second-build twin
-    "instance_login",       # odoo-ui-reviewer brief field: the login to use
     "instance_id",          # doc-plan.yaml field naming one planned instance
 })
 

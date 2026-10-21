@@ -8,7 +8,6 @@ exit non-zero on a failing gate. Each is a CLI:
   repo_facts.py     facts the docs repo states about itself (series, languages, hazards, conventions)
   images.py         install staged screenshots as JPEG / check every language has its image
   content_gates.py  banned terms, version prose, presentation, links, text captured off screenshots
-  ui_terms.py       check the UI terms a translation uses against a live instance in that language
 
 Rules shared by all of them: stdlib only (python3 >= 3.8; images.py install alone needs
 Pillow), no clock or randomness in a report, a fact the repo does not state is the string
@@ -29,7 +28,7 @@ import sys
 UNKNOWN = "UNKNOWN"
 
 # The bold menu-path separator of an Odoo doc (Settings, arrow, Users), written as an escape so the
-# source stays ASCII. Defined once; repo_facts and ui_terms import it.
+# source stays ASCII. Defined once; repo_facts imports it.
 ARROW = "\u2023"
 
 # A series token: "17.0", "saas-17.2", or the word "master". Never the middle of a longer number.

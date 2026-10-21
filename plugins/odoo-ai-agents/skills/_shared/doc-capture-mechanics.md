@@ -75,8 +75,7 @@ subtree.
 When the brief carries `INSTANCE_HANDLE: <db>:<port>`:
 - **The handle OUTRANKS every other way of resolving the target instance, including section 5's
   fallback.** Set `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` and use the
-  handle's DB name for all browser navigation, the `/web/login` step (section 5), and any live Odoo
-  MCP call. NEVER recompute the URL from the declared catalog while a handle is present. Skip any self-provisioning step and skip the standalone install gate.
+  handle's DB name for all browser navigation and any live Odoo MCP call. NEVER recompute the URL from the declared catalog while a handle is present. Skip any self-provisioning step and skip the standalone install gate.
 - Still run the documentation-clean precondition check (demo data present, each resolved locale
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
   owns provisioning. Never drop or release the lease. CLOSE every browser page you drove, opened or
@@ -88,26 +87,12 @@ before anything else: `instance_status` says it is up and where, and the Apps sc
 instance, opened through the browser MCP and filtered to `<module>`, shows it installed. Not
 installed -> stop `BLOCKED` and route to `odoo-instance` (`operation: install-module`).
 
-## 5. Auth
+## 5. Instance
 
-**Resolve the login URL before anything else, and let `INSTANCE_HANDLE` win.** Brief carries
+**Resolve the instance URL before anything else, and let `INSTANCE_HANDLE` win.** Brief carries
 `INSTANCE_HANDLE` -> `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` (section 4).
-ONLY when the
-brief carries NO handle (standalone dispatch) resolve `instance_base_url` per
+ONLY when the brief carries NO handle (standalone dispatch) resolve `instance_base_url` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
-
-Load `<SHARE_DIR>/visual/baselines/storageState-admin.json` if it exists (cached auth session -
-the file format is family-specific; reuse it only within the family that wrote it). Otherwise
-navigate to `<instance_base_url>/web/login` and fill credentials: the login IDENTIFIER is the
-brief's, else `admin`. The PASSWORD is the value the brief supplies. Never guess a password,
-and never reuse a database credential for the web login. For `odoo-doc-site-writer` the password is
-never in the brief: § 15.
-- **chrome-devtools (default):** `fill_form` (one call for the username + password elements
-  from the page snapshot).
-- **playwright (OPT-IN):** `browser_fill_form`.
-If no storageState AND no brief-supplied password, stop `NEEDS_CONTEXT` and request the password
-once. Always authenticate via `/web/login` before
-navigating any backend URL (see `docs/odoo-ui-knowledge.md`).
 
 ## 6. On-theme check (before every capture)
 
@@ -291,13 +276,11 @@ For `odoo-doc-site-writer` (a docs-site page, never a module doc):
   ratio 2.
 - **Locale.** A locale that fails to load or switch is `BLOCKED` for that page; never reuse another
   language's shots (section 12's locale fallback does not apply).
-- **Auth.** For a database this run built, the login is `admin` and the password is the admin
-  user's default in the base addon of the instance's Odoo checkout (`odoo_root` of its catalog row):
-  the `admin` row of `base.sql` where that file exists, else the `password` field of the
-  `user_admin` record in `data/res_users_data.xml`; read it yourself from the checkout.
-  For any other database the identifier is `LOGIN`, else `admin`, and the password is the cached
-  session of section 5, else the environment variable `ODOO_DOC_PASSWORD` read with Bash; neither
-  -> `NEEDS_CONTEXT(PASSWORD)`. Never ask, never write a password into a file, a brief or a report.
+- **Company.** Before the first shot of a language, the main company of the capture database
+  carries `POLICY` `demo_company[<lang>]`: open the company in Settings in that language's UI, set
+  its name when it differs, save, reload. No entry for the language: leave the company alone. The
+  name comes from `POLICY`, never from you. All shots of a language are taken before the next
+  language's change.
 - **Capture-text log.** After each shot, read the visible text of the captured region with
   `evaluate_script` (`innerText` of the captured element, else of the action area) and append one
   line to `<ISOLATE_DIR>/docs-site/<RUN_ID>/capture-text.jsonl`:

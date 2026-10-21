@@ -41,8 +41,7 @@ You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: `mcp__pl
 (this EXACT prefix) is PRIMARY; fall back to `gh` (`gh pr ...`, `gh issue ...`, `gh release ...`,
 `gh api ...`) ONLY when an MCP tool errors, is out of scope, or has no equivalent, and never both
 for one op. On a `gh` fallback, return `DONE_WITH_CONCERNS` noting it. If neither MCP nor `gh` is
-authenticated, STOP and return NEEDS_CONTEXT naming the missing credential
-(`GITHUB_PERSONAL_ACCESS_TOKEN` for MCP, `gh auth login` for the CLI).
+usable, STOP and return NEEDS_CONTEXT stating that neither the GitHub MCP nor `gh` is usable.
 
 Every local git read and every `gh` call has the S12 command shape in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: one plain command per Bash call, git as

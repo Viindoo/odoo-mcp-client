@@ -85,7 +85,7 @@ NOT edit any expected to match actual`. Then one block per scenario:
 ```
 ### S<n> - <one-line business rule under test>   [risk: High|Med|Low]
 - technique: GWT | EP | BVA | negative | role-matrix | CRUD | state-transition | decision-table
-- role: <login/group the actor uses>            (default admin when permission is not under test)
+- role: <role/group the actor acts as>          (default admin when permission is not under test)
 - screen/model: <view_xmlid or model> [view_type]
 - Given:  <precondition / fixture state>
 - When:   <action - the real workflow step, e.g. press Confirm / set field / search filter>

@@ -73,9 +73,6 @@ Resolve each input from its own SSOT - never from a stored snapshot, and never b
   two-instance comparison (two separate builds/hosts). Absent -> state B is the SAME
   `instance_base_url` re-navigated after the change under test (module install/uninstall, theme
   toggle, in-place upgrade) is applied. That same-instance before/after is the default.
-- **Login identifier** - the brief's, else `admin`. The PASSWORD is stored neither in this repo nor
-  in project state: use the value the brief supplies, and when the brief supplies none, ask for it
-  ONCE. Never guess a password and never reuse a database credential for the web login.
 - **Baseline dir** - always `<SHARE_DIR>/visual/baselines/`; there is no per-project override.
 
 Ask the user (plus the two states to compare) in a single message only for what no SSOT above
@@ -206,7 +203,7 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 
 ## Notes / Integration
 
-- Determinism matters: same login, data, breakpoint, scroll position for both captures or the diff is noise.
+- Determinism matters: same user, data, breakpoint, scroll position for both captures or the diff is noise.
 - Baselines are written under `<SHARE_DIR>/visual/baselines/`, unconditionally.
 - This skill detects drift only; hand fixes to `odoo-coding`.
 - **Tier split (do not merge them).** Baselines are SHARE (reusable across runs); this run's

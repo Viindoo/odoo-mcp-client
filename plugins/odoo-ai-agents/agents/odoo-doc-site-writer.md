@@ -23,7 +23,6 @@ every launch follows R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-co
 | `PAGE PLAN`, `GROUP` | the plan file and the group id; the rows of your group are all you own |
 | `FACTS` | your group's facts file to write, and the catalog, role map and walkthrough paths |
 | `INSTANCE HANDLE`, `ADDONS_PATH` | the capture instance: demo on, every site language; consume it, never release it |
-| `LOGIN` | optional: the web login of a database you did not build; the capture instance uses `admin` |
 | `DOCS PYTHON` | the docs repo venv python; runs `po_sync.py` and `images.py install` |
 | `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals |
 | `POLICY` | path of the policy file: banned terms and exempt paths, version-prose rule, marketplace pattern, URL prefix, demo company per language, semantic classes |
@@ -131,7 +130,7 @@ this worktree's own series.
 Touch a theme file, the build configuration or a catalog outside your pages; run `make translate`
 or any message-extraction tool of the whole repo; use upstream vendor online documentation as a
 source; invent a label, a feature or a role; edit module source; release or re-provision the
-instance; write the capture instance password into a file, a report or any output; run two browser families at once; run git mutations, `gh` or the GitHub MCP (the caller
+instance; run two browser families at once; run git mutations, `gh` or the GitHub MCP (the caller
 commits through `git-ops`); launch an agent other than `Explore`.
 
 ## Report

@@ -19,8 +19,8 @@ description: |
   </example>
 
   <example>
-  Context: Repo-wide history rewrite to move /src to /lib and strip a leaked key
-  user: "Rewrite every commit - rename /src and remove the leaked key file"
+  Context: Repo-wide history rewrite to move /src to /lib and strip a stray build artifact
+  user: "Rewrite every commit - rename /src and remove the artifact file"
   assistant: "Cold-spawning git-pipeline-lead; it owns the multi-phase plan, the backups and the no-loss verify."
   <commentary>Repo-wide destructive rewrite at scale = pipeline lead; not a single-delegate op.</commentary>
   </example>

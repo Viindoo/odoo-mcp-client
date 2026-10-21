@@ -120,7 +120,7 @@ calling OSM for the rest of the session. Follow the three-tier order in
    into the final artifact your orchestrator returns.
 
 Grounded-by-default (Tier 1 or Tier 2); ungrounded-but-flagged (Tier 3) only as a true last
-resort. Escalate to a human (`NEEDS_CONTEXT`) solely for secrets or business decisions no
+resort. Escalate to a human (`NEEDS_CONTEXT`) solely for business decisions no
 source encodes - never to re-supply code, fields, manifests, changelogs, or CRM data.
 
 ## 5. This contract is enforced (not just advisory)
