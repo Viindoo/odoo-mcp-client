@@ -1,5 +1,6 @@
 # History-rewrite recipes - deterministic, with backup + verify + confirm
 
+Agent-facing: `git-operator` cites this file; no dispatcher does, and a brief never copies from it.
 All recipes here are DESTRUCTIVE. Every one runs under
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: S1 backup + pre-op SHA FIRST, S6
 tree-identity verify AFTER; the operator decides them itself, and only a push that changes a
@@ -79,7 +80,7 @@ follow renames.
 ## Force-push the rewritten branch
 
 ```bash
-git push --force-with-lease    # NEVER --force (S2)
+git push --force-with-lease <remote> <branch>    # NEVER --force (S2); remote and branch named (S13)
 ```
 
 ## Post-op verify (S6 - mandatory)

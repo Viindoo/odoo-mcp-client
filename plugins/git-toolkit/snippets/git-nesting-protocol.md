@@ -1,7 +1,7 @@
 <!-- SSOT snippet. The single home for the git-toolkit nesting model: the launch-and-collect
      rule (N0 - how a launcher collects a child's result, keyed on its own launch tool), cold-spawn
      handoff, the depth guard (only the pipeline lead spawns), leaf-no-spawn, the per-phase model map,
-     the Agent-unavailable fallback, the Git family's brief delta, and the Brief self-check
+     the Agent-unavailable fallback (dispatchers: NEEDS_CONTEXT), the Git family's brief delta, and the Brief self-check
      every git-toolkit agent runs. Referenced via
      ${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md. Edit here only. -->
 
@@ -16,8 +16,9 @@ spawn tool is unavailable.
 **Before launching, read your own toolset** - look at the agent-launch tool you hold. It alone
 decides how you collect a child's result:
 
-- **No agent-launch capability** -> do the work yourself (N4) or return BLOCKED with the
-  resumable state - never report a dispatch you could not make.
+- **No agent-launch capability** -> if you are a dispatcher, return `NEEDS_CONTEXT` (N4); a git
+  agent that holds no launch tool never launches (N2) and simply does its own scoped job. Never
+  report a dispatch you could not make.
 - **Your agent-launch tool HAS a `run_in_background` parameter** -> launch every child whose result
   you need with `run_in_background: false`, at any depth. That call returns the child's result
   inside your own turn. Put independent children in ONE message as several launch calls: they run
@@ -54,7 +55,11 @@ files on disk - no warm team-resume. This is the DEFAULT and always-correct base
 caller depth and needing no roster, so it works whether the caller is the main agent or itself a
 subagent.
 
-- A brief carries: the exact intent, the safety contract pointer
+- A brief carries: the REQUEST and the expected RESULT, in business terms - what is wanted, which
+  repository, worktree and branch, the outcome behind it, the constraints, what the caller needs
+  back. It NEVER carries git or GitHub-CLI commands or flags: the receiving agent owns that
+  know-how in its own files, and a command in a brief overrides it, confuses the agent and forks
+  the source of truth. A brief also carries the safety contract pointer
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`), the scale pointer
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`), the scoped target (paths/range/refs),
   and the chosen model.
@@ -84,7 +89,7 @@ model; this table is the only copy:
 
 | Phase | Worker | Model | Why |
 |---|---|---|---|
-| P1 MAP | `git-surveyor` x N (parallel) | haiku | mechanical `--name-only`/`--numstat` clustering |
+| P1 MAP | `git-surveyor` x N (parallel) | haiku | mechanical file-list and line-count clustering |
 | P2 EVALUATE | `git-surveyor` per cluster | haiku (sonnet for a cluster flagged high-risk) | read a scoped diff, assess conflict/risk/intent |
 | P3 STRATEGY | `git-pipeline-lead` (self) | the lead | synthesize the safe execution plan + sequencing |
 | P4 EXECUTE | `git-operator` per cluster | sonnet (haiku for a conflict-free cherry-pick/merge cluster) | apply with backup + per-batch verify |
@@ -95,18 +100,18 @@ Tier vocabulary and the single-delegate op-class table: `${CLAUDE_PLUGIN_ROOT}/s
 P3 strategy AND, when the plan changes a protected branch without a pull request, the
 human-confirm gate are the LEAD's job, never a leaf's.
 
-## N4 - Agent-unavailable fallback
+## N4 - Agent-unavailable fallback (dispatchers only)
 
-If the caller cannot cold-spawn (agent-launch capability is absent in this context), DEGRADE - never fail
-silently:
+A context that dispatches git work (the `git-ops` skill, or any caller) and cannot launch agents
+returns `NEEDS_CONTEXT` ("needs a context that can launch git-ops agents") and runs nothing
+itself - no git or GitHub command, not even a bounded read. It never degrades to doing the op
+inline. Every nested op is a fresh cold spawn, so there is no warm-resume to fall back to either.
 
-1. SINGLE-DELEGATE if a single leaf would suffice -> if no spawn, then
-2. INLINE-with-contract: run the SAFE, BOUNDED-OUTPUT command directly, applying the safety
-   contract inline, and keep the scale protocol (never read a huge diff inline).
-
-Never substitute "always-delegate" for a missing spawn - every nested op is a fresh cold spawn, so
-there is no warm-resume to fall back to. Note the degraded tier in the return if it changed the
-outcome.
+This applies only to a context whose job is to dispatch: the `git-ops` skill, a caller, and
+`git-pipeline-lead` (without a launch tool it cannot run P1-P5, so it returns the same
+`NEEDS_CONTEXT` rather than doing leaf work itself). A leaf agent - `git-surveyor`, `git-operator`,
+`github-operator` - runs git under its own contract; its missing launch tool is the N2 depth
+guard, not a gap to report.
 
 ## N5 - Brief contract (Git family delta)
 

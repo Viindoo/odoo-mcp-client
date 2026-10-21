@@ -7,7 +7,10 @@ refused or misjudged at run time even though it reads fine on the page. S12 in
 `plugins/git-toolkit/snippets/git-safety-contract.md` states the shape; this test keeps every
 fenced shell block under `plugins/git-toolkit/` in that shape, keeps the one editor override where
 S12 allows it, keeps `git stash` and a hard-coded `commit -s` out of the recipes (S4 never
-stashes; C4 signs off only when required), and keeps every git-toolkit agent pointing at S12.
+stashes; C4 signs off only when required), and keeps every git-toolkit agent pointing at S12. It also keeps S13 (a new branch has no upstream
+until its first push): every recipe that creates a branch says `--no-track`, and every recipe push
+names its remote and branch, so a branch cut from `origin/<series>` can never push to that series
+by default.
 
 The detector is a pure function of one command line, proved against a MUST-CATCH probe list of
 the shapes the recipes used to show and a MUST-NOT-CATCH list of legal lines that look similar.
@@ -24,6 +27,9 @@ TOOLKIT = REPO_ROOT / "plugins" / "git-toolkit"
 SAFETY_CONTRACT = TOOLKIT / "snippets" / "git-safety-contract.md"
 
 SHELL_LANGS = {"bash", "sh", "shell", "console", "zsh"}
+
+# The one bare push the prose shows: S2's BANNED example.
+BANNED_FORCE_PUSH = "git push --force"
 
 # The ONE editor override S12 allows, spelled exactly.
 EDITOR_EXCEPTION = "GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git -C <worktree> rebase <args>"
@@ -143,8 +149,77 @@ def _fenced_commands(path: Path) -> list[tuple[int, str]]:
     return commands
 
 
+_INLINE_SPAN_RE = re.compile(r"`([^`]+)`")
+_GLOBAL_PATH_RE = re.compile(r"^git((?:\s+-C\s+\S+)*)\s+")
+# `git branch` flags that do not create a branch.
+_BRANCH_NON_CREATING = {
+    "-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-l", "--list",
+    "--show-current", "-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose", "--contains",
+    "--no-contains", "--merged", "--no-merged", "--points-at", "--edit-description",
+    "-u", "--set-upstream-to", "--unset-upstream",
+}
+
+
+def _subcommand_tokens(command: str) -> list[str]:
+    """Tokens after `git` and any `-C <path>` globals; [] when the line is not a git call."""
+    cmd = " ".join(command.split())
+    match = _GLOBAL_PATH_RE.match(cmd)
+    if not match:
+        return []
+    return cmd[match.end():].split()
+
+
+def creates_branch_without_no_track(command: str) -> bool:
+    """True when one git call creates a NEW branch and does not say `--no-track` (S13)."""
+    tokens = _subcommand_tokens(command)
+    if not tokens:
+        return False
+    sub, args = tokens[0], tokens[1:]
+    if sub == "worktree":
+        creates = bool(args) and args[0] == "add" and any(a in ("-b", "-B") for a in args)
+    elif sub == "checkout":
+        creates = any(a in ("-b", "-B") for a in args)
+    elif sub == "switch":
+        creates = any(a in ("-c", "-C", "--create", "--force-create") for a in args)
+    elif sub == "branch":
+        creates = (
+            any(not a.startswith("-") for a in args)
+            and not any(a in _BRANCH_NON_CREATING for a in args)
+        )
+    else:
+        creates = False
+    return creates and "--no-track" not in args
+
+
+def push_without_remote_and_branch(command: str) -> bool:
+    """True when one `git push` call does not name both its remote and what it pushes (S13)."""
+    tokens = _subcommand_tokens(command)
+    if not tokens or tokens[0] != "push":
+        return False
+    if " ".join(command.split()) == BANNED_FORCE_PUSH:
+        return False  # the S2 example of what is banned, shown so it is never copied
+    return sum(1 for a in tokens[1:] if not a.startswith("-")) < 2
+
+
 def _toolkit_markdown() -> list[Path]:
     return sorted(TOOLKIT.rglob("*.md"))
+
+
+def _inline_git_spans(path: Path) -> list[str]:
+    """Every inline `git ...` code span of a file, whitespace normalized (spans may wrap lines)."""
+    prose: list[str] = []
+    in_fence = False
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if _FENCE_RE.match(raw):
+            in_fence = not in_fence
+        elif not in_fence:
+            prose.append(raw)
+    text = " ".join(" ".join(prose).split())
+    return [
+        span.strip()
+        for span in _INLINE_SPAN_RE.findall(text)
+        if span.strip().startswith("git ")
+    ]
 
 
 def _all_commands() -> list[tuple[Path, int, str]]:
@@ -260,6 +335,105 @@ def test_no_recipe_hard_codes_a_sign_off():
         if _COMMIT_SIGNOFF_RE.search(cmd)
     ]
     assert not offenders, "sign-off is added only when C4 requires it:\n" + "\n".join(offenders)
+
+
+# ---------------------------------------------------------------------------
+# S13: a new branch has no upstream until its first push
+# ---------------------------------------------------------------------------
+
+NEW_BRANCH_MUST_CATCH = [
+    "git worktree add -b feat/x ../wt origin/19.0",
+    "git worktree add ../wt -b feat/x origin/19.0",
+    "git -C <repo> worktree add -B feat/x <worktree> origin/19.0",
+    "git branch feat/x origin/19.0",
+    "git branch backup/x-20260101 abc123",
+    "git checkout -b feat/x origin/19.0",
+    "git -C <worktree> switch -c feat/x origin/19.0",
+]
+
+NEW_BRANCH_MUST_NOT_CATCH = [
+    "git worktree add --no-track -b feat/x <worktree> origin/19.0",
+    "git branch --no-track feat/x origin/19.0",
+    "git checkout --no-track -b feat/x origin/19.0",
+    "git switch --no-track -c feat/x origin/19.0",
+    "git worktree add <worktree> existing-branch",
+    "git worktree list",
+    "git worktree remove <worktree>",
+    "git branch -D feat/x",
+    "git branch --list",
+    "git branch --show-current",
+    "git switch --detach <sha>",
+    "git switch feat/x",
+    "git checkout feat/x",
+]
+
+PUSH_MUST_CATCH = [
+    "git push",
+    "git push --force-with-lease",
+    "git push --set-upstream origin",
+    "git -C <worktree> push",
+]
+
+PUSH_MUST_NOT_CATCH = [
+    "git push --set-upstream <remote> <branch>",
+    "git push --force-with-lease <remote> <branch>",
+    "git push origin v1.2.3",
+    "git push --force-with-lease origin <integration-branch>",
+    BANNED_FORCE_PUSH,
+    "git pull --rebase origin <branch>",
+]
+
+
+@pytest.mark.parametrize("command", NEW_BRANCH_MUST_CATCH)
+def test_a_branch_creation_without_no_track_is_caught(command):
+    assert creates_branch_without_no_track(command), f"detector missed: {command!r}"
+
+
+@pytest.mark.parametrize("command", NEW_BRANCH_MUST_NOT_CATCH)
+def test_a_tracking_free_or_non_creating_call_passes_the_branch_check(command):
+    assert not creates_branch_without_no_track(command), f"detector flagged: {command!r}"
+
+
+@pytest.mark.parametrize("command", PUSH_MUST_CATCH)
+def test_a_push_that_leans_on_the_upstream_is_caught(command):
+    assert push_without_remote_and_branch(command), f"detector missed: {command!r}"
+
+
+@pytest.mark.parametrize("command", PUSH_MUST_NOT_CATCH)
+def test_a_push_naming_remote_and_branch_passes(command):
+    assert not push_without_remote_and_branch(command), f"detector flagged: {command!r}"
+
+
+def test_every_recipe_that_creates_a_branch_says_no_track():
+    """A branch cut from origin/<series> must not silently track (and so push to) that series."""
+    offenders = []
+    for path, lineno, cmd in _all_commands():
+        if creates_branch_without_no_track(cmd):
+            offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {cmd}")
+    for path in _toolkit_markdown():
+        offenders.extend(
+            f"{path.relative_to(REPO_ROOT)}: inline `{span}`"
+            for span in _inline_git_spans(path)
+            if creates_branch_without_no_track(span)
+        )
+    assert not offenders, "S13: a new branch must be created with --no-track:\n" + "\n".join(offenders)
+
+
+def test_the_branch_creation_forms_are_shown_at_all():
+    """Guard against the scan going vacuous: the S9 addendum shows the four forms."""
+    spans = _inline_git_spans(SAFETY_CONTRACT)
+    created = [s for s in spans if _subcommand_tokens(s)[:1] and _subcommand_tokens(s)[0] in
+               ("worktree", "branch", "checkout", "switch") and "--no-track" in s]
+    assert len(created) >= 4
+
+
+def test_every_recipe_push_names_its_remote_and_branch():
+    offenders = [
+        f"{path.relative_to(REPO_ROOT)}:{lineno}: {cmd}"
+        for path, lineno, cmd in _all_commands()
+        if push_without_remote_and_branch(cmd)
+    ]
+    assert not offenders, "S13: a push never relies on an upstream:\n" + "\n".join(offenders)
 
 
 # ---------------------------------------------------------------------------

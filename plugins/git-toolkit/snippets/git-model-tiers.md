@@ -17,7 +17,7 @@ git-toolkit does NOT author application code, so the `fable` tier is not used he
 
 | Tier | When to use |
 |---|---|
-| `haiku` | Read, enumerate, or reason over a diff (name-only/numstat lists, file-to-module mapping, commit counts, assessing a scoped diff); GitHub API ops including issue triage; bounded CONFLICT-FREE integration (fetch, branch, tag, worktree, non-force push, a clean cherry-pick or merge). If a conflict surfaces mid-op, stop and re-dispatch at `sonnet`. |
+| `haiku` | Read, enumerate, or reason over a diff (file lists with line counts, file-to-module mapping, commit counts, assessing a scoped diff); GitHub API ops including issue triage; bounded CONFLICT-FREE integration (fetch, branch, tag, worktree, non-force push, a clean cherry-pick or merge). If a conflict surfaces mid-op, stop and re-dispatch at `sonnet`. |
 | `sonnet` | Destructive rewrite (interactive rebase, squash, split, amend, reset, filter-repo, force-with-lease push); conflict resolution; a PR review that judges correctness; the no-loss verify that gates an irreversible step. |
 | `opus` | ONLY the pipeline lead's strategy synthesis (P3) for a port across major versions, or after a sonnet lead returned BLOCKED at P3. |
 
