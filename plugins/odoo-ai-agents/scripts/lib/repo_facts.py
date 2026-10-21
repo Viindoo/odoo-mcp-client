@@ -5,13 +5,17 @@ READ-ONLY, no network, no hooks, no index lock (GIT_OPTIONAL_LOCKS=0). One call 
 agent prose used to read with inline git:
 
   repo_root            top of the working tree containing `path` (what `rev-parse --show-toplevel` says)
-  principal_root       the main checkout's root; differs from repo_root inside a linked worktree
+  principal_root       the main checkout's root (the first entry of `git worktree list`); differs from
+                       repo_root inside a linked worktree; "" when the repository is bare or its main
+                       checkout is not recorded anywhere git can read (a separate git dir)
   is_linked_worktree   repo_root is a linked worktree, not the main checkout
   branch / detached    the checked-out branch ("" when HEAD is detached)
-  ref                  the branch, else the short SHA when detached ("" in an unborn repo)
+  ref                  the branch, else the short SHA when detached (in an unborn repo, the branch
+                       the first commit will land on)
   head_sha / head_sha_full   short and full SHA of HEAD (empty before the first commit)
   origin_url / remotes remote URLs, credentials stripped
-  operation_in_progress   merge | rebase | cherry-pick | revert | bisect | none
+  operation_in_progress   merge | rebase | cherry-pick | revert | bisect | none (a paused multi-commit
+                       cherry-pick or revert is told from its sequencer todo list)
   dirty                uncommitted changes under `status_paths` (the whole tree when none are given)
 
 A path outside any repository is a normal result (is_repo false, every other field empty), not an
@@ -27,13 +31,15 @@ import os
 import re
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 TIMEOUT_S = 20
 MAX_DIRTY_ENTRIES = 50
 
 _GIT_PREFIX = ["git", "--literal-pathspecs", "-c", "core.fsmonitor=false"]
 _NOT_A_REPO = "not a git repository"
-_USERINFO = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*://)[^/@]+@")
+_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
+_HOST_PORT = re.compile(r"^(\[[^\]]*\]|[^:@\[\]]*)(:\d*)?$")
 
 # marker (relative to the worktree's own git dir) -> operation name; first match wins, so a rebase
 # that is also stopped on a cherry-pick reports the outer operation.
@@ -55,10 +61,32 @@ class RepoFactsError(Exception):
         self.diagnostics = diagnostics or {}
 
 
+_LOCAL_ENV = None
+
+
+def _local_env_vars():
+    """The variables git itself says are repository-local (`git rev-parse --local-env-vars`):
+    GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and the rest. Asked of git, never listed here, so a
+    git that grows one is covered. Read once; an answer git cannot give removes nothing."""
+    global _LOCAL_ENV
+    if _LOCAL_ENV is None:
+        try:
+            proc = subprocess.run(["git", "rev-parse", "--local-env-vars"], stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                  universal_newlines=True, timeout=TIMEOUT_S)
+            _LOCAL_ENV = proc.stdout.split() if proc.returncode == 0 else []
+        except (OSError, subprocess.SubprocessError):
+            _LOCAL_ENV = []
+    return _LOCAL_ENV
+
+
 def _git(args, cwd):
     """(rc, stdout, stderr) of `git <args>` run in cwd. Raises RepoFactsError on a missing git
-    binary or a timeout."""
+    binary or a timeout. The server's own repository-local git variables are dropped, so the
+    facts are those of `cwd` and never of whatever repository the server was started from."""
     env = dict(os.environ)
+    for name in _local_env_vars():
+        env.pop(name, None)
     env.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"})
     try:
         proc = subprocess.run(_GIT_PREFIX + list(args), cwd=cwd, env=env, stdin=subprocess.DEVNULL,
@@ -81,8 +109,27 @@ def _must(args, cwd):
 
 
 def strip_credentials(url):
-    """`https://user:token@host/x` -> `https://host/x`; scp-like and file URLs pass unchanged."""
-    return _USERINFO.sub(r"\1", url)
+    """`https://user:token@host/x` -> `https://host/x`. scp-like (`user@host:path`) and file
+    forms pass unchanged: their user part names an account, not a secret.
+
+    The userinfo ends at the LAST `@` of the authority (a password may hold a raw `@`). An
+    authority that is not a valid host[:port] means the userinfo itself held a `/` or `:`-shaped
+    text git would cut at: everything up to the last `@` before the query is then credentials."""
+    scheme = _SCHEME.match(url)
+    if not scheme:
+        return url
+    head, rest = scheme.group(0), url[scheme.end():]
+    try:
+        netloc = urlsplit(url).netloc
+    except ValueError:  # an unbalanced [ in the authority
+        netloc = re.split(r"[/?#]", rest, 1)[0]
+    if "@" in netloc:
+        return head + rest[len(netloc.rsplit("@", 1)[0]) + 1:]
+    if not _HOST_PORT.match(netloc):
+        before_query = re.split(r"[?#]", rest, 1)[0]
+        if "@" in before_query:
+            return head + rest[before_query.rindex("@") + 1:]
+    return url
 
 
 def _absolute(path, cwd):
@@ -112,7 +159,52 @@ def _operation(git_dir):
     for marker, name in _OPERATION_MARKERS:
         if os.path.exists(os.path.join(git_dir, marker)):
             return name
+    # A multi-commit cherry-pick or revert paused between commits (the conflict resolved and
+    # committed by hand) leaves only the sequencer's todo list; its first verb names the operation.
+    try:
+        with open(os.path.join(git_dir, "sequencer", "todo")) as fh:
+            for line in fh:
+                if line.strip() and not line.startswith("#"):
+                    return "revert" if line.split()[0] == "revert" else "cherry-pick"
+    except (OSError, UnicodeDecodeError):
+        pass
+    if os.path.isdir(os.path.join(git_dir, "sequencer")):
+        return "cherry-pick"
     return "none"
+
+
+def _first_worktree(path):
+    """The fields of the first `git worktree list --porcelain` entry (`worktree <path>`, then
+    `HEAD ...`, `branch ...` or `bare`). NUL-separated where git can (2.36+), else by line."""
+    rc, out, err = _git(["worktree", "list", "--porcelain", "-z"], path)
+    sep = "\0"
+    if rc != 0:
+        rc, out, err = _git(["worktree", "list", "--porcelain"], path)
+        sep = "\n"
+    if rc != 0:
+        raise RepoFactsError("GIT_FAILED", "git worktree failed (rc=%d): %s" % (rc, err.strip()),
+                             {"command": "worktree", "rc": rc, "stderr": err.strip()[-2000:]})
+    first = []
+    for field in out.split(sep):
+        if not field:
+            break
+        first.append(field)
+    return first
+
+
+def _principal_root(path, repo_root, common_dir, linked):
+    """The main checkout: the first entry of `git worktree list`. A bare repository has none (""),
+    and neither does a repository whose git dir is separate from its checkout: git then lists the
+    git dir itself, a place nobody can check anything out of."""
+    if not linked:
+        return repo_root
+    first = _first_worktree(path)
+    if not first or not first[0].startswith("worktree ") or "bare" in first[1:]:
+        return ""
+    root = os.path.normpath(first[0][len("worktree "):])
+    if os.path.realpath(root) == os.path.realpath(common_dir):
+        return ""
+    return root
 
 
 def _dirty(cwd, status_paths):
@@ -161,7 +253,7 @@ def facts(path, status_paths=None):
         "is_repo": True,
         "repo_root": repo_root,
         "is_linked_worktree": linked,
-        "principal_root": os.path.dirname(common_dir) if os.path.basename(common_dir) == ".git" else repo_root,
+        "principal_root": _principal_root(path, repo_root, common_dir, linked),
         "operation_in_progress": _operation(git_dir),
     })
 

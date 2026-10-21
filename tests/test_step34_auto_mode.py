@@ -259,12 +259,24 @@ def test_apply_is_idempotent_and_check_agrees(machine):
     assert machine["settings"].read_text() == first
 
 
-def test_entries_name_only_the_machine_owners_never_a_hardcoded_vendor(machine):
+def _named_owners(machine):
+    """Every organization glob (`<owner>/*`) and every fork owner the written entries name."""
     _run(machine, "apply")
     text = json.dumps(_data(machine))
-    assert "acme" in text and "alice" in text
-    for vendor in ("viindoo", "davidtranhp", "tvtmaaddons"):
-        assert vendor not in text.lower()
+    orgs = set(re.findall(r"([A-Za-z0-9_.-]+)/\*", text))
+    forks = set()
+    for listed in re.findall(r"Fork owner the agent pushes feature branches to: ([^.]+)\.", text):
+        forks.update(o.strip() for o in listed.split(","))
+    return orgs, forks
+
+
+def test_entries_name_only_the_machine_owners_never_a_hardcoded_org_or_handle(machine):
+    assert _named_owners(machine) == ({"acme"}, {"alice"})
+    # The same machine under other owners: the entries follow the machine, so no owner is wired in.
+    repo = machine["repo"]
+    _sh(repo, "git", "remote", "set-url", "origin", "git@example.org:orgone/addons-repo.git")
+    _sh(repo, "git", "remote", "set-url", "fork", "https://example.org/handleone/addons-repo.git")
+    assert _named_owners(machine) == ({"orgone"}, {"handleone"})
 
 
 def test_the_edit_allowance_covers_a_break_check_of_data_security_and_test_files(machine):

@@ -9,6 +9,7 @@ requirements on a subset of those, then asserts which interpreter the venv ended
 Run with: python3 -m pytest tests/test_docs_site_python.py -q
 """
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -107,7 +108,9 @@ def uv(tmp_path):
           venv)   # uv venv --clear --python V DIR
                   v="$4"; d="$5"; echo "venv $v" >> "$S/calls.log"
                   grep -qx "$v" "$S/no_interpreter" && { echo "no interpreter $v" >&2; exit 2; }
-                  mkdir -p "$d/bin"; echo "$v" > "$d/bin/python" ;;
+                  echo "$d" >> "$S/dirs.log"
+                  mkdir -p "$d/bin"; echo "$v" > "$d/bin/python"
+                  printf '#!%%s/bin/python\\n' "$d" > "$d/bin/tool" ;;
           pip)    # uv pip install --python PY -r REQ
                   v="$(cat "$4")"; echo "pip $v" >> "$S/calls.log"
                   grep -qx "$v" "$S/breaks" && { echo "libsass failed on $v" >&2; exit 1; }
@@ -134,6 +137,11 @@ def uv(tmp_path):
         @staticmethod
         def breaks_on(*versions):
             (state / "breaks").write_text("\n".join(versions) + "\n")
+
+        @staticmethod
+        def dirs():
+            f = state / "dirs.log"
+            return f.read_text().splitlines() if f.exists() else []
 
         @staticmethod
         def calls():
@@ -208,3 +216,74 @@ def test_the_cli_reports_the_python_and_exits_3_when_none_installs(repo, tmp_pat
     res = subprocess.run([sys.executable, str(SCRIPT), "venv", "--worktree", str(repo), "--venv",
                           str(tmp_path / "v"), "--json"], capture_output=True, text=True)
     assert res.returncode == 0 and json.loads(res.stdout)["version"] == "3.12"
+
+
+# ------------------------------------------------------------------ a rebuild never destroys the venv
+
+def _working_venv(tmp_path):
+    """A venv a user already has: pyvenv.cfg, an interpreter and a file of their own in it."""
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    (venv / "bin" / "python").write_text("working\n")
+    (venv / "site-note").write_text("kept\n")
+    return venv
+
+
+@pytest.mark.parametrize("fault", ["breaks_on", "cannot_create"])
+def test_a_rebuild_that_fails_on_every_interpreter_keeps_the_working_venv(repo, tmp_path, uv, fault):
+    venv = _working_venv(tmp_path)
+    uv.offer("3.13", "3.12")
+    getattr(uv, fault)("3.13", "3.12")
+    got = build(repo, tmp_path, uv)
+    assert got["ok"] is False and [t["version"] for t in got["tried"]] == ["3.13", "3.12"]
+    assert (venv / "bin" / "python").read_text() == "working\n"
+    assert (venv / "site-note").read_text() == "kept\n"
+    assert sorted(p.name for p in tmp_path.iterdir() if p.name.startswith("venv")) == ["venv"], (
+        "no staging directory may be left behind")
+
+
+def test_a_failed_first_attempt_does_not_cost_the_venv_when_a_later_one_installs(repo, tmp_path, uv):
+    venv = _working_venv(tmp_path)
+    uv.offer("3.13", "3.12")
+    uv.breaks_on("3.13")
+    got = build(repo, tmp_path, uv)
+    assert got["ok"] and got["version"] == "3.12"
+    assert (venv / "bin" / "python").read_text().strip() == "3.12", "the new venv replaced it"
+    assert not (venv / "site-note").exists()
+
+
+def test_every_attempt_is_built_beside_the_final_venv_and_repointed_when_swapped_in(repo, tmp_path, uv):
+    uv.offer("3.13", "3.12")
+    uv.breaks_on("3.13")
+    build(repo, tmp_path, uv)
+    final = tmp_path / "venv"
+    assert uv.dirs() == [str(final) + ".new"] * 2, "same parent, never a temp directory"
+    shebang = (final / "bin" / "tool").read_text().strip()
+    assert shebang == "#!%s/bin/python" % final, "a script must not point at the staging path"
+
+
+@pytest.mark.parametrize("make", [
+    lambda d: (d.mkdir(), (d / "notes.txt").write_text("precious\n")),
+    lambda d: d.write_text("a plain file\n"),
+])
+def test_a_venv_path_that_is_not_a_virtualenv_is_refused_and_left_alone(repo, tmp_path, uv, make):
+    target = tmp_path / "venv"
+    make(target)
+    uv.offer("3.12")
+    got = build(repo, tmp_path, uv)
+    assert got["ok"] is False and "not a virtualenv" in got["refused"]
+    assert uv.calls() == [], "nothing may be built over it"
+    assert target.is_file() or (target / "notes.txt").read_text() == "precious\n"
+
+
+def test_the_cli_exits_2_for_a_venv_path_that_is_not_a_virtualenv(repo, tmp_path, uv, monkeypatch):
+    target = tmp_path / "venv"
+    target.mkdir()
+    (target / "notes.txt").write_text("precious\n")
+    uv.offer("3.12")
+    monkeypatch.setenv("PATH", str(Path(uv.path).parent) + ":" + os.environ["PATH"])
+    res = subprocess.run([sys.executable, str(SCRIPT), "venv", "--worktree", str(repo), "--venv",
+                          str(target), "--json"], capture_output=True, text=True)
+    assert res.returncode == 2 and "not a virtualenv" in res.stderr
+    assert (target / "notes.txt").read_text() == "precious\n"

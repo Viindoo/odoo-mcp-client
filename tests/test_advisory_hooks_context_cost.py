@@ -345,11 +345,26 @@ GIT_COMMANDS = [
     "git log -3", "git diff --stat", "git rev-parse HEAD", "git --no-pager log", "git -c k=v show x",
     "cd d && git stash", "ls | xargs git add", "bash -c 'git reset --hard'", "x=$(git rev-parse HEAD)",
     "GIT_DIR=. git diff", "/usr/bin/git worktree list", "git\tpush origin x",
+    # the command word quoted, or the program built as an argv list / call inside an interpreter
+    '"git" status', "'git' log -3", "python3 -c \"import subprocess; subprocess.run(['git','status'])\"",
+    "python3 -c 'import subprocess; subprocess.check_output([\"git\", \"log\"])'",
+    "python3 -c 'import os; os.system(\"git status\")'", "node -e \"require('child_process').execSync('git log')\"",
+    # command positions inside a substitution, a subshell, a wrapper or a given command string
+    "echo \"$(git status)\"", "echo `git status`", "(cd d && git status)", "env FOO=1 git status",
+    "sudo git status", "timeout 5 git fetch", "time git log", "find . -exec git add {} \\;",
+    "xargs -I{} sh -c 'git add {}'", "eval \"git status\"", "if git diff --quiet; then echo ok; fi",
+    "git status # and a trailing comment", "echo hi\ngit status", "cd d &&\\\n  git status",
+    "bash <<'EOF'\ngit status\nEOF",
 ]
 # Commands that merely contain the letters.
 NOT_GIT_COMMANDS = [
     "ls /home/me/git/repo", "cd ~/git && ls", "cat digit.txt", "echo gitignore", "python3 -m pytest -q",
     "grep -rn legit src", "git-ops-helper --help", "ls .git/", "mkdir git",
+    # git named inside the quoted argument of another command, a comment or a path
+    'echo "now git commit it"', 'grep -rn "git status" docs/', "rg 'git log' .",
+    "make test # git hooks", "ls ~/git odoo_17.0", "man git", "which git", "command -v git",
+    "echo $(date) git status", "echo '$(git status)'", "printf 'git add .\\n' > hook.sh",
+    "cat <<'EOF' > notes.md\ngit status\nEOF", "ls | grep git", "cp x ~/git/y",
 ]
 
 

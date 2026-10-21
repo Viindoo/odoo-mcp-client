@@ -16,8 +16,7 @@ whole file (a human install document, an IDE snippet, the connect command, the c
 about hardcoded secrets) or a SHAPE inside one file (a regex over the text around the match: the
 Odoo test API `login=` argument, a customer usage metric). An entry never forgives a virtue such as
 "this file is about security"; a line in an allowlisted shape that is not in the shape fails. An
-entry nothing matches any more fails too, so the list cannot outlive the prose it excused, except
-the entries marked `lenient`, which belong to a parallel cleanup.
+entry nothing matches any more fails too, so the list cannot outlive the prose it excused.
 
 Run with: python3 -m pytest tests/test_no_credential_prose.py -q
 """
@@ -68,7 +67,6 @@ class Allow:
     path: str            # fnmatch pattern over the repo-relative path
     reason: str
     shape: str = ""      # regex over the text around a match; empty = the whole file is allowed
-    lenient: bool = False  # a parallel cleanup owns the file: not an error when nothing matches
 
     def covers(self, rel, context):
         if not fnmatch(rel, self.path):
@@ -117,10 +115,6 @@ ALLOWLIST = (
     Allow("plugins/git-toolkit/docs/*", "human architecture document"),
     # --- left as is by the owner --------------------------------------------------------------
     Allow("plugins/odoo-semantic-mcp/commands/connect.md", "the connect command registers the server URL and key"),
-    # --- W1 cleans: parallel workstream owns these files; unused entries are fine after the merge
-    Allow(A + "commands/odoo-setup.md", "W1 cleans", lenient=True),
-    Allow(A + "agents/odoo-instance-ops.md", "W1 cleans", lenient=True),
-    Allow(A + "docs/reference/INSTANCE-ALLOCATION-*.md", "W1 cleans", lenient=True),
 )
 
 
@@ -194,7 +188,7 @@ def test_agent_facing_prose_carries_no_credential_instruction():
 
 def test_every_allowlist_entry_still_excuses_something():
     _, used = scan()
-    stale = [a for i, a in enumerate(ALLOWLIST) if i not in used and not a.lenient]
+    stale = [a for i, a in enumerate(ALLOWLIST) if i not in used]
     assert not stale, "allowlist entries nothing matches any more (delete them):\n" + "\n".join(
         "%s  shape=%r  (%s)" % (a.path, a.shape, a.reason) for a in stale
     )

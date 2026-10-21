@@ -753,6 +753,13 @@ def test_the_tools_that_can_block_or_probe_run_on_the_long_lane():
     assert not long_tools & {"lease_list", "catalog_read", "server_info"}
 
 
+def test_repo_facts_makes_several_bounded_git_calls_so_it_runs_on_the_long_lane():
+    """One call runs 8+ git processes of up to 20s each; on the short pool it would queue behind,
+    and hold up, every quick call."""
+    registry = protocol.build_registry(protocol.ServerContext("t", cli.Anchor(1, None, None, "test"), PLUGIN))
+    assert registry.get("repo_facts").long_running
+
+
 # --------------------------------------------------------------------------- #
 # anchor through a wrapper
 # --------------------------------------------------------------------------- #
