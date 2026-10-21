@@ -1,69 +1,57 @@
-<!-- SSOT snippet. Single home for git delegation rules in odoo-ai-agents: hard rule,
-     bounded-read allowlist, git-ops invocation contract, what git-ops resolves to, nesting,
-     confirm pass-through, and conflict stateless-resume recipe. Referenced (not copy-pasted)
-     by every git-touching odoo-ai-agents skill/agent/command. Edit here only. -->
+<!-- SSOT snippet. Single home for git delegation rules in odoo-ai-agents: the no-git rule, the
+     repo_facts tool, how to word a request to git-ops, base-branch resolution, leaf-worker git, what
+     git-ops resolves to, nesting, confirm pass-through, and the conflict stateless-resume recipe.
+     Referenced (not copy-pasted) by every git-touching odoo-ai-agents skill/agent/command. Edit here only. -->
 
 # Git Delegation Contract
 
 ## Universal rule
 
-**Universal rule (EVERY actor - the main/orchestrating agent included, not only dispatched
-skills/agents/commands).** No actor may directly execute a git mutation (the verbs listed in § No
-LEAF-worker git, in any spelling), gh CLI calls, GitHub-MCP tools, or unbounded git reads. If you
-CREATE or EDIT any git-tracked file - even a one-line change, even repo self-maintenance - you MUST
-commit it by invoking the `git-toolkit:git-ops` skill; never hand-run stage / commit / push
-yourself. git-ops detects the repo's commit convention and applies the DCO sign-off where the repo
-requires it (convention + sign-off SSOT: `git-toolkit/snippets/commit-convention.md` C1-C4), so
-routing through git-ops satisfies a sign-off requirement. The main agent is bound by the equivalent
-statement in the repo `CLAUDE.md`; keep the two in lockstep. A call the permission classifier
-refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
+**No actor runs git** - the main/orchestrating agent, every dispatched skill, agent and command, and
+every leaf worker alike. Not a mutation, not a read, not a "harmless" status; not inside a wrapper
+(`bash -c`, `$(...)`, a heredoc) or a script you write. How to operate git - which commands, which
+flags - is the git agents' job and lives only in git-toolkit. A call the permission classifier
+refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`. Two doors only:
 
-To perform a git/GitHub operation, INVOKE the `git-toolkit:git-ops` skill via the Skill
-tool, describing the op (e.g. create a worktree, cherry-pick a range onto integration +
-squash, open/merge a PR, read a diff range) + the scope + the worktree path + the human
-confirmation when the op pushes to, deletes, or merges a PR into a protected branch (§ Human-confirm
-pass-through). git-ops classifies the op INTERNALLY by op-type
-(read-only cognition, local mutation, GitHub API, or large/complex at scale) and routes it
-to the specialist that owns that class, then runs it under the safety contract. Consumers
-never name or pick the specialist themselves.
+1. **A repo fact -> the odoo-local `repo_facts` tool.** The repository root and the main checkout
+   behind a linked worktree, the current branch or ref, the short HEAD SHA, the origin URL, whether
+   given paths are clean or dirty, and whether a merge / rebase / cherry-pick is in progress. One call
+   with the directory (and `status_paths` for the dirtiness question); an `is_repo=false` answer means
+   the directory is outside any repository.
+2. **Everything else -> a request to `git-toolkit:git-ops`.** History, diffs, file lists, ancestry,
+   branch lists, a worktree, every change to the repository, every GitHub operation (`gh` and the
+   GitHub MCP tools are git-ops's too).
 
-## Bounded-read allowlist (inline OK)
+If you CREATE or EDIT any git-tracked file - even a one-line change, even repo self-maintenance - you
+MUST commit it by invoking the `git-toolkit:git-ops` skill; never stage, commit or push yourself.
+git-ops detects the repo's commit convention and applies the DCO sign-off where the repo requires it
+(convention + sign-off SSOT: `git-toolkit/snippets/commit-convention.md` C1-C4).
 
-Canonical SSOT: `git-toolkit`'s `snippets/git-delegation-decision.md` (INLINE mode) defines the
-base bounded-read allowlist - `git status`, `git rev-parse`, `git log -n<N>`, `git show --stat`,
-branch/ref existence checks, `git diff --stat`/`--name-only`. git-toolkit is the LOWER layer (it
-never names or depends on odoo-ai-agents); this file cross-references that list rather than
-forking it, and adds only the Odoo-specific reads below.
+## Asking git-ops - the request and the result, never the command
 
-odoo-ai-agents-specific additions, also bounded-output and inline-OK: `git branch --show-current`
-(current-branch read), `git remote get-url` (remote URL read), `git merge-base` (common-ancestor
-read), `git worktree list` (listing only, not add/remove), `git diff --shortstat/--quiet/--check`
-(extra bounded diff flags beyond `--stat`/`--name-only`), `git log --oneline` (extra bounded log
-format).
+INVOKE the `git-toolkit:git-ops` skill via the Skill tool. A request states WHAT is wanted and WHAT it
+must hand back; git-ops classifies the op INTERNALLY (read-only cognition, local mutation, GitHub API,
+or large/complex at scale), routes it to the specialist that owns that class and runs it under the
+safety contract. Consumers never name or pick the specialist, and never write a command, a flag or a
+verb list.
 
-The full inline-OK set for odoo-ai-agents is the UNION of both lists above:
-`git status`, `git rev-parse`, `git branch --show-current`, `git remote get-url`,
-`git merge-base`, `git worktree list`,
-`git diff --stat/--name-only/--shortstat/--quiet/--check`,
-`git log -n<N>/--oneline`, `git show --stat`
-
-Anything beyond this union (full diff content, unbounded log range, blame, large range) -> route through git-ops.
-
-**A phase-specific NARROWER instruction beats this general permission.** This union grants
-permission to run a bounded read inline; it never overrides a skill or phase that assigns that same
-read to a delegate. Where a phase says the read is dispatched, dispatch it even though the command
-is on the union - e.g. forward-port P6 routes the conflict-marker scan AND the
-`<merge-base>..<src-SHA>` file list through git-ops in ONE dispatch, so `git diff --check` is NOT
-inline-OK there. Read a bare allowlist hit as "no dispatch required by default", never as "no
-dispatch may be required of me". Separately, a tree-recursive conflict-marker grep
-(`grep -rn '^<<<<<<<' .`) is on NO allowlist, in any phase.
+- **Say the outcome.** "The merge base of the feature branch and the new base, and the non-merge
+  commits after it" - not how to compute them. "Absorb the source range into the integration
+  worktree and stop before the commit" - not the merge flags.
+- **Say the shape of the result.** A single value comes back in the reply. A list, diff, log or
+  per-file listing is written by git-ops to a path you name (under the run's `ISOLATE_DIR`) and you
+  Read it; never ask for unbounded output inline.
+- **Data a later step needs is a result like any other.** A merge base, a commit list, a file list
+  the next phase reads: ask for it, with the path it is written to, and read that file later.
+- **A finished request says how to tell it worked.** "Return the new tip SHA and whether the tree
+  is identical to the one before" beats "run the checks".
 
 ## Base-branch resolution (the version-named main branch)
 
 Per `git-toolkit`'s explicit-start-point rule (`git-safety-contract.md` S9 addendum), every
 worktree/branch created to receive new coding-node, upgrade, or self-provisioned work resolves its
 start point by RESOLVING the branch below - never by inheriting whatever the invoking checkout's
-HEAD/current branch happens to be. `git branch --show-current` (allowlisted above) stays legitimate
+HEAD/current branch happens to be. The `branch` / `ref` that `repo_facts` returns stays legitimate
 for diagnostic reads and source-series INFERENCE (e.g. cross-checking what a human is currently on
 against a manifest-derived series) - it MUST NEVER be the value assigned to a `base` / `work-base` /
 Repo Capability Card `base` field. A `base` resolved from the invoking checkout's ambient branch
@@ -75,15 +63,14 @@ commit, named explicitly - docs describe the code the user pointed at.
 `writes-files` plan - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - resolved
 BEFORE this algorithm runs; never re-derived from a branch name here).
 
-**Candidate enumeration.** Listing branches by name pattern is NOT on the bounded-read allowlist
-above (only `branch --show-current` is), so ask `git-toolkit:git-ops` to report the local and
-remote-tracking branches matching the candidates below, in the SAME request that also compares
-tips and fetches if needed (enumerate + compare + fetch-if-needed is one op request, detailed in
-the table below). A candidate branch name must EXACTLY equal `<odoo_version>` (e.g. `17.0`),
+**Candidate enumeration.** Ask `git-toolkit:git-ops` to report the local and remote-tracking
+branches matching the candidates below, in the SAME request that also compares their tips and
+fetches if needed (enumerate + compare + fetch-if-needed is one request, detailed in the table
+below). A candidate branch name must EXACTLY equal `<odoo_version>`,
 `saas-<odoo_version>` (when `odoo_version` is itself a SaaS series), or a vendor-prefixed form ONLY
 IF the brief or the repo's branch history carries it (never invented at resolution time).
 **EXACT branch-name match only - never a substring/contains match.** A substring match
-(e.g. matching `17.0-feat-x` because it contains `17.0`) reintroduces the exact confusion this
+(e.g. matching `<odoo_version>-feat-x` because it contains `<odoo_version>`) reintroduces the exact confusion this
 rule exists to prevent: a human's feature branch would qualify as a "candidate" purely for
 containing the series number.
 
@@ -93,27 +80,23 @@ containing the series number.
 |---|---|---|
 | Zero candidate names | Never invent one, never fall back to HEAD | `NEEDS_CONTEXT(base_branch)` - ask which branch is this series' main branch |
 | Exactly one candidate name, no remote-tracking ref for it | Use the local branch's tip; STATE the assumption ("no remote-tracking ref found; using local `<name>` as-is") in the plan/report | none - proceeds with a stated assumption |
-| Exactly one candidate name, remote-tracking ref exists, tips equal (`git rev-parse <name>` == `git rev-parse origin/<name>`, both bounded reads on the allowlist above once the name is known) | Use `origin/<name>` (prefer the remote-tracking ref on principle even when already in sync) | none - proceeds |
-| Exactly one candidate name, remote-tracking ref exists, tips diverge (local behind OR ahead) | Ask `git-toolkit:git-ops` to `fetch` and re-compare (fetch is not a bounded read - see the Universal rule above); still diverged after fetch | `open_question` - a human decides whether to build on `origin/<name>` or the local tip; never silently pick either side |
+| Exactly one candidate name, remote-tracking ref exists, tips equal (git-ops reports the local and the remote-tracking tip of `<name>` as the same commit) | Use `origin/<name>` (prefer the remote-tracking ref on principle even when already in sync) | none - proceeds |
+| Exactly one candidate name, remote-tracking ref exists, tips diverge (local behind OR ahead) | Ask `git-toolkit:git-ops` to fetch the remote and compare the two tips again; still diverged after the fetch | `open_question` - a human decides whether to build on `origin/<name>` or the local tip; never silently pick either side |
 | More than one distinct candidate name (e.g. both `17.0` and `viindoo-17.0` exist) | Never silently prefer one | `open_question` listing every candidate |
 | Detached HEAD on the invoking checkout | No effect - this algorithm never reads the invoking checkout's HEAD/branch as an input, only `odoo_version` and the repo's branch list | none - irrelevant by construction |
 | Dirty tree on the invoking checkout | No effect on base resolution - dirty-tree preconditions for the MUTATION itself are S4's job (`git-safety-contract.md`), not this rule's | none - irrelevant by construction |
 
-Enumerating candidates and fetching are both routed through `git-toolkit:git-ops` - neither is on
-the bounded-read allowlist above; only the tip comparison (`git rev-parse`) is a bounded inline
-read once the candidate name is known. No actor resolves a stale `base` by fetching inline.
+Enumerating candidates, comparing tips and fetching are all one request to `git-toolkit:git-ops`.
+No actor resolves a stale `base` by fetching inline.
 
 ## No LEAF-worker git - the orchestrator (or the node owner) commits via git-ops
 
 A dispatched HARD-LEAF worker (`odoo-frontend-coder`, `odoo-test-writer`, `odoo-impact-recon`, or
-ANY leaf domain subagent) runs NO git mutation, not even in its own worktree. The mutation verbs are
-`add rm mv restore commit stash branch checkout switch cherry-pick rebase merge reset revert tag
-push pull fetch am apply worktree clean` - spelled `git <verb>` or `git -C <dir> <verb>`, run
-through a wrapper (`bash -c`, `$(...)`, a heredoc) or from inside a script alike. The read-only
-`status diff log show rev-parse blame ls-files worktree list` are not mutations; how much of their
-output may be read inline is the bounded-read allowlist above. Leaf workers do not own the
-project's git/commit conventions, so git is never their job. A leaf finishing work in a
-`WORKTREE_PATH` WRITES its files there and RETURNS the list of files it touched.
+ANY leaf domain subagent) runs no git at all, not even in its own worktree and not even to read:
+the Universal rule binds it first. Leaf workers do not own the project's git/commit conventions, so
+git is never their job. A leaf takes a repo fact from `repo_facts`; for anything else, it WRITES its
+files in its `WORKTREE_PATH` and RETURNS the list of files it touched. A leaf never invokes git-ops
+either (see Nesting).
 
 The actor that COMMITS is the orchestrator OR the node owner that owns the worktree, by
 INVOKING `git-toolkit:git-ops`. In particular `odoo-coder` (`role: node-owner` - it writes the
@@ -121,8 +104,8 @@ node and may launch a leaf, so it is NOT a leaf) COMMITS its node by invoking
 `git-toolkit:git-ops` via the Skill tool once its whole-node test is green, and returns the
 range to `odoo-coding` (which collects it, never re-committing). The coder only REQUESTS the
 commit (files + business outcome); it never runs raw git and never dispatches a git leaf agent
-itself. A node owner or spawner asks `Skill(git-toolkit:git-ops)` for every mutation verb above
-and every GitHub-API op. The ONLY git a worker may run inline is the bounded-read allowlist above.
+itself. A node owner or spawner asks `Skill(git-toolkit:git-ops)` for every change to the
+repository and every GitHub-API op, and reads every repo fact from `repo_facts`.
 
 ## How git-ops resolves a request (informational)
 
@@ -133,8 +116,8 @@ thousand-file port).
 
 ## Worktree isolation - mandatory for every mutation
 
-When requesting ANY mutation (rebase, cherry-pick, commit, merge, reset, push, etc.) from
-git-ops, you MUST require worktree isolation: supply the `worktree` path in the request. For a
+When requesting ANY change to the repository (rebase, cherry-pick, commit, merge, reset, push,
+etc.) from git-ops, you MUST require worktree isolation: supply the `worktree` path in the request. For a
 NEW worktree that path comes from `project_dir` (axis `worktree`, `name` = the branch slug; SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), never from git-ops's own choice.
 NEVER request a mutation against the main/shared checkout. The primary/shared checkout must stay
@@ -152,9 +135,9 @@ is provisioned by the plan runner, forked from that repo's `run-integration` bra
 dispatched specialist - see `plan-mode-schema.md` § Running the plan, step 2.)
 
 `odoo-doc-illustration` self-provisions only when its target is a principal checkout: it moves the
-run into a new docs worktree and branch at that checkout's HEAD commit, after a bounded
-`git status --porcelain -- <module paths>` read whose uncommitted changes it puts to the user once
-(commit them first, or document HEAD without them). So a dispatcher outside a run (`odoo-intake`
+run into a new docs worktree and branch at that checkout's HEAD commit, after a `repo_facts` call
+(`status_paths` = the module paths) whose uncommitted changes it puts to the user once (commit them
+first, or document HEAD without them). So a dispatcher outside a run (`odoo-intake`
 without Phase P, a direct invocation) provisions nothing for it. On a run, the runner hands it
 the run's worktree like any source-writing node; a linked worktree it receives is used as is.
 
@@ -229,7 +212,7 @@ to the next Odoo-semantic conflict. When it stops on an unresolved semantic conf
 2. Dispatch a semantic resolver (e.g. odoo-coder) into the worktree to edit the conflicted
    files - a file edit, NOT a git op; the resolver does NOT run cherry-pick or merge itself.
 3. Invoke git-ops again: ask it to stage the resolved files and continue the in-progress
-   operation (the `--continue` flag of the original op type).
+   operation of the original type.
 4. Repeat until git-ops returns `DONE` or a non-conflict `BLOCKED`.
 
 (Ref: git-toolkit `git-safety-contract`.)

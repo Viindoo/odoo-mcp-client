@@ -45,14 +45,14 @@ unrecoverable failure unwinds to a known-clean point:
    The most recent entry is the resume anchor.
 3. **On an unrecoverable failure** - a cherry-pick that cannot be resolved to intent, or a
    post-pick verify that cannot be made to pass within the loop's bound - do EXACTLY ONE of:
-   - **Clean abort:** abandon the run-integration WORKTREE (git-ops `worktree remove`) and
+   - **Clean abort:** abandon the run-integration WORKTREE (ask git-ops to remove it) and
      re-provision a fresh one, re-forking at the pre-node SHA (step 1). The node made no net
      change; report the failing WI and why.
    - **Resume from checkpoint:** abandon and re-provision, re-forking at the last PASSING
      checkpoint SHA (step 2), keeping work that already integrated cleanly; report the failing WI
      and stop before it.
 
-   This is a worktree ABANDON + RE-FORK, never a git reset --hard against a live worktree (§
+   This is a worktree ABANDON + RE-FORK, never a hard reset of a live worktree (§
    Git-mutation safety below - this distinction keeps the per-node advance genuinely autonomous).
    Never leave a half-built integration branch (a cherry-pick applied but unverified, or conflict
    markers in the tree). Always report which WI failed and which outcome (abort | resume) was
@@ -87,10 +87,10 @@ here. The executor (or the git-toolkit operator it delegates to) MUST honor
 
 **Saga rollback fires no destructive-confirm gate.** The saga unwind (clean-abort |
 resume-from-checkpoint) is a `worktree remove` + a fresh `worktree add` re-forking run-integration
-at the anchor SHA (the pre-node SHA, or the last passing checkpoint SHA) - never a `git reset
---hard` against a live worktree, and nothing unique is discarded: run-integration is disposable
+at the anchor SHA (the pre-node SHA, or the last passing checkpoint SHA) - never a hard reset of a live
+worktree, and nothing unique is discarded: run-integration is disposable
 and never-pushed, and every commit up to the anchor stays reachable on its own source branch.
-`worktree add`/`worktree remove` is an ordinary, ungated mutation verb
+Creating and removing a worktree is an ordinary, ungated mutation
 (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § No LEAF-worker git), distinct from the
 8-item destructive gate list. So a mid-node failure does NOT stop for human confirmation -
 the run continues autonomously (the human gates are the closed list of `plan-mode-schema.md`

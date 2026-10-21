@@ -42,13 +42,11 @@ documents the module again from scratch; absent, a module that already ships doc
 ## Steps
 
 1. **The tree** (read-only until the plan of step 3 is decided). `doc_root` = the worktree the caller names
-   (`WORKTREE_PATH`, `worktree:`), else the top level of the repo holding the module. One bounded
-   read tells the kinds apart (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read
-   allowlist): `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`. Two
-   paths: a linked worktree, used as is. The same path twice: a principal checkout, which never
-   takes a write - run `git -C <doc_root> status --porcelain -- <each module path and its in-repo
-   dependencies>`; when it lists anything, ask once as a text question (commit first, or document
-   HEAD without it) before the plan is presented. Not under git: use it as is, nothing to commit.
+   (`WORKTREE_PATH`, `worktree:`), else the `repo_root` of a `repo_facts` call on the module path. One
+   `repo_facts` call on `doc_root` tells the kinds apart, with `status_paths` = each module path and
+   its in-repo dependencies: `is_linked_worktree` true is a linked worktree, used as is; false is a
+   principal checkout, which never takes a write - when `dirty` lists anything, ask once as a text question (commit first, or document
+   HEAD without it) before the plan is presented. `is_repo` false: use it as is, nothing to commit.
    Capture `SHARE_DIR` once with `project_dir` (`cwd` = `doc_root`, axis `share`).
 2. **Scope and plan (inline, no launch).** Per module: `abs_path`, `version`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), `languages` (§ Language

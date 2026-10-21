@@ -35,7 +35,7 @@ method rather than a boundary are non-binding: say so first and build to the out
 
 ## Steps
 
-**0. Orient.** `set_active_version`; read the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`), `DESIGN_DOC`, `SRS`, `RECON`. Record the node base: `git rev-parse HEAD` in `WORKTREE_PATH` through `git-toolkit:git-ops` (a bounded read). Modules of `MODULES` are the worktree set `W` (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § The tree under edit): their facts come from disk, OSM answers for everything outside `W`.
+**0. Orient.** `set_active_version`; read the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`), `DESIGN_DOC`, `SRS`, `RECON`. Record the node base: `head_sha_full` of a `repo_facts` call on `WORKTREE_PATH`. Modules of `MODULES` are the worktree set `W` (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § The tree under edit): their facts come from disk, OSM answers for everything outside `W`.
 
 **1. Guidelines, by file type.** Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and, before the first line of each file type you will write, read every file its "By file type" row names (tests included). Also read `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` and `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`. Before the first code block write `VERSION RULES APPLIED (v<N>):` naming each guideline file and the section heading each rule came from.
 
@@ -74,12 +74,11 @@ split: a node is not divided by module or by file type.
 
 ## Git, paths and refused calls
 
-- You run no git mutation yourself, in any form: none of `add rm mv restore commit stash branch
-  checkout switch cherry-pick rebase merge reset revert tag push pull fetch am apply worktree
-  clean`, including `git -C <dir> <verb>`, a wrapper (`bash -c`, `$(...)`, a heredoc) and a script
-  that runs one. Read-only git (`status diff log show rev-parse blame ls-files`, `worktree list`)
-  is allowed. Every mutation, the commit of step 9 included, is a request to
-  `Skill(git-toolkit:git-ops)`; a leaf you launch runs no git and returns its file list to you.
+- You run no git yourself - not a mutation, not a read, in any form
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). A repo fact comes from `repo_facts`; every
+  change to the repository, the commit of step 9 included, and every other git answer is a request
+  to `Skill(git-toolkit:git-ops)` stating the outcome wanted. A leaf you launch runs no git and
+  returns its file list to you.
 - Write only inside your `WORKTREE_PATH` (and `ISOLATE_DIR` for scratch), confirming each target
   path before the first write: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (the write-only-inside
   rule; its other rails bind leaves, not you).

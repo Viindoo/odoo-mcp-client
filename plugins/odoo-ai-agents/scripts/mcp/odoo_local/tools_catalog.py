@@ -5,6 +5,7 @@ Each tool calls the scripts/lib function that already owns the rule, in-process:
   catalog_read / catalog_locate -> instances_io.load_instances / find_covering_instance
   series_detect                 -> odoo_series.detect
   project_dir                   -> paths.share_dir / paths.isolate_dir
+  repo_facts                    -> repo_facts.facts (the one place a script reads git for an agent)
 The one exception is WHICH catalog file to read: that ladder is owned by
 scripts/lib/resolve_instances.sh (`--path`), so it is asked, never re-implemented here.
 """
@@ -184,6 +185,16 @@ def project_dir(args, ctx):
     return out
 
 
+def repo_facts(args, ctx):
+    lib = cli.load_lib("repo_facts")
+    path = _abs_path_arg(args, "path")
+    status_paths = args.get("status_paths")
+    try:
+        return lib.facts(path, status_paths)
+    except lib.RepoFactsError as exc:
+        raise ToolError(exc.code, exc.message, exc.diagnostics or {"path": path})
+
+
 # --------------------------------------------------------------------------- #
 # schemas + registration
 # --------------------------------------------------------------------------- #
@@ -278,6 +289,53 @@ PROJECT_DIR_OUTPUT = {
     },
 }
 
+REPO_FACTS_INPUT = {
+    "type": "object",
+    "required": ["path"],
+    "properties": {
+        "path": {"type": "string", "minLength": 1,
+                 "description": "Absolute directory inside the repository or worktree to read the facts of."},
+        "status_paths": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 200,
+                         "description": "Paths (absolute, or relative to `path`) whose uncommitted changes to report in "
+                                        "`dirty`; omit to check the whole working tree. Matched literally, never as globs."},
+    },
+    "additionalProperties": False,
+}
+REPO_FACTS_OUTPUT = {
+    "type": "object",
+    "required": ["path", "is_repo", "repo_root", "principal_root", "is_linked_worktree", "branch", "detached",
+                 "ref", "head_sha", "head_sha_full", "origin_url", "remotes", "operation_in_progress", "dirty"],
+    "properties": {
+        "path": {"type": "string"},
+        "is_repo": {"type": "boolean", "description": "false = path is outside any repository; every other field is empty."},
+        "repo_root": {"type": "string", "description": "Top of the working tree containing path."},
+        "principal_root": {"type": "string", "description": "Root of the main checkout; equals repo_root unless "
+                                                           "is_linked_worktree."},
+        "is_linked_worktree": {"type": "boolean"},
+        "branch": {"type": "string", "description": "Checked-out branch; empty when HEAD is detached."},
+        "detached": {"type": "boolean"},
+        "ref": {"type": "string", "description": "branch, else the short SHA when detached; empty in an unborn repository."},
+        "head_sha": {"type": "string", "description": "Short SHA of HEAD; empty before the first commit."},
+        "head_sha_full": {"type": "string"},
+        "origin_url": {"type": "string", "description": "URL of remote origin with any embedded credentials removed; empty = none."},
+        "remotes": {"type": "object", "additionalProperties": {"type": "string"},
+                    "description": "Remote name -> URL (credentials removed)."},
+        "operation_in_progress": {"type": "string",
+                                  "enum": ["none", "merge", "rebase", "cherry-pick", "revert", "bisect"]},
+        "dirty": {
+            "type": "object",
+            "required": ["checked_paths", "is_dirty", "entries", "truncated"],
+            "properties": {
+                "checked_paths": {"type": "array", "items": {"type": "string"}},
+                "is_dirty": {"type": "boolean", "description": "Any uncommitted change, untracked files included."},
+                "entries": {"type": "array", "items": {"type": "string"},
+                            "description": "Up to 50 two-letter status + path lines."},
+                "truncated": {"type": "boolean"},
+            },
+        },
+    },
+}
+
 
 def register(registry, ctx):
     registry.add(
@@ -325,4 +383,16 @@ def register(registry, ctx):
         "PROJECT_DIR_UNRESOLVED outside git when no project marker exists above cwd.",
         PROJECT_DIR_INPUT, PROJECT_DIR_OUTPUT, project_dir,
         title="Resolve project state dir", read_only=False, destructive=False, idempotent=True,
+    )
+    registry.add(
+        "repo_facts",
+        "Read the cheap facts of a git repository or worktree so you never run git for them: "
+        "repo_root, principal_root (the main checkout; differs inside a linked worktree), branch / "
+        "detached / ref (branch, else short SHA), head_sha, origin_url and every remote (credentials "
+        "removed), operation_in_progress (merge, rebase, cherry-pick, revert, bisect or none) and "
+        "dirty (uncommitted changes under status_paths, or the whole tree). Read-only, no network. A "
+        "path outside any repository is a normal result (is_repo=false), not an error. Anything "
+        "beyond these facts (history, diffs, branches, any change) is a request to git-toolkit:git-ops.",
+        REPO_FACTS_INPUT, REPO_FACTS_OUTPUT, repo_facts,
+        title="Read repository facts", read_only=True,
     )

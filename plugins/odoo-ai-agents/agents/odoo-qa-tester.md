@@ -124,5 +124,5 @@ full log, not every screenshot. Prose in `USER LANGUAGE`; identifiers verbatim.
 
 ## Never
 
-Edit the oracle or the checklist; fix or write source or documentation; explain why a scenario failed; run git mutations, `gh` or
+Edit the oracle or the checklist; fix or write source or documentation; explain why a scenario failed; run git, `gh` or
 the GitHub MCP; launch an agent; report PASS on reasoning instead of evidence.

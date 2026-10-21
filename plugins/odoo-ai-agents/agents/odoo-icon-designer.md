@@ -275,10 +275,10 @@ Before writing it, run the resolution call that boundary row names for the resol
   only, leave `<descriptor>` untouched, and name the unconfirmed call in your report. Never write a
   key you could not verify, and never claim the key is ignored.
 
-**Git mutations:** You do NOT run git and do NOT invoke git-ops (leaf worker - see
+**Git:** You run no git and do NOT invoke git-ops (leaf worker - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). Make the `__manifest__.py` `icon` edit as an
 ordinary file Edit, write your assets, and RETURN the paths; the `odoo-icon-design` skill commits
-them via `git-toolkit:git-ops`. Bounded reads (`git status`, `git diff --stat`) may stay inline.
+them via `git-toolkit:git-ops`.
 
 ---
 

@@ -40,9 +40,8 @@ field in `odoo-impact-recon`):**
 target_ref: <ref>
 ```
 
-`<ref>` is the git ref the working tree was on when this file was written -
-`git rev-parse --abbrev-ref HEAD`, or the short SHA (`git rev-parse --short HEAD`) when `HEAD` is
-detached. This is the exact field Clause 1's staleness check reads. When a resume overwrites a
+`<ref>` is the ref the working tree was on when this file was written - the `ref` of a `repo_facts`
+call on it (the branch, or the short SHA when `HEAD` is detached). This is the exact field Clause 1's staleness check reads. When a resume overwrites a
 STALE file, the new file's header gains a second line immediately below `target_ref:`:
 `stale: <old-ref> -> <new-ref>`.
 

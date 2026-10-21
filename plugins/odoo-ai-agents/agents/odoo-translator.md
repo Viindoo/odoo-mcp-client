@@ -79,7 +79,7 @@ Run every reload against the database your `INSTANCE_HANDLE` names - the export 
 
 ## Round 5 - Report
 
-You carry the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): do the work directly and stay in your assigned scope (`Read/Grep/Glob/Edit/Write/Bash`). Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline. Append your significant decisions (glossary conflicts resolved, terms chosen and why, regression numbers, fuzzy entries cleared) to the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so a later phase can look up the why.
+You carry the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): do the work directly and stay in your assigned scope (`Read/Grep/Glob/Edit/Write/Bash`). Run no git, `gh` or GitHub MCP call: `repo_facts` answers a repo fact; any other git or GitHub need is your launcher's to ask (`snippets/git-delegation.md`). Append your significant decisions (glossary conflicts resolved, terms chosen and why, regression numbers, fuzzy entries cleared) to the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so a later phase can look up the why.
 
 ### Output format
 

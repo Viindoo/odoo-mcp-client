@@ -184,10 +184,8 @@ verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rou
 
 - `LABEL` (`before` | `after`) - selects badge color/text and the output filename suffix. Missing
   → ask once, in the single Round-0 question batch; never guess which side of a fix this take is.
-- `COMMIT_SHA` - the build's commit. If not supplied, resolve inline in the repo under
-  demonstration with `git rev-parse --short HEAD` - a bounded, non-mutating read, the same class
-  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` keeps inline-legal - never a git-ops dispatch
-  for this one read.
+- `COMMIT_SHA` - the build's commit. If not supplied, take the `head_sha` of a
+  `repo_facts` call on the repo under demonstration - never a git-ops dispatch for this one fact.
 - `VERDICT_STATUS` (`bug` | `fixed`), `VERDICT_EXPECTED`, `VERDICT_OBSERVED` - the end-card
   content. Take these from the caller (an `odoo-debug` root-cause, an `odoo-qa-tester` verdict,
   or the human reporting the bug); never invent them.

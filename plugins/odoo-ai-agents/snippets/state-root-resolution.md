@@ -16,17 +16,17 @@ All persistent agent state lives under one machine-global root, `$ODOO_AI_HOME` 
 | **Tier-1 - flat** | `$ODOO_AI_HOME/` | machine-global; every project on this host shares it | none needed - use `$ODOO_AI_HOME` directly |
 | **Tier-2 - SHARE** | `$ODOO_AI_HOME/projects/<repo-key>/` | one repo; every linked worktree SEES the same dir | `project_dir` axis `share` |
 | **Tier-2 - ISOLATE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<wt-key>/` | one worktree; concurrent worktrees do NOT see each other's copy | `project_dir` axis `isolate` |
-| **Tier-2 - WORKTREE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<name>/src` | where an agent-created git worktree is checked out; its ISOLATE dir is the parent of `src` | `project_dir` axis `worktree` + `name` |
+| **Tier-2 - WORKTREE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<name>/src` | where an agent-created worktree is checked out; its ISOLATE dir is the parent of `src` | `project_dir` axis `worktree` + `name` |
 
 Keys (computed by the resolver - never hand-derived):
 
 ```
-repo-key = sha256(realpath(git rev-parse --git-common-dir))[:12]   # same for every linked worktree
-wt-key   = sha256(realpath(git rev-parse --show-toplevel))[:12]    # distinct per worktree
+repo-key = sha256(realpath(<the repo's shared common git dir>))[:12]   # same for every linked worktree
+wt-key   = sha256(realpath(<the worktree's top directory>))[:12]       # distinct per worktree
          = <name>  when the toplevel is <SHARE>/worktrees/<name>/src (an agent-created worktree)
 ```
 
-**Every git worktree an agent creates lives at the WORKTREE path.** Resolve it with `project_dir`
+**Every worktree an agent creates lives at the WORKTREE path.** Resolve it with `project_dir`
 (axis `worktree`, `name` = the branch slug, `[A-Za-z0-9][A-Za-z0-9._-]{0,79}`) and pass the
 returned path as the `worktree` of the `git-toolkit:git-ops` request. Never a sibling of the
 repo, never a temp dir, never a path the git worker picks.

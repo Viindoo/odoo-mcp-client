@@ -322,6 +322,82 @@ def test_the_leaf_reminder_is_said_once_per_subagent_context(tmp_path):
     assert again == "", f"the leaf reminder was repeated in the same context: {again!r}"
 
 
+def _git_nudge(tmp_path: Path, agent_type: str, tool: str, tool_input: dict, **extra) -> str:
+    """The advisory text a subagent gets for one tool call ("" = silent). Checks the contract the
+    hook keeps whatever it says: advisory only, no decision field at all."""
+    env = _env(tmp_path)
+    own = _write(tmp_path / "agent.jsonl", [_user("brief")])
+    payload = {"hook_event_name": "PreToolUse", "tool_name": tool, "cwd": str(ROOT),
+               "transcript_path": str(_write(tmp_path / "session.jsonl", [])),
+               "agent_id": "a1", "agent_type": agent_type, "agent_transcript_path": str(own),
+               "tool_input": tool_input, **extra}
+    out, _ = _run(DELEGATE_HOOK, payload, env)
+    if out is not None:
+        assert "permissionDecision" not in out["hookSpecificOutput"], out
+        assert "decision" not in out, out
+    return _ctx(out)
+
+
+# A command that runs git however it is spelled: a mutation or a read, with or without `-C <dir>`,
+# inside a pipeline, `bash -c` or a substitution, behind an env prefix or an absolute path.
+GIT_COMMANDS = [
+    "git commit -am x", "git rm old.py", "git -C d add -A", "git -C d status", "git status --short",
+    "git log -3", "git diff --stat", "git rev-parse HEAD", "git --no-pager log", "git -c k=v show x",
+    "cd d && git stash", "ls | xargs git add", "bash -c 'git reset --hard'", "x=$(git rev-parse HEAD)",
+    "GIT_DIR=. git diff", "/usr/bin/git worktree list", "git\tpush origin x",
+]
+# Commands that merely contain the letters.
+NOT_GIT_COMMANDS = [
+    "ls /home/me/git/repo", "cd ~/git && ls", "cat digit.txt", "echo gitignore", "python3 -m pytest -q",
+    "grep -rn legit src", "git-ops-helper --help", "ls .git/", "mkdir git",
+]
+
+
+@pytest.mark.parametrize("agent", ["odoo-frontend-coder", "odoo-coder"], ids=["leaf", "node-owner"])
+@pytest.mark.parametrize("command", GIT_COMMANDS)
+def test_a_leaf_or_node_owner_running_any_git_is_reminded(tmp_path, agent, command):
+    """Plugin prose forbids every git command (a mutation and a read alike), so the runtime nudge
+    covers every spelling - `git rm`, `git -C <dir> add`, a read like `git -C <dir> status` - for the
+    agents that are not git agents: hard leaves AND the node owner."""
+    text = _git_nudge(tmp_path, agent, "Bash", {"command": command})
+    assert "runs no git" in text or "never runs git" in text or "run no git" in text, (agent, command, text)
+    assert "repo_facts" in text and ("git-ops" in text), text
+
+
+@pytest.mark.parametrize("command", NOT_GIT_COMMANDS)
+def test_a_command_that_only_contains_the_letters_git_is_not_reminded(tmp_path, command):
+    assert _git_nudge(tmp_path, "odoo-frontend-coder", "Bash", {"command": command}) == ""
+    assert _git_nudge(tmp_path, "odoo-coder", "Bash", {"command": command}) == ""
+
+
+def test_the_node_owner_reminder_names_its_own_role_and_the_door_it_has(tmp_path):
+    """A node owner CAN invoke git-ops (a leaf cannot), so its reminder points there; and neither
+    launching an agent nor invoking git-ops is nudged for it."""
+    text = _git_nudge(tmp_path, "odoo-coder", "Bash", {"command": "git add x"})
+    assert "role=node-owner" in text and "Skill(git-toolkit:git-ops)" in text and "role=leaf" not in text
+    assert _git_nudge(tmp_path, "odoo-coder", "Agent", {"subagent_type": "odoo-frontend-coder"}) == ""
+    assert _git_nudge(tmp_path, "odoo-coder", "Skill", {"skill": "git-toolkit:git-ops"}) == ""
+
+
+def test_a_hard_leaf_is_still_reminded_on_agent_launch_and_git_ops(tmp_path):
+    for tool, tool_input in (("Agent", {"subagent_type": "Explore"}), ("Skill", {"skill": "git-toolkit:git-ops"})):
+        text = _git_nudge(tmp_path, "odoo-frontend-coder", tool, tool_input)
+        assert "role=leaf" in text, (tool, text)
+
+
+def test_only_leaf_and_node_owner_agents_are_reminded_about_git(tmp_path):
+    """A spawner (role=spawner) and an agent the registry does not know stay silent: the hook never
+    guesses a role."""
+    assert _git_nudge(tmp_path, "odoo-solution-architect", "Bash", {"command": "git status"}) == ""
+    assert _git_nudge(tmp_path, "some-other-plugin:unlisted-agent", "Bash", {"command": "git status"}) == ""
+
+
+def test_the_main_agent_running_git_is_not_nudged_by_the_git_advisory(tmp_path):
+    out, _ = _run(DELEGATE_HOOK, {"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": str(ROOT),
+                                  "tool_input": {"command": "git status"}}, _env(tmp_path))
+    assert _ctx(out) == ""
+
+
 # --------------------------------------------------------------------------- #
 # drive-continuation.sh (Stop)
 # --------------------------------------------------------------------------- #

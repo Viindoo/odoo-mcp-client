@@ -205,7 +205,7 @@ the modules touch disjoint files (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upg
 For DELETE-absorbed and OBSOLETE modules: invoke `odoo-coding` to run the dangling-reference
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
 invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the directory removal, staging, and commit in the child worktree
-(op: rm -r module dir + stage deletion + commit -s; confirmed: yes - user confirmed DELETE
+(op: delete the module directory and commit the deletion; confirmed: yes - user confirmed DELETE
 at P3 Plan Mode gate; commit message per § Git / PR conventions absorbed/obsolete-delete form);
 drop it from every depender's `depends` in their manifests.
 For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
@@ -328,7 +328,7 @@ capability, passing `worktree:<path>/upg-integration` and asking it to review mo
 order - and fix its CRITICAL/HIGH findings on that worktree, BEFORE the PR opens.
 ONLY once that review is clean, push branch and open PR: invoke the `git-toolkit:git-ops` skill (via
 the Skill tool) to push the branch, then to create the PR - resolve upstream org/repo and base from
-`git remote get-url origin`.
+the `origin_url` of a `repo_facts` call.
 After the PR exists, only PR-OBSERVING work (CI-failure triage, the human merge) and the closing docs below remain. Wait for human merge.
 
 With the PR presented, document the upgraded user-visible features for the target the P3 plan approved (`none`: skip this step). Compose a change file `<ISOLATE_DIR>/docs/change-<slug>.md`: one line per upgraded user-visible feature, with its module and UI label. Module docs: invoke `odoo-doc-illustration` on the target branch's worktree with `CHANGE` = that file and commit the result onto the SAME open PR's branch through `git-toolkit:git-ops` - one PR per repo per run. Site docs: invoke `odoo-doc-site` with `CODE_WORKTREE` = the target worktree, `SERIES` = the target series, `FROM CHANGE` = that file. Both run under the approved plan, with no gate.
@@ -408,9 +408,9 @@ Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
   Do not compose or prescribe the message; the proposed tag is the series-upgrade tag
   (`upg-conventions.md` § Convention 0).
 - Push to fork: invoke `git-toolkit:git-ops` to push branch `upg/<src>-<tgt>-<cluster>` to the fork
-  remote (resolve the fork remote from `git remote get-url origin` or a dedicated fork remote).
-- PR: invoke `git-toolkit:git-ops` to create the PR (resolve upstream org/repo and base from
-  `git remote get-url origin`).
+  remote (resolve the fork remote from the `remotes` of a `repo_facts` call, or a dedicated fork remote).
+- PR: invoke `git-toolkit:git-ops` to create the PR (resolve upstream org/repo from the `origin_url` of a
+  `repo_facts` call).
 
 ## MCP tools
 

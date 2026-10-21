@@ -173,12 +173,12 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
    Normalization: strip `git@github.com:` vs `https://github.com/` prefix and
    `.git` suffix → canonical key `github.com/<Org>/<repo>`; match against
-   `git remote get-url origin` output of every local directory under
+   the `origin_url` (odoo-local `repo_facts`) of every local directory under
    `$ODOO_GIT_BASE` (or a set of candidate parent directories the user
    suggests). Branch must also match.
 
-   The HAIKU subagent is **read-only**: it runs `git remote get-url` and
-   `git rev-parse --abbrev-ref HEAD` in local directories; it makes no writes,
+   The HAIKU subagent is **read-only**: it calls `repo_facts` on local
+   directories and reads `origin_url` and `branch`; it makes no writes,
    no clones, no edits.
 
    For each repo in the confirmed set:

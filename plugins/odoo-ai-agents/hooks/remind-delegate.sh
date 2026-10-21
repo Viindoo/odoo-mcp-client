@@ -6,12 +6,15 @@
 #       WHY: during an active run the main agent should stay an orchestrator - delegate heavy
 #       work to subagents so its context does not grow with run length. This hook NUDGES
 #       that, it never enforces it.
-#   (2) Leaf/spawner advisory nudge (V-01 mechanism) - a subagent whose best-effort agent_type
-#       resolves to a `role: leaf` entry in the agent-role SSOT (generator/skill_tool_deps.json
-#       "agents".<name>.role) gets reminded, on the Agent tool, a git-mutating Bash command, or
-#       Skill(...git-ops...), that a HARD LEAF never spawns another agent and never runs git -
-#       the deterministic guarantee is the `check_orchestration.py` agent-role lint (build-time);
-#       THIS is only a same-turn reminder, not the enforcement.
+#   (2) Git advisory nudge (V-01 mechanism) - a subagent whose best-effort agent_type resolves to
+#       a `role: leaf` or `role: node-owner` entry in the agent-role SSOT (generator/skill_tool_deps.json
+#       "agents".<name>.role) gets reminded, on a Bash command that runs ANY git (a read, a mutation,
+#       `git -C <dir> ...`, inside `bash -c` or `$(...)` alike), that it runs no git itself: a repo
+#       fact comes from the odoo-local repo_facts tool, everything else is a request to
+#       git-toolkit:git-ops. A HARD LEAF is also reminded on the Agent tool and on Skill(...git-ops...)
+#       (it never spawns an agent and never invokes git-ops); a node-owner may do both, so neither
+#       is nudged for it. The deterministic guarantee is the `check_orchestration.py` agent-role
+#       lint (build-time); THIS is only a same-turn reminder, not the enforcement.
 #
 # HARD CONTRACT: this hook NEVER decides the tool call - it is advisory only, not enforcement.
 #   The main agent (and any subagent) is a decision-maker; hard-blocking is dangerous (can trap
@@ -68,38 +71,44 @@ AGENT_TYPE="$(printf '%s' "$INPUT" | jq -r '.agent_type // .agentType // empty' 
 IN_SUBAGENT=false
 [[ -n "$AGENT_ID" || -n "$AGENT_TYPE" ]] && IN_SUBAGENT=true
 
-# --- (2) Leaf/spawner advisory (V-01) -------------------------------------------------------
-# Independent of the drive-to-done gates below (no active-run requirement - a leaf can drift
-# any time). Only when we ARE in a subagent AND its best-effort agent_type resolves to a
-# `role: leaf` entry in the agent-role SSOT.
+# --- (2) Git advisory (V-01) ----------------------------------------------------------------
+# Independent of the drive-to-done gates below (no active-run requirement - a leaf or node owner can
+# drift any time). Only when we ARE in a subagent AND its best-effort agent_type resolves to a
+# `role: leaf` or `role: node-owner` entry in the agent-role SSOT.
 if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
   DEPS_FILE="${CLAUDE_PLUGIN_ROOT:-}/generator/skill_tool_deps.json"
   # Normalize a plugin-qualified type ("odoo-ai-agents:odoo-frontend-coder") to the bare name -
   # the SSOT keys agents by bare name.
   AGENT_NAME="${AGENT_TYPE##*:}"
-  IS_LEAF=false
+  ROLE=""
   if [[ -n "$AGENT_NAME" && -f "$DEPS_FILE" ]]; then
     ROLE="$(jq -r --arg n "$AGENT_NAME" '.agents[$n].role // empty' "$DEPS_FILE" 2>/dev/null || true)"
-    [[ "$ROLE" == "leaf" ]] && IS_LEAF=true
   fi
-  if [[ "$IS_LEAF" == true ]]; then
+  if [[ "$ROLE" == "leaf" || "$ROLE" == "node-owner" ]]; then
     RISKY=false
     case "$TOOL" in
-      Agent) RISKY=true ;;
+      Agent) [[ "$ROLE" == "leaf" ]] && RISKY=true ;;
       Bash)
         CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
-        # Mirrors check_orchestration.py's GIT_MUTATION_RE (single SSOT verb list).
-        if printf '%s' "$CMD" | grep -qE '\bgit (commit|add|push|rebase|merge|reset|cherry-pick|stash|tag|checkout|branch)\b'; then
+        # ANY git command: the word `git` as a command word - not part of a longer word or name
+        # (`git-ops`, `.git`, `digit`) - followed by a subcommand or a global option. `/usr/bin/git`
+        # is the binary; `/x/git/y` is a path, no command. No verb list: neither a read nor a
+        # mutation is the agent's to run, so none needs sorting.
+        if printf '%s' "$CMD" | grep -qE '(^|[^[:alnum:]_.-])git[[:space:]]+[[:alpha:]-]'; then
           RISKY=true
         fi
         ;;
       Skill)
         SKILL_ARG="$(printf '%s' "$INPUT" | jq -r '.tool_input.skill // empty' 2>/dev/null || true)"
-        [[ "$SKILL_ARG" == *git-ops* ]] && RISKY=true
+        [[ "$ROLE" == "leaf" && "$SKILL_ARG" == *git-ops* ]] && RISKY=true
         ;;
     esac
     if [[ "$RISKY" == true ]]; then
-      CTX="You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
+      if [[ "$ROLE" == "leaf" ]]; then
+        CTX="You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent, never invokes git-ops and never runs git itself - not a mutation, not a read. Take a repo fact from the odoo-local repo_facts tool; for anything else write your files and return their list, and your launcher asks git-ops (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
+      else
+        CTX="You are running as \"$AGENT_NAME\", declared role=node-owner in the agent-role SSOT (generator/skill_tool_deps.json). You run no git yourself - not a mutation, not a read. Take a repo fact from the odoo-local repo_facts tool; for anything else invoke Skill(git-toolkit:git-ops) with the request and the expected result (see snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
+      fi
       _seen "$(_lease_agent_transcript "$INPUT")" "$CTX" && _pass
       jq -cn --arg ctx "$CTX" \
         '{hookSpecificOutput:{hookEventName:"PreToolUse", additionalContext:$ctx}}'

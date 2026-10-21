@@ -7,8 +7,8 @@
 
 ## Why SHARE and not ISOLATE, and not a bare cross-project `$ODOO_AI_HOME/coordination/`
 
-`--git-common-dir` always points back to the ONE shared common git dir, so keying the SHARE path
-off `sha256(realpath(git rev-parse --git-common-dir))` resolves to the SAME path for every linked
+Every linked worktree points back to the ONE shared common git dir, so keying the SHARE path
+off a hash of that dir (`project_dir`, axis `share`) resolves to the SAME path for every linked
 worktree and every concurrent invocation of THIS repo. A per-worktree ISOLATE dir is private - two
 concurrent runs in two worktrees would each write their own copy and never see each other, exactly
 the cross-run blindness this ledger removes.

@@ -89,7 +89,7 @@ def test_hook_file_present_and_executable():
 @pytest.mark.parametrize("tool_short", [
     "lease_acquire", "lease_release", "lease_park", "lease_list", "lease_find",
     "db_preflight", "instance_build", "job_wait", "instance_serve", "instance_status",
-    "catalog_read", "catalog_locate", "series_detect", "project_dir",
+    "catalog_read", "catalog_locate", "series_detect", "project_dir", "repo_facts",
 ])
 def test_every_non_gc_local_tool_is_allowed(tool_short):
     """Every odoo-local tool except lease_gc is auto-allowed unconditionally - including the

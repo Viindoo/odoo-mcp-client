@@ -5,7 +5,7 @@
 
 A HARD-LEAF subagent dispatched into an isolated worktree carries this brief - `odoo-frontend-coder`,
 `odoo-test-writer`, `odoo-impact-recon` and the other leaf specialists. Two rails: do the work
-directly, and run no git mutation - write files in your worktree and return them; your launcher
+directly, and run no git - write files in your worktree and return them; your launcher
 commits. A hard leaf launches NO sub-agent and invokes NO spawner skill.
 
 **Who this brief does NOT bind: any agent the registry declares `role: spawner`**
@@ -24,14 +24,12 @@ agent body.
   session-scoped server state. Pass the CONCRETE version (and profile) on EVERY OSM
   call; call the setters once at Round 0 only, as the reachability probe. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
   § OSM session-pin race.
-- **You run no git mutation - in any form.** None of `add rm mv restore commit stash branch
-  checkout switch cherry-pick rebase merge reset revert tag push pull fetch am apply worktree
-  clean`, including `git -C <dir> <verb>`, a wrapper (`bash -c`, `$(...)`, a heredoc) and a script
-  that runs one. Read-only git (`status diff log show rev-parse blame ls-files`, `worktree list`)
-  is allowed. Return the list of files you touched (or BLOCKED with the reason); the node owner or
-  spawner that launched you commits them through `Skill(git-toolkit:git-ops)`. A leaf never
-  invokes git-ops, not even through the Skill tool. Full policy:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+- **You run no git - not a mutation, not a read, in any form.** A repo fact (root, branch, short SHA,
+  origin URL, dirty paths, merge or rebase in progress) comes from the `repo_facts` tool; for
+  anything else return the list of files you touched (or BLOCKED with the reason), and the node
+  owner or spawner that launched you commits them or asks for the fact through
+  `Skill(git-toolkit:git-ops)`. A leaf never invokes git-ops, not even through the Skill tool. Full
+  policy: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 - **Write only inside your `WORKTREE_PATH`** (and `ISOLATE_DIR` for scratch). Before your first
   write, confirm that every target path resolves inside `WORKTREE_PATH` - not your cwd, not a
   sibling worktree under `<SHARE>/worktrees/`; otherwise stop and report the path. How you confirm

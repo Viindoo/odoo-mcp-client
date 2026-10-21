@@ -230,10 +230,18 @@ platform lever for this level of control is `.claude/agents/`, outside any plugi
 **Role is SSOT'd.** Every agent's `role` (`leaf` | `spawner` | `node-owner`) is declared in
 `generator/skill_tool_deps.json` `agents.<name>.role` and lint-checked for presence and enum
 (`check_orchestration.py` rule 8). The hooks enforce what a role may do at runtime: a `spawner`
-never writes production source (`hooks/block-spawner-code-write.sh`); a `leaf` is reminded that
-git mutations route through `git-toolkit:git-ops` (`hooks/remind-delegate.sh`); a `node-owner`
+never writes production source (`hooks/block-spawner-code-write.sh`); a `leaf` or `node-owner` that runs ANY git
+command is reminded that it runs no git - a repo fact comes from the odoo-local `repo_facts` tool,
+everything else is a request to `git-toolkit:git-ops` (`hooks/remind-delegate.sh`, advisory); a `node-owner`
 (`odoo-coder`) writes the source of its own node and may launch at most the sibling agents its
 body names. This does NOT change the `tools:`-free convention above - still no allowlist.
+
+**No git in prose.** Skill, agent, command, snippet and workflow text states a git need as a
+request plus its expected result for `git-toolkit:git-ops`, or reads a repo fact (root, branch, short
+SHA, origin URL, dirty paths, merge or rebase in progress) with the odoo-local `repo_facts` tool; it
+never spells a git subcommand or flag, a read included (`tests/test_git_delegation_boundary.py`
+fails on any). The one exception is a command line `/odoo-ai-agents:odoo-setup` prints for the
+human to run.
 
 **Where a model choice lives (placement rule).** An agent reads its own body only AFTER it was
 launched with a model, so an agent body never instructs which model IT runs at (no "model
@@ -341,8 +349,9 @@ make orchestration-check  # capability/contract lint (warn-first standalone; ORC
 ```
 
 Then commit via the `git-toolkit:git-ops` skill (it detects the convention and applies the DCO
-sign-off - never hand-run git; Universal rule: `plugins/odoo-ai-agents/snippets/git-delegation.md`)
-and keep the PR to one logical change. Bump policy (CONTRIBUTING.md "Versioning"): a new
+sign-off - never hand-run git; the developer-session allowance for bounded reads is in `CLAUDE.md`
+§ Contributions, and the plugin prose rule - no git command at all - in
+`plugins/odoo-ai-agents/snippets/git-delegation.md`) and keep the PR to one logical change. Bump policy (CONTRIBUTING.md "Versioning"): a new
 skill/agent/command is a **minor**;
 docs/fix/refactor is a **patch**. Prefer `make bump` (auto-classifies); never hand-edit version
 fields.

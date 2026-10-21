@@ -308,7 +308,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 - Do NOT modify any file in the repository or the running Odoo instance - read-only diagnosis.
 - Empty render vs render-then-throw are distinct root causes - always check the DOM snapshot before blaming JS logic.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the Output Contract's `grounded:` line.
-- Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
+- Run no git, `gh` or GitHub MCP call: `repo_facts` answers a repo fact; any other git or GitHub need is your launcher's to ask (`snippets/git-delegation.md`).
 - CLOSE every page you drove before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ---

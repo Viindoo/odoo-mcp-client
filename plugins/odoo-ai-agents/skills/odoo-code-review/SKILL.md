@@ -32,14 +32,15 @@ through the caller's fix round.
 
 ## Steps
 
-1. **Resolve the tree.** `local` -> this cwd's toplevel; `worktree:` -> the path given; `pr:` ->
+1. **Resolve the tree.** `local` -> the `repo_root` of a `repo_facts` call on this cwd; `worktree:` -> the path given; `pr:` ->
    invoke `git-toolkit:git-ops` to fetch the PR metadata and changed files and to check the PR
    branch out in a worktree at the path `project_dir` (axis `worktree`, `name` = `pr-<N>`)
    returns - under the state root, never a temp dir and never the principal checkout
    (git-safety-contract S9). Capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir`
    against that tree.
-2. **Changed set.** A bounded `git-ops` read (`diff --name-only BASE..HEAD`, `BASE` default
-   `master` or the PR base) gives `CHANGED_SET`; the modules it touches and their manifests give
+2. **Changed set.** Ask `git-toolkit:git-ops` for the files that differ between `BASE` (default the
+   series main branch, or the PR base) and the tree's HEAD, and for the diff of that range written
+   to `<ISOLATE_DIR>/reviews/<slug>-<date>/diff.patch` (`DIFF_PATH`); the files give `CHANGED_SET`; the modules it touches and their manifests give
    the Domain line when the brief carries none (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`).
    Delete `<ISOLATE_DIR>/reviews/<slug>-<date>/` directories untouched for 30 days
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).

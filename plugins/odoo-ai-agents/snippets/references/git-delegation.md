@@ -10,7 +10,7 @@
 The confirmed root cause of the owner-reported defect ("if someone has already checked out to a
 different branch, the agent gets confused and uses that branch as the base") was a schema defining
 `base` as "the principal branch at dispatch" - literally whatever was checked out when the run
-started. `git branch --show-current` stays legitimate for diagnostic reads and source-series
+started. The branch `repo_facts` reports stays legitimate for diagnostic reads and source-series
 inference precisely because THAT use never assigns the read value to `base` - only the assignment
 itself reproduces the defect.
 

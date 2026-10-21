@@ -1,6 +1,6 @@
-# upg-phase-detail - per-phase commands + dispatch briefs
+# upg-phase-detail - per-phase requests + dispatch briefs
 
-Verbatim git commands, subagent dispatch briefs, and artifact formats for the
+git-ops requests, subagent dispatch briefs, and artifact formats for the
 `odoo-modules-upgrade` skill.
 
 ---
@@ -9,7 +9,7 @@ Verbatim git commands, subagent dispatch briefs, and artifact formats for the
 
 - `<cluster>` = `cluster_slug` resolved in P0 intake (the scope slug).
 - `<path>` = the upgrade-worktree base: a `.upg-worktrees/` directory SIBLING to the principal
-  checkout (NEVER inside it - keeps the principal `git status` clean). All worktrees below live under it.
+  checkout (NEVER inside it - keeps the principal checkout clean). All worktrees below live under it.
 - `<work-base>` = the base ref the integration branch forks from, resolved per
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch resolution.
 
@@ -37,7 +37,7 @@ Model: haiku. Read-only. Output file: `intake.md`.
 ```
 TASK: Resolve the upgrade request into structured inputs.
 
-(1) Read the current branch name (`git branch --show-current`). Infer the Odoo SERIES
+(1) Read the current branch name (the `branch` of a `repo_facts` call on the repo). Infer the Odoo SERIES
     `<S>` from it: a branch named `<S>`, `<S>-feat-x`, or `release-<S>` -> series `<S>`.
     If the branch name is ambiguous, mark as open_question.
     Cross-check: read a sample of module descriptors (BOTH names, as in (3a)) and find the MAX `version` series
@@ -370,8 +370,8 @@ After `ExitPlanMode` and user approval: write `plan.md` (SSOT for P4+).
 
 ### Integration worktree creation
 
-Invoke the `git-toolkit:git-ops` skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`) to add a worktree:
-- op: worktree add
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`) to create a worktree:
+- op: create a worktree on a new branch
 - branch: `upg/<src>-<tgt>-<cluster>`
 - worktree: `<path>/upg-integration`
 - base: `<work-base>`
@@ -456,10 +456,10 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   inline rehoming comment in the touched file.
 
   After the sweep, report findings to the orchestrating skill, which invokes
-  the `git-toolkit:git-ops` skill (in this child worktree) to remove the module directory, stage the
-  deletion, and commit -s (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+  the `git-toolkit:git-ops` skill (in this child worktree) to delete the module directory and commit
+  the deletion (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
   git-ops request fields:
-    - op: rm -r module dir + stage deletion + commit -s
+    - op: delete the module directory and commit the deletion
     - confirmed: yes - user confirmed DELETE <module> at P3 Plan Mode gate
     - business outcome (absorbed): delete <module> - absorbed by core <absorbing_core_feature> in <target_version> (no custom delta remains)
     - business outcome (obsolete): delete <module> - obsolete at <target_version> (<one-line reason why the need evaporated>)
@@ -704,15 +704,14 @@ Delegate the entire consolidation sequence to git-toolkit via the `git-ops` skil
   Fallback when no recorded SHA: `<work-base>`.
 - business outcome: <module> <src>-><tgt> - <ACTION> <summary> (do not compose or prescribe the message)
 - confirmed: yes - Plan Mode approved at P3 (consolidation listed in commit plan; backup ref created by git-ops)
-- Steps git-ops performs: safety backup ref at HEAD -> reset-mixed to base ->
-  stage `<module>/` only -> commit -s -> tree-identity verify (`git diff --quiet`
-  backup vs HEAD; must be TREE-IDENTICAL) -> delete backup ref.
+- Result git-ops guarantees: ONE commit holding only `<module>/`, with a tree IDENTICAL to the
+  tree before the consolidation (a safety backup is taken first and removed after the check).
 - On S6 failure git-ops returns BLOCKED (gate_hit: S6 tree-identity mismatch). Recovery: invoke
-  `git-toolkit:git-ops` to restore from the backup ref (hard-reset to backup-ref) and escalate
+  `git-toolkit:git-ops` to restore the tree from the backup and escalate
   BLOCKED listing the differing trees.
 
-Autosquash alternative: invoke `git-toolkit:git-ops` with autosquash enabled;
-git-ops handles the non-TTY environment natively.
+Squash alternative: ask `git-toolkit:git-ops` to fold the module's fixup commits into the
+commits they fix; git-ops handles the non-TTY environment natively.
 Keep exactly ONE commit per module; never one commit per cluster.
 
 ---
@@ -782,9 +781,9 @@ Please review modules in dependency order (leaves first):
 
 **Push and open PR - invoke `git-toolkit:git-ops` in sequence (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):**
 1. Push branch - invoke `git-toolkit:git-ops` to push `upg/<src>-<tgt>-<cluster>` to the fork remote
-   (resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
-2. Open PR - invoke `git-toolkit:git-ops` to create the PR: upstream org/repo and base branch resolved
-   from `git remote get-url origin`; head `upg/<src>-<tgt>-<cluster>`; title
+   (resolve the fork remote from the `remotes` of a `repo_facts` call, or a dedicated fork remote).
+2. Open PR - invoke `git-toolkit:git-ops` to create the PR: upstream org/repo resolved
+   from the `origin_url` of a `repo_facts` call, base branch per the plan; head `upg/<src>-<tgt>-<cluster>`; title
    `<cluster> cluster upgrade <src>-><tgt>`; body from the PR body template above.
 
 After the PR exists, only PR-OBSERVING work remains: CI-failure triage and the human merge. Do NOT

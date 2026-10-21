@@ -18,7 +18,7 @@ RESOLVED. Re-resolving from your own cwd finds the wrong root across worktrees
 ## Rung 2 - THE DECLARED INSTANCE CATALOG
 
 Authoritative for series, profile, addons path, interpreter, DB coordinates, and instance URL.
-Call `catalog_locate` with `path` = the repository root (`git rev-parse --show-toplevel`, else the
+Call `catalog_locate` with `path` = the repository root (`repo_root` from `repo_facts`, else the
 working directory).
 
 - `matched` true - the returned row is the declared instance whose `addons_path` covers this repo.

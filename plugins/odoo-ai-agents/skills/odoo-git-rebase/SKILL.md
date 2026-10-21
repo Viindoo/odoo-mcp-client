@@ -12,10 +12,9 @@ Rebase conductor. Own the git topology and the subagent lifecycle. Delegate EVER
 intent extraction, behavior comparison, conflict resolution, and verify to specialist subagents.
 An intent-absorbing rebase is a SEMANTIC translation onto an updated SAME-version base, not a
 text-replay: a clean replay (zero conflict markers) does NOT prove the feature survived.
-Issue only bounded-read git calls (`git merge-base`, `git log --oneline`, `git diff --stat`)
-inline; delegate every mutation and unbounded read to `git-toolkit:git-ops`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). NEVER read a diff or judge business behavior
-inline.
+Run no git: a repo fact comes from the `repo_facts` tool, and every other git result is a request
+to `git-toolkit:git-ops` (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). NEVER read a diff or
+judge business behavior inline.
 
 ## Out of Scope
 
@@ -47,9 +46,9 @@ once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and substitut
 absolute path) into every subagent brief; subagents never recompute the slug or re-resolve the
 state dirs (`state-root-resolution.md` § Cross-worktree dispatch). Artifacts live under
 `<ISOLATE_DIR>/git-rebase/<slug>/`.
-`<old-base> = git merge-base <new-base> <feature-ref>` (the orchestrator runs this ONE mechanical
-command; everything that reads diff CONTENT is delegated). Full git commands, dispatch briefs, and
-format templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-phase-detail.md`.
+`<old-base>` is the merge base of `<new-base>` and `<feature-ref>`: git-ops reports it at P1 and
+`recon.md` records it (`old_base:`); every later phase reads it from there. Everything that reads
+diff CONTENT is delegated. Full git-ops requests, dispatch briefs, and format templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-phase-detail.md`.
 
 ## Checkpoint / resume
 
@@ -73,7 +72,7 @@ The default per-commit dispatch writes the canonical file directly and is marked
 
 **P0 reads checkpoint.json first (before intake dispatch):**
 - If `rebase_in_progress: true` and the integration worktree still has a live rebase
-  (`test -d $(git -C <integration_worktree> rev-parse --git-path rebase-merge)`):
+  (`repo_facts` on `<integration_worktree>` reports `operation_in_progress` = `rebase`):
   RESUME the P8 conflict loop from the stopped commit. Do NOT restart, do NOT abort the
   rebase. Skip commits with `status=resolved` or `status=done`; resume
   a `status=designed` commit at P6 design_doc ingestion.
@@ -90,7 +89,7 @@ The default per-commit dispatch writes the canonical file directly and is marked
 P2 writes `<sha>: extracted-pending-consolidation` after each intent file is written in
 module-batched mode (`<sha>: extracted` directly otherwise). The P2 consolidation fan-in promotes a module-batched sha to `<sha>: extracted` only after git-ops confirms the
 canonical record exists and is non-empty. P5 writes `<sha>: designed`.
-P8 writes `<sha>: resolved` after the --continue step succeeds for that commit.
+P8 writes `<sha>: resolved` after git-ops continues the stopped rebase past that commit.
 P8b writes `phase: P8b_done` after the collection gate passes.
 P9b writes `<sha>: reviewed` after the code-review loop returns no CRITICAL/HIGH for that commit.
 
@@ -103,11 +102,11 @@ plus the target agent's family delta; never inline that file verbatim into a har
 Run phases in order. ALL analysis (P1-P4) precedes the Plan Mode gate (P6), which precedes ANY
 branch or worktree creation (P7). Concurrency for the P2 parallel fan-out follows
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B, model-weighted budget 8).
-Full per-phase dispatch briefs, verbatim git commands, and artifact formats:
+Full per-phase dispatch briefs, git-ops requests, and artifact formats:
 `references/rb-phase-detail.md`.
 
 **Small-scale fast-path:** when recon shows <=5 commits, the patch-id pre-filter finds zero
-absorbed commits, AND one cheap OSM batch over the three-dot diff finds zero renamed/moved
+absorbed commits, AND one cheap OSM batch over the feature diff finds zero renamed/moved
 symbols, collapse P2+P3 into ONE sonnet `odoo-diff-comparator` pass and skip the separate
 P2 extractor fan-out and P3 cluster comparator. P8b (symbol-survival + collection gate) still runs in all cases.
 **Fast-path P8 fallback (commit dump provisioning):** the fast-path skips P2 so no
@@ -143,13 +142,13 @@ Principal-checkout-lock). Emit `intake.md`:
 branches_to_materialize[], open_questions[]}.
 
 **P1 - Recon (range enumerate) [git-ops - no gate].**
-Enumerate commits in `<old-base>..<feature-ref>`; patch-id pre-filter candidates already on
-base (mark outcome-a candidate); for each remaining commit emit {sha, modules[], subject,
-EXTRACT tier}. Also run `git merge-base --all` - if >1 line, surface as open_question before
-P7 (ambiguous range boundary). Also run a graph topology check to detect merge commits in range;
-if present, flag for `--rebase-merges` or user confirmation. The patch-id pre-filter is a
-hint only; outcome-(a) is decided at P3/P10. Never skip a commit on patch-id alone.
-Write `recon.md`. Verbatim commands: `references/rb-phase-detail.md` P1.
+One git-ops request enumerates the commits after `<old-base>` up to `<feature-ref>`; a
+patch-equivalence pre-filter marks candidates already on base (outcome-a candidate); for each
+remaining commit emit {sha, modules[], subject, EXTRACT tier}. The same request reports every merge
+base of the two refs - more than one is an open_question before P7 (ambiguous range boundary) - and
+whether the range holds merge commits; if so, flag that the replay must preserve merges, or get
+user confirmation. The pre-filter is a hint only; outcome-(a) is decided at P3/P10. Never skip a
+commit on the pre-filter alone. Write `recon.md` (header `old_base:`). Request: `references/rb-phase-detail.md` P1.
 
 **P2 - Intent extract (per non-(a) commit, PARALLEL) [git-ops pre-step + N x odoo-intent-extractor rebase MODE].**
 Pre-step: invoke git-ops to write the full commit output (message + diff) for
@@ -173,8 +172,8 @@ Before dispatch: confirm every non-(a) commit has a canonical, non-empty `intent
 record (delegated read-only check, never inline). A missing or empty record returns `BLOCKED` and P3 does NOT proceed: re-run the named remediation
 (the P2 consolidation copy for the listed shas), then retry. Full gate:
 `references/rb-phase-detail.md` P3.
-One `odoo-diff-comparator` reads the three-dot diff (range `<new-base>...<feature-ref>`,
-pre-computed by a git-ops pre-step per `references/rb-phase-detail.md` P3) + all
+One `odoo-diff-comparator` reads the feature diff (the branch's own changes since it diverged
+from `<new-base>`, pre-computed by a git-ops pre-step per `references/rb-phase-detail.md` P3) + all
 `intents/*.md`. Compare business intent, expected outcomes and acceptance criteria of the
 feature range against `<new-base>` HEAD. Per commit: decide absorption failure mode
 (already-present / renamed / moved / override-refactored / depends-drift / test-symbol-removed)
@@ -208,15 +207,15 @@ intent_records: [<paths>], classification: <outcome bucket + one-line reason> }`
 This is the request's one Plan-Mode gate
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request): call
 `EnterPlanMode`, present the plan, `ExitPlanMode` on approve. The plan CONTENT authored here (not routed through `odoo-planning`): commit topology; per-commit outcome + EXTRACT
-tier + ADAPT tier; design-doc links; the rebase invocation (worktree add at feature tip then
-two-arg rebase-onto on the integration worktree HEAD - delegated to git-ops at P7);
+tier + ADAPT tier; design-doc links; the rebase invocation (an integration worktree at the
+feature tip, then the feature range replayed onto `<new-base>` - delegated to git-ops at P7);
 conflict-resolution policy; B3 instance-verify decision.
 Write `plan.md` AFTER approval as the resume record. No branch or worktree before `ExitPlanMode` + approval. `plan.md` template: `references/rb-phase-detail.md` P6.
 
 **P7 - Create integration worktree + start rebase [delegated to git-ops].**
 After Plan Mode approval: invoke git-ops to create the integration worktree AT THE
-FEATURE TIP (branch rb/<slug>; NOT at new-base), enable rerere, and run the two-arg onto form (new-base as target, old-base as
-upstream) on the worktree HEAD. git-ops returns
+FEATURE TIP (branch rb/<slug>; NOT at new-base), turn on conflict-resolution reuse, and replay the commits after `<old-base>` onto
+`<new-base>` there. git-ops returns
 `DONE` (-> P8b) or `BLOCKED-CONFLICT` with `conflicted_files: [<paths>]` and
 `stopped_commit: <sha>` (-> P8). Full dispatch brief: `references/rb-phase-detail.md` P7.
 
@@ -234,9 +233,9 @@ for OWL/QWeb/SCSS legs, grounded against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
 `odoo-coder` or `odoo-frontend-coder` agents for conflict resolution. Never leave an auto-merged line referencing a renamed/moved symbol. After `odoo-coding` returns RESOLVED: re-invoke git-ops per the
 stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch ->
-semantic bounce -> on-disk --continue). On 3 consecutive BLOCKED returns from git-ops:
+semantic bounce -> continue the stopped rebase). On 3 consecutive BLOCKED returns from git-ops:
 request git-ops to abort the rebase, restore from checkpoint, and escalate. Loop
-until the rebase finishes. Conflict-class policy (`.po`/binary/generated), rerere hygiene, and
+until the rebase finishes. Conflict-class policy (`.po`/binary/generated), resolution-reuse hygiene, and
 abort path: `references/rb-phase-detail.md` P8.
 
 **P8b - Symbol-survival + collection gate [MUST - before any test-forward; all heavy checks DELEGATED].**
@@ -270,8 +269,8 @@ no CRITICAL/HIGH. Dispatch reviewer + fixer, never review or fix inline. Write `
 `references/rb-phase-detail.md` P9b. The final pre-PR review stays at P12; both clear before the PR opens.
 
 **P10 - Verify (range-diff + dup-guard + conditional instance) [git-ops pre-step + odoo-diff-comparator sonnet + conditionally the `odoo-instance` skill (via the Skill tool)].**
-Two-step: (1) invoke git-ops to run `git range-diff <old-base>..<feature-tip>
-<new-base>..rb/<slug>` and write the output to `<ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt`
+Two-step: (1) invoke git-ops to compare the original commit series (after `<old-base>` up to the
+feature tip) with the rebased series (after `<new-base>` up to `rb/<slug>`), commit by commit, and write the comparison to `<ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt`
 (full brief: `references/rb-phase-detail.md` P10 pre-step); (2) dispatch `odoo-diff-comparator`
 (sonnet) with `diff_path:` pointing to the surveyor-written file to confirm every P4 intent is
 present and unchanged in meaning;
@@ -296,7 +295,7 @@ Present `rebase-log.md` + `verify.md` and ask, as a text question,
 **P12 - Final review + PR [delegated review capability - human merge].**
 Order follows the default tail (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail). FIRST delegate the final code review against `worktree:<WT_ROOT>/rb-integration` and clear
 its CRITICAL/HIGH findings on that worktree, BEFORE the branch is pushed and the PR opened. THEN resolve fork remote name and upstream org/repo from
-`git remote get-url origin` (bounded read, inline), invoke git-ops to push rb/<slug> to the fork
+`origin_url` and `remotes` of a `repo_facts` call, invoke git-ops to push rb/<slug> to the fork
 remote, and invoke git-ops to open the PR against new-base on the upstream repo (head:
 fork-remote:rb/<slug>); pass the fork remote name and upstream org/repo as brief fields - never
 hardcode them. Only PR-OBSERVING work stays after the PR exists: CI-failure triage and the human

@@ -845,6 +845,7 @@
           "RECON",
           "IMPACT_MAP",
           "DOMAIN",
+          "DIFF_PATH",
           "R1_FINDINGS",
           "R3_FINDINGS",
           "PRIOR_FINDINGS",

@@ -271,7 +271,7 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
 ```
 
 **Loop.** A node is ready when every `depends_on` is `DONE` or `SKIPPED`.
-1. Evaluate `when:` with a tool (a bounded `git-ops` diff read, `instance_i18n_export`, the SRS
+1. Evaluate `when:` with a tool (a `git-ops` request for the diff, `instance_i18n_export`, the SRS
    file) and write the evidence to the worklog; false -> `SKIPPED`.
 2. A node that writes source gets a worktree from `git-toolkit:git-ops` under `worktree_root`
    (`project_dir` axis `worktree`, `name` = the node id) starting at the repo's `run-integration`
@@ -294,7 +294,7 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    node and asks the human. A resumed round (a fix, a verification of a fix) goes to the SAME
    agent with `SendMessage`, never to a new launch.
 6. **Verdict currency.** Before `integrate`, compare the `run-integration` tip the last green
-   verification recorded with the live tip (a bounded `git-ops` read); they differ -> re-run that
+   verification recorded with the live tip (a `git-ops` request for it); they differ -> re-run that
    verification node on the new tip. A `.po`, `.pot` or `migration` change alone does not change behaviour and
    does not trigger it.
 7. **Human gates** under the approved plan are exactly `merge` and any other outward or

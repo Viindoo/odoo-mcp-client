@@ -130,7 +130,7 @@ this worktree's own series.
 Touch a theme file, the build configuration or a catalog outside your pages; run `make translate`
 or any message-extraction tool of the whole repo; use upstream vendor online documentation as a
 source; invent a label, a feature or a role; edit module source; release or re-provision the
-instance; run two browser families at once; run git mutations, `gh` or the GitHub MCP (the caller
+instance; run two browser families at once; run git, `gh` or the GitHub MCP (the caller
 commits through `git-ops`); launch an agent other than `Explore`.
 
 ## Report

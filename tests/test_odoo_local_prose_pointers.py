@@ -48,7 +48,7 @@ NON_TOOL_IDENTIFIERS = frozenset({
 })
 
 _FAMILY = r"(?:lease|instance|catalog)_[a-z][a-z0-9_]*"
-_SINGLETONS = r"(?:job_wait|series_detect|project_dir|db_preflight|server_info)"
+_SINGLETONS = r"(?:job_wait|series_detect|project_dir|repo_facts|db_preflight|server_info)"
 # (?<![\w-]) / (?![\w-]): the token is not part of a longer identifier or a hyphenated name
 # (odoo_instance_ops, instances_io, release_lock, odoo-local-x ...). Case-sensitive on purpose:
 # INSTANCE_HANDLE is the contract's name, not a tool.

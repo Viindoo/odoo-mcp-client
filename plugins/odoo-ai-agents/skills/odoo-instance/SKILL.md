@@ -181,8 +181,9 @@ yourself before dispatching, in this order:
 1. **Modules actually changed.** Map the working tree's changed files to their owning modules: the
    module is the nearest ancestor directory holding a module descriptor - glob for BOTH descriptor
    filenames, per the "Module manifest (descriptor) filename" row of
-   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`. Read the diff through
-   `git-toolkit:git-ops`'s bounded-read allowlist (`git diff --name-only`).
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`. Ask
+   `git-toolkit:git-ops` for the paths of the files changed in the working tree (modified, added
+   and untracked), as a list in the reply.
 2. **In-repo blast radius.** Add the modules in THIS repo whose own suites exercise a model the
    change touched, keeping only owners that live in the repo under test. Coverage lookup, ceiling and
    the OSM-down degrade: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md` § Run-set.
