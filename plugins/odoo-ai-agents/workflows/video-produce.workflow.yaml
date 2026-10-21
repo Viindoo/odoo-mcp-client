@@ -40,10 +40,10 @@ phases:
     nl_trigger: >
       Record all scenes from the storyboard produced in the storyboard phase.
       For each scene in order: plan the click path using the storyboard description,
-      then log in, set up deterministic demo state and drive the planned path in the SAME
+      then set up deterministic demo state and drive the planned path in the SAME
       browser the recorder records - with pagecast, inside the pagecast session
       (interact_page actions: navigate / type / press / click / hover / select / scroll /
-      wait; the login included); with playwright, the playwright tools around
+      wait); with playwright, the playwright tools around
       browser_start_video / browser_stop_video - never drive with chrome-devtools while a
       recording runs. Stop the recorder (stop_recording or browser_stop_video), then CLOSE
       every page you DROVE this scene before starting the next scene. Use {project_label}-scene-N as the scene's feature name, so its clip

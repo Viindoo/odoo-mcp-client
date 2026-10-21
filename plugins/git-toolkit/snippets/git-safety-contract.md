@@ -251,7 +251,7 @@ a throwaway clone and coordinate with all fork owners:
 ```bash
 git clone --no-local <repo> <fresh clone>
 git -C <fresh clone> filter-repo --analyze                          # rename/size report FIRST
-git -C <fresh clone> filter-repo --path-glob '*.secret' --invert-paths
+git -C <fresh clone> filter-repo --path-glob '*.bak' --invert-paths
 ```
 
 `--path` does NOT follow renames - pass both old and new paths explicitly.

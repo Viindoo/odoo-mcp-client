@@ -14,20 +14,18 @@ PAGE PLAN: <abs path of page-plan.md>   GROUP: <group id>
 FACTS: <abs path of the group's facts file, then the catalog / role map / walkthrough paths>
 INSTANCE HANDLE: <the odoo-instance block, verbatim | none provisioned>
 ADDONS_PATH: <the addons_path returned with it>
-LOGIN: <web login of a database this run did not build | omit>
 DOCS PYTHON: <abs path of the docs venv python recorded in step 0>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
 POLICY: <abs path of <RUN_DIR>policy.json>
 REPO FACTS: <abs path of <RUN_DIR>repo-facts.json>
-CONTENT WIDTH: <content_width from approval.json | none>   SERVED URLS: <language: base URL | none>
+CONTENT WIDTH: <content_width of the content-width record | none>   SERVED URLS: <language: base URL | none>
 FROM CHANGE: <abs path of the change file | none>
 USER LANGUAGE: <lang | omit>
 ```
 
 Required: `SITE WORKTREE`, `SERIES`, `LANGUAGES`, `PAGE PLAN`, `FACTS`, `INSTANCE HANDLE`,
 `DOCS PYTHON`, `SHARE_DIR`, `ISOLATE_DIR`, `POLICY`, `REPO FACTS`. `FACTS` is one file per group,
-`<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`; no two writers share a file. No
-password is ever a field. `CONTENT WIDTH` is `none` only for the
+`<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`; no two writers share a file. `CONTENT WIDTH` is `none` only for the
 `check-shot` launch, which gets `SERVED URLS` to measure it; every other launch gets the recorded
 value and `none` for `SERVED URLS`.
 

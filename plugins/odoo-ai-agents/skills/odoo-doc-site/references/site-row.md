@@ -23,10 +23,10 @@ row, or several candidates: `NEEDS_CONTEXT` naming `/odoo-ai-agents:odoo-setup d
 | `policy.forbid_version_prose` | no series number written in prose |
 | `policy.marketplace_url` | the link pattern with `{series}` and `{module}`; filled with the worktree's own series |
 | `policy.site_url_prefix` | prefix of the public URL of a page; builds the URLs in the plan and the PR body |
-| `policy.demo_company` | the company name the demo data carries, per language; shots show it |
+| `policy.demo_company` | the main company's name per language; the writer sets it on the capture database before capturing that language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § 15) |
 | `policy.forward_port_branch_pattern` | optional; the branch name of an automatic forward port, with `{pr}` and `{series}`; absent means no such automation, `port.md` |
 | `policy.commit` | `one-per-pr` or `per-area`, step 7 |
-| `policy.check_shot` | `first-per-series` or `always`, `check-shot.md` |
+| `policy.check_shot` | when the check shot runs: `first-per-series` (no content-width record yet) or `always`, `check-shot.md` |
 | `policy.semantic_classes` | the only emphasis classes a page may use |
 
 ## Resolved values travel as values

@@ -108,7 +108,7 @@ Return the three paths and stop.
    file, slot and its measured width, framing and required context, per
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § 7.
 4. **Capture** every shot per doc-capture-mechanics (family and mode § 1-2, staging § 3, the handle
-   § 4, auth § 5, on-theme check § 6, the step loop § 8-9, locales § 10, the coverage report § 11,
+   § 4, instance § 5, on-theme check § 6, the step loop § 8-9, locales § 10, the coverage report § 11,
    degraded paths § 12). In `scenarios` mode drive each step as the scenario's role.
 5. **Write `doc/index.rst`** (English) and `doc/index_<locale>.rst` per other locale, prose and
    headings in that locale, labels as the UI shows them in that locale. Skeleton, in order:

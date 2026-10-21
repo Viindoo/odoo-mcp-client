@@ -106,4 +106,4 @@ not a style nit.
 
 ## Relation to the worklog
 
-`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` records DECISIONS and why; this records OBSERVATIONS of current state - a finding that becomes a decision is logged in both, in its own vocabulary, and neither file restates the other.
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` records DECISIONS and why; this records OBSERVATIONS of current state - a finding that becomes a decision is kept in both, in its own vocabulary, and neither file restates the other.

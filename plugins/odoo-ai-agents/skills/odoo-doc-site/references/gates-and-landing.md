@@ -7,7 +7,7 @@ plugin `python3`. Every gate that takes the policy reads `<RUN_DIR>policy.json`.
 ## Gates
 
 Run in this order on each series worktree; fix and re-run until every gate is clean, at most 3
-rounds, then stop and ask the user (text question).
+rounds, then `BLOCKED` with the findings left.
 
 1. `build_compare.py` - builds the source language and every site language of the worktree and of
    its base commit in the same environment and compares them. The change must add no Sphinx
@@ -20,8 +20,6 @@ rounds, then stop and ask the user (text question).
    the built CSS: presentation rules, banned terms in text and in the capture-text log
    (`banned_terms_exempt_paths` excepted), version prose. It lists the images with no capture
    record as `IMAGES_TO_REVIEW`; pass that list to browser acceptance.
-5. `ui_terms.py` - the UI terms of the pages against the capture instance in the target language,
-   with `--login admin` and `ODOO_DOC_PASSWORD` set to the base-data admin default of the checkout, in the same Bash call (another database: its `LOGIN` and the caller's `ODOO_DOC_PASSWORD`).
 
 A gate that cannot run is `UNVERIFIED` with its reason; it is reported in the PR body and the
 return. Browser acceptance (`acceptance.md`) follows the gates; a rebuild after an acceptance fix

@@ -100,7 +100,6 @@ Never keep a lease alive yourself; you still release.
   watched page open at the human's request - state that you did, and name the human as the owner
   who closes it (a T4 named-catcher handoff). Default (nobody asked to watch): close, headed or
   not.
-- Reuse a saved `storageState-<role>.json` FILE to skip re-login, never an open page.
 
 ## T3 - Instance: release what you provisioned
 

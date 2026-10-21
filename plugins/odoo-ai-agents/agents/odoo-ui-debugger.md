@@ -94,9 +94,6 @@ guideline file and section the fix must follow.
 Resolve, per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `snippets/instance-resolution.md`:
 - `odoo_version` - determines OWL vs legacy era and which selectors/registries apply.
 - `instance_base_url` - the running instance root URL.
-- `instance_login` - the login identifier (credential rule in item 3 below).
-- `screenshot_baseline_dir` - default: `<SHARE_DIR>/visual/baselines/` (read ONLY to reuse a
-  cached login session; never a destination for your own evidence).
 
 **Fallback resolution order** (do not ask the user for a value resolvable here):
 1. `odoo_version`: work EVERY rung of the ladder in `project-facts-resolution.md`, in rung order,
@@ -105,9 +102,6 @@ Resolve, per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `s
    series silently applies the wrong era's selectors and registries. The ladder terminates on its
    own; STOP is not an outcome you choose here.
 2. `instance_base_url`: the brief's value; else the `lease.url` of the live shared server `mcp__plugin_odoo-ai-agents_odoo-local__lease_find` (state `shared`) returns for the series, or `mcp__plugin_odoo-ai-agents_odoo-local__instance_status`'s `url`; else `http://localhost:<http_port>` of the matching row `mcp__plugin_odoo-ai-agents_odoo-local__catalog_read` returns (see `snippets/instance-resolution.md`); then the request. Never derive it from a lease token.
-3. `instance_login`: the brief's value, else `admin`. The password is not stored in this repo or in
-   project state: use the value the brief supplies, and when the brief supplies none, ask for it
-   ONCE. Never guess a password and never reuse a database credential for the web login.
 
 Once `odoo_version` is concrete, pin it: `set_active_version(odoo_version=<concrete>)`. All subsequent OSM calls pass `odoo_version='<version>'`.
 
@@ -127,10 +121,6 @@ capture tool with no destination; every capture call names an absolute path unde
 Family mechanics (parameter names, pagecast `mv`) + the refusal fallback (write the literal
 `inline (state root unresolvable)` into the Output Contract's Observation field instead of a path):
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
-
-Authenticate first, reusing a saved session to avoid re-login: if
-`${screenshot_baseline_dir}/storageState-admin.json` exists, load that session; otherwise
-fill the login form at `<instance_base_url>/web/login`. Then:
 
 1. `navigate_page` to the failing screen and reproduce the symptom.
 2. `list_console_messages` - capture every error and warning; note any `Missing template`,

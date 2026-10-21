@@ -16,15 +16,14 @@ else. Examples: `mcp__plugin_github_github__pull_request_read`,
 
 These ship from the `github` plugin (declared as a dependency, auto-installed from the default
 `claude-plugins-official` marketplace). The server is an HTTP endpoint
-(`https://api.githubcopilot.com/mcp/`) authenticated by the `GITHUB_PERSONAL_ACCESS_TOKEN` env var
-and is Copilot-gated.
+(`https://api.githubcopilot.com/mcp/`) and is Copilot-gated.
 
 ## G2 - Precedence
 
 1. Use `mcp__plugin_github_github__*` as PRIMARY for: PR create/read/review/merge, issue
    read/write/comment, branch/commit/tag queries, file reads, search, releases.
 2. Fall back to `gh` (`gh pr ...`, `gh issue ...`, `gh release ...`, `gh api ...`) ONLY when the
-   MCP tool returns an error, is unavailable (tool not in scope / token absent), or the operation
+   MCP tool returns an error, is unusable (tool not in scope, server unreachable), or the operation
    has no MCP equivalent.
 3. Never invoke both for one operation.
 4. When the `gh` fallback was used, note `DONE_WITH_CONCERNS` so the caller knows the MCP path was
@@ -37,9 +36,7 @@ and is Copilot-gated.
 - `gh` is best for AUTOMATION: CI scripting, batch ops, fork -> PR upstream
   (`gh pr create --repo`), and anything needing script-safe exit codes.
 
-## G4 - Token absent
+## G4 - MCP unusable
 
-git-toolkit cannot supply `GITHUB_PERSONAL_ACCESS_TOKEN` (it is the `github` plugin's auth). If the
-MCP server is unreachable because the token is unset, fall back to `gh` (which carries its own auth
-via `gh auth login`). If neither is authenticated, STOP and return NEEDS_CONTEXT naming the missing
-credential - do not guess or retry blindly.
+MCP unusable -> fall back to `gh`; neither works -> STOP and return NEEDS_CONTEXT stating that
+neither is usable. Do not guess or retry blindly.

@@ -327,7 +327,7 @@ case "${_domain}" in
     # bucket names the two commands that actually persist environment state, so the signal reaches
     # an action instead of stopping at a domain label.
     if [ "${_odoo_anchor}" = "true" ]; then
-      _setup_hint="[Setup targets] Declaring or spinning up a local Odoo instance (series, profile, addons path, port, db) -> /odoo-ai-agents:odoo-setup, which writes the instance entry every skill then resolves its project facts from. Registering the Odoo Semantic MCP server URL + API key -> /odoo-semantic-mcp:connect. Neither is needed just to answer a question - skills derive the series from the checkout when no instance is declared."
+      _setup_hint="[Setup targets] Declaring or spinning up a local Odoo instance (series, profile, addons path, port, db) -> /odoo-ai-agents:odoo-setup, which writes the instance entry every skill then resolves its project facts from. Connecting the Odoo Semantic MCP server -> /odoo-semantic-mcp:connect. Neither is needed just to answer a question - skills derive the series from the checkout when no instance is declared."
       _blocks+=("${_setup_hint}")
     fi
     ;;

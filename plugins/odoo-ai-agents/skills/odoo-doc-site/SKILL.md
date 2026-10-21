@@ -44,8 +44,9 @@ plan that runs it follows it with monitor and merge only.
 `RUN_DIR` = `<ISOLATE_DIR>/docs-site/<RUN_ID>/`. Plugin scripts run with `python3`;
 `build_compare.py`, `po_sync.py` and `images.py install` run with `DOCS PYTHON`.
 
-The check-shot approval and every "stop and ask" below are text questions with the reply words
-`approve / refine: [feedback] / cancel`.
+The page plan (step 1, `references/page-plan.md` § 4) is the one Plan-Mode gate of this skill. Nothing below asks again: a step
+that cannot finish returns `BLOCKED` with its evidence. Only a push or a pull request is an outward
+action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`).
 
 0. **Resolve** (`references/site-row.md`). Read-only until the page plan of step 1 is decided: no
    worktree, branch or file in the repository before then.
@@ -69,7 +70,7 @@ The check-shot approval and every "stop and ask" below are text questions with t
    - Run `repo_facts.py --worktree <worktree> --json` and save the result to
      `<RUN_DIR>repo-facts.json` (the writers' `REPO FACTS`). `NEEDS_CONTEXT` when `series_agree` is
      false or `series` differs from the row's series.
-   - When the stored check-shot record of the site and series holds no content width, or
+   - When the site and series have no content-width record (`references/check-shot.md`), or
      `check_shot` is `always`, run `build_compare.py` on the fresh worktree (candidate equals base,
      before any edit) and `build_compare.py serve` it: step 3 measures the theme's content column
      on it, then the server is stopped.
@@ -91,24 +92,23 @@ The check-shot approval and every "stop and ask" below are text questions with t
      `WORKTREE_PATH` = `CODE_WORKTREE` when given, `run_id` = `RUN_ID`. Keep the
      returned block verbatim as `INSTANCE_HANDLE`. Build, update and reinstall decisions follow
      `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree.
-   - Login: on the database this step built, the login is `admin` and the writer reads the password
-     from the checkout (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § 15); this
-     skill passes no password. On any other database, pass `LOGIN` and take the password from
-     `ODOO_DOC_PASSWORD`, else `NEEDS_CONTEXT(PASSWORD)`.
-   - The check-shot launch also measures the content width on the served build; stop the server
-     once it is recorded. This skill writes `approval.json` from the `reference_viewport` and
-     `content_width` the writer returns.
+   - The check shot runs when `references/check-shot.md` § When it runs says so; its launch also
+     measures the content width on the served build. Stop the server once it is recorded. This
+     skill writes the content-width record from the `reference_viewport` and `content_width` the
+     writer returns.
 4. **Write.** Launch `odoo-doc-site-writer` per disjoint page group (`references/writer-brief.md`).
    Model tier per `references/writer-brief.md`. Groups run in parallel only up to `W` of
-   § Browser exclusivity of that file, each on its own browser family. A fix round goes to the same
-   writer with `SendMessage`.
+   § Browser exclusivity of that file, each on its own browser family, and only when the capture
+   database shows one company name in every site language (`policy.demo_company` absent or equal
+   per language): the company name is one value of the shared database, so otherwise one group at a
+   time. A fix round goes to the same writer with `SendMessage`.
 5. **Gates** (`references/gates-and-landing.md` § Gates). Fix and re-run until clean, at most 3
-   rounds; then stop and ask the user (text question). An `UNVERIFIED` item is reported, never hidden.
+   rounds; then `BLOCKED` with the findings left. An `UNVERIFIED` item is reported, never hidden.
 6. **Browser acceptance** (`references/acceptance.md`). Serve the candidate build of every language
    with `build_compare.py serve` and launch `odoo-qa-tester` with `MODE: DOCS`, independent of the
    writer: it gets the served URLs, the page plan, the checklist and the banned terms of the
    policy, nothing else. On `FAIL`, resume the writer with the findings, rebuild, re-run step 5 for
-   what changed, re-serve and re-run acceptance, until `PASS` or a human decision.
+   what changed, re-serve and re-run acceptance, until `PASS` or `BLOCKED` (`references/acceptance.md` § Loop).
 7. **Land** (`references/gates-and-landing.md` § Land). Commit per the row's `commit` policy through
    `git-toolkit:git-ops`, push to `fork_remote` with a lease, open the PR against the series branch.
 8. **CI** (`references/gates-and-landing.md` § CI). Read the result; classify docs failure versus

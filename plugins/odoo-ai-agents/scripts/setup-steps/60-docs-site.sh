@@ -7,7 +7,7 @@
 # branches are pushed to, the languages (source first), the audience, per series the
 # local clone and the capture instance, optionally the code repositories the site
 # documents (`repos`, operator-stated, never guessed), and the site policy (banned
-# terms, marketplace link pattern, demo company, commit and check-shot style). Which of
+# terms, marketplace link pattern, demo company, commit style and when the check shot runs). Which of
 # that is a FACT of the repository is derived; the rest is the operator's and is never
 # guessed:
 #

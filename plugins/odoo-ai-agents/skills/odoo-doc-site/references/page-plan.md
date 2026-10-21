@@ -48,7 +48,7 @@ Write `<SHARE_DIR>/docs-site/<site>/<series>/<area-slug>/page-plan.md`, one row 
 | `group` | the disjoint page group: no two groups touch the same file |
 | `source_series` | `work: port` rows only: the series the page is ported from |
 
-A published page is never renamed or moved. A plan that needs one stops for a human decision.
+A published page is never renamed or moved. A plan that needs one is `BLOCKED`, naming the page.
 
 With `FROM CHANGE`, read the change file and keep only the pages whose content its features change;
 every other page is absent from the plan, not `skip`.

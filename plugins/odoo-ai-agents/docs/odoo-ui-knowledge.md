@@ -2,9 +2,9 @@
 
 Portable, version-aware reference shared by the visual skills (`odoo-ui-review`,
 `odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer` / `odoo-ui-debugger`
-agents. Contains no instance-specific or confidential values - concrete URLs and login identifiers
-are resolved per-run from the declared instance catalog (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`);
-the web-login password is never stored here (see Session / multi-role storage below); baseline images live under each
+agents. Contains no instance-specific or confidential values - concrete URLs are resolved per-run
+from the declared instance catalog (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`);
+baseline images live under each
 project's `<SHARE_DIR>/visual/baselines/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
@@ -13,13 +13,9 @@ never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
 | Purpose | Path | Notes |
 |---------|------|-------|
-| Login | `/web/login` | Same across all supported versions. Submit credentials, then store the session. |
 | Backend (web client) | `/odoo` (v17+) · `/web` (≤ v16) | v17 renamed the backend mount point. Use the version to pick the right path. |
 | Website frontend | `/` and module routes (e.g. `/shop`, `/my`, `/my/invoices`) | Public/portal pages rendered by the `website` stack, not the backend client. |
 | Portal | `/my` | Authenticated customer-facing pages. |
-
-Always log in via `/web/login` first; navigating a backend URL while unauthenticated redirects to
-the login page and produces misleading screenshots.
 
 ## Backend selectors (web client)
 
@@ -70,7 +66,7 @@ below cite these tags.
 | G4 | menu / action mis-point | a menu, smart button, or action opens an empty / wrong list, a 404, or the wrong domain / context |
 | G5 | OWL white-screen | a blank content area with NO Python traceback - only a browser-console JS error reveals it |
 | G6 | view load-fail (kanban / search / pivot / graph / calendar) | the view does not render because its template or a search / group-by / measure / date field references a removed field |
-| G7 | ACL block | an AccessError, an empty list, or a hidden field / button for the logged-in role (invisible when the screen is reviewed as admin) |
+| G7 | ACL block | an AccessError, an empty list, or a hidden field / button for the acting role (invisible when the screen is reviewed as admin) |
 | G8 | Legacy break (v8-v14 only) | a legacy `web.Widget` fails to instantiate (silent - no OWL error surface exists pre-v15), an `odoo.define()` AMD module fails to load (console-only error, blank region), or a QWeb2 template id is missing/misspelled (silent blank) |
 
 Scope note: G7 (role-dependent) and any CRUD / state-transition coverage need MULTIPLE roles and write
@@ -78,7 +74,7 @@ operations - that is the acceptance tester's scope (`odoo-qa-tester`). A rendere
 FULL era-appropriate taxonomy on one screen, single-role, without mutating data: G1-G4 and G6 always;
 G5 (OWL era, v15+) OR G8 (Legacy era, v8-v14) - never both, mutually exclusive per screen once the era is
 determined (see "Determine the frontend era first" above); plus whatever G7 effect is visible for the
-single role it is logged in as (full role-matrix ACL coverage stays out of scope, per above).
+single role it acts as (full role-matrix ACL coverage stays out of scope, per above).
 
 ## View-type render checks
 
@@ -176,22 +172,6 @@ Use a consistent set for review, regression, and recording so captures are compa
 | Desktop | 1280 | standard laptop/desktop |
 | Wide | 1920 | large monitor (only when the brief asks for it) |
 
-## Session / multi-role storage
-
-For repeatable, deterministic captures and for exercising role-specific UI:
-
-1. Log in once via `/web/login` and persist the browser session (storage state) to a named file,
-   e.g. `storageState-admin.json`, `storageState-portal.json` - one per role under the project's
-   baseline directory.
-2. Re-use the stored state on subsequent navigations instead of logging in each time; this keeps
-   screenshots deterministic and avoids login-page noise in diffs.
-3. Keep one storage-state file per role (admin, internal user, portal user) so role-specific UI can
-   be reviewed without re-authenticating mid-session.
-
-Login identifier: the brief's value, else `admin`. The password is not stored in this repo or in
-project state: use the value the brief supplies, and when the brief supplies none, ask for it
-ONCE. Never guess a password and never reuse a database credential for the web login.
-
 ## Inputs the visual skills resolve
 
 All four skills resolve the same inputs, none of them from a stored project file:
@@ -207,11 +187,8 @@ All four skills resolve the same inputs, none of them from a stored project file
   a genuine two-instance comparison (e.g. two separate builds/hosts - staging vs prod, or two
   independently-provisioned version instances). Absent -> state B is `instance_base_url`
   re-navigated post-change (same-instance before/after).
-- **`instance_login`** - login identifier: the brief's, else `admin` for a locally-declared
-  instance; password: the brief's value, asked for ONCE when absent - never stored, never a
-  database credential.
 - **`screenshot_baseline_dir`** - unconditionally `<SHARE_DIR>/visual/baselines/`, holding
-  the baseline images and the cached login `storageState`. A visual-regression run's own comparison set is
+  the baseline images. A visual-regression run's own comparison set is
   NOT here: it is per-run ISOLATE at `<ISOLATE_DIR>/visual/current/<slug>/`, deleted after the
   Round-4 verdict is recorded, as are per-run acceptance/debug/review evidence and videos - see
   `state-root-resolution.md` § Where a captured artifact goes; videos default to
@@ -225,7 +202,7 @@ All four skills resolve the same inputs, none of them from a stored project file
   mockups/design specs).
 
 The Odoo series is the one input that STOPS and asks rather than guessing when no rung resolves it
-(`snippets/project-facts-resolution.md` rung 5); the instance target and login identifier degrade
+(`snippets/project-facts-resolution.md` rung 5); the instance target degrades
 to a single clarifying request only when genuinely unretrievable after every rung; brand fidelity
 and the mockup-first check simply skip silently when their input is absent.
 

@@ -79,9 +79,6 @@ Resolve each input from its own SSOT - never from a stored snapshot, and never b
 - **Odoo series** - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 - **`instance_base_url`** - per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (the live
   shared server `mcp__plugin_odoo-ai-agents_odoo-local__lease_find` returns first, then the matching row `mcp__plugin_odoo-ai-agents_odoo-local__catalog_read` returns).
-- **Login identifier** - the brief's, else `admin`. The PASSWORD is stored neither in this repo nor
-  in project state: use the value the brief supplies, and when the brief supplies none, ask for it
-  ONCE. Never guess a password and never reuse a database credential for the web login.
 - **Video output dir** - always `<ISOLATE_DIR>/visual/videos/` (resolved below); there is no
   per-project override.
 
@@ -104,15 +101,15 @@ Produce an ordered step list (menu → record → field input → action) before
 
 ### Round 2 - Set up deterministic state (in the recording browser)
 
-Log in and reach a clean, repeatable demo state (known record, expanded menu, top of page) in the
-browser that will record - a login in another family's browser does not carry over:
+Reach a clean, repeatable demo state (known record, expanded menu, top of page) in the browser
+that will record - a state set up in another family's browser does not carry over:
 
-- **pagecast:** inside the pagecast session - `record_page` at `<instance_base_url>/web/login`, then
-  `interact_page`: `type` the login and the password into their inputs, `press` `Enter`, `navigate`
-  to the start screen. The login is part of the take; trim it off in Round 4.
-- **playwright:** `browser_navigate` to `/web/login` and `browser_fill_form` the credentials before
-  `browser_start_video`; set state with `browser_evaluate`.
-- **chrome-devtools (frame path):** `navigate_page` + `fill_form`; set state with
+- **pagecast:** inside the pagecast session - `record_page` at `<instance_base_url>`, then
+  `interact_page` to the start screen. Everything before the start screen is part of the take;
+  trim it off in Round 4.
+- **playwright:** `browser_navigate` to the start screen before `browser_start_video`; set state
+  with `browser_evaluate`.
+- **chrome-devtools (frame path):** `navigate_page` to the start screen; set state with
   `evaluate_script` / `fill`.
 
 ### Round 3 - Record the take (browser)
@@ -122,7 +119,7 @@ nothing of the drive:
 
 - **pagecast:** drive the path with `interact_page` in the session Round 2 opened; never drive
   with chrome-devtools while a pagecast recording runs. `record_and_gif` fits only a page that
-  needs no login. Immediately after `stop_recording`, `mv` the `.webm` it returns into
+  needs no setup steps. Immediately after `stop_recording`, `mv` the `.webm` it returns into
   `<ISOLATE_DIR>/visual/videos/`.
 - **playwright:** `browser_start_video` with `filename` = the absolute path
   `<ISOLATE_DIR>/visual/videos/<stem>.webm`, drive with the playwright tools in that same browser,
@@ -158,7 +155,7 @@ Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Cla
 
 **Produce the file.** pagecast `convert_to_mp4` / `convert_to_gif` each convert ONE `.webm`
 (`webmPath` = its absolute path under `<ISOLATE_DIR>`); a GIF's `width` is the size it is shown
-at. Trim a pagecast login off the start with `convert_to_gif` `startTime`, or with `ffmpeg` for
+at. Trim the pagecast setup off the start with `convert_to_gif` `startTime`, or with `ffmpeg` for
 an MP4. Assemble a frame sequence, or join clips, with `ffmpeg`; check `command -v ffmpeg` first -
 when it is missing, deliver the frames or per-clip files and name the missing `ffmpeg` in
 `concerns:`.
@@ -309,7 +306,7 @@ Narrated-mode overlay bundle + calling convention:
 
 ## Notes / Integration
 
-- Use a consistent viewport and login for repeatable takes.
+- Use a consistent viewport for repeatable takes.
 - This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-coding`.
 
 ## Continuation Contract

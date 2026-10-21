@@ -69,7 +69,7 @@ git reset --hard  <sha>       # DISCARD all changes - clean tree (S4) and backup
 ```bash
 git clone --no-local <repo> <fresh clone>
 git -C <fresh clone> filter-repo --analyze                                # rename/size report first
-git -C <fresh clone> filter-repo --path-glob '*.secret' --invert-paths    # remove secrets
+git -C <fresh clone> filter-repo --path-glob '*.bak' --invert-paths       # drop a path from all history
 git -C <fresh clone> filter-repo --path-rename old/:new/                  # rename a path (give BOTH paths)
 ```
 

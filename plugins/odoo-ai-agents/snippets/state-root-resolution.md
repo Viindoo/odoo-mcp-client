@@ -140,8 +140,7 @@ Every capture call (screenshot, DOM or heap snapshot, trace, Lighthouse report, 
 ABSOLUTE path under the resolved `<ISOLATE_DIR>` or `<SHARE_DIR>` - never a relative path, never a
 path inside the target repo or any working tree, never no destination. Pick the root by bucket:
 
-1. **Reusable across runs** (visual-regression BASELINES, the cached login `storageState`, the
-   doc-illustration screenshot cache) -> `<SHARE_DIR>/visual/...` per `## Tier-2 SHARE list` above.
+1. **Reusable across runs** (visual-regression BASELINES, the doc-illustration screenshot cache) -> `<SHARE_DIR>/visual/...` per `## Tier-2 SHARE list` above.
 2. **Run-scoped** (a visual-regression run's state-B comparison set, acceptance, debug and UI-review
    evidence, demo-video output, doc staging) -> `<ISOLATE_DIR>/...` per `## Tier-2 ISOLATE list`
    above. The default when in doubt; a capture no skill owns goes to `<ISOLATE_DIR>/visual/adhoc/<slug>/`.
