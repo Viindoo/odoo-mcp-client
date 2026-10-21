@@ -152,13 +152,26 @@ def _fake_odoo_raising(tmp_path, *, message, pgcode=None, dirname="fake_odoo_aut
     return pkg_root
 
 
-def _fake_odoo_ok(tmp_path, dirname="fake_odoo_ok"):
-    """A fake `odoo` whose db_connect answers `SELECT 1` successfully."""
+def _fake_odoo_ok(tmp_path, dirname="fake_odoo_ok", layout="legacy"):
+    """A fake `odoo` whose db_connect answers `SELECT 1` successfully.
+
+    `layout` "modern" is the Odoo 20.0 shape: modules/db.py and NO service/ at all."""
     pkg_root = tmp_path / dirname
     pkg = pkg_root / "odoo"
-    (pkg / "service").mkdir(parents=True)
-    (pkg / "tools").mkdir()
-    (pkg / "__init__.py").write_text("from odoo import tools, service\n", encoding="utf-8")
+    (pkg / "tools").mkdir(parents=True)
+    (pkg / "__init__.py").write_text("from odoo import tools\n", encoding="utf-8")
+    if layout == "modern":
+        (pkg / "modules").mkdir()
+        (pkg / "modules" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "modules" / "db.py").write_text(
+            "def drop(db_name):\n    return None\n\n"
+            "def exist(db_name):\n    return True\n", encoding="utf-8")
+    else:
+        (pkg / "service").mkdir()
+        (pkg / "service" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "service" / "db.py").write_text(
+            "def exp_drop(db_name):\n    return True\n\n"
+            "def exp_db_exist(db_name):\n    return True\n", encoding="utf-8")
     (pkg / "tools" / "__init__.py").write_text(
         textwrap.dedent("""\
         class _Config(dict):
@@ -167,11 +180,6 @@ def _fake_odoo_ok(tmp_path, dirname="fake_odoo_ok"):
 
         config = _Config()
         """), encoding="utf-8")
-    (pkg / "service" / "__init__.py").write_text(
-        "from odoo.service import db\n", encoding="utf-8")
-    (pkg / "service" / "db.py").write_text(
-        "def exp_drop(db_name):\n    return True\n\n"
-        "def exp_db_exist(db_name):\n    return True\n", encoding="utf-8")
     (pkg / "sql_db.py").write_text(
         textwrap.dedent("""\
         class _Cursor(object):
@@ -317,6 +325,19 @@ def test_preflight_reports_ok_only_when_the_connection_actually_answered(tmp_pat
     res = _preflight(pkg, tmp_path, "--db-host", "h", "--db-user", "u")
     assert res.returncode == EXIT_OK, (
         "got {rc}, stderr={err!r}".format(rc=res.returncode, err=res.stderr))
+    assert _keys(res.stdout).get("DB_AUTH") == "ok", res.stdout
+
+
+def test_preflight_is_ok_on_a_checkout_that_has_no_service_db_module(tmp_path):
+    """Odoo 20.0 has no odoo/service/db.py; authentication needs only odoo.sql_db and
+    odoo.tools, so the gate that guards every build must not be blocked by a module it
+    never uses (issue #272: preflight reported BLOCKED unknown on 20.0)."""
+    pkg = _fake_odoo_ok(tmp_path, dirname="fake_odoo_modern", layout="modern")
+    assert not (pkg / "odoo" / "service").exists(), "fixture premise: no service/"
+    res = _preflight(pkg, tmp_path, "--db-host", "h", "--db-user", "u")
+    assert res.returncode == EXIT_OK, (
+        "got {rc}, stdout={out!r}, stderr={err!r}".format(
+            rc=res.returncode, out=res.stdout, err=res.stderr))
     assert _keys(res.stdout).get("DB_AUTH") == "ok", res.stdout
 
 

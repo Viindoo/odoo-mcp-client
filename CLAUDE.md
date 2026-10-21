@@ -116,8 +116,7 @@ translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_
 - **Tool-launched Odoo never reads `~/.odoorc`.** Every `odoo-bin` the scripts launch reads a
   generated config file, named by `-c` and by `$ODOO_RC` (`scripts/lib/odoo_cli_facts.sh`
   `odoo_isolated_rc_env` - where Odoo loads its default rc file at import time, `-c` alone does not
-  keep it out). The Postgres password comes only from `ODOO_PG_PASSWORD` or `~/.pgpass`; the plugin
-  never writes one.
+  keep it out).
 - **Hooks gate what a subagent does with a lease.** `hooks/hooks.json` registers exactly FOUR
   PreToolUse hard denies - spawner source writes, an unowned lease mutation, a
   `SubagentHandback` while a lease the subagent obtained is still live and not forwarded

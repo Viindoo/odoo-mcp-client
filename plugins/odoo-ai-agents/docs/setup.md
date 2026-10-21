@@ -325,11 +325,10 @@ drop-in. What it does:
    your behalf) - the machine-global language registry for the odoo-i18n cluster; edit to add your
    own target languages, e.g. `["vi_VN","en_US"]`.
 5. **DB local auth** (`48-db-local-auth`) - lets Odoo reach the declared PostgreSQL role on a local
-   cluster without a stored password, via a managed block in that cluster's `pg_hba.conf`; reverted
-   with `48-db-local-auth.sh revert`. For a cluster that cannot be reconfigured, the only password
-   sources are `ODOO_PG_PASSWORD` (this shell) and a `~/.pgpass` line: every Odoo the plugin
-   launches reads a config file the plugin generates, never your `~/.odoorc`, so a `db_password`
-   there is not used.
+   cluster, via a managed block in that cluster's `pg_hba.conf`; reverted with
+   `48-db-local-auth.sh revert`. A cluster this step cannot reconfigure (`tcp-only`, managed or
+   remote) is reported as a refusal and builds on it stay refused. Every Odoo the plugin launches
+   reads a config file the plugin generates, never your `~/.odoorc`.
 6. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 7. **Docs site** (optional; `/odoo-ai-agents:odoo-setup docs-site`, step `60-docs-site`) - declares a
    product documentation repository in `$ODOO_AI_HOME/docs-sites.toml` (machine-global, never

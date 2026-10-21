@@ -18,8 +18,7 @@ Every `odoo-bin` the scripts launch reads ONE config file the script generated, 
 (`scripts/lib/odoo_cli_facts.sh` `odoo_isolated_rc_env`) - where Odoo loads its default rc file at
 import time, `-c` overrides only the keys the conf states, so without the variable the operator's
 `~/.odoorc` (`without_demo`, `data_dir`, `db_*`, `addons_path`) would still reach the
-run. `odoo_db.py` names an empty file the same way. No generated conf holds a password: libpq reads
-`PGPASSWORD`, exported from `$ODOO_PG_PASSWORD` for that launch only, or `~/.pgpass`. Two paths
+run. `odoo_db.py` names an empty file the same way. No generated conf holds a credential. Two paths
 write that conf, and BOTH satisfy the isolation contract by construction:
 
 - **`55-instance-ops.sh`-backed operations** (create/init/update/run-tests - what

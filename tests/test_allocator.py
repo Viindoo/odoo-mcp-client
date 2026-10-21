@@ -132,7 +132,7 @@ def _acquire(env, *extra):
 
 def _make_fake_venv_python(bindir, name="fake_python", log=None,
                            createdb="true", createdb_rc=0, drop_rc=0,
-                           preflight_rc=0, exists=None):
+                           preflight_rc=0, exists=None, drop_stderr=None):
     """Write a stand-in for the instance's DECLARED venv python and return its path.
 
     The allocator asks every Postgres question through this interpreter, so the
@@ -157,7 +157,7 @@ def _make_fake_venv_python(bindir, name="fake_python", log=None,
         '    %s'
         'case "$2" in\n'
         '      can-createdb) %sexit %d ;;\n'
-        '      drop) exit %d ;;\n'
+        '      drop) %sexit %d ;;\n'
         '      preflight) echo "DB_AUTH_WHY=stub"; exit %d ;;\n'
         '      exists) %sexit 0 ;;\n'
         '    esac\n'
@@ -166,7 +166,9 @@ def _make_fake_venv_python(bindir, name="fake_python", log=None,
         'exec %s "$@"\n' % (
             log_line,
             ('echo %s; ' % createdb) if createdb is not None else "",
-            createdb_rc, drop_rc, preflight_rc,
+            createdb_rc,
+            ('echo "%s" >&2; ' % drop_stderr) if drop_stderr else "",
+            drop_rc, preflight_rc,
             ('echo %s; ' % exists) if exists is not None else "",
             sys.executable,
         ),
@@ -373,7 +375,7 @@ def test_ephemeral_lease_carries_drop_context(tmp_path):
     assert lz["python"] == str(fake_py), "venv interpreter must be stored in lease"
     assert lz["db_host"] == "localhost", "db_host must be stored for drop-context"
     assert lz["db_user"] == "odoo", "db_user must be stored for drop-context"
-    # Password must NOT be stored - it is read from ODOO_PG_PASSWORD at drop time.
+    # No credential is stored on the lease.
     assert "db_password" not in lz, "PG password must never be stored in the lease"
     assert "created_db" not in lz, "old created_db field must not appear (replaced by drop_on_release)"
 
@@ -2502,6 +2504,26 @@ def test_failed_raw_fallback_drop_keeps_the_lease(tmp_path):
     assert "tcp-only" in rel.stderr, f"the error must name the declared mode; got {rel.stderr!r}"
 
 
+def test_the_raw_fallback_warning_forwards_why_the_through_odoo_route_could_not_run(tmp_path):
+    """Exit 10 sends a throwaway database to the client-surface fallback, whatever the
+    cause. The warning that announces it carries the child's own reason, so a reader can
+    tell a missing package from a broken dependency from an unrecognised database API -
+    "venv unavailable" for all three sent them to the wrong fix."""
+    toml = INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"',
+        'db_run_mode = "tcp-only"\npython = "/srv/venv/bin/python"')
+    reason = ("odoo_db: ODOO_SOURCE_FACT_UNKNOWN: odoo imported from /srv/odoo/odoo defines "
+              "no database API this script can drive")
+    env, _log, _py = _env_with_fake_venv(tmp_path, toml, drop_rc=10, drop_stderr=reason)
+    a = _acquire_ephemeral_or_fail(env)
+
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+
+    assert "ODOO_SOURCE_FACT_UNKNOWN: odoo imported from /srv/odoo/odoo" in rel.stderr, (
+        f"the child's reason must be forwarded in the fallback warning; got {rel.stderr!r}")
+    assert "venv unavailable" not in rel.stderr
+
+
 def test_tcp_only_mode_never_invokes_a_client_binary(tmp_path):
     """db_run_mode=tcp-only is a declaration that this host has NO client surface.
     The allocator must honour it rather than trying a binary that happens to be on
@@ -2716,25 +2738,19 @@ def test_the_probe_bound_is_the_same_knob_the_shell_half_uses(tmp_path):
 # --------------------------------------------------------------------------- #
 # The UNDETERMINABLE message must diagnose correctly AND name the remedy.
 # --------------------------------------------------------------------------- #
-def test_undeterminable_createdb_names_the_record_env_remedy(tmp_path):
-    """`import odoo` failing is an UNDECLARED `odoo_root`, not a broken venv.
-
-    A source checkout is never pip-installed, so a catalog written before
-    `odoo_root` existed makes odoo_db.py exit 10 - and its own message says "no
-    venv?", which is FALSE: the venv is fine. Repeating that diagnosis and then
-    offering only "re-dispatch with an explicit --mode" hides the one cheap fix,
-    which is the very thing that records the missing key.
-    """
+def _acquire_with_child_saying(tmp_path, child_stderr):
+    """`acquire --mode ephemeral` where the declared interpreter's odoo_db.py exits 10
+    ("this interpreter cannot drive Odoo") after printing `child_stderr`."""
     bindir = tmp_path / "sentinelbin"
     bindir.mkdir()
     py = bindir / "py10"
     py.write_text(
         '#!/bin/sh\n'
         'if [ "$(basename "$1")" = "odoo_db.py" ]; then\n'
-        '    echo "odoo_db: cannot import odoo (no venv?) - no module named odoo" >&2\n'
+        '    echo "%s" >&2\n'
         '    exit 10\n'
         'fi\n'
-        'exec %s "$@"\n' % sys.executable,
+        'exec %s "$@"\n' % (child_stderr, sys.executable),
         encoding="utf-8",
     )
     py.chmod(0o755)
@@ -2743,19 +2759,43 @@ def test_undeterminable_createdb_names_the_record_env_remedy(tmp_path):
     toml = tmp_path / "instances.toml"
     toml.write_text(INSTANCES_TOML.replace(
         'python = "/srv/venv/bin/python"', f'python = "{py}"'), encoding="utf-8")
-    env = _env(home, toml)
+    return _run(_env(home, toml), "acquire", "--series", "17.0", "--mode", "ephemeral",
+                "--ports", "0", timeout=60)
 
-    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
-             timeout=60)
+
+def test_undeterminable_createdb_forwards_the_cause_odoo_db_observed_and_names_record_env(
+        tmp_path):
+    """The undeterminable refusal says what the CHILD saw, not what the allocator guesses.
+
+    An undeclared `odoo_root` is the usual reason `import odoo` fails on a source checkout,
+    but it is not the only one - a dependency of Odoo can fail to import in a perfectly
+    declared venv. A canned "odoo_root is not declared" sentence blamed the wrong fact in
+    that case, so the child's own line is forwarded as it is, and the one cheap fix that
+    records a missing key stays named.
+    """
+    child = ("odoo_db: odoo not importable by /srv/venv/bin/python "
+             "(odoo_root=undeclared) - neither 'odoo' nor 'openerp' is on its import path")
+    p = _acquire_with_child_saying(tmp_path, child)
 
     assert p.returncode == 7, f"got {p.returncode}: {p.stderr!r}"
+    assert "cannot drive Odoo: odoo_db: odoo not importable by /srv/venv/bin/python" in p.stderr, (
+        f"the CREATEDB verdict must carry the child's observed cause verbatim; "
+        f"got {p.stderr!r}")
+    assert "(odoo_root=undeclared)" in p.stderr
     assert "record-env" in p.stderr, (
-        f"the ONE cheap fix must be named on this path too; got {p.stderr!r}"
-    )
-    assert "odoo_root" in p.stderr, (
-        f"the message must name the fact that is actually missing, not blame the "
-        f"venv; got {p.stderr!r}"
-    )
+        f"the ONE cheap fix must be named on this path too; got {p.stderr!r}")
+
+
+def test_undeterminable_createdb_does_not_blame_odoo_root_for_a_failed_dependency(tmp_path):
+    child = ("odoo_db: odoo imported from /srv/odoo/odoo, but psycopg2 failed - "
+             "ModuleNotFoundError: No module named 'psycopg2'")
+    p = _acquire_with_child_saying(tmp_path, child)
+
+    assert p.returncode == 7, f"got {p.returncode}: {p.stderr!r}"
+    assert "but psycopg2 failed" in p.stderr, (
+        f"the failing module must reach the reader; got {p.stderr!r}")
+    assert "is not declared" not in p.stderr, (
+        f"a found package must not be diagnosed as an undeclared odoo_root; got {p.stderr!r}")
 
 
 # --------------------------------------------------------------------------- #
@@ -3269,6 +3309,50 @@ def test_db_preflight_reports_both_facts_when_the_connection_works(tmp_path):
     assert p.returncode == 0, f"got {p.returncode}, stderr={p.stderr!r}"
     assert "DB_AUTH=ok" in p.stdout and "CREATEDB=true" in p.stdout, p.stdout
     assert _leases(env) == [], "a read-only query must never write a lease"
+
+
+def _db_preflight_against_real_odoo_db(tmp_path, layout, break_sql_db=False):
+    """`allocator.py db-preflight` running the REAL odoo_db.py under a declared python
+    against a stub Odoo checkout of `layout` ("legacy" = service/db.py, "modern" = Odoo
+    20.0's shape, with no service/ at all)."""
+    from test_odoo_db_lib import _build_fake_odoo_with_sql_db
+    checkout = _build_fake_odoo_with_sql_db(tmp_path, layout=layout, dirname="checkout")
+    if break_sql_db:
+        (checkout / "odoo" / "sql_db.py").write_text(
+            "import a_dependency_nobody_installed\n", encoding="utf-8")
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"',
+        f'python = "{sys.executable}"\nodoo_root = "{checkout}"'), encoding="utf-8")
+    env = _env(home, toml)
+    env.pop("PYTHONPATH", None)
+    p = _run(env, "db-preflight", "--series", "17.0", timeout=60)
+    keys = dict(
+        line.partition("=")[::2] for line in p.stdout.splitlines() if "=" in line)
+    return p, keys
+
+
+@pytest.mark.parametrize("layout", ["legacy", "modern"])
+def test_db_preflight_answers_on_every_database_api_layout(tmp_path, layout):
+    """Authentication and CREATEDB need only odoo.sql_db and odoo.tools, so a checkout
+    with no service/db.py (Odoo 20.0) must pass the gate exactly like one that has it.
+    Before #272 the modern layout reported `DB_AUTH=unknown` and blamed odoo_root."""
+    p, keys = _db_preflight_against_real_odoo_db(tmp_path, layout)
+    assert p.returncode == 0, f"got {p.returncode}, stdout={p.stdout!r}, stderr={p.stderr!r}"
+    assert keys.get("DB_AUTH") == "ok", p.stdout
+    assert keys.get("CREATEDB") == "true", p.stdout
+
+
+def test_db_preflight_surfaces_the_failing_module_not_a_canned_odoo_root_sentence(tmp_path):
+    p, keys = _db_preflight_against_real_odoo_db(tmp_path, "modern", break_sql_db=True)
+    assert keys.get("DB_AUTH") == "unknown", p.stdout
+    assert "a_dependency_nobody_installed failed" in keys.get("DB_AUTH_WHY", ""), (
+        f"the child's reason must reach DB_AUTH_WHY; got {p.stdout!r}")
+    assert "a_dependency_nobody_installed failed" in p.stderr
+    assert "odoo_root" not in keys.get("DB_AUTH_WHY", "") + p.stderr.split("allocator:")[0], (
+        f"a found package must not be blamed on odoo_root; got {p.stderr!r}")
 
 
 # --------------------------------------------------------------------------- #

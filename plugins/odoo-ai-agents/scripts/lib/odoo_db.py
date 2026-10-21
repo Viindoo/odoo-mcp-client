@@ -18,7 +18,7 @@ CLI contract
 ------------
   python3 odoo_db.py drop   <db> [--db-host H] [--db-user U] [--db-port P] [--db-password P]
                                  [--odoo-root R]
-      Drop the database through ``odoo.service.db.exp_drop``.
+      Drop the database through Odoo's own drop (see "Database API" below).
       Threads --db-port into parse_config as --db_port ONLY when non-empty (empty
       -> omit; libpq/PGPORT resolves it - never fabricate 5432).
       Emits an observability line to stderr on every drop naming the RESOLVED
@@ -26,9 +26,16 @@ CLI contract
       Exit 0 on success OR if the DB is already absent (idempotent).
       Exit 1 on any Odoo-level failure (message on stderr).
       Exit 2 on usage / argument error (INCLUDING an unrecognized --flag).
-      Exit 10 when the Odoo package cannot be imported (``odoo_db: cannot import
-               odoo (no venv?)`` on stderr) - "venv unavailable" sentinel for
-               callers (e.g. allocator.py) that want to apply their own fallback.
+      Exit 10 when this interpreter cannot drive Odoo - "route unavailable"
+               sentinel for callers (e.g. allocator.py) that want to apply their
+               own fallback. Stderr says WHICH of three causes it is, and never
+               blames a cause it did not observe:
+                 - ``odoo not importable by <python> (odoo_root=<x|undeclared>)``:
+                   the base package is not on the import path;
+                 - ``odoo imported from <path>, but <module> failed``: the package
+                   was found and a submodule or a dependency of it did not load;
+                 - ``ODOO_SOURCE_FACT_UNKNOWN``: the package loaded but its source
+                   defines neither database API below (never guessed).
 
   python3 odoo_db.py exists <db> [--db-host H] [--db-user U] [--db-port P] [--db-password P]
                                  [--odoo-root R]
@@ -119,31 +126,45 @@ CLI contract
       Exit 0 when answered; 8 / 9 / 10 / 1 like the other read-only queries,
       with NOTHING on stdout.
 
-Password resolution (mirrors allocator._pg_env)
--------------------------------------------------
-  1. --db-password CLI flag (highest priority)
-  2. ODOO_PG_PASSWORD env var
-  3. ``${PGPASSFILE:-~/.pgpass}`` - Odoo omits the password from its connection
-     entirely when ``db_password`` is unset, so libpq resolves it from this file
-     itself. This script NEVER writes that file; it only READS it, so the
-     preflight can decide "no credential is resolvable at all" without parsing a
-     libpq message that may be localised.
-  4. Nothing set - the connection carries no password (trust / peer auth).
+Credentials
+-----------
+  The connection is resolved exactly as the builds resolve it (mirrors
+  allocator._pg_env): the --db-password flag first, then what the environment
+  and libpq offer, then nothing (trust / peer auth). This script NEVER writes a
+  credential anywhere; it only READS what is on offer, so the preflight can
+  decide "no credential is resolvable at all" without parsing a libpq message
+  that may be localised. Setting a cluster up so Odoo can authenticate is
+  /odoo-ai-agents:odoo-setup's job.
 
 Namespace compatibility
 -----------------------
-  Odoo >= v10: ``import odoo``            / ``odoo.service.db`` / ``odoo.tools.config``
-  Odoo  v8-v9: ``import openerp as odoo`` / ``openerp.service.db`` / ``openerp.tools.config``
-  The guard ``config['list_db'] = True`` is set before calling ``exp_drop`` /
-  ``exp_db_exist`` so the ``@check_db_management_enabled`` decorator (v10+) is a
-  no-op. The flag is harmless on v8/v9 which have no such guard.
-  ``.tools``, ``.service.db`` and ``.sql_db`` are imported explicitly (via
-  ``importlib``) because a bare base-package import no longer binds them as
-  attributes on Odoo 19.0.
+  ``import odoo``, or ``import openerp as odoo`` when that is the package the
+  checkout ships (the name is whatever the interpreter actually imported).
+  ``.tools`` and ``.sql_db`` are imported explicitly (via ``importlib``) because
+  a bare base-package import does not bind them as attributes on Odoo 19.0; every
+  read-only subcommand needs only those two.
+
+Database API (drop / exists only)
+---------------------------------
+  Chosen from the SOURCE TEXT of the package the interpreter imported - located
+  through the base package's ``__path__`` (a namespace package on 19.0+ can have
+  several), never from a series number, so a new series needs no edit here:
+    modern  ``<pkg>/modules/db.py`` defines ``def drop(`` and ``def exist(``
+            (module-level; ``drop`` raises when the database is absent)
+    legacy  ``<pkg>/service/db.py`` defines ``def exp_drop(`` and ``def exp_db_exist(``
+            (``exp_drop`` returns False when the database is absent)
+  Both present -> modern. Neither -> refused (ODOO_SOURCE_FACT_UNKNOWN). The module
+  is bound only by the two subcommands that call it, so a checkout with no
+  ``service/db.py`` still answers every read-only question. The probe lives here,
+  not in odoo_source_facts.py, because this script also runs under the Python 2.7
+  that v8-v10 need and that module is Python 3 only.
+  The guard ``config['list_db'] = True`` is set before the call so the
+  ``@check_db_management_enabled`` decorator (v10+) is a no-op; it is harmless on
+  v8/v9 which have no such guard.
 
 NEVER calls raw ``dropdb`` / ``psql`` / ``createdb``. All DB destruction goes
-through ``odoo.service.db.exp_drop`` which handles connection-pool teardown,
-filestore removal, and registry cleanup in a single atomic step; every read-only
+through Odoo's own drop (``exp_drop`` / ``drop``), which handles connection-pool
+teardown, filestore removal, and registry cleanup in a single step; every read-only
 question goes through ``odoo.sql_db.db_connect`` so it resolves the connection
 EXACTLY like drop/exists do - one resolution path, never a second hand-rolled
 psycopg2 call that could target a different cluster.
@@ -151,14 +172,16 @@ psycopg2 call that could target a different cluster.
 
 from __future__ import print_function
 
+import io
 import os
+import re
 import sys
 
 # ---- Exit codes (contract) ----
 EXIT_OK = 0
 EXIT_FAILURE = 1
 EXIT_USAGE = 2
-EXIT_NO_VENV = 10  # "venv unavailable" sentinel - callers may detect this
+EXIT_NO_VENV = 10  # "this interpreter cannot drive Odoo" sentinel - callers may detect this
 # Facts about the CONNECTION, kept distinct from EXIT_FAILURE so a caller can
 # tell "the drop was never attempted" from "the drop was attempted and failed",
 # and "this route is unavailable" from "this route works and the cluster refused
@@ -292,15 +315,90 @@ def _empty_rc():
     return os.devnull
 
 
-def _import_odoo(opts=None):
-    """Import the Odoo package (supports the openerp v8/v9 namespace) AND the
-    submodules this script dereferences.
+class _OdooUnavailable(ImportError):
+    """This interpreter cannot drive Odoo. ``kind`` says why, and ``text`` is the
+    one line that is printed (and, for ``preflight``, reported as DB_AUTH_WHY):
 
-    A bare ``import odoo`` does NOT guarantee ``odoo.tools`` / ``odoo.service``
-    are bound as attributes (Odoo 19.0 no longer binds them transitively), so we
-    import the submodules EXPLICITLY, via the RESOLVED package name so the
-    ``openerp`` (v8/v9) namespace is handled too. Returns the odoo/openerp
-    module, or raises ImportError if the base package is not present.
+      "base"   the base package is not on the import path (``odoo_root`` is the
+               usual missing fact on a source checkout);
+      "module" the package was found but a submodule, or a dependency of it, did
+               not load - the interpreter and ``odoo_root`` are fine, so neither
+               is blamed;
+      "api"    the package loaded but its source defines no database API this
+               script knows (ODOO_SOURCE_FACT_UNKNOWN).
+
+    It subclasses ImportError so a caller that only cares "could Odoo be loaded"
+    keeps working; the exit code is EXIT_NO_VENV for all three because each one
+    means the same to the allocator: the through-Odoo route never ran.
+    """
+
+    def __init__(self, kind, text):
+        ImportError.__init__(self, text)
+        self.kind = kind
+        self.text = text
+
+
+def _missing_name(exc):
+    """The module an ImportError says it could not find, or None. ``exc.name`` on
+    Python 3; the message ("No module named x") on Python 2, which has no attribute."""
+    name = getattr(exc, "name", None)
+    if name:
+        return name
+    found = re.search(r"No module named '?([\w.]+)'?", str(exc))
+    return found.group(1) if found else None
+
+
+def _pkg_dirs(odoo):
+    """Every directory the base package lives in: one for a regular package,
+    possibly several for a namespace package (Odoo 19.0 ships no
+    ``odoo/__init__.py``)."""
+    return [str(p) for p in list(getattr(odoo, "__path__", None) or [])]
+
+
+def _locate(pkg):
+    """First ``sys.path`` directory holding a ``pkg`` directory, or None. Used only
+    to say WHERE a package whose own import failed was found."""
+    for base in sys.path:
+        cand = os.path.join(base or os.curdir, pkg)
+        if os.path.isdir(cand):
+            return cand
+    return None
+
+
+def _module_failure(pkg, where, target, exc, imported):
+    """The "base found, a part of it failed" error. ``target`` is what was being
+    imported; the failing module is what the ImportError itself names, else
+    ``target`` (a SyntaxError under the wrong Python names no module)."""
+    failed = _missing_name(exc) or target
+    return _OdooUnavailable("module", (
+        "{pkg} {how} {where}, but {failed} failed - {etype}: {exc}".format(
+            pkg=pkg, how="imported from" if imported else "found at",
+            where=where or "an unknown path", failed=failed,
+            etype=type(exc).__name__, exc=exc)))
+
+
+def _base_missing(opts, why):
+    """The "no Odoo to import" error: names the interpreter and the declared (or
+    undeclared) ``odoo_root`` - the two facts a reader can act on."""
+    root = (opts or {}).get("odoo_root")
+    declared = ("undeclared" if not root else
+                root if os.path.isdir(root) else root + " (not a directory)")
+    return _OdooUnavailable("base", (
+        "odoo not importable by {python} (odoo_root={root}) - {why}".format(
+            python=sys.executable or "python", root=declared, why=why)))
+
+
+def _import_odoo(opts=None):
+    """Import the Odoo package (the openerp v8/v9 namespace too) and the two
+    submodules every subcommand dereferences: ``.tools`` and ``.sql_db``.
+
+    A bare ``import odoo`` does NOT guarantee ``odoo.tools`` is bound as an
+    attribute (Odoo 19.0 no longer binds submodules transitively), so they are
+    imported EXPLICITLY, via the RESOLVED package name. The database API module
+    is deliberately NOT bound here - which one exists depends on the checkout
+    (see ``_bind_db_api``) and only ``drop`` / ``exists`` need it. Returns the
+    odoo/openerp module, or raises ``_OdooUnavailable`` saying which of "base
+    package missing" / "a part of it failed to load" it was.
 
     ``opts`` is threaded in so ``--odoo-root`` is applied here, at the SINGLE
     place the import happens - every subcommand present and future gets the
@@ -310,22 +408,103 @@ def _import_odoo(opts=None):
     rc = _empty_rc()
     os.environ["ODOO_RC"] = rc
     os.environ["OPENERP_SERVER"] = ""
-    try:
-        import odoo
-    except ImportError:
-        os.environ["OPENERP_SERVER"] = rc
+    odoo, error = None, None
+    for pkg in ("odoo", "openerp"):  # openerp = v8/v9
+        if pkg == "openerp":
+            os.environ["OPENERP_SERVER"] = rc
         try:
-            import openerp as odoo  # v8/v9
-        except ImportError:
-            raise ImportError("neither 'odoo' nor 'openerp' is importable")
-    # Base package resolved. Bind the submodules this script uses so
-    # ``odoo.tools.config`` (line ~104) and ``odoo.service.db`` (line ~131) are
-    # always available on every series v8-v19.
+            odoo = __import__(pkg)
+            break
+        except Exception as exc:
+            if isinstance(exc, ImportError) and _missing_name(exc) == pkg:
+                continue  # this package is simply not there: try the next name
+            # Found, but importing it failed on something else (a dependency of a
+            # pre-19.0 package __init__, or the wrong Python for this series).
+            error = _module_failure(pkg, _locate(pkg), pkg, exc, imported=False)
+            break
+    if odoo is None:
+        raise error or _base_missing(
+            opts, "neither 'odoo' nor 'openerp' is on its import path")
+    # Base package resolved. Bind the submodules every subcommand uses so
+    # ``odoo.tools.config`` and ``odoo.sql_db`` are always available.
     import importlib
     pkg = odoo.__name__  # 'odoo' or 'openerp'
-    importlib.import_module(pkg + ".tools")       # ensures <pkg>.tools.config  (fixes #154)
-    importlib.import_module(pkg + ".service.db")  # hardens the sibling <pkg>.service.db deref
+    for sub in (".tools", ".sql_db"):  # .tools: fixes #154
+        try:
+            importlib.import_module(pkg + sub)
+        except Exception as exc:
+            where = (_pkg_dirs(odoo) or [None])[0]
+            if isinstance(exc, ImportError) and _missing_name(exc) == pkg + sub:
+                # The name exists but holds no Odoo core - a namespace portion such as
+                # an addons-only install - so the checkout itself is what is missing.
+                raise _base_missing(opts, "{pkg} was found at {where} but holds no "
+                                          "{pkg}{sub}".format(pkg=pkg, where=where, sub=sub))
+            raise _module_failure(pkg, where, pkg + sub, exc, imported=True)
     return odoo
+
+
+# (kind, module path under the package, the names that must be defined at column 0)
+_DB_APIS = (
+    ("modern", "modules/db.py", ("drop", "exist")),
+    ("legacy", "service/db.py", ("exp_drop", "exp_db_exist")),
+)
+
+
+def _declares(odoo, relpath, names):
+    """Does ``<package dir>/<relpath>`` exist in some directory of the base package
+    AND define every ``def <name>(`` at column 0? Read as TEXT - never imported or
+    executed - so the answer comes from the checkout the interpreter actually
+    imported, whatever its series."""
+    for base in _pkg_dirs(odoo):
+        try:
+            with io.open(os.path.join(base, *relpath.split("/")), "r",
+                         encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except (IOError, OSError):
+            continue
+        if all(re.search(r"^def %s\(" % name, text, re.M) for name in names):
+            return True
+    return False
+
+
+def _detect_db_api(odoo):
+    """(kind, relpath) of the database API the package ``odoo`` resolved to, read
+    from its SOURCE TEXT (see ``_DB_APIS``; the first match wins, so a checkout
+    that ships both is driven through the modern one). Raises ``_OdooUnavailable``
+    when neither is defined - refused, never guessed."""
+    for kind, relpath, names in _DB_APIS:
+        if _declares(odoo, relpath, names):
+            return kind, relpath
+    raise _OdooUnavailable("api", (
+        "ODOO_SOURCE_FACT_UNKNOWN: {pkg} imported from {where} defines no database API "
+        "this script can drive (looked for {looked}); nothing was dropped".format(
+            pkg=odoo.__name__, where=", ".join(_pkg_dirs(odoo)) or "an unknown path",
+            looked=" or ".join(
+                "{rel} defining {names}".format(rel=rel, names=" + ".join(
+                    "def {n}(".format(n=n) for n in names))
+                for _kind, rel, names in _DB_APIS))))
+
+
+def _bind_db_api(odoo):
+    """(kind, module): the database API module of the package ``odoo`` resolved to
+    (see ``_detect_db_api``). Raises ``_OdooUnavailable`` when no API is defined or
+    when the module that defines it does not load. Called by ``drop`` / ``exists``
+    only."""
+    import importlib
+    kind, relpath = _detect_db_api(odoo)
+    target = odoo.__name__ + "." + relpath[:-3].replace("/", ".")
+    try:
+        return kind, importlib.import_module(target)
+    except Exception as exc:
+        where = (_pkg_dirs(odoo) or [None])[0]
+        raise _module_failure(odoo.__name__, where, target, exc, imported=True)
+
+
+def _report_unavailable(exc):
+    """Print why Odoo cannot be driven and return the exit code every caller keys
+    on. The text is the exception's own: no cause is named that was not observed."""
+    sys.stderr.write("odoo_db: {text}\n".format(text=getattr(exc, "text", None) or exc))
+    return EXIT_NO_VENV
 
 
 def _bootstrap_config(odoo, opts):
@@ -363,22 +542,14 @@ def _bootstrap_config(odoo, opts):
 
 # ---- Commands ----
 
-def _get_service_db(odoo):
-    """Return odoo.service.db (or openerp.service.db for v8/v9) using the already-
-    imported namespace object returned by _import_odoo()."""
-    return odoo.service.db
-
-
 def _sql_connect_postgres(odoo, db_name="postgres"):
     """A connection to the maintenance database (or to ``db_name``) through
     Odoo's OWN connection layer (odoo.sql_db, openerp.sql_db on v8-v9), so every
     question asked here resolves the connection EXACTLY like drop/exists do - one
     resolution path, never a second psycopg2 call with hand-rolled parameters.
-    Imported via the RESOLVED package name (importlib) for the same reason
-    ``.tools`` and ``.service.db`` are: a bare base-package import does not bind
-    submodules."""
-    import importlib
-    return importlib.import_module(odoo.__name__ + ".sql_db").db_connect(db_name)
+    ``_import_odoo`` bound ``.sql_db`` through the RESOLVED package name, because
+    a bare base-package import does not bind submodules."""
+    return odoo.sql_db.db_connect(db_name)
 
 
 def _pin_c_messages():
@@ -471,6 +642,11 @@ def _pgpass_has_entry(host, port, user):
     return False
 
 
+# The reason reported when the failure is inferred from "no credential could be offered".
+# It states the fact only; what to do about it is /odoo-ai-agents:odoo-setup's to say.
+_NO_CREDENTIAL_WHY = "no credential is resolvable for this connection"
+
+
 def _credential_resolvable(opts):
     """Can ANY credential reach libpq for this connection?
 
@@ -550,10 +726,7 @@ def _classify_conn_error(exc, opts):
     if (not pgcode and _is_operational_error(exc)
             and not _server_refused_for_another_reason(low)
             and not _credential_resolvable(opts)):
-        return "denied", (
-            "no credential is resolvable for this connection: no --db-password, "
-            "$ODOO_PG_PASSWORD unset, and no matching line in {f}".format(
-                f=_pgpass_path()))
+        return "denied", _NO_CREDENTIAL_WHY
     for sig in _DENIED_SIGNATURES:
         if sig in low:
             return "denied", detail
@@ -601,10 +774,7 @@ def _classify_drop_error(exc, opts):
     # failure the server itself reported carries a SQLSTATE, so its ABSENCE on an
     # OperationalError is what says the connection never got that far.
     if not pgcode and _is_operational_error(exc) and not _credential_resolvable(opts):
-        return "denied", (
-            "no credential is resolvable for this connection: no --db-password, "
-            "$ODOO_PG_PASSWORD unset, and no matching line in {f}".format(
-                f=_pgpass_path()))
+        return "denied", _NO_CREDENTIAL_WHY
     return "", detail
 
 
@@ -620,15 +790,16 @@ def _query_postgres_ex(opts, sql, params=None, db_name="postgres"):
     """(rows, exit_code, state, detail): run one read-only query on the
     maintenance database (or on ``db_name``), CLASSIFYING any failure.
 
-    `state` is "ok" when the query ran, "no-venv" when the package could not be
-    imported, else one of _classify_conn_error's three states. Every caller that
-    only needs the pair uses _query_postgres below.
+    `state` is "ok" when the query ran, "no-base" / "no-module" when Odoo could not
+    be loaded (the base package is missing / a part of it failed - `detail` is the
+    one line saying which), else one of _classify_conn_error's three states. Every
+    caller that only needs the pair uses _query_postgres below.
     """
     try:
         odoo = _import_odoo(opts)
-    except ImportError as exc:
-        sys.stderr.write("odoo_db: cannot import odoo (no venv?) - {exc}\n".format(exc=exc))
-        return None, EXIT_NO_VENV, "no-venv", str(exc)
+    except _OdooUnavailable as exc:
+        _report_unavailable(exc)
+        return None, EXIT_NO_VENV, "no-" + exc.kind, exc.text
 
     _bootstrap_config(odoo, opts)
     _pin_c_messages()
@@ -687,12 +858,9 @@ def _refusal_denied(opts, why):
         "  loads, so no build, install, update or test can start until this is fixed.\n"
         "  NOTHING was created and NOTHING was dropped.\n"
         "  Reason: {why}\n"
-        "  Choose ONE:\n"
-        "    run /odoo-ai-agents:odoo-setup - for a local developer cluster it enables\n"
-        "    passwordless authentication for this role from this machine's address\n"
-        "    only, and verifies it by reconnecting; or\n"
-        "    export ODOO_PG_PASSWORD=... - for a cluster that cannot be reconfigured\n"
-        "    (managed or remote). Applies to THIS shell only.\n".format(
+        "  Run /odoo-ai-agents:odoo-setup - for a local developer cluster it enables\n"
+        "  passwordless authentication for this role from this machine's address\n"
+        "  only, and verifies it by reconnecting.\n".format(
             label=_conn_label(opts), why=why))
 
 
@@ -708,12 +876,29 @@ def _refusal_unreachable(opts, why):
             label=_conn_label(opts), why=why))
 
 
-def _refusal_unknown(opts, why):
+# The remedy for an `unknown` verdict depends on WHY the question could not be asked;
+# a cause that was not observed is never named.
+_UNKNOWN_REMEDIES = {
+    "no-base": (
+        "  The interpreter cannot find Odoo: run /odoo-ai-agents:odoo-setup to declare the\n"
+        "  environment (python, odoo_root), then retry.\n"),
+    "no-module": (
+        "  The interpreter found Odoo but cannot load the part named above: repair that\n"
+        "  interpreter's environment (a missing or incompatible dependency), then retry.\n"),
+}
+
+
+_UNKNOWN_REMEDY_DEFAULT = (
+    "  If the cause above is not obvious, run /odoo-ai-agents:odoo-setup (it re-checks the\n"
+    "  connection and the declared environment), then retry.\n")
+
+
+def _refusal_unknown(opts, why, cause=None):
     return (
         "odoo_db: BLOCKED - DB_AUTH=unknown. The question could not be asked: {why}\n"
         "  Undeterminable is never read as a yes and never as a no.\n"
-        "  Run /odoo-ai-agents:odoo-setup to declare the missing environment facts\n"
-        "  (python, odoo_root, db_run_mode/db_container), then retry.\n".format(why=why))
+        "{remedy}".format(why=why,
+                          remedy=_UNKNOWN_REMEDIES.get(cause, _UNKNOWN_REMEDY_DEFAULT)))
 
 
 _REFUSALS = {
@@ -736,10 +921,11 @@ def cmd_preflight(opts):
     """
     _pin_c_messages()
     rows, code, state, detail = _query_postgres_ex(opts, "SELECT 1")
-    if state == "no-venv":
-        state, detail = "unknown", (
-            "the interpreter could not import odoo: for a source checkout that means "
-            "`odoo_root` is not declared. " + detail)
+    cause = None
+    if state in ("no-base", "no-module"):
+        # `detail` is already the real reason (which package, where, which module
+        # failed): it is reported as it is, never rewritten into a guess.
+        cause, state = state, "unknown"
         code = EXIT_NO_VENV
     elif state == "ok" and not rows:
         # A connection that answered nothing is not a connection that answered.
@@ -748,7 +934,10 @@ def cmd_preflight(opts):
     print("DB_AUTH={state}".format(state=state))
     print("DB_AUTH_WHY={why}".format(why=detail or "the connection succeeded"))
     if state != "ok":
-        sys.stderr.write(_REFUSALS[state](opts, detail or "no detail reported"))
+        if state == "unknown":
+            sys.stderr.write(_refusal_unknown(opts, detail or "no detail reported", cause))
+        else:
+            sys.stderr.write(_REFUSALS[state](opts, detail or "no detail reported"))
     return code
 
 
@@ -899,67 +1088,108 @@ def cmd_i18n_state(db_name, opts):
     return EXIT_OK
 
 
+def _drop_failed(fn_name, db_name, exc, opts):
+    """Report a drop call that raised and return its exit code."""
+    sys.stderr.write(
+        "odoo_db: {fn}({db!r}) raised {etype}: {exc}\n".format(
+            fn=fn_name, db=db_name, etype=type(exc).__name__, exc=exc)
+    )
+    # A CONNECTION failure necessarily precedes any DROP DATABASE, so 8 and 9
+    # are a POSITIVE statement that nothing was attempted - which is what lets
+    # a caller consult another surface without ever papering over a real
+    # drop failure. Any other exception keeps EXIT_FAILURE: the drop WAS
+    # attempted and failed, and no client may retry it.
+    state, _detail = _classify_drop_error(exc, opts)
+    if state == "denied":
+        return EXIT_AUTH_DENIED
+    if state == "unreachable":
+        return EXIT_UNREACHABLE
+    return EXIT_FAILURE
+
+
+def _drop_done(db_name, opts, outcome):
+    """The observability line every successful drop emits: it names the RESOLVED
+    connection so a no-op ("already-absent on the cluster we connected to") is
+    distinguishable from a real drop, and so it is always clear which cluster the
+    drop actually hit."""
+    sys.stderr.write(
+        "odoo_db: drop {db!r} on {host}:{port} -> {outcome}\n".format(
+            db=db_name, host=opts.get("db_host") or "libpq-default",
+            port=opts.get("db_port") or "libpq-default", outcome=outcome)
+    )
+    return EXIT_OK
+
+
+def _drop_modern(api, db_name, opts):
+    """Drop through the module-level ``drop`` / ``exist`` API.
+
+    ``drop`` RAISES for a database that is not there (the legacy ``exp_drop``
+    returned False), so absence is established first, and ``drop`` is never called
+    for an absent database - that keeps the verb idempotent.
+
+    ``exist`` alone cannot be trusted for that: it answers False for any
+    OperationalError, so an unreachable cluster or a refused login would read as
+    "already absent" and the lease would be released over a database that is
+    still there. A False is therefore confirmed in the cluster's catalog through
+    the classified query path: a failed connection exits 8 / 9 / 1 (nothing was
+    attempted), a missing row means absent, and a present row - a database that
+    exists but refuses connections - is dropped like any other.
+    """
+    try:
+        present = bool(api.exist(db_name))
+    except Exception:
+        present = False
+    if not present:
+        rows, rc = _query_postgres(
+            opts, "SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+        if rc != EXIT_OK:
+            return rc
+        if not rows:
+            return _drop_done(db_name, opts, "already-absent")
+    try:
+        api.drop(db_name)
+    except Exception as exc:
+        return _drop_failed("drop", db_name, exc, opts)
+    return _drop_done(db_name, opts, "performed")
+
+
 def cmd_drop(db_name, opts):
     try:
         odoo = _import_odoo(opts)
+        kind, api = _bind_db_api(odoo)
     except ImportError as exc:
-        sys.stderr.write("odoo_db: cannot import odoo (no venv?) - {exc}\n".format(exc=exc))
-        return EXIT_NO_VENV
+        return _report_unavailable(exc)
 
     _bootstrap_config(odoo, opts)
     _pin_c_messages()
-    service_db = _get_service_db(odoo)
 
+    if kind == "modern":
+        return _drop_modern(api, db_name, opts)
     try:
-        result = service_db.exp_drop(db_name)
+        result = api.exp_drop(db_name)
     except Exception as exc:
-        sys.stderr.write(
-            "odoo_db: exp_drop({db!r}) raised {etype}: {exc}\n".format(
-                db=db_name, etype=type(exc).__name__, exc=exc)
-        )
-        # A CONNECTION failure necessarily precedes any DROP DATABASE, so 8 and 9
-        # are a POSITIVE statement that nothing was attempted - which is what lets
-        # a caller consult another surface without ever papering over a real
-        # exp_drop failure. Any other exception keeps EXIT_FAILURE: the drop WAS
-        # attempted and failed, and no client may retry it.
-        state, _detail = _classify_drop_error(exc, opts)
-        if state == "denied":
-            return EXIT_AUTH_DENIED
-        if state == "unreachable":
-            return EXIT_UNREACHABLE
-        return EXIT_FAILURE
-
+        return _drop_failed("exp_drop", db_name, exc, opts)
     # exp_drop returns False when the DB is not in the list (already absent) -> idempotent.
     # Returns True on successful drop. Raises on actual failure (caught above).
-    # Emit an observability line on EVERY drop naming the RESOLVED connection so a
-    # no-op ("already-absent on the cluster we connected to") is distinguishable
-    # from a real drop, and so it is always clear which cluster the drop actually hit.
-    host = opts.get("db_host") or "libpq-default"
-    port = opts.get("db_port") or "libpq-default"
-    outcome = "performed" if result else "already-absent"
-    sys.stderr.write(
-        "odoo_db: drop {db!r} on {host}:{port} -> {outcome}\n".format(
-            db=db_name, host=host, port=port, outcome=outcome)
-    )
-    return EXIT_OK
+    return _drop_done(db_name, opts, "performed" if result else "already-absent")
 
 
 def cmd_exists(db_name, opts):
     try:
         odoo = _import_odoo(opts)
+        kind, api = _bind_db_api(odoo)
     except ImportError as exc:
-        sys.stderr.write("odoo_db: cannot import odoo (no venv?) - {exc}\n".format(exc=exc))
-        return EXIT_NO_VENV
+        return _report_unavailable(exc)
 
     _bootstrap_config(odoo, opts)
-    service_db = _get_service_db(odoo)
 
+    fn_name = "exist" if kind == "modern" else "exp_db_exist"
     try:
-        exists = service_db.exp_db_exist(db_name)
+        exists = getattr(api, fn_name)(db_name)
     except Exception as exc:
         sys.stderr.write(
-            "odoo_db: exp_db_exist({db!r}) raised {etype}: {exc}\n".format(
-                db=db_name, etype=type(exc).__name__, exc=exc)
+            "odoo_db: {fn}({db!r}) raised {etype}: {exc}\n".format(
+                fn=fn_name, db=db_name, etype=type(exc).__name__, exc=exc)
         )
         return EXIT_FAILURE
 

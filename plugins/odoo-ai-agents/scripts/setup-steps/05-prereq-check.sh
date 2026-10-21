@@ -12,9 +12,8 @@
 #                     deps installed)
 # There is no "PostgreSQL password" item on either list, and adding one back
 # would be a regression: the authentication VERDICT is auto-detected above, and
-# the remedy for a refusal is /odoo-ai-agents:odoo-setup (passwordless for a
-# local cluster) or $ODOO_PG_PASSWORD for one that cannot be reconfigured -
-# never a password this checklist asks a human to type.
+# the remedy for a refusal is /odoo-ai-agents:odoo-setup - never a credential
+# this checklist asks a human to type.
 #
 # This script NEVER installs anything and NEVER runs sudo. The setup command
 # turns the checklist into an explicit "ready / skip instance / cancel" prompt.

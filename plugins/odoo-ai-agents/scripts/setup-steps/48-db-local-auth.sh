@@ -30,8 +30,6 @@
 #   ODOO_AI_HOME       machine-global state dir      (default $HOME/.odoo-ai)
 #   ODOO_AI_INSTANCES  full-path override for instances.toml
 #   ODOO_AI_BACKUP_TS  fixed timestamp for deterministic test backups (optional)
-#   ODOO_PG_PASSWORD   not used here. It is the ALTERNATIVE this step names when a
-#                      cluster cannot be reconfigured.
 #
 # HARD RULES:
 #   - The rule is narrow on BOTH axes it can be narrowed on:
@@ -229,16 +227,14 @@ $cand
 # ---------------------------------------------------------------------------
 # The refusal for a cluster that cannot be reconfigured from here.
 # tcp-only DECLARES that this host has no client surface for the cluster; a
-# managed or remote cluster is the same fact arrived at differently. Naming
-# ODOO_PG_PASSWORD here is what keeps the refusal a first-class path rather than
-# a dead end.
+# managed or remote cluster is the same fact arrived at differently. The refusal
+# states the fact and the one thing to check; it advises nothing else.
 # ---------------------------------------------------------------------------
 _refuse_unreconfigurable() {
     local label="$1" mode="${2:-<absent>}"
     echo "x $label: db_run_mode=$mode declares no client surface on this host, so this" >&2
     echo "  cluster cannot be reconfigured from here. Nothing was written." >&2
-    echo "  For a managed or remote cluster that is the correct outcome: export" >&2
-    echo "  ODOO_PG_PASSWORD=... instead (this shell only; never stored by the plugin)." >&2
+    echo "  For a managed or remote cluster that is the correct outcome." >&2
     echo "  If the cluster DOES run in a container on this host, declare its surface" >&2
     echo "  first: run $SETUP_CMD, then re-run this step." >&2
 }
@@ -321,12 +317,6 @@ _native_advice() {
     echo "  Then reload without restarting:"
     echo "    psql -d postgres -c 'SELECT pg_reload_conf()'"
     echo "  Then re-run $SETUP_CMD to verify by reconnecting."
-    # The same alternative the unreconfigurable arm names. Without it, whether a
-    # reader is handed a usable answer depended on whether `psql` happens to be
-    # installed - and for a remote or managed cluster reached by a native client,
-    # hand-editing a file on another machine is not the answer they need.
-    echo "  For a cluster you do not administer (remote or managed), do this instead:"
-    echo "    export ODOO_PG_PASSWORD=...   # this shell only; never stored by the plugin"
     echo "x $label: this step does not edit a system file and never runs sudo." >&2
     return 1
 }
@@ -617,8 +607,7 @@ _apply_one_cluster() {
         if pg_err_denied; then
             echo "  cause: role '$su' is not PERMITTED to call pg_reload_conf() - it is" >&2
             echo "  superuser-only, and no superuser role could be confirmed on this" >&2
-            echo "  cluster. Reload as one by hand, or export ODOO_PG_PASSWORD=... and" >&2
-            echo "  leave this cluster's rules alone." >&2
+            echo "  cluster. Reload as one by hand." >&2
         fi
         echo "  Reload by hand:" >&2
         echo "    docker exec $container psql -U <superuser> -d postgres -c 'SELECT pg_reload_conf()'" >&2
@@ -751,8 +740,7 @@ cmd_apply() {
                 if [[ -z "${INST_DB_CONTAINER:-}" ]]; then
                     echo "x $label: db_run_mode=docker but db_container is not declared, so" >&2
                     echo "  there is no named cluster to reconfigure and nothing was written." >&2
-                    echo "  fix: run $SETUP_CMD to re-derive db_container. Immediate" >&2
-                    echo "  alternative: export ODOO_PG_PASSWORD=... for this shell." >&2
+                    echo "  fix: run $SETUP_CMD to re-derive db_container." >&2
                     failed=1
                 else
                     eff_container="${INST_DB_CONTAINER}"
@@ -804,15 +792,13 @@ cmd_apply() {
 
         if ! _pg_mode_have docker; then
             echo "x docker is not on PATH, so container $c cannot be reached. Nothing was" >&2
-            echo "  written. fix: install docker, then run $SETUP_CMD. Immediate" >&2
-            echo "  alternative: export ODOO_PG_PASSWORD=... for this shell." >&2
+            echo "  written. fix: install docker, then run $SETUP_CMD." >&2
             _bad_cluster "$c"; continue
         fi
         if ! pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" docker ps >/dev/null 2>&1; then
             echo "x 'docker ps' failed, so nothing can be asked of container $c - and 'no" >&2
             echo "  access' is not the same fact as 'nothing to do'. Nothing was written." >&2
-            echo "  fix: grant docker access, then run $SETUP_CMD. Immediate alternative:" >&2
-            echo "  export ODOO_PG_PASSWORD=... for this shell." >&2
+            echo "  fix: grant docker access, then run $SETUP_CMD." >&2
             _bad_cluster "$c"; continue
         fi
         rc=0
@@ -821,8 +807,7 @@ cmd_apply() {
             echo "x $c publishes its port on a NON-loopback address (named above)." >&2
             echo "  Trusting this host's gateway would then trust anyone who can reach that" >&2
             echo "  address, so nothing was written. fix: re-publish the port on 127.0.0.1" >&2
-            echo "  and re-run $SETUP_CMD, or export ODOO_PG_PASSWORD=... and leave the" >&2
-            echo "  cluster's rules alone." >&2
+            echo "  and re-run $SETUP_CMD." >&2
             _bad_cluster "$c"; continue
         elif [[ "$rc" -ne 0 ]]; then
             echo "x $c: where its port is published could not be determined, so whether a" >&2
@@ -854,8 +839,7 @@ cmd_apply() {
                 echo "  cause: 'SHOW hba_file' is superuser-only (GUC_SUPERUSER_ONLY) and role" >&2
                 echo "  '$su' is not a superuser - the cluster is RUNNING and refused the" >&2
                 echo "  question, it is not down. fix: let this step reach a superuser role" >&2
-                echo "  (the stock image trusts its POSTGRES_USER over the container socket)," >&2
-                echo "  or export ODOO_PG_PASSWORD=... and leave this cluster's rules alone." >&2
+                echo "  (the stock image trusts its POSTGRES_USER over the container socket)." >&2
             else
                 echo "  fix: start the cluster, then run $SETUP_CMD. If it IS running, the" >&2
                 echo "  question was refused rather than unanswered - see the server's own" >&2
@@ -868,7 +852,7 @@ cmd_apply() {
             echo "x $c: the exec identity cannot write $hba or its directory, so the edit" >&2
             echo "  and its atomic rename would both fail. Nothing was written - no backup" >&2
             echo "  was taken either. fix: run $SETUP_CMD once the container can be written" >&2
-            echo "  to, or export ODOO_PG_PASSWORD=... for this shell." >&2
+            echo "  to." >&2
             _bad_cluster "$c"; continue
         fi
         baseline="$(_psql_scalar docker "$c" "" "$su" "" \

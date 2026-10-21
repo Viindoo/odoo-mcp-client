@@ -351,11 +351,6 @@
 #                      caller that runs this script detached and must know the
 #                      log before any LOG_PATH= line is printed (the odoo-local
 #                      MCP server). Unset -> <logs dir>/<db>-<UTC-ts>.log.
-#   ODOO_PG_PASSWORD   the escape hatch for a cluster that cannot be reconfigured.
-#                      Exported to libpq as PGPASSWORD for the launch only, never
-#                      written to a file and never placed on argv. A local
-#                      developer cluster needs no password at all - run
-#                      /odoo-ai-agents:odoo-setup instead.
 
 set -euo pipefail
 
@@ -3098,8 +3093,7 @@ cmd_drop() {
     "$arg_python" "${drop_args[@]}" || rc=$?
 
     if [[ "$rc" -eq 10 ]]; then
-        echo "x drop failed: venv unavailable - '$arg_python' cannot import odoo." >&2
-        echo "  Ensure the venv python has Odoo installed (run step 45 first)." >&2
+        echo "x drop failed: venv unavailable - '$arg_python' cannot drive Odoo; odoo_db.py printed why above." >&2
         echo "  Do NOT fall back to raw dropdb here; that is the allocator's decision." >&2
         exit 10
     elif [[ "$rc" -ne 0 ]]; then

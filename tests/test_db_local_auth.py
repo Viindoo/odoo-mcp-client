@@ -472,7 +472,6 @@ def test_step_refuses_when_the_published_host_ip_is_not_loopback(tmp_path, host_
     assert fx.backups() == []
     out = res.stdout + res.stderr
     assert "127.0.0.1" in out, "the remedy (re-publish on loopback) must be named"
-    assert "ODOO_PG_PASSWORD" in out, "the alternative must be named"
     assert SETUP_CMD in out
 
 
@@ -557,12 +556,6 @@ def test_native_arm_is_advise_only_and_never_runs_sudo(tmp_path):
         f"sudo was invoked: {fx.sudo_log.read_text()!r}"
     )
     assert SETUP_CMD in out
-    # The alternative that needs NO server-side change must be named here too. A
-    # remote or managed cluster reached through a native client cannot be
-    # hand-edited by this reader at all, so without this line whether they got a
-    # usable answer depended on which client binaries happen to be installed.
-    assert "ODOO_PG_PASSWORD" in out, (
-        f"the advice must name the no-server-change alternative; got {out!r}")
 
 
 @requires_bash
@@ -570,14 +563,39 @@ def test_native_arm_is_advise_only_and_never_runs_sudo(tmp_path):
 def test_a_cluster_that_cannot_be_reconfigured_gets_the_explicit_refusal(tmp_path,
                                                                         mode, container):
     """A managed or remote cluster is a first-class outcome, not a dead end: the
-    refusal names ODOO_PG_PASSWORD, which needs no server-side change at all."""
+    refusal says plainly that nothing was written and names the setup command that
+    declares the surface if the cluster is in fact local."""
     fx = Fixture(tmp_path, run_mode=mode, container=container)
     res = fx.run("apply")
     out = res.stdout + res.stderr
     assert res.returncode != 0
-    assert "ODOO_PG_PASSWORD" in out
+    assert "nothing was written" in out.lower(), f"the refusal must say so; got {out!r}"
     assert SETUP_CMD in out
     assert MANAGED_BEGIN not in fx.hba.read_text()
+
+
+# Nothing an agent reads may advise on a database password: not the env var, not libpq's variable,
+# not the password file, not an export line. The consuming code is unchanged; only the ADVICE is
+# gone, so every refusal this step prints is swept for it.
+_PASSWORD_ADVICE = ("ODOO_PG_PASSWORD", "PGPASSWORD", "pgpass", "PGPASSFILE", "export ")
+
+
+@requires_bash
+@pytest.mark.parametrize("scenario", [
+    dict(run_mode="tcp-only"),
+    dict(run_mode=""),
+    dict(run_mode="docker", container=""),
+    dict(ports=[["5432/tcp", "0.0.0.0"]]),
+    dict(superusers=[]),
+    dict(run_mode="native", container=""),
+])
+def test_no_refusal_or_advisory_advises_on_a_password(tmp_path, scenario):
+    fx = Fixture(tmp_path, **scenario)
+    res = fx.run("apply")
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, "the scenario must be a refusal or an advisory"
+    for word in _PASSWORD_ADVICE:
+        assert word not in out, f"{word!r} must not appear in a refusal; got {out!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -1056,8 +1074,7 @@ def test_no_confirmable_superuser_refuses_before_touching_the_file(tmp_path):
     assert "RUNNING" in res.stderr, (
         "the message must not send the reader to start a cluster that answered; "
         f"got {res.stderr!r}")
-    assert SETUP_CMD in out or "ODOO_PG_PASSWORD" in out, (
-        "a refusal must still hand the reader a next step")
+    assert "fix:" in out, "a refusal must still hand the reader a next step"
 
 
 @requires_bash
