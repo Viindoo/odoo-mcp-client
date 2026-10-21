@@ -6,6 +6,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.0.3] - 2026-10-21
+
+### Fixed
+
+- `odoo-ai-agents` - **databases on Odoo 20.0, real error causes** (#272). `odoo_db.py` picks the
+  database API the imported checkout defines (`modules/db.py` or `service/db.py`) from its source
+  text, so the read-only commands work on 20.0 and dropping an absent database stays idempotent.
+  Errors name the real cause and the allocator forwards it. `odoo_db.py exists` no longer reads an
+  unreachable cluster, a refused login or a database that refuses connections as absent: a `false`
+  from Odoo is confirmed in the cluster catalog, a failed connection exits 8 / 9 / 1 with no answer,
+  and release and resume never remove a filestore or free a lease on it.
+- `odoo-ai-agents` - **no credential prose.** Database-password advice is removed from refusals,
+  remedies and docs, and agent-facing prose in all three plugins no longer mentions keys, passwords,
+  logins or tokens (the `LOGIN` step and `instance_login` are gone). `tests/test_no_credential_prose.py`
+  keeps it out.
+- `odoo-ai-agents` - **migrations are decided last** (#268). Migrations and version bumps are decided
+  only after the dev loops, once a fresh install works, and only for modules installable before the
+  change. The plan tail gains a conditional `migration` node, forward-port decides the migration dir
+  at P9.6 after P9 is green, and the manifest version follows the C1 gate alone.
+- `odoo-ai-agents` - **auto-mode and coder boundaries.** The auto-mode allowance covers a restored
+  break-check edit of a data, security or test file, and the coder writes only inside its worktree.
+  `docs/reference/odoo-code-quality.md`, which the coder and the reviewer use, gains the
+  boolean-wrapping rule, and the upgrade skill's `upg-phase-detail.md` no longer prescribes a DCO
+  sign-off: `git-ops` decides it, only where the repo requires it.
+- `odoo-ai-agents` - **docs site.** The UI-term gate (gate 5) is removed, the demo company name is
+  applied per language, and no second approval gate follows the approved page plan
+  (`content-width.json` replaces `approval.json`). The docs venv uses the Python the docs repo states,
+  is built beside the old one and swapped in only once it installs the requirements (a failed rebuild
+  keeps the working venv), and a `--venv` path that is not a virtualenv is refused, never cleared.
+- `odoo-ai-agents` - **live-run findings.** The lint gate verdict covers the PR's modules, and an
+  unscoped core lint failing only on repo debt is informational when a scoped lint passed. A series
+  whose HTTP listen default is the wildcard gets the loopback address, read from the checkout.
+  `instance_status` reports a lease's served state from its `lease_token`. The scouting registry
+  anchors are fixed and guarded, and the reviewer names the consumer of each finding.
+
+### Changed
+
+- `odoo-ai-agents` - **agents run no git** (#268). Skills, agents and commands never run a git
+  command. Repo facts come from the new `odoo-local` `repo_facts` tool; every other git need is a
+  `git-ops` request that states the outcome. The advisory delegate reminder hook covers every git
+  command and reaches the node owner, and the boundary test fails on any git command, git-only flag
+  or inline-read permission in agent prose.
+- `odoo-ai-agents` - **Odoo Semantic tool surface synced to the server.** The surface SSOT follows
+  the server source (still 31 tools and 9 resources): `test_class_inspect` pages the subclass list,
+  `model_inspect` takes `name_filter`, dependency and impact answers describe auto-installed modules,
+  module lifecycle answers describe renames and merges, `profile_name` resolves the accessible
+  ancestor profile chain, and the pattern resource takes a `pattern_id`. IDE snippets regenerated.
+- `git-toolkit` - **`git-ops` takes the request and the result, never commands.** Every op, a
+  one-line read included, goes to a git agent: the INLINE mode and its allowlist are removed, and a
+  context that cannot launch agents returns `NEEDS_CONTEXT`. A brief never carries git or gh
+  commands or flags, and recipes are cited only by the agents that run them. New safety rule S13: a
+  new branch is created without an upstream, and every push names its remote and branch.
+  (`git-toolkit` 0.9.0 -> 0.9.1.)
+
+Closes #268 and #272.
+
 ## [8.0.2] - 2026-10-21
 
 ### Fixed
@@ -5214,7 +5270,7 @@ the first two Changed entries.
 
 ### Fixed
 
-- **Profile-name correction** `viindoo_internal_17` -> `standard_viindoo_17` in
+- **Profile-name correction** of an internal profile name to its standard profile in
   `generator/server-surface.json`, `hooks/detect-intent.sh`, `docs/reference/workflow-harness.md`
   and several skills/snippets.
 - **Skill-name consistency** `odoo-test-writer` -> `odoo-test-writing` (skill directory rename plus
