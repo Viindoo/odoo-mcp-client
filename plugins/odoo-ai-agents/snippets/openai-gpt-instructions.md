@@ -265,7 +265,7 @@ Replace `https://odoo-semantic.viindoo.com` with `http://127.0.0.1:8002` for loc
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.19.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
 > **Pick the right tool first.** Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.
 >
@@ -276,11 +276,11 @@ _Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. R
 >
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
-**TOOLS (generated - v0.15.0):**
+**TOOLS (generated - v0.19.1):**
 
 **model_inspect** ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
   REQUIRED: model, method, odoo_version
-  OPTIONAL: profile_name, field, method_name, start_index, limit, from_module, kind, view_type
+  OPTIONAL: profile_name, field, method_name, start_index, limit, from_module, kind, view_type, name_filter
   WHEN: inspect model
 
 **module_inspect** ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
@@ -406,7 +406,7 @@ _Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. R
 
 **test_class_inspect** - Inspect a TestClass or TestHelper by name: base chain (INHERITS_TEST), setUpClass cursor contract (test_type, commit_allowed), test methods with assert counts, and subclassed-by list.
   REQUIRED: name, odoo_version
-  OPTIONAL: module, file_path, method, profile_name
+  OPTIONAL: module, file_path, method, profile_name, start_index, limit
   WHEN: inspect test class
 
 **test_base_classes** - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
@@ -431,7 +431,7 @@ _Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. R
 - `odoo://{version}/method/{model}/{method}` - Method record: override chain, super_ratio, convention, source file.
 - `odoo://{version}/view/{xmlid}` - View record: xpath chain, inherit_id, language, arch.
 - `odoo://{version}/module/{name}` - Module record: manifest, defines/extends counts, license notice if restricted.
-- `odoo://{version}/pattern/{name}` - Pattern catalogue entry: code snippet, gotchas, language, min version.
+- `odoo://{version}/pattern/{pattern_id}` - Pattern catalogue entry by pattern_id (discover ids with suggest_pattern): code snippet, gotchas, language, min version.
 - `odoo://{version}/stylesheet/{module}/{file_path*}` - Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
 - `odoo://{version}/test/{module}/{class_name}` - Markdown tree describing a test class or helper: base chain, setUp fixtures, test methods, subclassed-by list. Equivalent to calling test_class_inspect with method='summary' for the given class.
 - `odoo://{version}/testcoverage/{model}` - Markdown tree listing test methods that reference a model (COVERS_* static reference edges, not runtime coverage). Same content as tests_covering(model=...).
