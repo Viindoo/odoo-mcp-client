@@ -42,7 +42,7 @@ value and `none` for `SERVED URLS`.
 | `relabel` | corrects UI terms and alt text to the instance; no new prose |
 | `wire` | adds the toctree entries and cross-references; no new prose |
 | `fill` | fills existing `.po` entries from the module translations and the reused terms |
-| `port` | the page was ported into the worktree from the row's `source_series`: re-verifies, adapts, recaptures every image, regenerates and fills the translation (`port.md`) |
+| `port` | the page was merged into the worktree from the row's `source_series` by `odoo-forward-port`: re-verifies, adapts, recaptures every image, regenerates and fills the translation |
 | `check-shot` | captures the one screen per language of `check-shot.md`, measures the content width; writes no page |
 
 ## A finding to fix (SendMessage to the same writer)

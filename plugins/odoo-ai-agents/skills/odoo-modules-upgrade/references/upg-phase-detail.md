@@ -328,11 +328,12 @@ Present this between `EnterPlanMode` and `ExitPlanMode`
 Docs: <module | site | both | none> - <the facts that decided it>
 
 ### Per-module decision table
-| Module | Action | Absorbing core / Reason (if DELETE/OBSOLETE) | Behavioral-equiv proof (if DELETE) | ADAPT tier | Design doc |
-|--------|--------|----------------------------------------------|-------------------------------------|------------|------------|
-| <m1>   | DELETE-absorbed | account/reconcile_model | All 2 overrides (create, write) proven equivalent in core - see absorption/m1.md | n/a | n/a |
-| <m4>   | OBSOLETE | Workflow evaporated: <reason> | n/a (no absorption) | n/a | n/a |
-| <m2>   | REWRITE(api) | n/a | n/a | sonnet | n/a |
+| Module | Class | Action | Absorbing core / Reason (if DELETE/OBSOLETE) | Behavioral-equiv proof (if DELETE) | ADAPT tier | Design doc |
+|--------|-------|--------|----------------------------------------------|-------------------------------------|------------|------------|
+| <m1>   | upgraded | DELETE-absorbed | account/reconcile_model | All 2 overrides (create, write) proven equivalent in core - see absorption/m1.md | n/a | n/a |
+| <m4>   | upgraded | OBSOLETE | Workflow evaporated: <reason> | n/a (no absorption) | n/a | n/a |
+| <m2>   | upgraded | REWRITE(api) | n/a | n/a | sonnet | n/a |
+| <m5>   | already-installable (bump + migration when data moves, decided after P5) | KEEP + [FIX] | n/a | n/a | haiku | n/a |
 | <m3>   | KEEP | n/a | n/a | haiku | n/a |
 
 **DELETE confirmations required (one per row, separate from plan approval):**

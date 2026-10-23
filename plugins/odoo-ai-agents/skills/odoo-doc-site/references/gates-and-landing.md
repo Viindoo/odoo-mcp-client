@@ -29,8 +29,10 @@ re-runs the gates its change touches. A finding goes to the writer as `FINDINGS`
 
 - Commit through `git-toolkit:git-ops`. `commit` = `one-per-pr`: one commit for the PR;
   `per-area`: one per area. The subject follows the style of the `commit_subject_samples` that `repo_facts.py --page <first planned page>` returns.
-- Push to `fork_remote` with a lease; open the PR against the series branch of `remote`. A taken-over
-  bot branch lands as `port.md` § Landing a taken-over branch says.
+- Push to `fork_remote` with a lease; open the PR against the series branch of `remote`.
+- `LAND: caller`: no commit, no push, no PR; the file list goes back to the caller, which lands
+  it (`odoo-forward-port` lands one merge commit, never a squash: `commit` governs the pages a run
+  writes, never a merge).
 - PR body: the page plan; pages added, updated and removed with their site URLs; how it was built and against
   which base commit; the gates and the browser acceptance with their result; what is left (`UNVERIFIED` items, findings).
   Never an absolute warning count.

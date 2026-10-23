@@ -22,6 +22,10 @@ intent test that passes on the target and was proven to fail when its rule is br
 commit: confirmed absorbed), plus a symbol-survival check, proves it. SHA is sacred: absorb the source
 RANGE with a single merge of its tip; never squash, never cherry-pick, and never merge the range
 one commit at a time.
+Every forward-port - code, the docs a module ships (its user guide and App Store page), or the
+pages of a docs-site repository - runs HERE, with this one git shape. The repository kind picks
+the content lane at P0: an addons repository runs the phases below; a docs-site repository runs
+`references/fp-docs-site-lane.md`, which replaces only the content phases.
 
 ## Out of Scope
 
@@ -30,7 +34,6 @@ one commit at a time.
 - Reviewing or auditing an existing PR or diff -> use `odoo-code-review`
 - A pre-upgrade deprecation sweep of one codebase -> use `odoo-deprecation-audit`
 - Same-series single-commit replay (no version jump) -> use `odoo-git-rebase`
-- A docs-site repository (not an addons repo): porting its pages to higher series -> `odoo-doc-site` (PORT)
 - Whole-cluster upgrade to a higher series (not one commit) -> use `odoo-modules-upgrade`
 - A STANDALONE design request with no commits to port -> use `odoo-solution-design` directly.
   A bucket-(c) commit INSIDE a forward-port run that requires non-trivial design is handled by
@@ -177,9 +180,14 @@ Concurrency for any fan-out follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concur
 
 Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 
-**P0 - Recon & triage [read-only, NO stop].** Parse `$ARGUMENTS` (`source-ref` / `target-branch` /
-`--scope` / `--since`); if `source-ref` or `target-branch` is missing, ask once in a
-single brief message before any read or git-ops request.
+**P0 - Recon & triage [read-only, NO stop].** Read the Forward-port row of
+`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` first. Parse `$ARGUMENTS` (`source-ref` /
+`target-branch` / `--scope` / `--since`); if `source-ref` or `target-branch` is missing, ask once
+in a single brief message before any read or git-ops request. Resolve `REPO KIND` from the
+repository: a module descriptor anywhere in the tree -> `addons`; none, and a declared docs-site
+row whose `remote` or `clone` is this repository -> `docs-site`, whose content phases are
+`references/fp-docs-site-lane.md`; neither -> `NEEDS_CONTEXT` naming
+`/odoo-ai-agents:odoo-setup docs-site`.
 
 **"one-shot" / "one-time" in a request means ONE RUN, not a different git shape.** Never read those
 words as a licence to cherry-pick; if the caller meant "land only part of the branch", point them
@@ -571,7 +579,10 @@ waive each. It runs after PR creation and never gates it.
 Present the PR URL, the review findings, and the P11 acceptance verdict together, and wait for the
 human to merge.
 
-With the PR presented, document the ported user-visible features for the target the P4 plan approved (`none`: skip this step). Compose a change file `<ISOLATE_DIR>/docs/change-<slug>.md`: one line per ported user-visible feature, with its module and UI label. Module docs: invoke `odoo-doc-illustration` on the target branch's worktree with `CHANGE` = that file and commit the result onto the SAME open PR's branch through `git-toolkit:git-ops` - one PR per repo per run. Site docs: invoke `odoo-doc-site` with `CODE_WORKTREE` = the target worktree, `SERIES` = the target series, `FROM CHANGE` = that file. Both run under the approved plan, with no gate.
+With the PR presented, document the ported user-visible features for the target the P4 plan
+approved, per `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`: the change file lists the
+features of the modules installable at the target (`merge-log.md` `installable_false: no`); a
+module `installable_false: yes` keeps the docs the merge carried, untouched.
 
 ## Model triage - two tier tables
 

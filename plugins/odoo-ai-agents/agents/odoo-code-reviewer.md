@@ -77,8 +77,12 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    § Python wrapping).
    A `_name`, `_inherit` or `_inherits` value that is not a string literal (or a list or dict of
    literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
-7. **Conventions**: naming prefixes and suffixes, model attribute order, xml_id names, import
-   order, manifest version form - each against the guideline file and section you read.
+7. **Conventions**: every section of every guideline file you read for the file types in
+   `CHANGED_SET` is one yes-or-no check over the diff - naming prefixes and suffixes, model
+   attribute order, xml_id names, import order, manifest version form, an always-invisible
+   field without its comment (`xml.md`), a new `hr.employee` field without `groups=`, and
+   every other section - each finding citing the file and section; a section the diff does not
+   reach is listed in `verified-clean` as not applicable.
 8. **The coder's `VERSION RULES APPLIED` block**: every cited heading exists in the cited file;
    a heading that does not exist -> HIGH; a diff with view XML or non-trivial Python and no
    block -> MED.

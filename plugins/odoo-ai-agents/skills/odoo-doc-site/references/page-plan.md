@@ -25,8 +25,8 @@ A hit on a menu path or a heading counts as coverage even when the module name i
 Then list the open pull requests of the docs repository that touch the area, read-only, through
 `git-toolkit:git-ops`: title, branch, files, state. A page an open
 pull request already adds is `skip` with that pull request as the reason, never a rival copy.
-With `PORT FROM`, leave out of this rule the source pull request and a bot forward-port pull
-request for the same source and target (`port.md`).
+A caller-given `PAGE PLAN` (`SKILL.md` § Inputs) keeps its rows; this search only adds such
+`skip` rows to it.
 
 Module guides (`doc/*.rst` inside the modules, target-language variants included) are SOURCES for
 the writer, not duplicates; list them per page as `sources`.

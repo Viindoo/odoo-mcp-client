@@ -26,14 +26,15 @@ or exactly 1 fable (always exclusive). Mixing is allowed up to the budget (worst
 
 ## Model-tier selection - the kind of reasoning drives the tier (SSOT)
 
-Every launch passes `model` explicitly. Pick the LOWEST tier whose row matches the kind of
-reasoning the work needs. Size is never an input: module count, file count, line count and blast
-radius do not move a tier.
+Every launcher - the main agent, a skill, a spawner or node-owner agent - reads this section by
+path before a launch and passes `model` explicitly. Pick the LOWEST tier whose row matches the
+kind of reasoning the work needs: cheapest and fastest at the quality the row guarantees. Size is
+never an input: module count, file count, line count and blast radius do not move a tier.
 
 | tier | pick when the work is |
 |------|-----------------------|
-| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; mechanical documentation upkeep (recapturing the screenshots of existing pages, relabelling to a changed UI label or menu path, toctree wiring, filling translations that already exist); recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance mode `A1A2` when no Given needs a fixture built; comparing observed values with stated expected values |
-| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; acceptance `A1A2` when a Given needs a fixture built (a multi-company database, a stubbed external service, device emulation, an upgrade database); debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning; composing new documentation |
+| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; mechanical documentation upkeep (recapturing the screenshots of existing pages, relabelling to a changed UI label or menu path, toctree wiring, filling translations that already exist, assembling an App Store page from supplied copy and existing captures, re-cutting an existing draft to another channel); recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance mode `A1A2` when no Given needs a fixture built; comparing observed values with stated expected values |
+| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; acceptance `A1A2` when a Given needs a fixture built (a multi-company database, a stubbed external service, device emulation, an upgrade database); debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning; composing new documentation or marketing copy; a landing page written from a catalog |
 | **opus** | design (SRS and design session); any unit whose `business_function` is on the specialist list in `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`; a node that meets 5.2; review `R3`; the one retry a tier up after an evidenced sonnet failure |
 | **fable** | a design that changes an inheritance axis across two or more modules; never a default; always explicit human confirmation |
 

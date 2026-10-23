@@ -7,7 +7,7 @@ skeleton (read by path) plus the fields below. Every path is the captured absolu
 
 ```
 DISPATCH MODEL: <haiku | sonnet, per concurrency-guard.md § Model-tier selection>
-MODE: full | landing
+MODE: full
 MODULE: <technical name>   MODULE_PATH: <abs path under WORKTREE_PATH>
 WORKTREE_PATH: <doc_root>
 ODOO VERSION: <series>   PROFILE: <profile | none>
@@ -17,7 +17,6 @@ ADDONS_PATH: <the addons_path returned with it>
 LANGUAGES: <resolved list, en_US first>
 DOMAIN: <Domain line | none>   SRS: <path | none>
 FEATURE CATALOG: <path | none>   ROLE MAP: <path | none>   WALKTHROUGH: <path | none>
-MARKETING COPY: <path | none>   BUYER PROFILE: <path | none>   TARGET MARKET: <value | none>
 CHANGE: <feature list | path of the file holding it | whole | none>
 DOC SCOPE: screenshot-doc | full-guide
 CAPTURE MODE: screens | scenarios
@@ -26,14 +25,28 @@ extends_in_scope: [<base module>, ...]
 USER LANGUAGE: <lang | omit>
 ```
 
-## The landing round (SendMessage to the same writer after `full`)
+## The landing launch (`odoo-marketer`, after `full` returns)
 
 ```
+DISPATCH MODEL: <haiku | sonnet, per concurrency-guard.md § Model-tier selection>
 MODE: landing
-MARKETING COPY: <path | none>   BUYER PROFILE: <path | none>   TARGET MARKET: <value>
+MODULE: <technical name>   MODULE_PATH: <abs path under WORKTREE_PATH>
+WORKTREE_PATH: <doc_root>
+ODOO VERSION: <series>   PROFILE: <profile | none>
+SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
+INSTANCE_HANDLE: <the odoo-instance block, verbatim>
+ADDONS_PATH: <the addons_path returned with it>
+LANGUAGES: <resolved list, en_US first>
+FEATURE CATALOG: <path>   ROLE MAP: <path>   FACTS: <path | none>
+STAGED CAPTURES: <the writer's staging directory | none>
+MARKETING COPY: <path | none>   BUYER PROFILE: <path | none>   TARGET MARKET: <value | none>
+CHANGE: <feature list | path of the file holding it | whole | none>
+BROWSER MODE: headless | headed
+extends_in_scope: [<base module>, ...]
+USER LANGUAGE: <lang | omit>
 ```
 
-## A finding to fix (SendMessage)
+## A finding to fix (SendMessage to the agent that wrote the file)
 
 ```
 FINDINGS:

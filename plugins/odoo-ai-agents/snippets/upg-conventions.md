@@ -25,7 +25,10 @@ series prefix.
 
 Full rule, definition and enforcing test, per series:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/xml.md` § Always-invisible field carries a comment.
-A missing comment fails the P5 install + test gate on a series that enforces it.
+The enforcing test is a framework class a module-scoped `--test-tags` run skips unless it is
+named: `odoo-instance-ops` unions it into every test run that installs a module with view XML
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes),
+so a missing comment fails the P5 install + test gate on a series that ships the class.
 
 ---
 
