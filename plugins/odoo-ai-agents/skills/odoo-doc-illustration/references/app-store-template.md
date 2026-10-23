@@ -26,7 +26,8 @@ into every Read - never the placeholder or a bare `.odoo-ai/`.
 |---|---|
 | Fragment only | Start at `<section>`. NO `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`. |
 | No JavaScript | No `<script>` tags, no inline event handlers (`onclick`, `onmouseover`, etc.). |
-| No external CDN links | No `<link>` tags (Bootstrap CDN, Google Fonts, Font Awesome CDN). The store pre-loads Bootstrap 5 - use its classes directly. Permitted embeds: YouTube `youtube.com/embed/`, `mailto:`, `skype:` |
+| No external CDN links | No `<link>` tags (Bootstrap CDN, Google Fonts, Font Awesome CDN). The store pre-loads Bootstrap 5 - use its classes directly. The store's own rule (apps.odoo.com vendor guidelines): YouTube canonical links and Microsoft Teams links survive, every other external link is invalidated - the store rewrites the anchor to plain text and keeps its words. So an external link's visible text IS its URL (host and path, e.g. `support.acme-erp.com/tickets`), never a label such as "Open a ticket"; the reference gate's `LINK_TEXT_HIDES_URL` enforces it. |
+| No address anywhere | No `mailto:`, no email address in text, alt or title, obfuscated or not: the page is public and indexed, addresses are harvested (`LINK_MAILTO`, `EMAIL_ADDRESS`). Contact goes through the author profile's pre-sales and support URLs (`${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md`); an address the author insists on ships only as an image made by `${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`, with an alt text that is not the address. |
 | Bootstrap 5 for flexbox | Use `d-flex align-items-center justify-content-between gap-3`, `row`/`col-*` grid. Do NOT use inline `display:flex`, `align-items`, `justify-content`, `flex-wrap`, `flex-direction`, `gap` - all stripped. |
 | Hex colors only | `background-color:#714B67`, `color:#ffffff`. No `rgba()`, no `linear-gradient` (both stripped). |
 | HTML entities | `&rarr;` not `->`, `&mdash;` not `--`, `&copy;` not `(c)`. Raw Unicode glyphs may corrupt on render. |
@@ -61,7 +62,7 @@ source is empty rather than leaving placeholders.
 | 7 | SCREENS | `#feature` (tab) | Alternating sections: `col-xl-4` task title + `col-xl-8` task screenshot. Caption = human task name, not a technical path. | captures | Recommended |
 | 8 | DEMO | `#demo` (tab) | YouTube embed (16:9, canonical `youtube.com/embed/` format) + user-manual and live-demo links | brief | Optional |
 | 9 | FAQ | `#faq` (tab) | Answers to the buying committee's top objections | copy | Recommended |
-| 10 | SUPPORT | `#support` (tab) | Two contact cards: pre-sales + technical support | brief | Recommended |
+| 10 | SUPPORT | `#support` (tab) | Two contact cards, each a web page: pre-sales `{{PRESALES_URL}}`, technical support `{{SUPPORT_URL}}` - from the author profile (`AUTHOR PROFILE` in the brief, `author_profile_config.py show`); a card whose URL the profile lacks is omitted and reported as a gap, never filled | brief | Recommended |
 | 11 | TECH-REQUIREMENTS | `#requirement` (tab) | Series, supported editions, required modules, license | manifest | Recommended |
 | 12 | CHANGELOG | `#changelog` (tab) | Chronological list: date + badge (New / Improved / Fixed) + description | brief | Optional |
 
@@ -345,16 +346,16 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
           <div class="col-lg-6 col-md-12 mb-4">
             <div style="background:#f4f4f4;padding:32px;border-radius:15px;">
               <h3>Pre-Sales &amp; Partnership</h3>
-              <!-- Replace with actual pre-sales contact -->
-              <a href="mailto:{{PRESALES_EMAIL}}">{{PRESALES_EMAIL}}</a>
+              <!-- The store turns this anchor into plain text: the visible text is the URL -->
+              <a href="{{PRESALES_URL}}">{{PRESALES_URL_TEXT}}</a>
             </div>
           </div>
           <div class="col-lg-6 col-md-12 mb-4">
             <div style="background:#fff;padding:32px;border-radius:15px;
                         border:1px solid #e8e8e8;">
               <h3>Technical Support</h3>
-              <!-- Replace with actual support contact -->
-              <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>
+              <!-- The store turns this anchor into plain text: the visible text is the URL -->
+              <a href="{{SUPPORT_URL}}">{{SUPPORT_URL_TEXT}}</a>
             </div>
           </div>
         </div>
@@ -450,7 +451,7 @@ unknown.
 | `license` | str | License row in sidebar metadata table | Required (ranking penalty if missing). Common values: `LGPL-3`, `OPL-1`, `AGPL-3`. |
 | `price` | float | Price display; determines Add-to-Cart vs Download button | Minimum 9 EUR if set. Absent or `<= 0` = free. DO NOT fabricate; ask user. |
 | `currency` | str | Price display | `EUR` (default) or `USD` only. Audit: only set when `price` is set. |
-| `support` | str | Shown to purchasers only (after purchase confirmation) | Email address. DO NOT fabricate; ask user. |
+| `support` | str | Shown to purchasers only (after purchase confirmation) | Email address the store shows only after purchase - the one place an address may live. Take it from the author profile (`support_email`); never fabricate, never copy it into the page. |
 | `live_test_url` | str | "Live Preview" button on listing | Must point to a live, accessible demo instance. Verify before writing. |
 | `application` | bool | Browsing category filter (standalone apps vs extensions) | `True` for top-level apps; `False` (default) for extension modules. |
 | `category` | str | Browse navigation tree | Use `/` hierarchy (e.g. `Accounting / Localizations`). Check existing category tree on apps.odoo.com for valid values. |

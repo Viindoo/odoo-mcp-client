@@ -106,3 +106,11 @@ Threaded mode (`workers=0`) needs one port. Prefork (`--workers>0`) MUST acquire
 
 One instance per run. Release rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
 `lease_release` / `lease_park` take the handle's `lease_token` + `run_id`.
+
+**Hand-on between consumers.** A caller that sequences several consumers of one build (an i18n
+export, then the module docs, then the site docs) names the next consumer to the current one as
+`HAND_ON: <skill>`: that consumer keeps the lease running, returns the handle in its
+Continuation `next.inputs`, and the caller forwards it as `INSTANCE_HANDLE` to the next consumer
+when the build covers it (series, `demo`, `languages_loaded`, `addons_path`), else provisions
+anew. The caller releases the handle after the last consumer; no consumer releases a handle it
+was forwarded or asked to hand on.

@@ -76,8 +76,18 @@ Rules
   IMG_NO_WIDTH         RST module image with no `:width: <N>px` (an https image needs none)
   IMG_UPSCALED         RST module image whose `:width:` exceeds the pixel width of its file (read
                        from the PNG / GIF / JPEG header; an unreadable or missing file is skipped)
-Allowed: mailto:, tel:, #anchors, https links to non-store pages, the root-relative module and
-vendor-listing store paths above, public https:// images.
+  LINK_MAILTO          a mailto: link anywhere (an address published on a public page is
+                       harvested; contact goes through a web page, never an address)
+  EMAIL_ADDRESS        an email address in the text or an attribute of a doc file, written plainly
+                       or obfuscated with [at] / (at) and [dot] / (dot); RFC 2606 example domains
+                       (example.com / .org / .net, .example, .test, .invalid, localhost) are not
+                       addresses anyone owns and pass
+  LINK_TEXT_HIDES_URL  store page only: an external http(s) link whose visible text does not
+                       contain its host - the store turns an external anchor into plain text, so a
+                       reader keeps the URL only when the text shows it (`support.acme.com/tickets`,
+                       never `Open a ticket`)
+Allowed: tel:, #anchors, https links to non-store pages whose text shows the host, the root-relative
+module and vendor-listing store paths above, public https:// images.
 
 stdlib only; runs with the plugin interpreter (`python3`), never an Odoo venv. Old syntax (no
 f-strings) so the version check below can report instead of a SyntaxError.
@@ -141,6 +151,19 @@ _MANIFEST_IMAGE = re.compile(
     r"^static/description/(?:assets/[^/\\]+" + _IMAGE_EXT + r"|" + _COVER + r")$")
 _MANIFEST_COVER = re.compile(r"^static/description/main_screenshot" + _IMAGE_EXT + r"$")
 _IMAGE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+_EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}(?![\w-])")
+_EMAIL_OBFUSCATED = re.compile(
+    r"(?<![\w.+-])[\w.+-]+\s*(?:\[at\]|\(at\)|\{at\})\s*[\w-]+"
+    r"(?:\s*(?:\[dot\]|\(dot\)|\{dot\}|\.)\s*[\w-]+)*"
+    r"\s*(?:\[dot\]|\(dot\)|\{dot\}|\.)\s*[A-Za-z]{2,}(?![\w-])", re.IGNORECASE)
+# RFC 2606 / 6761 names nobody owns: a sample address there is documentation, not a contact.
+_EXAMPLE_DOMAINS = ("example.com", "example.org", "example.net", "example", "test", "invalid",
+                    "localhost")
+
+
+def _is_example_domain(domain):
+    domain = domain.lower().rstrip(".")
+    return any(domain == d or domain.endswith("." + d) for d in _EXAMPLE_DOMAINS)
 _ORPHAN_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 _ORPHAN_EXEMPT = ("static/description/icon.png", "static/description/icon.svg")
 # The directory written right before a mentioned file name (`assets/` in `./assets/x.png`).
@@ -390,7 +413,10 @@ class Checker(object):
         if not ref or ref.startswith("#"):
             return
         low = ref.lower()
-        if low.startswith(("mailto:", "tel:")):
+        if low.startswith("mailto:"):
+            self._add(doc_file, line, "LINK_MAILTO", ref)
+            return
+        if low.startswith("tel:"):
             return
         if low.startswith("file:") or _DRIVE.match(ref):
             self._add(doc_file, line, "LINK_LOCAL", ref)
@@ -415,6 +441,24 @@ class Checker(object):
         if not _inside(_resolve(ref, doc_file), self.root):
             self._add(doc_file, line, "LINK_SIBLING_PATH", ref)
 
+    def emails(self, doc_file, line, text):
+        for m in _EMAIL.finditer(text):
+            if not _is_example_domain(m.group(0).rsplit("@", 1)[1]):
+                self._add(doc_file, line, "EMAIL_ADDRESS", m.group(0))
+        for m in _EMAIL_OBFUSCATED.finditer(text):
+            self._add(doc_file, line, "EMAIL_ADDRESS", " ".join(m.group(0).split()))
+
+    def link_text(self, doc_file, line, href, text):
+        """Store page: an external anchor keeps its URL for the reader only through its text."""
+        low = href.strip().lower()
+        if not low.startswith(("http://", "https://")) or _is_local_host(href):
+            return
+        host = (urlsplit(href).hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        if host and host not in " ".join(text.split()).lower():
+            self._add(doc_file, line, "LINK_TEXT_HIDES_URL", href.strip())
+
     # ------------------------------------------------------------------- RST
     def rst(self, doc_file):
         with open(doc_file, encoding="utf-8", errors="replace") as fh:
@@ -436,8 +480,10 @@ class Checker(object):
                 m = _RST_TARGET_OPT.match(raw) or _RST_LINK_TARGET.match(raw)
                 if m:
                     self.link(doc_file, no, m.group(1))
+                    self.emails(doc_file, no, m.group(1).replace("mailto:", ""))
                 else:
                     text = _RST_INLINE_LITERAL.sub("", raw)
+                    self.emails(doc_file, no, text)
                     for e in _RST_EMBEDDED.finditer(text):
                         self.link(doc_file, no, e.group(1))
                     for u in _BARE_URL.finditer(_RST_EMBEDDED.sub("", text)):
@@ -452,6 +498,7 @@ class Checker(object):
             text = fh.read()
         checker = self
         images = []
+        anchors = []  # open <a> elements: [line, href, text parts]
 
         class Parser(HTMLParser):
             def handle_starttag(self, tag, attrs):
@@ -465,13 +512,33 @@ class Checker(object):
                             images.append((line, part.strip().split()[0]))
                 if tag == "a" and values.get("href") is not None:
                     checker.link(doc_file, line, values["href"])
+                    anchors.append([line, values["href"], []])
+                for name, value in attrs:
+                    if value and name != "href":
+                        checker.emails(doc_file, line, value)
                 for u in re.finditer(r"url\(\s*['\"]?([^'\")]+)['\"]?\s*\)",
                                      values.get("style") or ""):
                     images.append((line, u.group(1)))
 
-            handle_startendtag = handle_starttag
+            def handle_startendtag(self, tag, attrs):
+                self.handle_starttag(tag, attrs)
+                if tag == "a" and anchors:
+                    self.handle_endtag(tag)
+
+            def handle_endtag(self, tag):
+                if tag == "a" and anchors:
+                    line, href, parts = anchors.pop()
+                    checker.link_text(doc_file, line, href, "".join(parts))
+
+            def handle_data(self, data):
+                checker.emails(doc_file, self.getpos()[0], data)
+                for anchor in anchors:
+                    anchor[2].append(data)
 
         Parser(convert_charrefs=True).feed(text)
+        while anchors:  # an anchor never closed is still judged by what it showed
+            line, href, parts = anchors.pop()
+            self.link_text(doc_file, line, href, "".join(parts))
         for line, ref in images:
             self.image(doc_file, line, ref, "page")
         if self._rel(doc_file) == _ENGLISH_PAGE:

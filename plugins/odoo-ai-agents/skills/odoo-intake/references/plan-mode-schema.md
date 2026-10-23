@@ -206,12 +206,12 @@ place; the rest keep their order.
   depends_on: [i18n]
   when: a changed module was installable before this change, the change alters data existing databases hold, and a fresh install of it passed
 - id: docs-module
-  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer
+  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer; HAND_ON: odoo-doc-site when that node exists, so its capture instance is reused
   approach_kind: skill
   depends_on: [i18n]
   when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
 - id: docs-site   # tagged with the docs repo; lands its own PR; only monitor-site and merge-site follow it
-  approach: odoo-doc-site   # invoked inline with FROM CHANGE = the change file (Loop step 3)
+  approach: odoo-doc-site   # invoked inline with FROM CHANGE = the change file and INSTANCE_HANDLE = the handle docs-module returned (Loop step 3)
   approach_kind: skill
   depends_on: [docs-module]
   when: a docs site is declared for the product and the change is user-visible, or the user asked for site docs
@@ -286,7 +286,10 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    Before a docs node, compose the change's feature list from the SRS acceptance criteria and the
    node objectives - one line per added, changed or removed user-visible feature, with its UI
    label - write it to `<ISOLATE_DIR>/docs/change-<slug>.md` and pass that path as `CHANGE`
-   (`docs-module`) or `FROM CHANGE` (`docs-site`).
+   (`docs-module`) or `FROM CHANGE` (`docs-site`). The two docs nodes share one capture instance
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance): `docs-module`
+   gets `HAND_ON: odoo-doc-site` when that node exists and returns its handle, `docs-site` gets it
+   as `INSTANCE_HANDLE`, and the runner releases it after the last of the two.
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
    file; cherry-pick a source node's range onto `run-integration` through `git-ops`
    (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; a node that lands its own PR is

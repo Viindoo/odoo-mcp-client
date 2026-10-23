@@ -53,7 +53,12 @@ English `index.html` shows the cover (in its HERO); a localized page, its cover 
   `_` link fails the RST render gate). HTML: `<a href="/apps/modules/<odoo_version>/<module>">`.
 - Never an absolute URL whose path is `/apps/modules/...` on any host (it sends readers to a
   different store), and never a filesystem path to a sibling module (`../../<module>/...`).
-- `mailto:`, author-site and video links are fine.
+- Never a `mailto:` link or an email address, plain or obfuscated, in a doc file, an alt or a title:
+  the gate's `LINK_MAILTO` / `EMAIL_ADDRESS`. Contact is a web page from the author profile; an
+  address the author insists on ships only as an image (`${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`).
+- On the store page every external link's visible text shows its host and path (the store
+  renders external anchors as plain text; `LINK_TEXT_HIDES_URL`); author-site and video links are
+  fine written that way.
 
 ## Reference gate
 

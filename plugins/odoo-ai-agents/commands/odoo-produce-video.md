@@ -28,3 +28,9 @@ Recording (pagecast / Playwright video) needs its browser family wired first via
 A scene described with "narrated", "before/after evidence", or a `--label before|after` argument
 gets `odoo-demo-recording`'s Narrated evidence mode (its SKILL.md § Narrated evidence mode); this
 command adds no narrated-mode logic of its own.
+
+A spoken narration (one video per language, voice-over from the speech endpoint recorded by
+`/odoo-ai-agents:odoo-setup voice`, captions, thumbnail, description with chapters, YouTube-spec
+MP4) is the workflow's `languages` input: the runner asks for the narration languages, the
+storyboard carries a narration per scene and language, and the `narrate` and `assemble` phases do
+the rest. No language given = a silent video as before.

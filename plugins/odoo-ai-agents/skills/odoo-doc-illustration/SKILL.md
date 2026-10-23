@@ -38,7 +38,10 @@ module's feature list is the lines of that file that name the module. `CHANGE` i
 the writer rewrites only the affected sections and recaptures only the affected screens; `whole`
 documents the module again from scratch; absent, a module that already ships docs is left alone
 (`doc:false`, step 3). A caller may supply per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`,
-`MARKETING COPY`, `BUYER PROFILE`; each is forwarded and never rebuilt.
+`MARKETING COPY`, `BUYER PROFILE`; each is forwarded and never rebuilt. `INSTANCE_HANDLE`
+(optional): a demo build the caller already holds; when its `addons_path` covers `doc_root`,
+`demo` is true and `languages_loaded` holds every resolved language, the run captures on it and
+provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance).
 
 ## Steps
 
@@ -48,7 +51,12 @@ documents the module again from scratch; absent, a module that already ships doc
    its in-repo dependencies: `is_linked_worktree` true is a linked worktree, used as is; false is a
    principal checkout, which never takes a write - when `dirty` lists anything, ask once as a text question (commit first, or document
    HEAD without it) before the plan is presented. `is_repo` false: use it as is, nothing to commit.
-   Capture `SHARE_DIR` once with `project_dir` (`cwd` = `doc_root`, axis `share`).
+   Capture `SHARE_DIR` once with `project_dir` (`cwd` = `doc_root`, axis `share`). When the layer
+   includes `appstore`, read the vendor's contact profile once
+   (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/author_profile_config.py show`, saved to
+   `<SHARE_DIR>/documentation/<slug>-<date>/author-profile.json`) and pass its path as `AUTHOR PROFILE`; none declared ->
+   continue with `AUTHOR PROFILE: none` and tell the user once that `/odoo-ai-agents:odoo-setup
+   author` declares it (the page then ships without a contact tab).
 2. **Scope and plan (inline, no launch).** Per module: `abs_path`, `version`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), `languages` (§ Language
    resolution), `doc_layer`, `has_demo`, `depends_in_scope`, `has_ondisk_doc`, `change`, `target_market`
@@ -83,9 +91,12 @@ documents the module again from scratch; absent, a module that already ships doc
 5. **Per instance path** (sequential within a path; paths in parallel up to `W`, each on its own
    browser family and instance - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
    § Browser exclusivity):
-   1. Invoke `Skill(odoo-instance)` inline with `CONTEXT: doc`, `MODE_HINT: path-incremental`,
-      `LANGUAGES`, `RUN_ID`, `WORKTREE_PATH: <doc_root>` for the first delta; keep the returned
-      block verbatim as `INSTANCE_HANDLE` and its `addons_path` as `ADDONS_PATH`.
+   1. With a covering `INSTANCE_HANDLE` from the caller: install the path's missing modules on
+      that lease (`Skill(odoo-instance)` inline, `init` with the handle, `CONTEXT: doc`) and use it
+      as the path's handle - never a second lease. Otherwise invoke `Skill(odoo-instance)` inline
+      with `CONTEXT: doc`, `MODE_HINT: path-incremental`, `LANGUAGES`, `RUN_ID`,
+      `WORKTREE_PATH: <doc_root>` for the first delta; keep the returned block verbatim as
+      `INSTANCE_HANDLE` and its `addons_path` as `ADDONS_PATH`.
    2. For each module `M` of the path, leaf first. `doc:false`: install only (step 5.5).
       Otherwise run the gate of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
       § Reference gate (`--series` = M's resolved series) on `M` with no file arguments and keep
@@ -110,11 +121,14 @@ documents the module again from scratch; absent, a module that already ships doc
       (init-delta on the same database), then ensure-up; a convergence fill reuses the branch
       instance per `doc-plan.yaml`. One lease per path; never a second.
 6. **Release** every lease this run took (`odoo-instance` step E, or
-   `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`), then
+   `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`) - never a
+   handle the caller forwarded, and none at all when the caller named a next consumer with
+   `HAND_ON: <skill>`: then keep the lease and return its handle. Then
    delete this run's staging only: `rm -rf <ISOLATE_DIR>/visual/<run_id>/` (never a bare
    `visual/`).
 7. **Return.** The plan of step 3; `doc-run-<run_id>/index.jsonl` listing every output path; the worktree and branch
-   when step 3 created them (this skill never merges or pushes); the `concerns` collected.
+   when step 3 created them (this skill never merges or pushes); the `INSTANCE_HANDLE` each path
+   used when it was forwarded or kept under `HAND_ON`; the `concerns` collected.
 
 ## Language resolution
 

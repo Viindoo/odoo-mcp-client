@@ -27,6 +27,7 @@ agent's; you draw on it.
 | `FEATURE CATALOG`, `ROLE MAP`, `FACTS` | paths of files already written by `odoo-doc-writer`; read, never rebuilt |
 | `STAGED CAPTURES` | `landing`: the staging directory of screens the user-guide run captured; reuse before any new shot |
 | `MARKETING COPY`, `BUYER PROFILE`, `TARGET MARKET` | supplied copy and its profile, or the market to draft from |
+| `AUTHOR PROFILE` | `landing`: the path of the vendor's contact profile JSON (`author_profile_config.py show`), or `none` |
 | `CHANNEL`, `TOPIC`, `AUDIENCE`, `TONE`, `OUTPUT LANGUAGE` | `copy`: the channel of § Channels, the subject, and what the request states |
 | `CHANGE` | `landing`: `whole`, or the change's feature list (inline or a file path); absent = `whole` |
 | `BROWSER MODE` | `headless` (default) or `headed` |
@@ -137,11 +138,19 @@ developer tool whose buyers are developers, when the technical names are the val
    the hero, one line per `extends_in_scope` base, linked per
    `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module. A marker
    left in the shipped file means a capture degraded: say so in `concerns`.
-4. **Manifest.** Merge the cover as the first `images` entry with a targeted Edit
-   (`module-doc-references.md` § Manifest images); audit the store keys of app-store-template § 5,
-   suggesting a missing non-commercial value and never writing `price`, `currency`, `support` or
-   `live_test_url` the brief did not supply; list the gaps (missing `icon.png` ->
-   `odoo-icon-design`, missing cover, missing `license`) in the report.
+4. **Contact and manifest.** The SUPPORT tab takes its two cards from `AUTHOR PROFILE`:
+   `presales_url` and `support_url`, each written as an anchor whose visible text is the URL
+   itself (the store renders an external anchor as plain text); a URL the profile lacks drops its
+   card, and `AUTHOR PROFILE: none` drops the tab - reported as a store-readiness gap, never
+   filled from memory. No address appears anywhere on the page; under `address_policy: image` an
+   address the vendor insists on is a PNG from `${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`
+   with the alt text it prints. Merge the cover as the first `images` entry with a targeted Edit
+   (`module-doc-references.md` § Manifest images); the manifest `support` key takes the profile's
+   `support_email` when the manifest has none (the store shows it to purchasers only); audit the
+   other store keys of app-store-template § 5, suggesting a missing non-commercial value and never
+   writing `price`, `currency` or `live_test_url` the brief did not supply; list the gaps (missing
+   `icon.png` -> `odoo-icon-design`, missing cover, missing `license`, missing contact page) in the
+   report.
 5. **Finals and gates.** `mv` each final into `static/description/assets/` under its convention
    name (doc-capture-mechanics § 13), bring every off-convention reference into the convention,
    then run the gate of `module-doc-references.md` § Reference gate (`--series` = the resolved

@@ -34,6 +34,12 @@ group.
 - `CODE_WORKTREE` - absolute path of the code being documented. As a plan tail node it is
   `<code repo>/run-integration`. Absent: the catalog row's addons path.
 - `RUN_ID` - the caller's run id. Standalone: make one per series.
+- `INSTANCE_HANDLE` - optional: a demo build the caller already holds (the module-docs step's,
+  or an i18n export build). When its series is the target, `demo` is true, `languages_loaded`
+  holds every site language and its `addons_path` covers `CODE_WORKTREE` (else the catalog
+  addons), step 3 installs the plan's missing modules on that lease by a delta `init` and
+  provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture
+  instance); the caller releases it.
 - `WORKTREE` with `LAND: caller` - a caller that owns the branch (`odoo-forward-port`) hands the
   series worktree in: step 0 creates no worktree and no branch, steps 7-8 run nothing, and the
   return carries the file list for the caller to commit. It may add `PAGE PLAN`, the rows it
@@ -87,7 +93,9 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
    group has its own facts file `<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`,
    written by that group's writer (`file:symbol` citations); a live-UI difference is a finding.
 3. **Capture instance, then the check shot** (`references/check-shot.md`).
-   - Invoke `odoo-instance` with `operation: create`, `context: doc`, `series` and `PROFILE` = the
+   - With a covering `INSTANCE_HANDLE`: invoke `odoo-instance` with `operation: init` on that
+     handle for the modules the plan needs that it lacks, then `ensure-up`; skip the create below.
+     Otherwise invoke `odoo-instance` with `operation: create`, `context: doc`, `series` and `PROFILE` = the
      series and profile of the row's `instance` key (`<series>:<profile>`; no profile part: omit
      `PROFILE`), `modules` = the
      documented modules plus the row's `extra_modules` plus the bridge modules matching
@@ -123,7 +131,8 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
    - `build_compare.py stop --work-dir <D>`, then `build_compare.py clean --work-dir <D>` and
      `po_sync.py clean --work-dir <W>` for every work dir this run created.
    - Release every lease this run took (`odoo-instance` step E, or
-     `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`).
+     `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`) - never
+     a forwarded `INSTANCE_HANDLE`.
    - After the PR body is written, remove `<RUN_DIR>`, `<ISOLATE_DIR>/visual/<RUN_ID>/` and the
      tester's evidence directory `<ISOLATE_DIR>/visual/qa/<SLUG>/docs/` only.
    - A given `WORKTREE` is the caller's: never remove it.

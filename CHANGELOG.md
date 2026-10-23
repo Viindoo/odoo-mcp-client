@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.1.0] - 2026-10-23
+
+### Changed
+
+- `odoo-ai-agents` - **one capture instance per documentation tail.** The closing docs of a
+  forward-port, an upgrade or a plan no longer build a fresh instance per step: `odoo-i18n` keeps
+  its demo export build when the caller names the next consumer (`HAND_ON`), `odoo-doc-illustration`
+  and `odoo-doc-site` consume a forwarded `INSTANCE_HANDLE` that covers them and provision nothing,
+  the plan's `docs-site` node reuses `docs-module`'s instance, and the run-level owner releases the
+  handle after the last step (`snippets/docs-after-change.md`, `instance-handle-contract.md`
+  § Hand-on between consumers).
+- `odoo-ai-agents` - **no email address on a published page** (#280). The App Store template's
+  contact cards link the vendor's pre-sales and support WEB PAGES, written so the visible text is
+  the URL (the store renders every external anchor as plain text; only YouTube and Teams links
+  survive); `mailto:` and plain or obfuscated addresses are findings of the reference gate
+  (`LINK_MAILTO`, `EMAIL_ADDRESS`), as is a store-page link whose text hides its URL
+  (`LINK_TEXT_HIDES_URL`). The values come from a new author profile recorded once by
+  `/odoo-ai-agents:odoo-setup author` (step `65-author-profile`, `author-profile.toml`); a missing
+  page drops its card and is reported, never invented. An address a vendor insists on ships only
+  as an image (`scripts/lib/email_image.py`).
+
+### Added
+
+- `odoo-ai-agents` - **narrated, multi-language, publish-ready demo videos, vendor-neutral**
+  (#279, first part). `/odoo-ai-agents:odoo-setup voice` (step `70-speech`) records any endpoint
+  that speaks the OpenAI audio API - hosted (OpenAI, Azure OpenAI, Groq, ...) or self-hosted
+  (LocalAI, Kokoro-FastAPI, Speaches, openedai-speech) - with the NAME of its key variable, a voice
+  per narration language (one voice, one language) and the speech-to-text check. New tools:
+  `speech_client.py` (tts / stt / voices / probe, clips normalised to 48 kHz WAV),
+  `pronunciation.py` (whole-token, case-sensitive, Unicode-aware respelling for the engine only,
+  with a self-check), `narration_check.py` (word error rate with tones kept, brand and acronym
+  slots, a `listen` verdict when speech-to-text cannot tell two readings apart) and
+  `video_publish.py` (fit each scene to its narration, two-pass loudness, the `youtube-1080p`
+  profile verified by ffprobe, captions, chapters, thumbnail, preview). The `video-produce`
+  workflow gains a `languages` input, a storyboard with narration per scene and language, a
+  `narrate` phase and a verifying `assemble` phase. Still open from #279: the Playwright recorder
+  with wait sidecars, fake-microphone voice input and wait trimming, prompt trials and the AI cost
+  budget.
+
+
 ## [8.0.4] - 2026-10-23
 
 ### Changed

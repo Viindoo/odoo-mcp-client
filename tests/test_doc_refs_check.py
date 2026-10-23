@@ -493,7 +493,7 @@ def test_the_store_module_scheme_for_this_series_passes(module):
 
         .. _store: /apps/modules/17.0/sale
 
-        Contact `us <mailto:help@example.com>`_ or jump to `top <#top>`_.
+        Call `us <tel:+000000000>`_ or jump to `top <#top>`_.
         """))
     _clean(_html(module, '<img src="./main_screenshot.png"/>'
                          '<a href="/apps/modules/17.0/sale">Sales</a> <a href="#features">x</a>'))
@@ -820,3 +820,63 @@ def test_an_interpreter_below_the_floor_exits_2_with_the_remedy():
 def test_the_gate_parses_on_python_3_8_grammar():
     import ast
     ast.parse(GATE.read_text(encoding="utf-8"), feature_version=(3, 8))
+
+
+# --------------------------------------------------------------------------- #
+# published contact details: no address, no mailto, a link that shows its URL
+# --------------------------------------------------------------------------- #
+def test_a_mailto_link_is_flagged_in_a_page_and_in_a_guide(module):
+    _only(_html(module, '<section><img src="./main_screenshot.png"><a href="mailto:sales@acme-erp.com">Contact</a></section>'),
+          "LINK_MAILTO")
+    proc = _rst(module, """
+        Contact
+        =======
+
+        `Write to us <mailto:sales@acme-erp.com>`__
+        """)
+    assert proc.returncode == 1
+    assert set(_rules(proc)) == {"LINK_MAILTO", "EMAIL_ADDRESS"}, proc.stdout
+
+
+@pytest.mark.parametrize("text", [
+    "Reach sales at sales@acme-erp.com today.",
+    "Reach sales at sales [at] acme-erp [dot] com today.",
+    "Reach sales at sales (at) acme-erp.com today.",
+])
+def test_an_email_address_in_prose_is_flagged_plain_or_obfuscated(module, text):
+    _only(_rst(module, "Title\n=====\n\n%s\n" % text), "EMAIL_ADDRESS")
+    _only(_html(module, '<section><img src="./main_screenshot.png"><p>%s</p></section>' % text), "EMAIL_ADDRESS")
+
+
+def test_an_email_in_an_attribute_is_flagged(module):
+    _only(_html(module, '<section><img src="./main_screenshot.png"><img src="assets/form.png" '
+                        'alt="write to sales@acme-erp.com"></section>'), "EMAIL_ADDRESS")
+
+
+@pytest.mark.parametrize("text", [
+    "A sample login such as admin@example.com works on the demo database.",
+    "The decorator @api.depends lists the fields the compute reads.",
+    "Mention a colleague with @ in the chatter.",
+])
+def test_an_example_address_or_a_bare_at_sign_passes(module, text):
+    _clean(_rst(module, "Title\n=====\n\n%s\n" % text))
+
+
+def test_a_store_page_link_whose_text_hides_its_url_is_flagged(module):
+    _only(_html(module, '<section><img src="./main_screenshot.png">'
+                        '<a href="https://support.acme-erp.com/tickets">Open a ticket</a></section>'), "LINK_TEXT_HIDES_URL")
+
+
+@pytest.mark.parametrize("markup", [
+    '<a href="https://support.acme-erp.com/tickets">support.acme-erp.com/tickets</a>',
+    '<a href="https://www.acme-erp.com/contact">Pre-sales: www.acme-erp.com/contact</a>',
+    '<a href="/apps/modules/17.0/sale_delivery_window">this module</a>',
+    '<a href="#faq">FAQ</a>',
+    '<a href="https://www.youtube.com/watch?v=abc123">youtube.com/watch?v=abc123</a>',
+])
+def test_a_store_page_link_that_shows_its_host_or_stays_in_the_store_passes(module, markup):
+    _clean(_html(module, '<section><img src="./main_screenshot.png">%s</section>' % markup))
+
+
+def test_a_guide_link_is_not_held_to_the_store_text_rule(module):
+    _clean(_rst(module, "Title\n=====\n\n`Open a ticket <https://support.acme-erp.com/t>`__\n"))

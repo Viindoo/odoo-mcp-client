@@ -325,7 +325,7 @@ that up and chains the next step across workflows automatically.
 | `discovery-pipeline` | Synthesize and structure discovery notes | `<ISOLATE_DIR>/discovery/` |
 | `qa-suite` | Static release test-plan + QA checklist + bug triage (non-executing; live acceptance/oracle -> `odoo-acceptance`) | `<ISOLATE_DIR>/qa/` |
 | `support-triage` | Classify + root-cause + draft resolution for a support ticket | `<ISOLATE_DIR>/support/` |
-| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble) | `<ISOLATE_DIR>/video/` |
+| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> narrate per language -> assemble, verified against the YouTube publish profile) | `<ISOLATE_DIR>/video/` |
 | `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `<ISOLATE_DIR>/sales/` |
 | `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `<ISOLATE_DIR>/debug/` |
 | `content-production` | Multi-asset content from a positioning brief | `<ISOLATE_DIR>/content/` |
@@ -647,7 +647,7 @@ flowchart TD
 | `/odoo-position-feature` | Positioning copy for marketing and sales use, saves to `<ISOLATE_DIR>/positioning/` | `odoo-feature-check` -> `odoo-addon-diff` -> `odoo-competitive-brief` -> positioning copy |
 | `/odoo-plan-upgrade` | Comprehensive upgrade plan, saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
 | `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `<SHARE_DIR>/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
-| `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
+| `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> narrate -> assemble; one publish-ready MP4 per language with captions, thumbnail and chapters), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
 | `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance, and - when your skill list is too long for Claude Code to show every description (the default budget on a 200k-token window) - offers to raise the listing budget, showing first how many tokens per turn that adds | - |
 
 ## Use cases - day in the life

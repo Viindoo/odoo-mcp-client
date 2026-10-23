@@ -121,7 +121,7 @@ any branch, worktree, code write, or file deletion.
 
 **P5 instance release [MANDATORY].** Once every level is green, release the P5 lease (`lease_release` with the cached token and `run_id`; `lease_park` only for a named later step) before P5.7 - never between levels (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
 
-**P5.7 - i18n reconcile [MANDATORY for every surviving module, narrow escape only].** Invoke `odoo-i18n` against a fresh instance with the existing `.po` loaded (re-export, git-ops diff-review of every loss, translate the empty `msgstr` per `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`, reload); an escape is one of `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`, recorded in `install-test.md`.
+**P5.7 - i18n reconcile [MANDATORY for every surviving module, narrow escape only].** Invoke `odoo-i18n` against a fresh instance with the existing `.po` loaded, with `HAND_ON: odoo-doc-illustration` when the P3 plan's `Docs:` line is not `none` (re-export, git-ops diff-review of every loss, translate the empty `msgstr` per `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`, reload); an escape is one of `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`, recorded in `install-test.md`.
 
 **P5.8 - Acceptance [MANDATORY, cluster-wide, narrow escape only].** Compute the verify scope with `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (`changed_set` = every surviving module; the reverse closure from `graph.md`) and invoke `odoo-acceptance` ONCE for the cluster: `INPUTS` = the changed set, `scope_hint` = `graph.md` + `absorption/*.md`, `odoo_version` = target, `INSTANCE_HANDLE: none provisioned`, `ACCEPTANCE` by pointer to each module's `absorption/<module>.md` behaviour and any P2b design §9 - never the implementation. Skip only when `graph.md` proves a true leaf with no dependents and no behavioural surface, recorded in `install-test.md`. The upgrade is not DONE without ACCEPTED or that recorded escape; the verdict is presented with the P6 sign-off. Output `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. Detail: `references/upg-phase-detail.md` § P5, P5.7 and P5.8.
 
@@ -136,7 +136,8 @@ narrow-escape) and ask, as a text question, `approve / skip / cancel`. Wait for
 After the PR exists, only PR-OBSERVING work (CI-failure triage, the human merge) and the closing docs below remain. Wait for human merge.
 
 With the PR presented, document the upgraded user-visible features for the target the P3 plan
-approved, per `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` (a module still
+approved, per `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` (the i18n build handed on at
+P5.7 is the capture instance, released after the last docs step; a module still
 `installable: False` at the target keeps the docs it had).
 
 ## Hard rules

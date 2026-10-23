@@ -1,0 +1,86 @@
+"""Guards for the second follow-up PR: one capture instance per documentation tail, contact
+details from the author profile, narration from a vendor-neutral speech configuration.
+
+Each test reads the prose a runtime agent reads and fails when the rule it protects is gone.
+"""
+import json
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
+
+
+def _read(rel):
+    return (PLUGIN / rel).read_text(encoding="utf-8")
+
+
+def _squash(text):
+    return " ".join(text.split())
+
+
+# --- one capture instance for the documentation tail ------------------------------------------
+
+
+def test_the_docs_tail_forwards_one_capture_instance_and_the_owner_releases_it():
+    snippet = _squash(_read("snippets/docs-after-change.md"))
+    assert "One capture instance for the whole tail" in snippet
+    assert "never builds an instance another step of the same run already built" in snippet
+    assert "releases the handle once the last docs step returned" in snippet
+    for rel, needle in (
+        ("skills/odoo-doc-illustration/SKILL.md", "never a second lease"),
+        ("skills/odoo-doc-site/SKILL.md", "provisions nothing"),
+        ("skills/odoo-i18n/SKILL.md", "`HAND_ON: <skill>`"),
+        ("snippets/instance-handle-contract.md", "Hand-on between consumers"),
+        ("skills/odoo-forward-port/SKILL.md", "`HAND_ON: odoo-doc-illustration`"),
+        ("skills/odoo-modules-upgrade/SKILL.md", "`HAND_ON: odoo-doc-illustration`"),
+        ("skills/odoo-intake/references/plan-mode-schema.md", "share one capture instance"),
+    ):
+        assert needle in _squash(_read(rel)), (rel, needle)
+
+
+def test_a_docs_step_never_releases_a_forwarded_handle():
+    for rel in ("skills/odoo-doc-illustration/SKILL.md", "skills/odoo-doc-site/SKILL.md"):
+        text = _squash(_read(rel))
+        assert re.search(r"never a (forwarded `INSTANCE_HANDLE`|handle the caller forwarded)", text), rel
+
+
+# --- published contact details ----------------------------------------------------------------
+
+
+def test_the_store_template_links_contact_pages_and_carries_no_address():
+    template = _read("skills/odoo-doc-illustration/references/app-store-template.md")
+    assert "{{PRESALES_URL}}" in template and "{{SUPPORT_URL}}" in template
+    assert "mailto:" not in template.split("## 3. Bootstrap-5 Fragment Skeleton")[1]
+    assert "PRESALES_EMAIL" not in template and "SUPPORT_EMAIL" not in template
+    assert "LINK_TEXT_HIDES_URL" in template
+    refs = _read("snippets/module-doc-references.md")
+    assert "LINK_MAILTO" in refs and "mailto:`, author-site and video links are fine" not in refs
+
+
+def test_the_writers_take_contact_details_from_the_author_profile_only():
+    marketer = _read("agents/odoo-marketer.md")
+    assert "`AUTHOR PROFILE`" in marketer and "never filled from memory" in _squash(marketer)
+    assert "email_image.py" in marketer
+    deps = json.loads((PLUGIN / "generator/skill_tool_deps.json").read_text(encoding="utf-8"))
+    assert "AUTHOR PROFILE" in deps["agents"]["odoo-marketer"]["brief"]["optional"]
+    illustration = _read("skills/odoo-doc-illustration/SKILL.md")
+    assert "author_profile_config.py show" in illustration
+    contract = _read("snippets/public-docs-contract.md")
+    assert "email_image.py" in contract and "LINK_TEXT_HIDES_URL" not in contract  # rule by meaning, not by code name
+    assert "hides its URL" in contract
+
+
+def test_setup_exposes_author_and_voice_steps_outside_all():
+    setup = _read("commands/odoo-setup.md")
+    assert "| `author`" in setup and "| `voice`" in setup
+    assert "`65-author-profile` and `70-speech`" in setup
+    assert (PLUGIN / "scripts/setup-steps/65-author-profile.sh").exists()
+    assert (PLUGIN / "scripts/setup-steps/70-speech.sh").exists()
+
+
+def test_the_video_workflow_gates_narration_on_the_speech_configuration():
+    wf = _read("workflows/video-produce.workflow.yaml")
+    assert "70-speech.sh check" in wf and "- id: narrate" in wf
+    assert "speech_client.py tts" in wf and "narration_check.py" in wf
+    assert "video_publish.py verify" in wf and "never ask for a key" in wf

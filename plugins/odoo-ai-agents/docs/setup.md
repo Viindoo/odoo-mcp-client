@@ -338,6 +338,15 @@ drop-in. What it does:
    not declare and a marketplace link lacking `{series}` or `{module}`. Runs only on request, never
    under `all`.
 
+8. **Author profile** (optional; `/odoo-ai-agents:odoo-setup author`, step `65-author-profile`) -
+   records the vendor's public contact details once: the pre-sales and support WEB PAGES the
+   App Store page and the docs link to (an address is never published; the manifest `support`
+   address stays purchaser-only), read from `author-profile.toml` in the state root.
+9. **Narration voices** (optional; `/odoo-ai-agents:odoo-setup voice`, step `70-speech`) - an
+   OpenAI-compatible speech endpoint (hosted or self-hosted), the NAME of the environment
+   variable holding its key, one voice per narration language and the speech-to-text check,
+   in `speech.toml`; the `video-produce` workflow narrates demo videos from it.
+
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-ai-agents:odoo-setup` whenever a dependency is missing. The same hint prints `browser MCP flags outdated` when a registered browser server differs from the current spec (see the re-run note above).
 
