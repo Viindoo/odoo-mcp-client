@@ -64,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   while coding decides it itself and records evidence and way out in its return, the reviewer's R2
   rates a guard without either HIGH, and the QA planner adds a slip-and-recover scenario per
   guarded action.
+- `odoo-ai-agents` - the orphaned `snippets/read-before-write-contract.md` (cited by nothing; its
+  rules live in the coder, the reviewer and `read-before-act.md`) is removed.
 
 
 ## [8.0.3] - 2026-10-21
