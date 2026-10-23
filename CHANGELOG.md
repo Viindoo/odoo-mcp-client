@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.0.4] - 2026-10-23
+
+### Changed
+
+- `odoo-ai-agents` - **one owner for every forward-port** (#276). `odoo-forward-port` forwards code,
+  the docs a module ships and the pages of a docs-site repository with its one git shape: a
+  SHA-preserving merge of the range tip closed by one merge commit, never a cherry-pick or a squash.
+  A docs-site repository runs the new docs-site lane (`references/fp-docs-site-lane.md`): pages are
+  classified per module installable at the target (`port`: re-verified and recaptured; `skip`:
+  forwarded as they are), `odoo-doc-site` works in the integration worktree under `WORKTREE` +
+  `LAND: caller`, and the PR is landed with a merge commit. `odoo-doc-site` loses its PORT mode;
+  `odoo-intake` dispatches every port and every module upgrade directly to `odoo-forward-port` /
+  `odoo-modules-upgrade` (no recon, no approach question), asking only when the intent is unclear.
+  The documentation that closes a change is one snippet, `snippets/docs-after-change.md`, shared by
+  the forward-port, the upgrade and the plan tail; a module `installable: False` at the target keeps
+  the docs the change carried.
+- `odoo-ai-agents` - **two documentation agents.** `odoo-doc-writer` documents a module for the
+  people who use it (user guide, catalog); the new `odoo-marketer` writes the App Store page
+  (`MODE: landing`, launched by `odoo-doc-illustration`) and every marketing piece (`MODE: copy`,
+  launched by `odoo-content-draft`, now a launcher), verifying every claim before it is written and
+  searching existing pages and drafts first. Both may split a large workload to child workers on
+  disjoint files; every launcher reads the model-tier map by path and passes the cheapest tier that
+  keeps the quality.
+- `odoo-ai-agents` - **read before acting, read before asking** (#277, #278). `ODOO-AI-ETHOS.md`
+  is rewritten shorter, with principle 2 now "Read Before Acting, Read Before Asking": the rules of
+  the task's class are read just in time and once, a question to a human is searched first and
+  carries the context, the roles, the modules and scope, the rule read and closed options, and an
+  answer never widens past the question asked. The plugin's reading map is
+  `snippets/read-before-act.md`, cited by `odoo-intake`, `odoo-coding`, the forward-port, the
+  upgrade, the coder, the reviewer and the doc agents. `odoo-modules-upgrade` classifies every module
+  as `upgraded` or `already-installable` (bump and migration policy per class, a P7 gate for both
+  and for edited older migration scripts). `odoo-instance-ops` unions the framework validation
+  classes into every tagged test run whose install set triggers them, the reviewer's R1 checks every
+  section of the guideline files, and Convention 3 of `upg-conventions.md` says so.
+
+
 ## [8.0.3] - 2026-10-21
 
 ### Fixed

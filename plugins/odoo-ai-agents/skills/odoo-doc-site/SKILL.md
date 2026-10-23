@@ -2,7 +2,7 @@
 name: odoo-doc-site
 argument-hint: "[site] [series...] [area|modules] [pages] [FROM CHANGE]"
 description: >-
-  Write or port docs-site pages (Sphinx, branch per series) with live screenshots
+  Write docs-site pages (Sphinx, branch per series) with live screenshots
 ---
 
 ## Role
@@ -20,6 +20,8 @@ group.
 - **The catalog, role map or walkthrough alone** -> `odoo-doc-feature-map`
 - **Rating a screen** -> `odoo-ui-review`; **fixing a branding gap in module source** -> `odoo-coding`
 - **Merging the PR or watching it to merge** -> `odoo-pr-monitoring`
+- **Porting pages from a lower series to a higher one** -> `odoo-forward-port` (its docs-site lane
+  invokes this skill with `WORKTREE` and `LAND: caller`)
 
 ## Inputs
 
@@ -32,9 +34,12 @@ group.
 - `CODE_WORKTREE` - absolute path of the code being documented. As a plan tail node it is
   `<code repo>/run-integration`. Absent: the catalog row's addons path.
 - `RUN_ID` - the caller's run id. Standalone: make one per series.
-- `PORT FROM <series>` with a source (a docs pull request number, a commit range or an area of
-  pages) and one or more higher target `SERIES`: the run ports instead of writing from scratch
-  (`references/port.md`).
+- `WORKTREE` with `LAND: caller` - a caller that owns the branch (`odoo-forward-port`) hands the
+  series worktree in: step 0 creates no worktree and no branch, steps 7-8 run nothing, and the
+  return carries the file list for the caller to commit. It may add `PAGE PLAN`, the rows it
+  decided (`work: port` for a page to re-verify on this series, `skip` for one forwarded as it
+  is): step 1 keeps those rows, adds only the `skip` rows of pages an open pull request already
+  covers, and presents no gate.
 
 A missing `SITE` or `SERIES` is asked once. This skill lands its own pull request (steps 7-8); a
 plan that runs it follows it with monitor and merge only.
@@ -60,7 +65,7 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
    - After step 1, per series: take the worktree path from `project_dir` (axis
      `worktree`, `cwd` = that repo, `name` = the branch slug) and invoke `git-toolkit:git-ops` to
      fetch and create the worktree plus a new branch from the series' upstream branch there; the
-     clone path is never written. Then capture `ISOLATE_DIR` per series worktree with
+     clone path is never written. A given `WORKTREE` is that worktree: create nothing. Then capture `ISOLATE_DIR` per series worktree with
      `project_dir` and pass the same literals everywhere.
    - Docs venv: run `docs_python.py venv --worktree <worktree> --venv
      <SHARE_DIR>/docs-site/<site>/<series>/venv --json`. It builds the venv on the Python the docs
@@ -77,9 +82,7 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
      on it, then the server is stopped.
 1. **Find existing content before writing** (`references/page-plan.md`) - mandatory, per series.
    Map the area to modules, search the branch and the open pull requests, write the page plan
-   (`update | new | skip` per page), then decide it per `references/page-plan.md` § 4. With
-   `PORT FROM`, the starting point, the order of targets and the plan rows follow
-   `references/port.md`.
+   (`update | new | skip` per page), then decide it per `references/page-plan.md` § 4.
 2. **Facts.** Per module of the plan without a catalog: invoke `odoo-doc-feature-map`. Each page
    group has its own facts file `<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`,
    written by that group's writer (`file:symbol` citations); a live-UI difference is a finding.
@@ -112,9 +115,10 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
    what changed, re-serve and re-run acceptance, until `PASS` or `BLOCKED` (`references/acceptance.md` § Loop).
 7. **Land** (`references/gates-and-landing.md` § Land). Commit per the row's `commit` policy through
    `git-toolkit:git-ops`, push to `fork_remote` with a lease, open the PR against the series branch.
-8. **CI** (`references/gates-and-landing.md` § CI). Read the result; classify docs failure versus
-   infrastructure failure and report which. A docs failure goes back to the writer (step 4); an
-   infrastructure failure never changes the PR.
+   `LAND: caller`: nothing here; the file list goes back in the return.
+8. **CI** (`references/gates-and-landing.md` § CI; not under `LAND: caller`). Read the result;
+   classify docs failure versus infrastructure failure and report which. A docs failure goes back
+   to the writer (step 4); an infrastructure failure never changes the PR.
 9. **Teardown**, on every exit path, a cancel included:
    - `build_compare.py stop --work-dir <D>`, then `build_compare.py clean --work-dir <D>` and
      `po_sync.py clean --work-dir <W>` for every work dir this run created.
@@ -122,6 +126,7 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
      `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the token and `RUN_ID`).
    - After the PR body is written, remove `<RUN_DIR>`, `<ISOLATE_DIR>/visual/<RUN_ID>/` and the
      tester's evidence directory `<ISOLATE_DIR>/visual/qa/<SLUG>/docs/` only.
+   - A given `WORKTREE` is the caller's: never remove it.
    - Keep the series worktree of a pushed branch. The run that sees its PR merged or closed
      removes it through `git-toolkit:git-ops`: `odoo-pr-monitoring` (the plan's merge node), or
      this skill when step 8 reads the PR as merged or closed. Remove the worktrees of a cancelled
@@ -129,7 +134,7 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
 
 ## Return
 
-Per series: worktree, branch, PR URL, the page plan, pages added / updated / removed with their site URLs, the
+Per series: worktree, branch, PR URL (under `LAND: caller`: the file list instead), the page plan, pages added / updated / removed with their site URLs, the
 gate and acceptance results with their `UNVERIFIED` items, the CI verdict, findings (code versus description,
 branding gaps for the branding owner), what is left. Never an absolute warning count.
 

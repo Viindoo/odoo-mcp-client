@@ -176,7 +176,8 @@ order BEFORE any code is written or module deleted. This is the request's one Pl
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request): call
 `EnterPlanMode`, then present the plan CONTENT (authored here, not routed through
 `odoo-planning`): per-module
-classification table (DELETE -> list the core feature that replaces each AND inline the
+classification table (one `Class` column: `upgraded` | `already-installable`, Hard rule 5, with
+the bump and migration policy of that class; DELETE -> list the core feature that replaces each AND inline the
 behavioral-equivalence summary from `absorption/<module>.md` - the proof that every
 override is equivalent or no-op; REWRITE/MERGE/SPLIT -> adapt tier + design link);
 topo-sorted adapt order (leaves first); design-doc links for any P2b module. For every surviving module (KEEP/REWRITE/MERGE/SPLIT), inline its DUE
@@ -312,8 +313,11 @@ Pre-PR checklist: run the Runbot parity gates
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
 add a convention-compliance pass (manifest version-form - short, no series prefix, not bumped, per
 `references/upg-classification-table.md` § Manifest breaks - plus always-invisible XML comment;
-no upgraded module still carries a `migrations/` directory; see
-`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), the migration notes (below), a perf-lens
+see `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), the two-class gate - the PR is not
+opened while any holds: (a) an `upgraded` module still carries a `migrations/` directory; (b) an
+`already-installable` module's diff touches data, fields or models and its manifest `version`
+is unchanged, or carries no migration file although existing data moves; (c) any file under a
+`migrations/<older series>.*/` directory is modified - the migration notes (below), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
 an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape).
 Write `<run dir>/migration-notes.md` (`<run dir>` = `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/`)
@@ -331,7 +335,9 @@ the Skill tool) to push the branch, then to create the PR - resolve upstream org
 the `origin_url` of a `repo_facts` call.
 After the PR exists, only PR-OBSERVING work (CI-failure triage, the human merge) and the closing docs below remain. Wait for human merge.
 
-With the PR presented, document the upgraded user-visible features for the target the P3 plan approved (`none`: skip this step). Compose a change file `<ISOLATE_DIR>/docs/change-<slug>.md`: one line per upgraded user-visible feature, with its module and UI label. Module docs: invoke `odoo-doc-illustration` on the target branch's worktree with `CHANGE` = that file and commit the result onto the SAME open PR's branch through `git-toolkit:git-ops` - one PR per repo per run. Site docs: invoke `odoo-doc-site` with `CODE_WORKTREE` = the target worktree, `SERIES` = the target series, `FROM CHANGE` = that file. Both run under the approved plan, with no gate.
+With the PR presented, document the upgraded user-visible features for the target the P3 plan
+approved, per `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` (a module still
+`installable: False` at the target keeps the docs it had).
 
 ## Hard rules
 
@@ -342,10 +348,19 @@ With the PR presented, document the upgraded user-visible features for the targe
 3. **No cluster-squash; per-module consolidation allowed** (`references/upg-phase-detail.md`
    § Commit consolidation, via `git-toolkit:git-ops`). Commit message formats: § Git / PR conventions.
 4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
-5. **Code upgrade only (Convention 0).** This skill NEVER writes a migration script, never touches
-   an existing database and never stops to ask about existing data. It deletes the `migrations/`
-   directory of every upgraded module and records each deleted directory in `migration-notes.md`
-   (§ P7), together with what the upgrade changes for existing data; it never blocks the run.
+5. **Code upgrade only (Convention 0), two module classes.** This skill NEVER writes a migration
+   script for an upgrade, never touches an existing database and never stops to ask about
+   existing data. Every module the PR touches is classified at P0 and shown at P3:
+   - **upgraded** - `installable` False at `<work-base>`, True after the PR: no version bump; its
+     `migrations/` directory is deleted and recorded in `migration-notes.md` (§ P7), together
+     with what the upgrade changes for existing data;
+   - **already installable** - `installable` True at `<work-base>` (an absent key counts as
+     True) and changed in the same PR: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+     § Migrations are decided last applies - after P5 is green, when its change alters data
+     existing databases hold, ONE version bump and at most one migration file per stage, written
+     through `odoo-data-migration`; its older `migrations/` directories are never edited.
+   A human answer about existing data is recorded against the class it names and never widened
+   to the other (`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` § 2).
 6. **DELETE-absorbed = delegated directory removal + dep cleanup + commit message, with two mandatory gates.**
    A module wholly absorbed by core is removed entirely, not set to `installable: False`.
    The commit message carries the reason (which core feature replaces it). No directory removal is

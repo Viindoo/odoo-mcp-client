@@ -21,7 +21,7 @@ against its own family-delta list, `## Brief self-check` below), unlike `worker-
 | 6 | `ACCEPTANCE` (by pointer) | ALWAYS | Testable yes/no "done" conditions, given as a POINTER, never restated: coder/designer -> `DESIGN_DOC` S9; QA-tester -> the immutable `ORACLE_PATH`; QA-planner -> the raw `REQUIREMENT`/intent ONLY (never the implementation or a pre-derived oracle - preserves its independence). |
 | 7 | `DELIVERABLE` + `RETURN` | ALWAYS | What artifact(s), where they land, and what the final chat message must contain. Reuse `OUTPUT_DIR`/`REPORT_PATH`/`ARTIFACT_DIR` where a family already names them. |
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
-| 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
+| 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). The launch's `model` itself is never omitted: every launcher reads `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection by path and passes the lowest tier whose row matches the work - cheapest and fastest at the quality the row guarantees. |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
 | 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); a front-door skill invoked standalone that will need a lease mints it ONCE as its `<run-or-slug>` (`worklog-contract.md` § Where it lives); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is the owner every Odoo lease, the teardown gate and a leak audit key on. It travels as its OWN field, never only inside `INSTANCE_HANDLE`: the agents allowed to self-provision are exactly the ones handed no handle, so a brief saying `none provisioned` would carry no run id at all. A dispatched agent (a node owner included) NEVER invents this value - an invented id looks owned to the registry while being invisible to the only run that could release it. Absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
 
@@ -162,15 +162,23 @@ part) and `odoo-frontend-coder` (a leaf):
 
 ### Doc-writer
 
-`odoo-doc-writer`:
+`odoo-doc-writer`, `odoo-doc-site-writer`:
 
-- `MODE` (`full`, `landing`, `catalog-only`).
-- The audience source: `DOMAIN` or `SRS` for the guide, `BUYER PROFILE` or `TARGET MARKET` for
-  the landing; absent, the agent states the audience it assumed.
+- `MODE` (`full`, `catalog-only`) or the page plan group.
+- The audience source: `DOMAIN` or `SRS`; absent, the agent states the audience it assumed.
 - Locale/language list.
-- Grounding source (feature catalog, role map, walkthrough) when already written - never
+- Grounding source (feature catalog, role map, walkthrough, facts) when already written - never
   invent claims.
-- Output format (`rst`/`html`/video-plan/`po`/`svg`).
+
+### Marketer
+
+`odoo-marketer`:
+
+- `MODE` (`landing`, `copy`); for `copy` the channel, the topic and the output language.
+- The audience source: `BUYER PROFILE` or `TARGET MARKET`; absent, the agent builds the profile
+  and names the market it needs.
+- Grounding source (feature catalog, role map, facts, staged captures) when already written -
+  the agent verifies every claim against them and writes none it cannot.
 
 ### Translator
 

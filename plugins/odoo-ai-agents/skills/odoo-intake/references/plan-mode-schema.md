@@ -238,7 +238,8 @@ place; the rest keep their order.
 **The documentation target is decided once, from facts, by the Documentation routing rule of
 `odoo-intake`** (module, site, both or none). The plan gate shows ONE line, `Docs: <module | site |
 both | none> - <the facts that decided it>`, so the user can change it; `none` drops `docs-module`
-and `docs-site` with the user's reason written in the plan. A docs-only request (target `both`)
+and `docs-site` with the user's reason written in the plan. What the change file holds and which
+modules it leaves out: `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`. A docs-only request (target `both`)
 is a plan with the nodes `docs-module` then `docs-site`, the code repo's `integrate`, `monitor`
 and `merge`, the docs repo's `monitor-site` and `merge-site`, and no build or verification node:
 no coding node exists, so there is no module set for `odoo-instance` to cover.

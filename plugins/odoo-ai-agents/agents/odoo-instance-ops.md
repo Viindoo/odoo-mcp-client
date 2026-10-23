@@ -401,6 +401,15 @@ BEFORE composing the build, in this order:
    applies (case 1, the caller's explicit request, being the usual one).
 3. **`TEST_TAGS` absent / `none` / empty** -> **DERIVE** `/<m>` for every module in `--modules`,
    comma-joined, and state in `notes` that the tags were derived. Do NOT run untagged.
+4. **Framework-class union (every tagged run, cases 1 and 3).** `--test-tags` filters and never
+   adds, so append the framework classes of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes
+   whose trigger the install set meets: a module in `--modules` that ships view XML -> the
+   always-invisible class; one that adds an `hr.employee` field -> the `hr` self-access class.
+   Confirm each class name in the build's own checkout (`tests/` of `base` or `hr` on the
+   addons path) before tagging it; a class the checkout lacks is reported as absent, never
+   tagged. List the appended tags in `notes` as `widened:`. A caller never opts out of this
+   union; `TEST_TAGS: full` already includes the classes.
 
 The derivation needs a series whose `--test-tags` supports the `/module` selector: confirm via
 `cli_help(command='server', odoo_version='<series>')` in the Common preamble, never from memory. On

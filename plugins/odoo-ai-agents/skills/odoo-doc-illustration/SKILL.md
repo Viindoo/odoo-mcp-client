@@ -10,9 +10,10 @@ description: >-
 Front door for the documentation that ships inside Odoo modules (`doc/index.rst`, the App Store
 page `static/description/index.html`), illustrated with live screenshots. A product documentation
 site kept in its own repository is `odoo-doc-site`. It settles the tree the docs land
-in, plans the instances a multi-module package needs, provisions each instance, launches ONE
-`odoo-doc-writer` per module (`MODE: full` for the user guide, resumed with `MODE: landing` for
-the App Store page), verifies the references, commits per module and releases what it leased.
+in, plans the instances a multi-module package needs, provisions each instance, launches per
+module ONE `odoo-doc-writer` (`MODE: full`, the user guide) and then ONE `odoo-marketer`
+(`MODE: landing`, the App Store page, from the writer's catalog, facts and captures), verifies
+the references, commits per module and releases what it leased.
 
 ## Out of Scope
 
@@ -89,17 +90,20 @@ documents the module again from scratch; absent, a module that already ships doc
       Otherwise run the gate of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
       § Reference gate (`--series` = M's resolved series) on `M` with no file arguments and keep
       its findings as the baseline, then launch
-      `odoo-doc-writer` (brief in `references/writer-brief.md`; `model` per
+      `odoo-doc-writer` with `MODE: full` when the layer includes `userguide` (brief in
+      `references/writer-brief.md`; `model` per
       `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection: composing
-      new text is sonnet, a `change` made only of relabels and recaptures is haiku) with
-      `MODE: full` when the layer includes `userguide`, else `MODE: landing`.
-   3. Layer `both`: when the `full` round returns, send the same writer `MODE: landing` with
-      `SendMessage` - never a second launch; it holds the catalog and the captures.
+      new text is sonnet, a `change` made only of relabels and recaptures is haiku).
+   3. Layer includes `appstore`: when the `full` round returns (or at once for `appstore` alone,
+      with the catalog and role map from the brief or `odoo-doc-feature-map`), launch
+      `odoo-marketer` with `MODE: landing` (`references/writer-brief.md` § The landing launch),
+      passing the writer's catalog, role map, `facts.md` and staging directory so no screen is
+      captured twice; same model rule.
    4. **Verify.** Every reported file exists. Run the reference gate on `M` with no file
       arguments; exit 2 stops the run `NEEDS_CONTEXT`. Compare each exit-1 finding with the
       baseline (same file, rule and reference): `IMG_ORPHAN` -> delete the file yourself and
       include it in the commit; a finding not in the baseline, or a baseline finding in a file of
-      this run's layer -> send it to the writer as `FINDINGS` and re-run the gate; a baseline
+      this run's layer -> send it to the agent that wrote the file as `FINDINGS` and re-run the gate; a baseline
       finding in a file left untouched -> `concerns`, not a block. Then commit `M`'s docs in
       `doc_root` through `git-toolkit:git-ops`, one commit per module.
    5. Advance: `Skill(odoo-instance)` inline with the held `lease_token` for the next delta
@@ -131,7 +135,8 @@ writes the structure with `[Image: <slug>]` placeholders and returns `NEEDS_NEXT
 
 ## Agent-managed tools
 
-`odoo-doc-writer` (modes `full`, `landing`); `odoo-instance` inline for every lease.
+`odoo-doc-writer` (`MODE: full`); `odoo-marketer` (`MODE: landing`); `odoo-instance` inline for
+every lease.
 
 ## Continuation Contract
 

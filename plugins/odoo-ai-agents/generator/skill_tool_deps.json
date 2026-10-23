@@ -94,7 +94,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. OSM tools optional for grounding feature claims in content."
+      "notes": "Launcher: resolves the facts, settles channel/topic/audience with at most one question and launches odoo-marketer in MODE copy. OSM tools optional for grounding feature claims in content."
     },
     "odoo-customization-inventory": {
       "mcp_tools": [
@@ -569,7 +569,7 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Launcher: settles the docs tree, plans the instances of a multi-module package inline (skills/_shared/doc-cluster-plan.md), provisions each instance through odoo-instance, launches odoo-doc-writer per module (MODE full, then MODE landing by SendMessage), verifies the doc references and commits per module through git-ops. Demo and capture locales are instance_build arguments; cli_help resolves --skip-auto-install at runtime."
+      "notes": "Launcher: settles the docs tree, plans the instances of a multi-module package inline (skills/_shared/doc-cluster-plan.md), provisions each instance through odoo-instance, launches odoo-doc-writer per module (MODE full, the user guide) then odoo-marketer (MODE landing, the App Store page), verifies the doc references and commits per module through git-ops. Demo and capture locales are instance_build arguments; cli_help resolves --skip-auto-install at runtime."
     },
     "odoo-instance": {
       "mcp_tools": [
@@ -648,7 +648,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Launcher: writes or updates the pages of a product documentation site kept in its own repository (Sphinx, one branch, worktree and PR per series). Resolves the site row, finds existing content first, plans the pages behind a human gate, provisions the capture instance through odoo-instance, launches odoo-doc-site-writer per disjoint page group, runs the content gates, browser-accepts the locally served build through odoo-qa-tester MODE DOCS, lands the PR through git-ops and reads its CI. Its own OSM calls map the area to modules (page plan) and re-check the facts of a ported page; the launched writer and odoo-doc-feature-map ground the page facts."
+      "notes": "Launcher: writes or updates the pages of a product documentation site kept in its own repository (Sphinx, one branch, worktree and PR per series). Resolves the site row, finds existing content first, plans the pages behind a human gate, provisions the capture instance through odoo-instance, launches odoo-doc-site-writer per disjoint page group, runs the content gates, browser-accepts the locally served build through odoo-qa-tester MODE DOCS, lands the PR through git-ops and reads its CI. Under WORKTREE + LAND: caller (the odoo-forward-port docs-site lane) it works in the caller's worktree and returns its files instead of landing. Its own OSM calls map the area to modules (page plan) and re-check the facts of a ported page; the launched writer and odoo-doc-feature-map ground the page facts."
     }
   },
   "agents": {
@@ -1137,7 +1137,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "The one documentation writer: MODE catalog-only writes feature-catalog.jsonl, role-map.json and walkthrough.jsonl from the module tree and OSM (no browser); MODE full captures the screens on the provisioned instance and writes the role-based doc/index.rst per locale; MODE landing, resumed in the same context after full or launched with the catalog in hand, writes static/description/index.html from the catalog and the copy and wires the manifest images. A CHANGE feature list turns full or landing into an update of the affected sections and screens only. Traces code through the built-in Explore agent at haiku. Writes doc files, images and the shared files only; launches only Explore. min_server 0.13.1 for describe_module.",
+      "notes": "The product-documentation writer for the people who use a module: MODE catalog-only writes feature-catalog.jsonl, role-map.json and walkthrough.jsonl from the module tree and OSM (no browser); MODE full captures the screens on the provisioned instance and writes the role-based doc/index.rst per locale. A CHANGE feature list turns full into an update of the affected sections and screens only. Searches the existing docs before writing. Traces code through the built-in Explore agent at haiku and may split chapters or locales to child workers on disjoint files, model per concurrency-guard.md. Writes doc files, images and the shared files only; the App Store page is odoo-marketer's. min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
           "MODE",
@@ -1159,12 +1159,58 @@
           "FEATURE CATALOG",
           "ROLE MAP",
           "WALKTHROUGH",
-          "MARKETING COPY",
-          "BUYER PROFILE",
-          "TARGET MARKET",
           "CHANGE",
           "DOC SCOPE",
           "CAPTURE MODE",
+          "BROWSER MODE",
+          "extends_in_scope",
+          "USER LANGUAGE"
+        ]
+      }
+    },
+    "odoo-marketer": {
+      "role": "node-owner",
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect",
+        "model_inspect",
+        "entity_lookup",
+        "find_examples"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "The marketing writer: MODE landing writes the buyer-facing App Store page static/description/index.html per locale from the catalog, role map and facts odoo-doc-writer produced, captures the cover and feature shots (reusing the writer's staged captures) and wires the manifest images; MODE copy drafts one piece for one channel (blog, LinkedIn, YouTube script, email sequence, landing-page copy blocks, social caption) from a buyer profile. Verifies every claim against the catalog, facts, OSM or the live UI before writing it and searches existing pages and drafts first. Launched by odoo-doc-illustration (landing) and odoo-content-draft (copy); launches Explore at haiku for research and child workers on disjoint files for a large workload. min_server 0.13.1 for describe_module.",
+      "brief": {
+        "required": [
+          "MODE",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
+        ],
+        "optional": [
+          "MODULE",
+          "MODULE_PATH",
+          "WORKTREE_PATH",
+          "ODOO VERSION",
+          "PROFILE",
+          "RUN_ID",
+          "INSTANCE_HANDLE",
+          "ADDONS_PATH",
+          "LANGUAGES",
+          "FEATURE CATALOG",
+          "ROLE MAP",
+          "FACTS",
+          "STAGED CAPTURES",
+          "MARKETING COPY",
+          "BUYER PROFILE",
+          "TARGET MARKET",
+          "CHANNEL",
+          "TOPIC",
+          "AUDIENCE",
+          "TONE",
+          "OUTPUT LANGUAGE",
+          "CHANGE",
           "BROWSER MODE",
           "extends_in_scope",
           "USER LANGUAGE"
@@ -1337,13 +1383,17 @@
       "spawns_agents": []
     },
     "odoo-content-draft": {
-      "spawn_class": "leaf",
-      "spawns": [],
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-marketer (MODE copy: one piece for one channel; sonnet to compose, haiku to re-cut an existing draft)"
+      ],
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
       "default_gate_tier": "L0",
-      "spawns_agents": []
+      "spawns_agents": [
+        "odoo-marketer"
+      ]
     },
     "odoo-customization-inventory": {
       "spawn_class": "leaf",
@@ -1552,7 +1602,8 @@
     "odoo-doc-illustration": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-writer (MODE full per module, resumed with MODE landing for the App Store page; sonnet, haiku for a change made only of relabels and recaptures; CHANGE feature list = update only the affected sections and screens)",
+        "odoo-doc-writer (MODE full per module - the user guide; sonnet, haiku for a change made only of relabels and recaptures; CHANGE feature list = update only the affected sections and screens)",
+        "odoo-marketer (MODE landing per module whose layer includes appstore - the App Store page from the writer's catalog, facts and staged captures; same model rule)",
         "odoo-instance (Skill tool, inline - one lease per instance path)",
         "git-toolkit:git-ops (Skill tool - the docs worktree and one commit per module)"
       ],
@@ -1561,7 +1612,8 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
       "spawns_agents": [
-        "odoo-doc-writer"
+        "odoo-doc-writer",
+        "odoo-marketer"
       ]
     },
     "odoo-ui-review": {
@@ -1697,7 +1749,8 @@
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
         "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
         "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; SELF_PROVISIONS its own demo-loaded export instance - the P9 verify instance is built without demo and cannot serve an export - its result is presented at the P12 PR gate)",
-        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per odoo-intake's documentation routing rule, from a change file of the user-visible features; module docs commit onto the same PR's branch)"
+        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per snippets/docs-after-change.md, for the modules installable at the target; module docs commit onto the same PR's branch)",
+        "odoo-doc-site (Skill tool; the docs-site lane - references/fp-docs-site-lane.md - with WORKTREE = the integration worktree and LAND: caller: it re-verifies the ported pages, runs the build gates and the browser acceptance and returns its files for the one merge commit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1750,7 +1803,7 @@
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)",
         "odoo-acceptance (P5.8 acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole cluster, gates alongside the P6 sign-off)",
         "odoo-i18n (P5.7 catalog reconcile via the Skill tool; MANDATORY for every surviving module, narrow-escape only; reuses the P5 instance, folds its result into the P6 sign-off)",
-        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per odoo-intake's documentation routing rule, from a change file of the user-visible features; module docs commit onto the same PR's branch)"
+        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per snippets/docs-after-change.md, for the modules installable at the target; module docs commit onto the same PR's branch)"
       ],
       "stack": "fullstack",
       "instance_touching": true,

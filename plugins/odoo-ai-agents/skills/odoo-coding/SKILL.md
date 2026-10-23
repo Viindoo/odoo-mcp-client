@@ -59,7 +59,8 @@ cross-run module-coordination ledger.
 
 ## Steps
 
-1. **Orient.** Use the captured state dirs; read the worklog
+1. **Orient.** Read the code row of `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` (its
+   § 2 governs every question you raise). Use the captured state dirs; read the worklog
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Delete `coding/<slug>-<date>/`
    directories under `<ISOLATE_DIR>` untouched for 30 days
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
