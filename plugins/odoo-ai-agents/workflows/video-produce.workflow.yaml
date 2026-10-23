@@ -3,16 +3,19 @@ domain: marketing
 team_pattern: Pipeline
 description: |
   Produce a multi-scene Odoo demo video: author a storyboard (scene list with click
-  paths and timing), record each scene via the odoo-demo-recording primitive, then
-  assemble all clips into a single MP4 or GIF deliverable. Trigger: "multi-scene
-  Odoo demo video", "storyboard and record", "assemble scenes into one video",
-  "record storyboard", "multi-take product demo", "quay nhiều scene ghép thành
-  một video demo", "make a 3-scene walkthrough", "record and stitch demo clips"
+  paths, timing and, when narrated, a narration per scene and language), record each
+  scene via the odoo-demo-recording primitive, synthesise the narration through the
+  configured speech endpoint, then assemble one publish-ready MP4 per language (or a
+  silent MP4 / GIF). Trigger: "multi-scene Odoo demo video", "storyboard and record",
+  "assemble scenes into one video", "narrated demo video", "record storyboard",
+  "multi-take product demo", "quay nhiều scene ghép thành một video demo",
+  "make a 3-scene walkthrough", "record and stitch demo clips"
 output_dir: .odoo-ai/video
 inputs:
   - project_label
   - scenes
   - output_format
+  - languages
 
 resume: true
 fallback: standalone
@@ -26,14 +29,29 @@ phases:
     #   - project_label  (default "Demo-Project")
     #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
     #   - output_format  (mp4 or gif; default mp4)
+    #   - languages      (narration languages as locales, e.g. vi_VN,en_US; empty = silent video)
     # Resolves the series per snippets/project-facts-resolution.md and the instance target
     # per snippets/instance-resolution.md.
-    # Produces a Markdown storyboard: scene index, workflow description, estimated
-    # duration, key actions (menu → record → field → action), and output filename.
-    # Hard rules enforced inline:
+    # Narrated run (languages given): read the speech configuration FIRST -
+    #   bash ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/70-speech.sh check
+    # exit 1 = stop with NEEDS_CONTEXT naming `/odoo-ai-agents:odoo-setup voice` (a voice per
+    # requested language must be recorded there); never ask for a key or an endpoint in chat.
+    # Produces the storyboard as Markdown AND as storyboard.json
+    # (<ISOLATE_DIR>/video/<project_label>/storyboard.json), the plan approved once:
+    #   { "title", "languages": [...], "lead_in_s": 0.5, "fade_s": 0.3, "publish_profile":
+    #     "youtube-1080p", "pronunciation": {"<lang>": [{"written","spoken","kind"}]},
+    #     "scenes": [{ "id", "title": {"<lang>": ...}, "click_path": [...],
+    #                  "target_seconds", "narration": {"<lang>": "..."},
+    #                  "must_see": [[start_s, end_s]] }],
+    #     "publish": {"<lang>": {"title", "description"}} }
+    # Narration per scene and language is written for the ear: short sentences, the
+    # written form of every brand and acronym (the pronunciation map respells them for the
+    # engine only). Hard rules enforced inline:
     #   - No writes before the storyboard is decided
     #   - Abstract labels only (no real customer names in saved files)
     #   - Each scene maps to one odoo-demo-recording invocation
+    #   - A narration language with no recorded voice is a NEEDS_CONTEXT, never a guess
+    #   - The storyboard holds every tunable (lead-in, fade, profile); nothing is hardcoded later
 
   - id: record-scenes
     skill: odoo-demo-recording
@@ -61,17 +79,62 @@ phases:
       too) and assemble again.
     model_tier: sonnet
 
+  - id: narrate
+    inline: true
+    model_tier: haiku
+    # Narrated run only (skip when `languages` is empty). For each scene and each language:
+    #   1. Write the narration text to <ISOLATE_DIR>/video/<project_label>/narration/<lang>/<scene>.txt
+    #      and run the pronunciation self-check once per run:
+    #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/pronunciation.py selfcheck --map <storyboard pronunciation as JSON>
+    #   2. Synthesise: python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/speech_client.py tts
+    #        --text-file <txt> --lang <lang> --out .../narration/<lang>/<scene>.wav --map <map.json>
+    #      (the key comes from the environment variable speech.toml names; nothing is echoed).
+    #   3. Check it: python3 .../speech_client.py stt --audio <wav> --lang <lang> > <scene>.stt.txt, then
+    #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/narration_check.py --script <txt> --transcript <stt.txt>
+    #          --slots "<brands and acronyms of the scene>" --map <map.json> --lang <lang>
+    #      exit 1 = generate another take (at most 3 per line) and keep the lowest WER;
+    #      exit 3 = keep the take and list the line under "listen" in the report (STT cannot tell
+    #      an acronym read letter by letter from the word - a human listens).
+    #   4. Record durations per scene and language in .../narration/<lang>/durations.json
+    #      ({"<scene id>": seconds}) for the assembler.
+    # A narration-only fix re-runs this phase and assemble; never record-scenes.
+
   - id: assemble
     inline: true
     model_tier: sonnet
-    # Runner assembles the individual scene clips into a single deliverable:
-    #   1. Concatenate the scene clips reported by record-scenes (under <ISOLATE_DIR>/visual/videos/)
-    #      in storyboard order with ffmpeg (check `command -v ffmpeg` first); pagecast
+    # Runner assembles one deliverable per language (or one silent deliverable):
+    #   0. Tools: `command -v ffmpeg ffprobe`; without them deliver the per-scene clips in
+    #      storyboard order and say why the single file was not produced. pagecast
     #      convert_to_mp4 / convert_to_gif convert ONE clip each and never join clips.
-    #      Without ffmpeg, deliver the per-scene clips in storyboard order and say the
-    #      single file was not produced because ffmpeg is missing.
-    #   2. Write final file to <ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>
-    #   3. Print artifact path, total duration, scene count, and the re-runnable storyboard.
+    #      Every ffmpeg step below goes through ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_publish.py
+    #      so the publish profile is applied once, from data.
+    #   1. Narrated: per scene `video_publish.py fit --clip <scene clip> --narration <wav>
+    #      --out .../assembly/<lang>/<scene>.mp4 --lead-in <storyboard lead_in_s> --fade <fade_s>`
+    #      (narration after the lead-in; the last frame held when it outlasts the clip).
+    #      Silent: the scene clips as recorded.
+    #   2. Optional title card: `video_publish.py title --text "<storyboard title for the language>"
+    #      --out .../assembly/<lang>/00-title.mp4` (needs an ffmpeg with drawtext; without it, skip
+    #      the card and say so).
+    #   3. `video_publish.py concat --list <ordered clip list> --out
+    #      <ISOLATE_DIR>/video/<project_label>-<lang>-<YYYY-MM-DD>.mp4` (re-encode to the profile,
+    #      two-pass loudnorm). A gif deliverable: pagecast convert_to_gif on the concatenated mp4.
+    #   4. `video_publish.py verify --video <final> --profile <storyboard publish_profile>`: any FAIL
+    #      line fails the run - report the lines, never ship the file as publish-ready.
+    #   5. Side files per language: `video_publish.py sidecar --storyboard storyboard.json --lang
+    #      <lang> --durations <durations.json> --out-dir .../deliverables/<lang>/` (captions .srt,
+    #      title + description + chapters .txt), `video_publish.py thumbnail --video <final> --at
+    #      <a storyboard key frame> --out .../deliverables/<lang>/thumbnail.jpg`, and
+    #      `video_publish.py preview --video <final> --out .../deliverables/<lang>/preview.mp4
+    #      --max-mb 10`.
+    #   6. Frame spot check per scene (open 2 frames per scene with the plugin browser or ffmpeg
+    #      -frames:v 1 and look): the right UI language, no settings form and no long opaque
+    #      string (a pasted key) on screen; then grep every kept text file for the shapes of a
+    #      pasted key (`sk-`, `Bearer `). A hit fails the run.
+    #   7. Print per language: the artifact paths, total duration, scene count, the verify lines,
+    #      the "listen" lines of narrate, product defects seen on screen (for the product team,
+    #      never edited out), and the re-runnable storyboard.
     # Fallback: if only screenshot capture was available for any scene, the assembler
     # stitches frame sequences and prefixes the output with:
     #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.
+    # All artifacts stay under <ISOLATE_DIR>/video/<project_label>/ (storyboard.json, takes/,
+    # narration/, assembly/, deliverables/); nothing in a temporary directory.

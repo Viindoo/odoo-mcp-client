@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site] [--version X.Y] [--profile P]"
+argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site|author|voice] [--version X.Y] [--profile P]"
 description: >-
   Sets up browser MCP, permissions and local Odoo instances
 ---
@@ -16,7 +16,7 @@ interactive checkbox menu (see "Interactive menu" below).
 
 | Arg            | Runs steps |
 |----------------|------------|
-| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset` and `60-docs-site` |
+| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset`, `60-docs-site`, `65-author-profile` and `70-speech` |
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
@@ -25,6 +25,8 @@ interactive checkbox menu (see "Interactive menu" below).
 | `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-6 + `40-instance-profile` + optional `45-venv` + `46-server-wide` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` |
 | `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`), then `35-skill-listing-budget` (installed skills change with updates). Declares nothing new. |
 | `docs-site`    | `60-docs-site` only (no preflight): `propose`, ask the policy questions, `record` on confirmation - see its step-specific note |
+| `author`       | `65-author-profile` only (no preflight): `propose` from the module descriptors, ask for the contact pages, `record` on confirmation - see its step-specific note |
+| `voice`        | `70-speech` only (no preflight): `propose` the speech providers reachable from this machine, ask for the endpoint, model, key variable NAME and a voice per language, `record` on confirmation - see its step-specific note |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
@@ -61,12 +63,18 @@ Which parts of the Odoo visual workflow would you like to set up?
 [ ] Declare a product docs site - repo, series, capture instance and site policy
     (runs step 60)
 
+[ ] Record the vendor's public contact profile - pre-sales and support pages for
+    App Store pages and docs, never an email (runs step 65; equivalent to author)
+
+[ ] Configure narration voices - an OpenAI-compatible speech endpoint, a voice per
+    language and the speech-to-text check for demo videos (runs step 70; equivalent to voice)
+
 [ ] Reset instances.toml - backup then clean the instance registry
     (runs step 47 only; equivalent to --reset)
 ```
 
 Map each ticked option to its filter in the table above (`browser`, `listing`, `instance`,
-`refresh`, `docs-site`, `--reset`); with several ticked, run them in that order. Confirm the plan before
+`refresh`, `docs-site`, `author`, `voice`, `--reset`); with several ticked, run them in that order. Confirm the plan before
 executing - the per-step [Y/n] gates still apply.
 
 ## Steps for the AI agent
@@ -126,7 +134,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    ```
    Print this as the plan, mapping the `$ARGUMENTS` filter to the matching scripts
    (table above). Exclude `47-instance-reset` from `all` and `instance`
-   plan listings - it runs only via `--reset` - and `60-docs-site` - it runs only via `docs-site`.
+   plan listings - it runs only via `--reset` - and `60-docs-site`, `65-author-profile` and
+   `70-speech` - they run only via `docs-site`, `author` and `voice`.
 
 2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-5).**
    This cluster runs when the filter is `all` or `instance`. It precedes the
@@ -536,6 +545,35 @@ Resolve:
      declare: route the operator to `/odoo-ai-agents:odoo-setup instance` first, then re-run
      `docs-site`. Never edit `docs-sites.toml` by hand.
   `check` / `show [--key <id>]` read the file; `apply` only advises.
+- **65-author-profile** *(runs only via `author`; never in `all` or `instance`)* - The one
+  source of every published contact detail. 1. Run `"$STEPS_DIR/65-author-profile.sh" propose
+  --addons <the addons directory of the project>` (read-only): it prints `VENDOR`, `WEBSITE`
+  and `SUPPORT_EMAIL` read from the module descriptors, and `FACTS_TO_CONFIRM`. 2. Put the
+  facts to the operator with AskUserQuestion: confirm vendor and website; ask for the
+  pre-sales page (`presales_url`) and the support or ticket page (`support_url`) - web pages,
+  `https://`, never an address; the manifest-only `support_email`; `address_policy` (`never`,
+  the default, or `image` when the vendor insists on showing an address, rendered as a PNG);
+  optionally `font_file`. Never fill a page URL yourself; an unknown one stays unset and the
+  page ships without that card. 3. Write the confirmed profile as JSON under
+  `<state root>/scratch/author-profile-setup/`, run `"$STEPS_DIR/65-author-profile.sh" record
+  --from-json <file>` and remove the file. A refusal names the field; correct it with the
+  operator and re-run. `check` / `show` read the profile; `apply` only advises.
+- **70-speech** *(runs only via `voice`; never in `all` or `instance`)* - Narration for demo
+  videos, vendor-neutral: any endpoint that speaks the OpenAI audio API (`POST
+  <base_url>/audio/speech`, optional `GET <base_url>/audio/voices`) for text-to-speech, and
+  `POST <base_url>/audio/transcriptions` for the speech-to-text check. 1. Run
+  `"$STEPS_DIR/70-speech.sh" propose` (read-only): it lists the provider shapes it knows
+  (hosted and self-hosted), which key environment variables are set on this machine (names
+  only, never values), and whether `ffmpeg` has the filters the assembler needs. 2. Ask the
+  operator with AskUserQuestion: the TTS `base_url`, `model`, the NAME of the environment
+  variable holding the key (never the key), one `voice` per narration language (a voice is
+  recorded with the language it is native to; a mismatch is refused), the STT `base_url`,
+  `model` and key variable name. When the TTS endpoint lists voices, offer that list. 3. Write
+  the confirmed configuration as JSON under `<state root>/scratch/speech-setup/`, run
+  `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file. `check` exits 0
+  only when the configuration is valid AND the named key variables are set in this shell;
+  `probe` sends one short sentence per language to the endpoint and reports the clip length,
+  on the operator's say-so only (it costs a call). `apply` only advises.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths
