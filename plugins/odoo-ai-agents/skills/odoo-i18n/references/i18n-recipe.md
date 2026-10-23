@@ -5,6 +5,8 @@
 
 # Odoo i18n recipe - non-destructive .pot/.po (SSOT)
 
+**Contents:** L1 - Build ONE instance, then export every artifact from it - Keep Odoo's export format - Multi-language loop order - L2 - Diff-review reconcile (the non-destructive core - no polib) - L3 - Hand-translate the residual - Validation before commit (every gate is a hard BLOCK on failure) - Glossary and term choice
+
 Load-bearing belief: **re-exporting a `.po` from a DB that has NOT loaded the existing translation
 OVERWRITES it with empty `msgstr`s and silently destroys 40-90% of the human translation** - a clean
 exit code on data loss. The non-destructive method: build a FRESH instance, LOAD the existing

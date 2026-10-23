@@ -2,7 +2,7 @@
 name: odoo-instance
 argument-hint: "[create|drop|park|resume|init|update|test|load-language] [version|db]"
 description: >-
-  Create, update, test, stop or drop a live local Odoo instance
+  Creates, updates, tests, stops or drops a live local Odoo instance
 ---
 
 ## Role

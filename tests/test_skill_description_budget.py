@@ -48,14 +48,14 @@ DESCRIPTION_FIELD_MAX = 1024
 # Each plugin's share of the listing, in chars. Installing odoo-ai-agents also installs
 # odoo-semantic-mcp and git-toolkit (its plugin.json dependencies), so every plugin in this repo
 # has a share.
-# - odoo-ai-agents: ~58 skills + commands; its names alone cost about a third of the share,
+# - odoo-ai-agents: ~55 skills + commands; its names alone cost about a quarter of the share,
 #   leaving room per entry for what the skill does plus a route-out where a neighbour is
 #   confusable.
 # - git-toolkit: one front-door skill covering casual git/GitHub phrasing, pasted PR/issue URLs and
 #   deferral to a domain skill.
 # - odoo-semantic-mcp: one setup command.
 PLUGIN_LISTING_BUDGETS = {
-    "odoo-ai-agents": 6_100,
+    "odoo-ai-agents": 5_510,
     "git-toolkit": 400,
     "odoo-semantic-mcp": 200,
 }

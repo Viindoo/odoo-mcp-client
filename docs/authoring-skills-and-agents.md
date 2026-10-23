@@ -79,6 +79,9 @@ disclosure).
   practice.
 - The description must **not end in `.`, `!`, or `?`** (`tests/test_skill_format.py`,
   marketplace style).
+- **Third person, key use case first** (Anthropic best practice: the description is injected into
+  the system prompt, so a first-person or imperative voice can hurt discovery; the listing truncates
+  long text, so the main use leads).
 - `argument-hint` is **required here** (repo convention, `tests/test_skill_format.py`) - a short,
   **double-quoted** string shown in `/skill-name` autocomplete to advertise the arguments a user
   passes, e.g. `argument-hint: "[PR#|local|worktree:<path>]"`. Derive it from the skill's real
@@ -194,6 +197,9 @@ contract):
   **second person** ("You are ..."). It contains only what the agent needs to *do the work* -
   role, operating procedure, runtime constraints, output contract.
 
+**`color`** (optional) takes only the documented values `red`, `blue`, `green`, `yellow`,
+`purple`, `orange`, `pink`, `cyan`; any other word is ignored by the harness.
+
 **Body template.** Every agent body has five parts, in this order, and about 200 lines of
 procedure at most: who you are (one paragraph), `## You receive` (a table of brief fields - the
 registry `agents.<name>.brief` lists the same keys), the steps (each with its input, its action,
@@ -297,6 +303,13 @@ Names encode role so a router can tell the layers apart even when a name appears
   IDE snippets, the Codex/Gemini MCP manifests, the digest, and the **ORCHESTRATION-MAP** (the map
   is 100% generated - never hand-edit it). `make gen` must be idempotent: a clean tree produces
   zero diff (`make gen-check` enforces this in CI).
+
+## 6.4. Reference files: one level deep, a contents line past 100 lines
+
+A `references/` file is reached in one hop from its `SKILL.md`; a reference that cites another
+reference is read only through the section it names. A reference longer than 100 lines opens with
+a `**Contents:**` line listing its `##` headings (Anthropic: a table of contents at the top), so a
+reader can jump to the section a skill cites instead of reading the file.
 
 ## 6.5. Shared contracts: decidable rule vs. explanation (`snippets/references/`)
 

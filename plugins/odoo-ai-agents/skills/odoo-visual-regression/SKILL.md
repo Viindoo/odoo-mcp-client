@@ -2,7 +2,7 @@
 name: odoo-visual-regression
 argument-hint: "[baseline] [candidate]"
 description: >-
-  Screenshot-diff an Odoo screen between two states
+  Screenshot-diffs an Odoo screen between two states
 ---
 
 ## Role

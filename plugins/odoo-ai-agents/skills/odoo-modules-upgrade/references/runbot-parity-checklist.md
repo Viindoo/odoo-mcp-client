@@ -1,5 +1,7 @@
 # Runbot Parity Checklist
 
+**Contents:** Gate 1 - flake8 (all series) - Gate 2 - Odoo lint test module - Gate 3 - manifest description (RST format) - Gate 4 - module images (PIL-open check) - Gate 5 - .po file format - Gate 6 - same-module-name rule - Gate 7 - full untagged suite (installable-flip trigger) - Version-keyed applicability summary
+
 SSOT for the full-suite gate that Runbot runs when a module flips `installable: False -> True`.
 Used in: the P5 install + test gate (upgrade pipeline) and as a pre-PR checklist (WS6 P15).
 

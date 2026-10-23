@@ -2,7 +2,7 @@
 name: odoo-data-migration
 argument-hint: "[source] [target] [model/data]"
 description: >-
-  Write data migration scripts: field rename, type change, model split, backfill
+  Writes data migration scripts: field rename, type change, model split, backfill
 model: inherit
 ---
 

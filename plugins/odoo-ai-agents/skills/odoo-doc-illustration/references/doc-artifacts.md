@@ -1,5 +1,7 @@
 # Documentation artifacts - the three shared files (SSOT)
 
+**Contents:** `feature-catalog.jsonl` - one JSON object per user-visible capability - `role-map.json` - the business roles and the process - `walkthrough.jsonl` - one happy-path scenario per role task
+
 `odoo-doc-writer` writes these three files per module under
 `<SHARE_DIR>/documentation/<slug>/<module>/`; the user guide, the landing and every later run read
 them from that same path. A caller that already holds them passes their paths; the writer never

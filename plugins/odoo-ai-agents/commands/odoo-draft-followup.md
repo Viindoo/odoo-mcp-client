@@ -2,7 +2,8 @@
 name: odoo-draft-followup
 argument-hint: "[deal/customer]"
 description: >-
-  Draft a deal follow-up email and save it
+  Slash shortcut: draft a deal follow-up email and save it
+disable-model-invocation: true
 ---
 # /odoo-draft-followup
 

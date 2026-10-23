@@ -2,7 +2,7 @@
 name: odoo-doc-site
 argument-hint: "[site] [series...] [area|modules] [pages] [FROM CHANGE]"
 description: >-
-  Write docs-site pages (Sphinx, branch per series) with live screenshots
+  Writes docs-site pages (Sphinx, branch per series) with live screenshots
 ---
 
 ## Role

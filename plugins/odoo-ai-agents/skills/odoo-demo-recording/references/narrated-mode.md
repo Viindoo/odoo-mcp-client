@@ -1,5 +1,7 @@
 # Narrated evidence mode - overlay bundle + calling convention
 
+**Contents:** The bundle (inline HTML/CSS/JS - no CDN, no external fetch) - Calling convention, in order - Why this specific mechanism (and not another)
+
 Supporting reference for `SKILL.md` § Narrated evidence mode. This file is the concrete bundle -
 copy it verbatim as the injected script; do not re-derive or "improve" it mid-run, so a before/
 after pair stays visually consistent.

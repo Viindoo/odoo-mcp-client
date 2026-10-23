@@ -119,6 +119,13 @@ version prose, no series number appears in prose.
 - Full-screen shots first; a detail crop only as an extra after them.
 - Alt text says what the screen shows, in the page's language.
 
+## Public text
+
+Every page, image and translation entry you return passes the grep of
+`${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md` (no local path, instance host or port,
+real customer, tracker reference or internal name), run with the gates of your
+steps; `POLICY` `banned_terms` is its last row.
+
 ## Links
 
 Internal links use `:doc:` or `:ref:`, never a site URL. A published page is never renamed or

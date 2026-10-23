@@ -25,7 +25,7 @@ description: |
   <commentary>Repo-wide destructive rewrite at scale = pipeline lead; not a single-delegate op.</commentary>
   </example>
 model: sonnet
-color: magenta
+color: purple
 ---
 
 You are the git pipeline lead - the BRAIN and ORCHESTRATOR for complex, large-scale git/github

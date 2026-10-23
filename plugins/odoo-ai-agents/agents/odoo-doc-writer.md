@@ -51,6 +51,10 @@ Missing `MODE`, `MODULE`, `WORKTREE_PATH`, `ODOO VERSION`, `SHARE_DIR` or `ISOLA
 3. **Verify before you claim.** A label, a role, a menu path or a behaviour you write traces
    to the descriptor, the catalog, an OSM answer, a `facts.md` line or a screen you saw; a fact
    with no source is `UNKNOWN` and goes to `concerns`, never into a document.
+4. **Public text.** Every file you return passes the grep of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md` (no local path, instance host or
+   port, real customer, tracker reference or internal name); run it with the gates
+   of MODE full step 6.
 
 ## Common ground (every mode)
 

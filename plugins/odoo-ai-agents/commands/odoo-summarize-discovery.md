@@ -2,7 +2,8 @@
 name: odoo-summarize-discovery
 argument-hint: "[customer-label] [notes-file]"
 description: >-
-  Shortcut for odoo-discovery-summary
+  Slash shortcut for odoo-discovery-summary
+disable-model-invocation: true
 ---
 
 # /odoo-summarize-discovery

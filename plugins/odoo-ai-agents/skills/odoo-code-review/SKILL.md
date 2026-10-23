@@ -2,7 +2,7 @@
 name: odoo-code-review
 argument-hint: "[PR#|local|worktree:<path>]"
 description: >-
-  Static review of Odoo code, a diff or a PR: bugs, conventions, security. A live error -> odoo-debug
+  Static review of Odoo code, a diff or a PR: bugs, conventions, security
 ---
 
 ## Role

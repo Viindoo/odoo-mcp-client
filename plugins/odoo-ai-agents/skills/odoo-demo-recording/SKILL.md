@@ -2,7 +2,7 @@
 name: odoo-demo-recording
 argument-hint: "[flow/feature to record] [--label before|after]"
 description: >-
-  Record a video of one Odoo workflow on a live instance
+  Records a video of one Odoo workflow on a live instance
 ---
 
 ## Role

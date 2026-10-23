@@ -2,7 +2,7 @@
 name: odoo-i18n
 argument-hint: "[module(s)] [target-lang e.g. vi_VN]"
 description: >-
-  Translate Odoo modules: export/update .pot/.po, keep existing translations
+  Translates Odoo modules: exports and updates .pot/.po, keeps existing translations
 ---
 
 ## Role

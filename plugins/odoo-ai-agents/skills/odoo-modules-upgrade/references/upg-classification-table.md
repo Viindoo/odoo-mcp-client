@@ -1,5 +1,7 @@
 # upg-classification-table - module action taxonomy + breaking-change catalog
 
+**Contents:** 1. Module action taxonomy - 2. Cross-major breaking-change catalog - 3. Install + test verification checklist
+
 Used by: P2 `odoo-diff-comparator` brief, P4 `odoo-coding` brief, and the P3 Plan Mode
 gate. NO database-migration content.
 

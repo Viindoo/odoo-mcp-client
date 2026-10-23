@@ -2,7 +2,7 @@
 name: odoo-override-finding
 argument-hint: "[model.method to hook]"
 description: >-
-  Find the method to override to hook into an Odoo flow
+  Finds the method to override to hook into an Odoo flow
 ---
 
 ## Role

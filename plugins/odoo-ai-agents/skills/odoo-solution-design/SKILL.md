@@ -2,7 +2,7 @@
 name: odoo-solution-design
 argument-hint: "[feature/requirement to design]"
 description: >-
-  Design how to build a non-trivial Odoo change before coding. Build order -> odoo-planning
+  Designs a non-trivial Odoo change before coding: SRS, model, overrides
 ---
 
 ## Where this sits in the flow

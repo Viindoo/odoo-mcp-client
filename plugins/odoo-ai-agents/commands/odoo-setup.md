@@ -2,7 +2,7 @@
 name: odoo-setup
 argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site] [--version X.Y] [--profile P]"
 description: >-
-  Set up browser MCP, permissions and local Odoo instances
+  Sets up browser MCP, permissions and local Odoo instances
 ---
 # /odoo-ai-agents:odoo-setup
 

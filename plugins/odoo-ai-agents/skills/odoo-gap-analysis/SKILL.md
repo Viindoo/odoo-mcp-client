@@ -2,7 +2,7 @@
 name: odoo-gap-analysis
 argument-hint: "[requirement list / RFP scope]"
 description: >-
-  Fit a requirement list to Odoo (standard/config/custom, effort tiers). Costed plan -> odoo-brl
+  Fits a requirement list to Odoo: standard/config/custom with effort tiers
 ---
 
 ## Role

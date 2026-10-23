@@ -1,5 +1,7 @@
 # App Store Template Reference
 
+**Contents:** 1. Sanitizer Rules (mandatory - violations are stripped silently) - 2. Section Map (marketing, `index.html` = Description tab) - 3. Bootstrap-5 Fragment Skeleton (brand-agnostic) - 4. Image Specifications - 5. Manifest Store Keys - 6. i18n Conventions
+
 Assembly reference for `static/description/index.html` and related assets of an Odoo App Store
 listing. The PALETTE placeholder resolves from `<SHARE_DIR>/brand-tokens.json` when that file
 exists, else from user input; absent both, the default is the Odoo palette `#714B67`. That file is a map of CSS custom-property NAME -> COLOUR
