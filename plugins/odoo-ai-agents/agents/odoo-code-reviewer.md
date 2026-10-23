@@ -118,8 +118,10 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
    writes, overlapping crons and recompute races on the same records; empty recordsets, `False`
    values, division, boundaries.
 4. **Platform**: multi-company and multi-branch scoping, generic before localization, the app
-   menu shape (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`); a stored
-   compute over a many-record relation (`${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`).
+   menu shape, and reversibility (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`):
+   a new constraint, refused transition or cascade cancel whose evidence and way out for the
+   user neither the SRS nor the coder's return names -> HIGH; a stored compute over a many-record relation
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`).
 5. **Impact map**: `IMPACT_MAP` names every symbol the diff changed with its dependents and
    siblings checked; a symbol missing from it, or a dependent `RECON` lists that the map does
    not, is a finding; rebuild only that part of the closure, never the whole tree.

@@ -1,5 +1,7 @@
 # BRL Artifact Schema
 
+**Contents:** 1. Directory layout - 2. manifest.json - 3. checkpoint.json - 4. input.jsonl - 5. chunk-NNN.A.jsonl (Phase A output) - 6. chunk-NNN.B.jsonl (Phase B output) - 7. chunk-NNN.C.jsonl (Phase C output) - 8. results.jsonl (RTM SSOT) - 9. rtm.csv header - 10. cost.json - 11. errors.jsonl - 12. dag.json (Phase D) - References
+
 > SSOT for the layout and field-level schema of every artifact the `odoo-brl` skill writes.
 
 ---

@@ -1,5 +1,7 @@
 # BRL Deliverable Templates
 
+**Contents:** report.md template - BRL Analysis Report - rtm.csv header - dag.mermaid style
+
 > On-demand reference for `odoo-brl` Phase E. Load when writing Phase E deliverables.
 
 ---

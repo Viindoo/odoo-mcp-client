@@ -64,7 +64,9 @@ tester's job.
 2. **Design scenarios systematically** per the oracle contract: GWT shape; equivalence partitioning
    then boundary value per input; a positive AND a negative scenario per rule; a role/permission
    matrix row per (role x guarded action) using real groups; a CRUD matrix per entity (incl.
-   Duplicate/Archive + constraints); state-transition coverage (legal pass, illegal blocked); a
+   Duplicate/Archive + constraints); state-transition coverage (legal pass, illegal blocked, and
+   for every blocked or guarded action a "slip and recover" scenario: the user made the mistake the
+   guard targets and must be able to correct it by the way out the requirement names); a
    decision table when conditions combine.
 3. **Cover the cluster, weighted by risk.** Per `SCOPE_MANIFEST`: High-tier get the deep matrix;
    Med-tier get BOTH the deep matrix (durable regression) AND a smoke scenario (live render check) -
