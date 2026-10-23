@@ -216,7 +216,7 @@ place; the rest keep their order.
   depends_on: [docs-module]
   when: a docs site is declared for the product and the change is user-visible, or the user asked for site docs
 - id: integrate
-  approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo
+  approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo; a demo video of the change rides as the PR attachment (docs-after-change.md § Where a video goes)
   approach_kind: integrate
   depends_on: [docs-module, migration]
 - id: monitor

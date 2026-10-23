@@ -3,7 +3,7 @@
 
 Subcommands (stdlib + ffmpeg/ffprobe on PATH):
   fit       --clip scene.mp4 --narration scene.wav --out scene-fitted.mp4 [--lead-in 0.5]
-            [--fade 0.3]  The narration starts after the lead-in; when it outlasts the clip the
+            [--fade 0.3] [--max-silence 3.0]  The narration starts after the lead-in; when it outlasts the clip the
             last frame is held; a short fade closes the scene. Prints DURATION_S.
   concat    --list clips.txt --out video.mp4  Concatenates fitted scenes (ffmpeg concat demuxer,
             re-encoded once) and applies two-pass loudnorm to the profile target.
@@ -98,6 +98,8 @@ def cmd_fit(args):
     fps = frame_rate_of(args.clip) or 25.0
     total = max(clip_s, args.lead_in + narration_s + args.fade)
     hold = max(0.0, total - clip_s)
+    # the part of the scene where the screen moves and nobody speaks (the lead-in is deliberate)
+    silent = max(0.0, clip_s - args.lead_in - narration_s)
     vf = "tpad=stop_mode=clone:stop_duration=%.3f,fade=t=out:st=%.3f:d=%.3f" % (
         hold, max(0.0, total - args.fade), args.fade)
     af = "adelay=%d|%d,apad=whole_dur=%.3f" % (int(args.lead_in * 1000), int(args.lead_in * 1000), total)
@@ -111,6 +113,13 @@ def cmd_fit(args):
     print("OUT=%s" % args.out)
     print("DURATION_S=%.3f" % total)
     print("HOLD_S=%.3f" % hold)
+    print("SILENT_S=%.3f" % silent)
+    if silent > args.max_silence:
+        print("SILENCE=over")
+        print("x the screen moves for %.1f s with nobody speaking (limit %.1f s): say what it shows, "
+              "or shorten the scene" % (silent, args.max_silence), file=sys.stderr)
+        return 4
+    print("SILENCE=ok")
     return 0
 
 
@@ -315,6 +324,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("fit"); p.add_argument("--clip", required=True); p.add_argument("--narration", required=True)
     p.add_argument("--out", required=True); p.add_argument("--lead-in", type=float, default=0.5, dest="lead_in")
+    p.add_argument("--max-silence", type=float, default=3.0, dest="max_silence")
     p.add_argument("--fade", type=float, default=0.3); p.add_argument("--profile", default="youtube-1080p")
     p = sub.add_parser("concat"); p.add_argument("--list", required=True); p.add_argument("--out", required=True)
     p.add_argument("--profile", default="youtube-1080p")

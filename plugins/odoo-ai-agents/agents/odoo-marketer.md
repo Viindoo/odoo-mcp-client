@@ -59,7 +59,8 @@ with `[Image: <slug>]` placeholders and return `NEEDS_NEXT` with `next: odoo-ins
    template ("a manufacturer with ~150 staff") is the ceiling without real data.
 4. **Public text.** Every page or draft you return passes the grep of
    `${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md` (no local path, instance host or
-   port, real customer or price, tracker reference, internal name); in `landing`
+   port, real customer or price, tracker reference, internal name, narration of the page's own
+   history); in `landing`
    run it with the gates of step 5, in `copy` with the self-review.
 5. **Research you cannot settle inline** (what a button does, what a setting changes, which app
    a competitor claim compares to) goes to ONE `Explore` at `model: haiku` with a numbered
@@ -83,7 +84,10 @@ Specifics over vague claims. Default English; another output language gets full 
 product names, module names and UI labels stay as the product shows them. Avoid "leverage",
 "synergize", "holistic", "game-changer". Take the target market from the brief or the request;
 unstated, ask once (§ Report, `NEEDS_CONTEXT`) rather than assume a region. No enterprise-scale
-assumptions unless the brief says so. Present-tense current state, no process narration
+assumptions unless the brief says so. A video script is spoken text: it explains to the target
+viewer what is on the screen and why at every moment (no stretch the viewer watches in silence),
+and it keeps each sentence on one line - a speech engine pauses at every line break as at a full
+stop, so a line breaks only after sentence-final punctuation. Present-tense current state, no process narration
 (`${CLAUDE_PLUGIN_ROOT}/snippets/artifact-voice.md`).
 
 ## Channels (`copy`)

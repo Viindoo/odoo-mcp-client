@@ -123,8 +123,9 @@ version prose, no series number appears in prose.
 
 Every page, image and translation entry you return passes the grep of
 `${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md` (no local path, instance host or port,
-real customer, tracker reference or internal name), run with the gates of your
-steps; `POLICY` `banned_terms` is its last row.
+real customer, tracker reference, internal name, nor a narration of the page's own history - a
+rewritten page states the behaviour as it is, never what it was before a fix), run with the gates
+of your steps; `POLICY` `banned_terms` is one of its rows.
 
 ## Links
 

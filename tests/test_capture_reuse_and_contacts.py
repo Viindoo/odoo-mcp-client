@@ -71,12 +71,25 @@ def test_the_writers_take_contact_details_from_the_author_profile_only():
     assert "hides its URL" in contract
 
 
-def test_setup_exposes_author_and_voice_steps_outside_all():
+def test_setup_exposes_author_voice_and_youtube_steps_outside_all():
     setup = _read("commands/odoo-setup.md")
-    assert "| `author`" in setup and "| `voice`" in setup
-    assert "`65-author-profile` and `70-speech`" in setup
-    assert (PLUGIN / "scripts/setup-steps/65-author-profile.sh").exists()
-    assert (PLUGIN / "scripts/setup-steps/70-speech.sh").exists()
+    assert "| `author`" in setup and "| `voice`" in setup and "| `youtube`" in setup
+    assert "`65-author-profile`, `70-speech` and `75-youtube`" in setup
+    for step in ("65-author-profile", "70-speech", "75-youtube"):
+        assert (PLUGIN / ("scripts/setup-steps/%s.sh" % step)).exists()
+
+
+def test_a_video_of_code_rides_the_pr_and_a_video_of_docs_goes_to_the_channel_last():
+    tail = _read("snippets/docs-after-change.md")
+    assert "## Where a video goes" in tail
+    assert "pull request body" in tail and "youtube.toml" in tail and "youtube_upload.py" in tail
+    assert "after acceptance passed and the i18n reconcile" in tail
+    assert "deleted when the run ends" in tail and "never committed" in tail
+    workflow = _read("workflows/video-produce.workflow.yaml")
+    assert "- id: publish" in workflow and workflow.index("- id: publish") > workflow.index("- id: assemble")
+    assert "max_silence_s" in workflow and "One sentence never spans two lines" in workflow
+    gh = (PLUGIN.parent / "git-toolkit/agents/github-operator.md").read_text(encoding="utf-8")
+    assert "--attach" in gh and "alone in its own paragraph" in gh
 
 
 def test_the_video_workflow_gates_narration_on_the_speech_configuration():

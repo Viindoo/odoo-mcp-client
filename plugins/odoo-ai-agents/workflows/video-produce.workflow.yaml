@@ -16,6 +16,7 @@ inputs:
   - scenes
   - output_format
   - languages
+  - destination
 
 resume: true
 fallback: standalone
@@ -30,6 +31,7 @@ phases:
     #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
     #   - output_format  (mp4 or gif; default mp4)
     #   - languages      (narration languages as locales, e.g. vi_VN,en_US; empty = silent video)
+    #   - destination    (none | pr | youtube; where the publish phase sends the result)
     # Resolves the series per snippets/project-facts-resolution.md and the instance target
     # per snippets/instance-resolution.md.
     # Narrated run (languages given): read the speech configuration FIRST -
@@ -38,7 +40,7 @@ phases:
     # requested language must be recorded there); never ask for a key or an endpoint in chat.
     # Produces the storyboard as Markdown AND as storyboard.json
     # (<ISOLATE_DIR>/video/<project_label>/storyboard.json), the plan approved once:
-    #   { "title", "languages": [...], "lead_in_s": 0.5, "fade_s": 0.3, "publish_profile":
+    #   { "title", "languages": [...], "lead_in_s": 0.5, "fade_s": 0.3, "max_silence_s": 3.0, "publish_profile":
     #     "youtube-1080p", "pronunciation": {"<lang>": [{"written","spoken","kind"}]},
     #     "scenes": [{ "id", "title": {"<lang>": ...}, "click_path": [...],
     #                  "target_seconds", "narration": {"<lang>": "..."},
@@ -46,7 +48,13 @@ phases:
     #     "publish": {"<lang>": {"title", "description"}} }
     # Narration per scene and language is written for the ear: short sentences, the
     # written form of every brand and acronym (the pronunciation map respells them for the
-    # engine only). Hard rules enforced inline:
+    # engine only), and it talks the viewer through the scene - what is on the screen, why the
+    # user does this, what to look at next - so the screen never moves for longer than
+    # max_silence_s with nobody speaking; a scene whose click path outlasts what there is to say
+    # is cut or merged, never left as silent recording. One sentence never spans two lines: the
+    # speech engine pauses at every line break as at a full stop, so the text holds one sentence
+    # (or several) per line and breaks only after sentence-final punctuation. Hard rules enforced
+    # inline:
     #   - No writes before the storyboard is decided
     #   - Abstract labels only (no real customer names in saved files)
     #   - Each scene maps to one odoo-demo-recording invocation
@@ -83,8 +91,10 @@ phases:
     inline: true
     model_tier: haiku
     # Narrated run only (skip when `languages` is empty). For each scene and each language:
-    #   1. Write the narration text to <ISOLATE_DIR>/video/<project_label>/narration/<lang>/<scene>.txt
-    #      and run the pronunciation self-check once per run:
+    #   1. Write the narration text to <ISOLATE_DIR>/video/<project_label>/narration/<lang>/<scene>.txt,
+    #      check its shape (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/narration_check.py --script <txt>`:
+    #      exit 1 = a sentence runs on to the next line; rejoin it before any synthesis), and run
+    #      the pronunciation self-check once per run:
     #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/pronunciation.py selfcheck --map <storyboard pronunciation as JSON>
     #   2. Synthesise: python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/speech_client.py tts
     #        --text-file <txt> --lang <lang> --out .../narration/<lang>/<scene>.wav --map <map.json>
@@ -109,8 +119,11 @@ phases:
     #      Every ffmpeg step below goes through ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_publish.py
     #      so the publish profile is applied once, from data.
     #   1. Narrated: per scene `video_publish.py fit --clip <scene clip> --narration <wav>
-    #      --out .../assembly/<lang>/<scene>.mp4 --lead-in <storyboard lead_in_s> --fade <fade_s>`
-    #      (narration after the lead-in; the last frame held when it outlasts the clip).
+    #      --out .../assembly/<lang>/<scene>.mp4 --lead-in <storyboard lead_in_s> --fade <fade_s>
+    #      --max-silence <storyboard max_silence_s>` (narration after the lead-in; the last frame
+    #      held when it outlasts the clip). Exit 4 = the screen moves longer than max_silence_s
+    #      with nobody speaking: extend that scene's narration with what the screen shows (back to
+    #      narrate for the scene) or shorten its click path (back to record-scenes); never ship it.
     #      Silent: the scene clips as recorded.
     #   2. Optional title card: `video_publish.py title --text "<storyboard title for the language>"
     #      --out .../assembly/<lang>/00-title.mp4` (needs an ffmpeg with drawtext; without it, skip
@@ -138,3 +151,21 @@ phases:
     #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.
     # All artifacts stay under <ISOLATE_DIR>/video/<project_label>/ (storyboard.json, takes/,
     # narration/, assembly/, deliverables/); nothing in a temporary directory.
+
+  - id: publish
+    inline: true
+    model_tier: haiku
+    # Runs LAST and only when the caller's `destination` says so (the rule and the two
+    # destinations: ${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md § Where a video goes):
+    #   - `pr`: hand the `preview` rendition and the PR to git-toolkit:git-ops with the request to
+    #     attach it to the PR body or a comment; the caller's size cap applies.
+    #   - `youtube`: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/75-youtube.sh check` (exit 1 =
+    #     NEEDS_CONTEXT naming `/odoo-ai-agents:odoo-setup youtube`), then per language
+    #     `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/youtube_upload.py upload --video <final>
+    #     --title "<publish title>" --description-file <deliverables/<lang>.txt> --language <lang>
+    #     --captions <lang>=<deliverables/<lang>.srt> --thumbnail <thumbnail.jpg>`; record the
+    #     WATCH_URL and EMBED_URL per language in the return. Privacy is youtube.toml's default
+    #     (unlisted) unless the caller states `public`; the caller is who embeds the URL.
+    #   - `none` (default): no publishing; the deliverables stay under the run directory.
+    # Then delete <ISOLATE_DIR>/video/<project_label>/takes/, narration/ and assembly/ (the
+    # deliverables stay until the run that owns them ends and removes the whole label directory).

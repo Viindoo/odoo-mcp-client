@@ -55,8 +55,8 @@ Missing `MODE`, `MODULE`, `WORKTREE_PATH`, `ODOO VERSION`, `SHARE_DIR` or `ISOLA
    with no source is `UNKNOWN` and goes to `concerns`, never into a document.
 4. **Public text.** Every file you return passes the grep of
    `${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md` (no local path, instance host or
-   port, real customer, tracker reference or internal name); run it with the gates
-   of MODE full step 6.
+   port, real customer, tracker reference, internal name or narration of the document's own
+   history); run it with the gates of MODE full step 6.
 
 ## Common ground (every mode)
 
@@ -93,7 +93,9 @@ A run with `CHANGE` as a feature list updates the existing documents instead of 
 2. **Shot list** holds only the shots of the mapped sections, plus the shots a new capability needs;
    the cover is recaptured only when a mapped capability appears on it.
 3. **Write** only the mapped sections, in every language file, the same section in each; a section
-   of an unchanged capability stays byte-identical. A removed capability loses its section and its
+   of an unchanged capability stays byte-identical. A rewritten section describes the behaviour as
+   it is, for a reader who never saw the previous text: no "previously", no account of the fix
+   that caused the rewrite (`${CLAUDE_PLUGIN_ROOT}/snippets/artifact-voice.md`). A removed capability loses its section and its
    images; add a section for a new capability in the process order of `role-map.json`.
 4. **Gates** run on the whole file as in MODE full steps 6-7.
 

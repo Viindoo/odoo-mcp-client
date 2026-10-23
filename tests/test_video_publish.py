@@ -83,3 +83,19 @@ def test_verify_fails_a_file_that_breaks_the_profile(media, tmp_path):
     ver = _tool("verify", "--video", str(small))
     assert ver.returncode == 1
     assert "SIZE=FAIL" in ver.stdout
+
+
+def test_fit_reports_a_scene_that_moves_longer_than_the_silence_limit_with_nobody_speaking(media, tmp_path):
+    clip, _ = media
+    short = tmp_path / "short.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.4",
+                    "-ac", "1", "-ar", "48000", "-sample_fmt", "s16", str(short)], check=True, capture_output=True)
+    out = tmp_path / "fitted.mp4"
+    base = [sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(short),
+            "--out", str(out), "--lead-in", "0.5"]
+    over = subprocess.run(base + ["--max-silence", "1.0"], capture_output=True, text=True)
+    assert over.returncode == 4 and "SILENCE=over" in over.stdout, over.stdout + over.stderr
+    assert abs(float(_kv(over.stdout)["SILENT_S"]) - 1.1) < 0.15  # 2 s clip - 0.5 lead-in - 0.4 narration
+    assert out.exists()  # the file is still written so the author can watch the silent stretch
+    ok = subprocess.run(base + ["--max-silence", "3.0"], capture_output=True, text=True)
+    assert ok.returncode == 0 and "SILENCE=ok" in ok.stdout

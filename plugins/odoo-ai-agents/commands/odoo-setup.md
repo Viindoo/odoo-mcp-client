@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site|author|voice] [--version X.Y] [--profile P]"
+argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site|author|voice|youtube] [--version X.Y] [--profile P]"
 description: >-
   Sets up browser MCP, permissions and local Odoo instances
 ---
@@ -16,7 +16,7 @@ interactive checkbox menu (see "Interactive menu" below).
 
 | Arg            | Runs steps |
 |----------------|------------|
-| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset`, `60-docs-site`, `65-author-profile` and `70-speech` |
+| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset`, `60-docs-site`, `65-author-profile`, `70-speech` and `75-youtube` |
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
@@ -27,6 +27,7 @@ interactive checkbox menu (see "Interactive menu" below).
 | `docs-site`    | `60-docs-site` only (no preflight): `propose`, ask the policy questions, `record` on confirmation - see its step-specific note |
 | `author`       | `65-author-profile` only (no preflight): `propose` from the module descriptors, ask for the contact pages, `record` on confirmation - see its step-specific note |
 | `voice`        | `70-speech` only (no preflight): `propose` the speech providers reachable from this machine, ask for the endpoint, model, key variable NAME and a voice per language, `record` on confirmation - see its step-specific note |
+| `youtube`      | `75-youtube` only (no preflight): `propose` what to prepare, ask for the channel label, the OAuth variable NAMES, the default privacy and an optional playlist, `record` on confirmation - see its step-specific note |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
@@ -69,12 +70,15 @@ Which parts of the Odoo visual workflow would you like to set up?
 [ ] Configure narration voices - an OpenAI-compatible speech endpoint, a voice per
     language and the speech-to-text check for demo videos (runs step 70; equivalent to voice)
 
+[ ] Configure the YouTube channel documentation videos are published to - OAuth variable
+    names, default privacy, playlist (runs step 75; equivalent to youtube)
+
 [ ] Reset instances.toml - backup then clean the instance registry
     (runs step 47 only; equivalent to --reset)
 ```
 
 Map each ticked option to its filter in the table above (`browser`, `listing`, `instance`,
-`refresh`, `docs-site`, `author`, `voice`, `--reset`); with several ticked, run them in that order. Confirm the plan before
+`refresh`, `docs-site`, `author`, `voice`, `youtube`, `--reset`); with several ticked, run them in that order. Confirm the plan before
 executing - the per-step [Y/n] gates still apply.
 
 ## Steps for the AI agent
@@ -134,8 +138,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    ```
    Print this as the plan, mapping the `$ARGUMENTS` filter to the matching scripts
    (table above). Exclude `47-instance-reset` from `all` and `instance`
-   plan listings - it runs only via `--reset` - and `60-docs-site`, `65-author-profile` and
-   `70-speech` - they run only via `docs-site`, `author` and `voice`.
+   plan listings - it runs only via `--reset` - and `60-docs-site`, `65-author-profile`,
+   `70-speech` and `75-youtube` - they run only via `docs-site`, `author`, `voice` and `youtube`.
 
 2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-5).**
    This cluster runs when the filter is `all` or `instance`. It precedes the
@@ -574,6 +578,18 @@ Resolve:
   only when the configuration is valid AND the named key variables are set in this shell;
   `probe` sends one short sentence per language to the endpoint and reports the clip length,
   on the operator's say-so only (it costs a call). `apply` only advises.
+- **75-youtube** *(runs only via `youtube`; never in `all` or `instance`)* - Where documentation
+  videos are published. 1. Run `"$STEPS_DIR/75-youtube.sh" propose` (read-only): it prints what
+  the operator prepares on the Google side (a Cloud project with the YouTube Data API enabled, a
+  Desktop-type OAuth client, the one-time consent on a machine with a browser, the consent screen
+  published) and which of the three OAuth environment variables it expects are already set
+  (names only). 2. Ask the operator with AskUserQuestion: the channel label, the NAMES of those
+  three variables (never a value), the default privacy (`unlisted` until the docs are
+  published), an optional playlist id and default language. 3. Write the
+  confirmed configuration as JSON under `<state root>/scratch/youtube-setup/`, run
+  `"$STEPS_DIR/75-youtube.sh" record --from-json <file>` and remove the file. `check` exits 0
+  only when the configuration is valid and the variables are set in this shell; `apply` only
+  advises. A first upload is the test that the project is not locked to private.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths

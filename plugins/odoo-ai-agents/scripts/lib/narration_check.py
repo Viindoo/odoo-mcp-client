@@ -8,11 +8,18 @@ transcript in some reading (the written form, or the spoken form of the pronunci
 map is given). A transcript that cannot distinguish two readings of an acronym is reported, never
 guessed.
 
+The script's shape is checked first, with or without a transcript: a speech engine pauses at every
+line break as at a sentence end, so a sentence that continues on the next line is read as two
+broken halves. A non-empty line that ends without sentence-final punctuation while text follows it
+is reported as a broken line and fails the check; the author rewrites the script as one sentence
+(or more) per line.
+
 Usage:
-    python3 narration_check.py --script S.txt --transcript T.txt [--slots "Viindoo,AI"]
+    python3 narration_check.py --script S.txt [--transcript T.txt] [--slots "Viindoo,AI"]
                                [--map MAP.json --lang vi_VN] [--max-wer 0.15]
-Prints WER=<float> SLOTS_MISSING=<csv|none> VERDICT=<pass|fail|listen>; exit 0 pass, 1 fail,
-3 listen (WER inside the bound but a slot is ambiguous - a human listens to the clip).
+Prints LINES_BROKEN=<csv of line numbers|none> and, with a transcript, WER=<float>
+SLOTS_MISSING=<csv|none>; VERDICT=<pass|fail|listen>; exit 0 pass, 1 fail, 3 listen (WER inside
+the bound but a slot is ambiguous - a human listens to the clip).
 """
 from __future__ import annotations
 
@@ -23,6 +30,22 @@ import sys
 import unicodedata
 
 _PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
+
+
+_SENTENCE_END = re.compile(r'[.!?\u2026:;]["\u201d\u2019)\]]*\s*$')
+
+
+def broken_lines(text):
+    """1-based numbers of the lines where a sentence runs on to the next line."""
+    lines = text.splitlines()
+    broken = []
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        follows = any(later.strip() for later in lines[i + 1:])
+        if follows and not _SENTENCE_END.search(line):
+            broken.append(i + 1)
+    return broken
 
 
 def tokens(text):
@@ -70,7 +93,7 @@ def slot_status(slots, transcript, pron_entries):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--script", required=True)
-    parser.add_argument("--transcript", required=True)
+    parser.add_argument("--transcript")
     parser.add_argument("--slots", default="")
     parser.add_argument("--map")
     parser.add_argument("--lang")
@@ -78,6 +101,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     with open(args.script, encoding="utf-8") as fh:
         script = fh.read()
+    broken = broken_lines(script)
+    print("LINES_BROKEN=%s" % (",".join(str(n) for n in broken) or "none"))
+    if args.transcript is None:
+        print("VERDICT=%s" % ("fail" if broken else "pass"))
+        return 1 if broken else 0
     with open(args.transcript, encoding="utf-8") as fh:
         transcript = fh.read()
     pron = None
@@ -89,7 +117,7 @@ def main(argv=None):
     missing, ambiguous = slot_status(slots, transcript, pron)
     verdict = "pass"
     code = 0
-    if rate > args.max_wer or missing:
+    if rate > args.max_wer or missing or broken:
         verdict, code = "fail", 1
     elif ambiguous:
         verdict, code = "listen", 3
