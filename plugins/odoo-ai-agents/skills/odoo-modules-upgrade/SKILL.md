@@ -2,7 +2,7 @@
 name: odoo-modules-upgrade
 argument-hint: "[module-cluster] [target-series]"
 description: >-
-  Upgrade custom module code to a higher Odoo major: installable, working, modernised; no database migration
+  Upgrades custom module code to a higher Odoo major; no database migration
 model: sonnet
 ---
 

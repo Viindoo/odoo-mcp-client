@@ -2,7 +2,7 @@
 name: odoo-pr-monitoring
 argument-hint: "[PR# / branch]"
 description: >-
-  Watch an open PR until merge: CI, reviews, merge gate
+  Watches an open PR until merge: CI, reviews, merge gate
 user-invocable: true
 model: inherit
 ---

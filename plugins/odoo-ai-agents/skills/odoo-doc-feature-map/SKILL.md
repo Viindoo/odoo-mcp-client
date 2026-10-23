@@ -2,7 +2,7 @@
 name: odoo-doc-feature-map
 argument-hint: "[module-name]"
 description: >-
-  Catalog a module's features, roles and step-by-step usage scenarios, text only
+  Catalogs a module's features, roles and usage scenarios as text, no screenshots
 ---
 
 ## Role

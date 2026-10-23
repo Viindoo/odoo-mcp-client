@@ -3,6 +3,8 @@
 
 # Git-Rebase Model Triage - full tables
 
+**Contents:** Table 1 - EXTRACT tier (P1 intent extraction) - Table 2 - ADAPT tier (P8 conflict resolution) - How the two tables interact per commit - Bucket-(c) upgrade-scale defer-or-do gate - Design-trigger table
+
 This table is a REFERENCE used BY the P1 recon step (git-ops, read-only). That recon pass
 reads the change statistics of each commit and emits `extract_tier`
 in `recon.md`. The orchestrator ONLY records the recon tier verdicts - it does NOT read

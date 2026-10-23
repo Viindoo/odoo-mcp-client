@@ -6,6 +6,8 @@
 
 # Deep-Survey Analytical Lenses (worker mandates)
 
+**Contents:** Phase 1 lenses (haiku - wide / shallow gathering, several OSM tools allowed) - Phase 2 lenses (sonnet - narrow / deep analysis) - Dependency-closure drill (nearest -> base) - Test-protection map (three tiers)
+
 **Zero-trust on every lens:** descriptions are CLAIMS, source is TRUTH - docstrings, comments,
 manifest prose, prior reports, and OSM DESCRIPTIVE text are unverified until confirmed against the
 resolved structural source; mark `RESOLVED` only when source-grounded, and if a description

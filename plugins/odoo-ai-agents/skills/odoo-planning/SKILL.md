@@ -2,7 +2,7 @@
 name: odoo-planning
 argument-hint: "[approved design / scope]"
 description: >-
-  Execution plan for an approved Odoo design: build order, parallel work, landing, estimates
+  Execution plan for an approved Odoo design: build order, parallel work, landing
 user-invocable: true
 ---
 

@@ -2,7 +2,7 @@
 name: odoo-intake
 argument-hint: "[your goal in plain words]"
 description: >-
-  Front door for vague or multi-step Odoo/ERP requests: clarifies intent and plans. Skip it if one skill fits
+  Front door for vague or multi-step Odoo/ERP requests: clarifies intent, routes to one skill
 model: inherit
 ---
 
@@ -264,8 +264,8 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 21 | "I just cloned the Odoo repo", "set up Odoo for this project", "first time setup" | `/odoo-ai-agents:odoo-setup` (command) | Declares the repo's `[[instance]]` (series, profile, addons path, port, db) in the machine-global catalog every skill then resolves its project facts from - the instance facet of the same command row 32 reaches for its browser facet (vs `/odoo-semantic-mcp:connect` which only sets the OSM server URL/key) |
 | 22 | "connect the Odoo Semantic MCP server" | `/odoo-semantic-mcp:connect` (command) | One-time infra setup, not work |
 | 23 | "full bid response" / "write a complete RFP response" / "full proposal for prospect" | `/odoo-respond-bid` (command) | Multi-step proposal chain (vs `odoo-discovery-summary` or `odoo-capability-proof` alone) |
-| 24 | "write follow-up email for customer" + explicit save-to-file ask | `/odoo-draft-followup` (command) | Wraps `odoo-deal-followup` with save step (skill alone for just draft text) |
-| 25 | "synthesize discovery notes" + explicit slash kickoff | `/odoo-summarize-discovery` (command) | Quick slash for `odoo-discovery-summary` skill (bypass intake for explicit kickoff) |
+| 24 | "write follow-up email for customer" + explicit save-to-file ask | `odoo-deal-followup` | The skill drafts the email; saving it under the state root is the user's slash shortcut, never routed by intake |
+| 25 | "synthesize discovery notes" | `odoo-discovery-summary` | The skill writes the prospect profile; its slash shortcut is the user's, never routed by intake |
 | 26 | "position feature X for [slide/blog/email/proposal]" | `/odoo-position-feature` (command) | Multi-step chain (vs `odoo-feature-check` for existence-only) |
 | 27 | "full upgrade plan from v<N> to v<M>" | `/odoo-plan-upgrade` (command) | Chains 4 skills (risk overview, deprecation audit, version diff, synthesis) + effort estimate |
 | 28 | "kiểm tra giao diện / form hiển thị sai / UI review / responsive / layout vỡ" | `odoo-ui-review` | Rates a RENDERED screen in the browser (vs `odoo-coding` which WRITES the JS, vs `odoo-code-review` which reads source STATICALLY without a browser) |

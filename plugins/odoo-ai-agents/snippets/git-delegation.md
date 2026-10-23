@@ -126,6 +126,19 @@ on its principal branch at all times.
 This is the S9 invariant (Worktree-always / principal-checkout-lock) defined as SSOT in
 git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not an option.
 
+## Fresh base first - every repository is read and branched at its latest upstream state
+
+Before any work on a repository - code, docs, a docs site - the ref the work starts from is brought
+up to date with its upstream, through ONE git-ops request that names the ref and asks for it to be
+fetched and fast-forwarded (or, for a principal checkout on its own branch, pulled with the local
+commits replayed on top). This holds for: a worktree or branch created from a base (§ Worktree
+isolation - name the base and ask for it to be refreshed in the same request), a range or
+merge-base computed against a branch, a review of a branch, a docs-site series branch, a port or a
+rebase source and target. A base that cannot be refreshed (no network, no upstream, a diverged
+local tip) is a `BLOCKED` or an `open_question` to the human, never a silent build on the stale tip;
+git-ops reports which case it hit. Facts read with `repo_facts` describe the tree as it is - they
+never replace the refresh.
+
 ## Self-provisioning specialists
 
 These skills create their own worktree/branch internally, so an orchestrator/driver MUST NOT

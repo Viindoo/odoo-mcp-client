@@ -40,6 +40,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and for edited older migration scripts). `odoo-instance-ops` unions the framework validation
   classes into every tagged test run whose install set triggers them, the reviewer's R1 checks every
   section of the guideline files, and Convention 3 of `upg-conventions.md` says so.
+- `odoo-ai-agents` - **public docs, fresh base, listing budget, authoring standards.**
+  `snippets/public-docs-contract.md` names what a module guide, an App Store page, a docs-site page
+  or a marketing piece may never contain (local paths, instance hosts and ports, credentials, real
+  customers and prices, tracker references, internal names, non-demo screenshots); the three writing
+  agents grep their files against it. `git-delegation.md` § Fresh base first: every repository is
+  fetched and fast-forwarded through git-ops before a branch, range, review or port starts on it.
+  Every skill and command description is rewritten in third person, key use case first, within the
+  official listing rules; three pure user shortcuts leave the listing (`disable-model-invocation`), and
+  the plugin's listing share drops from 6,100 to 5,510 chars. `odoo-forward-port/SKILL.md` is under
+  500 lines again (its phase detail moved verbatim to `references/fp-phase-detail.md`), every
+  reference file over 100 lines opens with a contents line, and agent colours use the documented set.
 
 
 ## [8.0.3] - 2026-10-21

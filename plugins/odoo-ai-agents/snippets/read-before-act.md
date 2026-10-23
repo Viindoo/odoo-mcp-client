@@ -19,9 +19,9 @@ compaction when a decision depends on its exact text.
 | Module or cluster upgrade to a higher series | `upg-conventions.md`; `odoo-platform-design-principles.md` § Migrations are decided last |
 | Forward-port (code or docs) | `fp-merge-absorption.md`, `fp-installable-false.md` |
 | Tests | `test-sensitivity-contract.md`, `test-scope-contract.md` |
-| Docs that ship in a module | `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/doc-artifacts.md`, `module-doc-references.md`, `rst-validity-contract.md` |
-| Docs-site pages | `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-site/references/site-row.md` and `page-plan.md` |
-| Marketing copy, App Store page | `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md`, `artifact-voice.md` |
+| Docs that ship in a module | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/doc-artifacts.md`, `module-doc-references.md`, `rst-validity-contract.md` |
+| Docs-site pages | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-site/references/site-row.md` and `page-plan.md` |
+| Marketing copy, App Store page | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md`, `artifact-voice.md` |
 | A live instance | `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree |
 | Any git need | `git-delegation.md` |
 | Launching an agent | `dispatch-brief.md`; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection |

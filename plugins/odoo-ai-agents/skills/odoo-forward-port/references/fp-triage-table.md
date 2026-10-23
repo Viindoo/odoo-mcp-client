@@ -3,6 +3,8 @@
 
 # Forward-Port Model Triage - full tables
 
+**Contents:** Table 1 - EXTRACT tier (P0 triage -> P1 intent extraction) - Table 2 - ADAPT tier (P8 code adapt) - How the two tables interact per commit - Bucket-(c) upgrade-scale defer-or-do gate - Bucket-(c) same-module inherit-view check (view-topology)
+
 Triage is INLINE and deterministic. The orchestrator decides the tier itself
 (reading the change statistics of every commit involved plus, when the override depth matters, a
 single `find_override_point` probe) - it never dispatches an agent to decide a dispatch. Table 1

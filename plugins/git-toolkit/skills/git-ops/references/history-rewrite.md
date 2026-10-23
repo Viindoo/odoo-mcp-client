@@ -1,5 +1,7 @@
 # History-rewrite recipes - deterministic, with backup + verify + confirm
 
+**Contents:** Pre-op (every recipe) - Interactive rebase - autosquash (preferred) - Squash a range - Split one commit into focused commits - Amend the last commit - Reset - filter-repo (bulk rewrite - fresh clone only) - Force-push the rewritten branch - Post-op verify (S6 - mandatory) - Revert - the non-destructive alternative (shared branches)
+
 Agent-facing: `git-operator` cites this file; no dispatcher does, and a brief never copies from it.
 All recipes here are DESTRUCTIVE. Every one runs under
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: S1 backup + pre-op SHA FIRST, S6

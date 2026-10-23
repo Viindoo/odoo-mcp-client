@@ -1,5 +1,7 @@
 # Plan schema and run rules (writes-files Approach)
 
+**Contents:** Block 1 - Node list - Block 2 - Dependency graph - Block 2 - Dependency graph - Block 3 - Assignment - Default tail - Running the plan (the main agent, inline) - Node brief - Run file (`<ISOLATE_DIR>/run-<id>.json`, `schema_version: run/2.0`) - Rejection flow
+
 **SSOT owned by `odoo-planning`** (authored by its `odoo-planner` agent, or filled by the main
 agent from the default tail for a one-node change).
 

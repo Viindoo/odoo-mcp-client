@@ -2,6 +2,8 @@
 
 # Git-Rebase Pipeline - per-phase execution detail
 
+**Contents:** Principal-checkout-lock (MUST - enforced at P0 and P7) - P0 - Intake / resolve - P1 - Recon (range enumerate) - P2 - Intent extract (parallel, rebase MODE) - P3 - Cluster behavior comparison - P4 - Classify (orchestrator records only) - P5 - Design (conditional route-out) - P6 - Plan gate (Plan Mode) - Summary - The single rebase invocation (delegated to git-ops at P7) - Per-commit plan - Conflict-resolution policy - Instance verify (B3 decision) - Installable guard - Bucket-(c) upgrade-scale decisions - P7 - Create integration worktree + start rebase - P8 - Conflict-resolution loop - P8b - Symbol-survival + collection gate - P9 - Adapt + test forward (per touched module) - P9b - Code-review loop (in-pipeline; fix-until-clean before verify) - P10 - Verify - P11 - Gate (human-confirm) - P12 - Final review + PR - rebase-log.md format - P8-resolved modules - Test-leg reports - intake.md format
+
 All paths are under the integration worktree unless noted. `<slug> = <feature-ref>-onto-<new-base>`
 (sanitized). Artifacts live under `<ISOLATE_DIR>/git-rebase/<slug>/` (gitignored; resolve
 `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
