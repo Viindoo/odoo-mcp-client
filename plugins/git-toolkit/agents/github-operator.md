@@ -99,6 +99,17 @@ when C4 finds the repo requires it. A PR title obeys the same subject rule and c
 supplied commit message or PR title is validated by C6; report the result in `commit_subject:` and
 `message_rewritten:`.
 
+## Attachments on a PR or issue
+
+A brief that names a local file to ATTACH to a PR or issue body or comment (a demo video, a
+screenshot) is served by the GitHub CLI only - the REST and GraphQL APIs offer no attachment
+upload: `gh pr create|edit|comment` and `gh issue create|edit|comment` take `--attach <path>`
+(repeatable) from `gh` 2.99 on. A video (`.mp4`, `.mov`, `.webm`) plays inline only when its
+reference stands alone in its own paragraph of the body; the size cap is the repository plan's
+(10 MB on a free plan, 100 MB on a paid one; images 10 MB; other files 25 MB). An older `gh`, a
+file over the cap or an Enterprise Server host is reported as `BLOCKED` with the limit, never
+worked around by committing the file into the repository.
+
 ## Brief self-check
 
 (run before any work) Confirm the brief carries an OBJECTIVE, a done-condition, and - whenever the

@@ -325,7 +325,7 @@ that up and chains the next step across workflows automatically.
 | `discovery-pipeline` | Synthesize and structure discovery notes | `<ISOLATE_DIR>/discovery/` |
 | `qa-suite` | Static release test-plan + QA checklist + bug triage (non-executing; live acceptance/oracle -> `odoo-acceptance`) | `<ISOLATE_DIR>/qa/` |
 | `support-triage` | Classify + root-cause + draft resolution for a support ticket | `<ISOLATE_DIR>/support/` |
-| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> narrate per language -> assemble, verified against the YouTube publish profile) | `<ISOLATE_DIR>/video/` |
+| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> narrate per language -> assemble, verified against the YouTube publish profile -> publish to the PR or the YouTube channel) | `<ISOLATE_DIR>/video/` |
 | `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `<ISOLATE_DIR>/sales/` |
 | `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `<ISOLATE_DIR>/debug/` |
 | `content-production` | Multi-asset content from a positioning brief | `<ISOLATE_DIR>/content/` |

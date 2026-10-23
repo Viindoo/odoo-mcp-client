@@ -32,3 +32,18 @@ T1); a docs step releases only a lease it took itself.
    repository.
 4. **Release** the forwarded handle (`lease_release` with its token and the run id) once the last
    step returned.
+
+## Where a video goes
+
+A demo video a run produced (`video-produce`, `odoo-demo-recording`) lives under
+`<ISOLATE_DIR>/video/<label>/` for the run and is deleted when the run ends; what survives is
+the URL in the artifact it illustrates.
+
+| The video illustrates | Published to | When | Embedded as |
+|---|---|---|---|
+| a code change (a feature, a fix, an upgrade, a forward-port that changes behaviour at the target) | the pull request body, through `git-toolkit:git-ops` with the request to attach the `preview` rendition (`video_publish.py preview`, under the repository plan's size cap) | with the PR, or as a comment on it once acceptance passed | the attachment alone in its own paragraph of the body |
+| documentation (the module guide, the App Store page, a docs-site page) | the channel of `youtube.toml` (`/odoo-ai-agents:odoo-setup youtube`) through `${CLAUDE_PLUGIN_ROOT}/scripts/lib/youtube_upload.py`, privacy per that file (`unlisted` until the docs are published) | LAST: after acceptance passed and the i18n reconcile is done, before the docs commit that embeds it | App Store page: the DEMO tab's canonical `youtube.com/embed/<id>` iframe; docs-site page: the site's own video convention from its sibling pages, with the embed URL; module guide RST: a link to the watch URL (docutils renders no iframe) |
+
+No channel declared: the docs ship without the video and the report names
+`/odoo-ai-agents:odoo-setup youtube` as the remedy; a video is never committed into a module or a
+docs repository.

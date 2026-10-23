@@ -45,3 +45,26 @@ def test_cli_verdicts_pass_fail_and_listen(tmp_path):
     assert listen.returncode == 3 and "VERDICT=listen" in listen.stdout
     bad = run("trợ lý ây ai của viindoo", "--map", str(m), "--lang", "vi_VN")
     assert bad.returncode == 1 and "VERDICT=fail" in bad.stdout
+
+
+def test_a_sentence_that_runs_on_to_the_next_line_fails_the_script_check(tmp_path):
+    assert nc.broken_lines("Mở đơn hàng.\nBấm Xác nhận!\n\nXong?") == []
+    assert nc.broken_lines("Mở đơn hàng và\nbấm Xác nhận.\nXong rồi") == [1]  # last line may end bare
+    assert nc.broken_lines("Một câu không dấu chấm") == []
+    assert nc.broken_lines('He said "Done."\nNext line continues\nto here.') == [2]
+    script = tmp_path / "s.txt"
+    script.write_text("Trợ lý AI của Viindoo\ngiúp bạn bán hàng nhanh hơn.\n", encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 1 and "LINES_BROKEN=1" in proc.stdout and "VERDICT=fail" in proc.stdout
+    script.write_text("Trợ lý AI của Viindoo giúp bạn bán hàng nhanh hơn.\n", encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0 and "LINES_BROKEN=none" in proc.stdout
+    # with a perfect transcript a broken script still fails
+    script.write_text("Trợ lý AI của Viindoo\ngiúp bạn bán hàng nhanh hơn.\n", encoding="utf-8")
+    t = tmp_path / "t.txt"
+    t.write_text("trợ lý ây ai của viindoo giúp bạn bán hàng nhanh hơn", encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script),
+                           "--transcript", str(t)], capture_output=True, text=True)
+    assert proc.returncode == 1 and "VERDICT=fail" in proc.stdout

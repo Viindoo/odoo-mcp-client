@@ -41,9 +41,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `video_publish.py` (fit each scene to its narration, two-pass loudness, the `youtube-1080p`
   profile verified by ffprobe, captions, chapters, thumbnail, preview). The `video-produce`
   workflow gains a `languages` input, a storyboard with narration per scene and language, a
-  `narrate` phase and a verifying `assemble` phase. Still open from #279: the Playwright recorder
-  with wait sidecars, fake-microphone voice input and wait trimming, prompt trials and the AI cost
-  budget.
+  `narrate` phase, a verifying `assemble` phase and a final `publish` phase. The narration talks
+  the viewer through every scene: `video_publish.py fit` measures the stretch where the screen
+  moves and nobody speaks and refuses a scene over the storyboard's `max_silence_s`;
+  `narration_check.py` refuses a script in which a sentence runs on to the next line (a speech
+  engine pauses at every line break as at a full stop). Still open from #279: the Playwright
+  recorder with wait sidecars, fake-microphone voice input and wait trimming, prompt trials and
+  the AI cost budget.
+- `odoo-ai-agents` - **where a demo video goes** (#279). A video of a code change rides on its
+  pull request as an attachment (`gh --attach`, under the repository plan's size cap, alone in
+  its paragraph), placed through `git-toolkit:git-ops`; a video of documentation is published to
+  the channel of `youtube.toml` (`/odoo-ai-agents:odoo-setup youtube`, step `75-youtube`,
+  `scripts/lib/youtube_upload.py`: resumable upload, captions per language, thumbnail, playlist,
+  `unlisted` by default) as the LAST step after acceptance and the i18n reconcile, and only its
+  URL is embedded (App Store DEMO tab, docs-site page, module guide link). Videos live under the
+  run directory and are deleted when the run ends; none is committed into a repository
+  (`snippets/docs-after-change.md` § Where a video goes). `git-toolkit`'s `github-operator`
+  knows the attachment rule (`git-toolkit` 0.9.1 -> 0.9.2).
+- `odoo-ai-agents` - **documentation states the present, never its own history.** A guide, a
+  store page or a docs-site page rewritten after a change describes how the software works now;
+  wording such as "previously", "now", "after the fix" or "this version adds" is a finding of the
+  public-docs contract and of each docs agent's own text gate (`snippets/public-docs-contract.md`,
+  `odoo-doc-writer`, `odoo-doc-site-writer`, `odoo-marketer`).
 
 
 ## [8.0.4] - 2026-10-23

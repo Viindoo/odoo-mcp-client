@@ -346,6 +346,12 @@ drop-in. What it does:
    OpenAI-compatible speech endpoint (hosted or self-hosted), the NAME of the environment
    variable holding its key, one voice per narration language and the speech-to-text check,
    in `speech.toml`; the `video-produce` workflow narrates demo videos from it.
+10. **YouTube channel** (optional; `/odoo-ai-agents:odoo-setup youtube`, step `75-youtube`) - the
+    channel documentation videos are published to: the NAMES of the OAuth client and refresh-token
+    variables (the `youtube.force-ssl` scope), the default privacy (`unlisted` until the docs are
+    published), an optional playlist, in `youtube.toml`. A video that illustrates a code change
+    goes to its pull request instead, and no video is committed into a repository
+    (`snippets/docs-after-change.md` § Where a video goes).
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-ai-agents:odoo-setup` whenever a dependency is missing. The same hint prints `browser MCP flags outdated` when a registered browser server differs from the current spec (see the re-run note above).
