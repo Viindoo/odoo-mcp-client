@@ -15,6 +15,6 @@ in the file, never reported as a finding and left.
 | Any value copied from a settings, environment or catalog file | nothing |
 | A real customer, partner, employee or company name that is not the demo company of the capture, and any price, contract, revenue or roadmap detail | an abstract example ("a manufacturer with ~150 staff") or the demo company |
 | An issue, PR, ticket, failure-log or review-finding reference | nothing - the tracker holds it (`artifact-voice.md`) |
-| A model, field, method or xmlid name in a page for users or buyers | the UI label or outcome; a developer page of a docs site may name technical modules |
+| A model, field, method or xmlid name in a text whose readers USE or BUY the product (end users, consultants, administrators, buyers) | the UI label, menu path or outcome. A text whose readers are developers (a technical guide, an API or extension reference, a developer page of a docs site) names models, fields, methods and xmlids: that is its content, and it is correct |
 | A screenshot taken on a database that is not a demo-data build, or whose company name differs from the capture policy | a capture on the demo instance the caller provisioned, company name per `POLICY` or the demo default |
 | An internal-only wording the site policy bans (`POLICY` `banned_terms`) | the public term |

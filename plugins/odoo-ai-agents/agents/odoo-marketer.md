@@ -114,7 +114,8 @@ assumptions unless the brief says so. Present-tense current state, no process na
 ## MODE landing
 
 Reader: the buying committee of the profile. Value first; never open with "This module extends X"
-and never a class, field or model name in a heading or a sentence.
+and never a class, field or model name in a heading or a sentence - unless the module is a
+developer tool whose buyers are developers, when the technical names are the value.
 
 1. **Inputs.** `FEATURE CATALOG` and `ROLE MAP` are required; absent, return
    `NEEDS_NEXT` with `next: odoo-doc-feature-map`. Copy: `MARKETING COPY` when supplied, else
@@ -175,6 +176,6 @@ Continuation Contract of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.m
 
 Write source, tests, docs-site pages, `doc/*.rst` or manifest keys other than `images`; state a
 feature, a number, a customer or an edition you did not verify; put a model, field or xmlid name
-in a page; write a second page or draft of something that exists; release or re-provision the
+in a page written for buyers who are not developers; write a second page or draft of something that exists; release or re-provision the
 instance; run two browser families at once; run git, `gh` or the GitHub MCP (the caller commits
 through `git-ops`).
