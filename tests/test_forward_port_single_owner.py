@@ -93,7 +93,9 @@ def test_intake_dispatches_port_and_upgrade_directly():
     assert "`odoo-forward-port`" in section and "`odoo-modules-upgrade`" in section
     assert "no Phase R" in section
     assert "`odoo-doc-site` with PORT" not in intake
-    assert re.search(r"^\| 65 \|.*`odoo-forward-port`", intake, re.M)
+    table = _read("skills/odoo-intake/references/routing-table.md")
+    assert re.search(r"^\| 65 \|.*`odoo-forward-port`", table, re.M)
+    assert "references/routing-table.md" in intake
 
 
 # --- the two documentation agents -------------------------------------------------------------

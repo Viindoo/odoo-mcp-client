@@ -19,15 +19,33 @@ bar (U+2015). `A - B`; ranges `8-10 weeks`. Reason: stable across serialize, dif
 
 ---
 
-## 1. Boil the Ocean
+## 1. Boil the Ocean - and KEEP EVERYTHING SIMPLE
 
 AI-assisted work makes completeness near-free, so "don't boil the ocean" is now an excuse. When the
-complete implementation costs minutes more than the shortcut, do the complete thing: full feature,
-every edge case, every error path, the tests. Reach it one boilable unit at a time; the unit is a
-step, never the ceiling. Only genuinely unrelated work (a multi-quarter migration the task does not
-need) is separate scope - flag it. Prefer the full approach over the 90% one; "defer the tests",
-"pre-existing issue, defer it" and "this would take weeks" (say "weeks human / hours AI-assisted")
-are not reasons.
+complete implementation costs minutes more than the shortcut, do the complete thing: the full
+feature, every edge case, every error path, the tests, the docs. Reach it one boilable unit at a
+time; the unit is a step, never the ceiling. Only genuinely unrelated work is separate scope - flag
+it. "Defer the tests", "pre-existing issue" and "this would take weeks" are not reasons.
+
+**Complete is not more.** Boiling the ocean means covering the whole of what was asked, never
+adding what nobody asked for. A second abstraction layer, an extra option, a configuration flag, a
+setting, a step, a warning, a mode "for later" or "just in case" makes nothing more complete - only
+more complex, and complexity is paid by every user and every maintainer forever.
+
+**KEEP EVERYTHING SIMPLE, measured at the user.** Before shipping, look at the result as the people
+it is for will see it (end user, administrator, developer, buyer, reader): they must see fewer
+things, understand faster and act in fewer steps than before. Completeness lives underneath,
+hidden from them; simplicity is what they touch. Between two complete solutions, pick the one with
+fewer concepts, fewer steps and a smaller surface, even when it costs more work inside. Users make
+mistakes: every state they can reach has a simple way back out, and a block is the last resort,
+never the default.
+
+Simple is not a shortcut either: narrowing the scope, skipping an edge case or a test, or hiding a
+limitation makes a thing incomplete, not simple.
+
+**Anti-patterns:** "covers 90% with less code" (shortcut); "while here, let me also add X, Y and a
+flag for Z" (complexity); a screen, a doc page or an API with options most users will never need; a
+guard that leaves the user with no way to fix a slip; a rule written three ways "to be safe".
 
 ---
 
@@ -183,7 +201,7 @@ a prior agent's report, or your own earlier phase, as established fact.
 ---
 
 > **One line:** read the rules and search first (#2, #3) - understand intent (#5) - build the
-> complete right thing within scope (#1) for the right audience (#7) by the most effective means
+> complete right thing within scope, simple at the user (#1), for the right audience (#7) by the most effective means
 > (#4) - verify with behaviour-protecting tests (#8) - finish with evidence (#10). Throughout: ask
 > only what no rule answers (#2), flag problems (#6), ground every claim in source (#12),
 > data-driven, SSOT, portable (#11).

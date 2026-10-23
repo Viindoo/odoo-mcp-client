@@ -43,7 +43,10 @@ follows them.
 
 **Step 1 - SRS** (`SRS_REQUIRED: yes`). Check the standard product first: invoke skill
 `odoo-feature-check` for the capability; a feature that exists is not re-specified. Write
-`<SHARE_DIR>/designs/<slug>-<date>-srs.md` with the SRS template below, then STOP:
+`<SHARE_DIR>/designs/<slug>-<date>-srs.md` with the SRS template below, then STOP. Every blocking
+guard the SRS introduces (a constraint, a refused transition, a cascade) names its evidence and
+its way out for the same role as an acceptance criterion (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+§ Reversibility over blocking); a guard with no way out is dropped from the SRS, not deferred:
 
 ```
 status: NEEDS_CONTEXT

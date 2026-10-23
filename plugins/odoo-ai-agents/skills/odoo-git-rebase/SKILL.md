@@ -105,16 +105,7 @@ branch or worktree creation (P7). Concurrency for the P2 parallel fan-out follow
 Full per-phase dispatch briefs, git-ops requests, and artifact formats:
 `references/rb-phase-detail.md`.
 
-**Small-scale fast-path:** when recon shows <=5 commits, the patch-id pre-filter finds zero
-absorbed commits, AND one cheap OSM batch over the feature diff finds zero renamed/moved
-symbols, collapse P2+P3 into ONE sonnet `odoo-diff-comparator` pass and skip the separate
-P2 extractor fan-out and P3 cluster comparator. P8b (symbol-survival + collection gate) still runs in all cases.
-**Fast-path P8 fallback (commit dump provisioning):** the fast-path skips P2 so no
-`intents/<sha>.md` exist. If P8 stops on a conflict, provision the dump first: invoke
-git-ops to write the stopped commit's full output to
-`<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`; then dispatch `odoo-intent-extractor` (rebase
-MODE, brief: `references/rb-phase-detail.md` P2) with `commit_dump_path:` set to that path
-before dispatching the `odoo-coding` skill at P8.
+**Small-scale fast-path.** Up to 5 commits, no patch-equivalent commit and no renamed or moved symbol in one cheap OSM batch: P2 and P3 collapse into ONE sonnet `odoo-diff-comparator` pass; P8b still runs. A P8 conflict on the fast-path provisions the stopped commit's dump and one `odoo-intent-extractor` (rebase MODE) before `odoo-coding`. Detail: `references/rb-phase-detail.md` § Small-scale fast-path.
 
 **Sequence invariant.** `recon/classify -> (conditional) solution-design -> Plan Mode gate ->
 odoo-coding execution`. The Plan Mode gate is the request's one Plan-Mode approval
@@ -150,36 +141,9 @@ whether the range holds merge commits; if so, flag that the replay must preserve
 user confirmation. The pre-filter is a hint only; outcome-(a) is decided at P3/P10. Never skip a
 commit on the pre-filter alone. Write `recon.md` (header `old_base:`). Request: `references/rb-phase-detail.md` P1.
 
-**P2 - Intent extract (per non-(a) commit, PARALLEL) [git-ops pre-step + N x odoo-intent-extractor rebase MODE].**
-Pre-step: invoke git-ops to write the full commit output (message + diff) for
-each non-(a) commit to `<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`; collect the resulting
-`{ <sha>: <abs-path> }` map. Then dispatch one `odoo-intent-extractor` per non-(a) commit with
-rebase MODE brief: ground at `<new-base>` HEAD, do NOT call cross-version `api_version_diff`.
-Pass `commit_dump_path: <abs-path>` and `SLUG: <slug>` (the bare run slug) in every extractor brief. Model per EXTRACT tier (`references/rb-triage-table.md`
-Table 1). Each writes `intents/<sha>.md`: {intent_one_liner, symbols, outcome_hint, grounding}.
-**Above ~30 non-(a) commits, batch intent extraction by MODULE (one extractor per module
-covering its commits) rather than per-commit - the parallel unit becomes the module, so the
-fan-out stays within the Mode B budget. When batching, a commit touching two modules is dispatched
-inside BOTH modules' bundles, so set that dispatch's `SLUG` to `<slug>/<module>` (never the bare
-run `<slug>`); a consolidation fan-in step (before P3, module-batched mode only) then copies each
-commit's canonical record back to the bare-slug path `intents/<sha>.md`. Consolidation is
-separately checkpointed (`extracted-pending-consolidation` -> `extracted`) and idempotent.**
-Brief template: `references/rb-phase-detail.md` P2.
+**P2 - Intent extract [git-ops pre-step + one `odoo-intent-extractor` (rebase MODE) per non-(a) commit, parallel].** git-ops writes each commit's dump to `<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`; each extractor grounds at `<new-base>` HEAD (never a cross-version API diff), gets `commit_dump_path` and `SLUG: <slug>`, runs at the EXTRACT tier of `references/rb-triage-table.md` Table 1 and writes `intents/<sha>.md`. Above ~30 commits the parallel unit becomes the MODULE (one extractor per module, `SLUG: <slug>/<module>`), followed by a checkpointed consolidation fan-in to the bare-slug records. Brief and consolidation: `references/rb-phase-detail.md` § P2.
 
-**P3 - Cluster behavior comparison [odoo-diff-comparator sonnet - completeness gate MUST pass
-before dispatch; no human-confirm gate].**
-Before dispatch: confirm every non-(a) commit has a canonical, non-empty `intents/<sha>.md`
-record (delegated read-only check, never inline). A missing or empty record returns `BLOCKED` and P3 does NOT proceed: re-run the named remediation
-(the P2 consolidation copy for the listed shas), then retry. Full gate:
-`references/rb-phase-detail.md` P3.
-One `odoo-diff-comparator` reads the feature diff (the branch's own changes since it diverged
-from `<new-base>`, pre-computed by a git-ops pre-step per `references/rb-phase-detail.md` P3) + all
-`intents/*.md`. Compare business intent, expected outcomes and acceptance criteria of the
-feature range against `<new-base>` HEAD. Per commit: decide absorption failure mode
-(already-present / renamed / moved / override-refactored / depends-drift / test-symbol-removed)
-per `[[rb-intent-4outcome]]` (`${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md`). Emit `comparison.md`:
-{per-commit: outcome a/b/c/d, failure_mode, evidence, proposed adapt} + duplicate-behavior risk
-list.
+**P3 - Cluster behavior comparison [`odoo-diff-comparator` sonnet; completeness gate first].** A delegated read-only check confirms every non-(a) commit has a non-empty canonical `intents/<sha>.md` (a miss is `BLOCKED` until the P2 consolidation re-runs). One comparator reads the feature diff (a git-ops pre-step) plus every intent record and decides, per commit, the outcome a/b/c/d and the absorption failure mode of `[[rb-intent-4outcome]]` (`${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md`), writing `comparison.md` with the duplicate-behavior risk list. Gate and brief: `references/rb-phase-detail.md` § P3.
 
 **P4 - Classify (record only) [orchestrator - no gate].**
 Read verdicts from P2+P3 structured output; assign exactly one outcome a/b/c/d per commit.
@@ -188,20 +152,7 @@ component/framework rewrite) with the defer-or-do gate from
 `references/rb-triage-table.md` § Bucket-(c) upgrade-scale defer-or-do gate. Record all in
 `rebase-log.md`. Record verdicts from subagent output ONLY - no inline analysis.
 
-**P5 - Design (conditional route-out) [odoo-solution-design -> odoo-solution-architect opus].**
-Route a commit to `odoo-solution-design` when ANY design-trigger row matches (evaluated at P4,
-recorded here): bucket-(c) "do now" ALWAYS; bucket-(b) adapt when it touches a model
-field add/remove/type-change, changes a method signature, overrides or relocates an override
-point (`create`/`write`/`unlink` or a method whose `find_override_point` chain has >=3
-entries), is a refactor in the sense `odoo-solution-design` § When to invoke defines one, or is
-full-stack / crosses the legacy<->OWL-2 boundary. A single-file, single-symbol, signature-preserving bucket-(b) rename - and every
-bucket-(a)/(d) commit - skips design. Use the non-trivial criterion `odoo-solution-design` applies. Full table:
-`references/rb-triage-table.md` § Design-trigger table. Emit Continuation Contract and YIELD. Canonical payload (match
-exactly): `next: odoo-solution-design`, `inputs: { return_to: odoo-git-rebase,
-design_slug_hint: <slug>-rb-<sha>, target_version: <series>, modules: [<names>],
-intent_records: [<paths>], classification: <outcome bucket + one-line reason> }`. On re-entry, read
-`design_doc` from the returned contract, record it against the commit, set
-`status=designed`, and proceed to P6 - do not re-run design.
+**P5 - Design (conditional route-out) [`odoo-solution-design`, opus].** A bucket-(c) "do now" commit always routes; a bucket-(b) adapt routes when it changes a model field, a method signature or an override point (`create`/`write`/`unlink`, a chain of 3+ entries), is a refactor in the sense `odoo-solution-design` defines, or crosses the legacy<->OWL-2 boundary; a single-symbol signature-preserving rename and every (a)/(d) commit skip design. Emit the Continuation Contract with the canonical payload (`next: odoo-solution-design`, `inputs: { return_to: odoo-git-rebase, design_slug_hint, target_version, modules, intent_records, classification }`) and YIELD; on re-entry record `design_doc`, set `status=designed`, proceed to P6. Trigger table: `references/rb-triage-table.md` § Design-trigger table; payload: `references/rb-phase-detail.md` § P5.
 
 **P6 - Plan gate (Plan Mode - own gate; EnterPlanMode MUST precede any branch or worktree).**
 This is the request's one Plan-Mode gate
@@ -219,36 +170,9 @@ FEATURE TIP (branch rb/<slug>; NOT at new-base), turn on conflict-resolution reu
 `DONE` (-> P8b) or `BLOCKED-CONFLICT` with `conflicted_files: [<paths>]` and
 `stopped_commit: <sha>` (-> P8). Full dispatch brief: `references/rb-phase-detail.md` P7.
 
-**P8 - Conflict-resolution loop [per stopped commit: Explore + the `odoo-coding` skill, ADAPT tier].**
-For each commit the rebase stops on, read its P4 outcome first: outcome (a) or (d) -> instruct
-git-ops to skip that commit and invoke nothing else - a bucket-(a)/(d) commit is never sent to
-`odoo-coding`. Outcome (b)/(c): dispatch Explore to read conflicted files + the commit's
-`intents/<sha>.md`; then dispatch the `odoo-coding` skill (via the Skill tool,
-mirroring §P9b) at the ADAPT tier with `COMMIT: caller` (the rebase's own continue creates the
-replayed commit), `TEST LEG: deferred - P9` (the node's test leg runs once, at P9) and the run's `RUN_ID`
-to resolve hunks to INTENT on the new-base idiom. Record every module each resolution touched - P9 covers
-them all. `odoo-coding`
-owns the node's coder and synthesis (its `odoo-coder`) - including `odoo-frontend-coder`
-for OWL/QWeb/SCSS legs, grounded against
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
-`odoo-coder` or `odoo-frontend-coder` agents for conflict resolution. Never leave an auto-merged line referencing a renamed/moved symbol. After `odoo-coding` returns RESOLVED: re-invoke git-ops per the
-stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch ->
-semantic bounce -> continue the stopped rebase). On 3 consecutive BLOCKED returns from git-ops:
-request git-ops to abort the rebase, restore from checkpoint, and escalate. Loop
-until the rebase finishes. Conflict-class policy (`.po`/binary/generated), resolution-reuse hygiene, and
-abort path: `references/rb-phase-detail.md` P8.
+**P8 - Conflict-resolution loop [per stopped commit].** Outcome (a)/(d): git-ops skips the commit, nothing else runs. Outcome (b)/(c): `Explore` reads the conflicted files and `intents/<sha>.md`, then `odoo-coding` (Skill tool, ADAPT tier, `COMMIT: caller`, `TEST LEG: deferred - P9`, `RUN_ID`) resolves the hunks to the INTENT on the new-base idiom - it owns the coder and any frontend leg grounded against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; never a raw coder, never an auto-merged line referencing a renamed symbol. Then the stateless-resume recipe of `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` continues the rebase; three consecutive `BLOCKED` returns abort, restore the checkpoint and escalate. Record every module a resolution touched for P9. Conflict-class policy and the abort path: `references/rb-phase-detail.md` § P8.
 
-**P8b - Symbol-survival + collection gate [MUST - before any test-forward; all heavy checks DELEGATED].**
-After the rebase finishes, ground every Odoo symbol the replayed range touches (conflicted
-AND merge-clean-but-feature-touched files) against the shared-series base HEAD per
-`[[fp-symbol-survival-check]]` Sections 1-2.5. A symbol absent/renamed/retyped at base is a BLOCKER. Resolve each into
-its 4-outcome bucket and re-stage before P9. Then run the import-resolvability gate (`pyflakes`
-over every feature-touched `.py`; any F821 = a broken import to resolve before P9) and the
-collection ACCEPTANCE GATE: the replayed test files MUST import and collect cleanly;
-`0 failed, N error(s)` is NOT a pass - a setUpClass crash means the tests never ran. Reuse the
-same gate as forward-port P7. Who may run it: `[[fp-symbol-survival-check]]`
-§ Who runs this check. Full brief incl. delegation contract +
-import gate: `references/rb-phase-detail.md` P8b.
+**P8b - Symbol-survival + collection gate [MUST, delegated].** Ground every symbol the replayed range touches against the base HEAD per `[[fp-symbol-survival-check]]` (a symbol absent, renamed or retyped at base is a BLOCKER resolved into its bucket before P9), run the import-resolvability gate over every feature-touched `.py`, and the collection ACCEPTANCE GATE (`0 failed, N error(s)` is NOT a pass) - the same gate as forward-port P7; who runs it: `[[fp-symbol-survival-check]]` § Who runs this check. Brief: `references/rb-phase-detail.md` § P8b.
 
 **P9 - Adapt + test forward (per touched module, conditional) [odoo-coding, MODE: adapt - no gate].**
 For modules whose behavior changed (driven by P8b symbol-survival findings + recon.md modules[]) AND every module a P8 resolution touched (its
@@ -268,38 +192,13 @@ CRITICAL/HIGH STOPS and escalates BLOCKED. Proceed to P10 ONLY when the review r
 no CRITICAL/HIGH. Dispatch reviewer + fixer, never review or fix inline. Write `<sha>: reviewed` in checkpoint.json. Brief + loop protocol:
 `references/rb-phase-detail.md` P9b. The final pre-PR review stays at P12; both clear before the PR opens.
 
-**P10 - Verify (range-diff + dup-guard + conditional instance) [git-ops pre-step + odoo-diff-comparator sonnet + conditionally the `odoo-instance` skill (via the Skill tool)].**
-Two-step: (1) invoke git-ops to compare the original commit series (after `<old-base>` up to the
-feature tip) with the rebased series (after `<new-base>` up to `rb/<slug>`), commit by commit, and write the comparison to `<ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt`
-(full brief: `references/rb-phase-detail.md` P10 pre-step); (2) dispatch `odoo-diff-comparator`
-(sonnet) with `diff_path:` pointing to the surveyor-written file to confirm every P4 intent is
-present and unchanged in meaning;
-dup-guard: OSM `entity_lookup` definition-count across the full inheritance chain is the
-PRIMARY (hard) dup signal (fail if count >1); grep is a secondary locator only. Emit
-`verify.md`. CONDITIONAL the `odoo-instance` skill (via the Skill tool): run ONLY when the rebased range touches
-DB-stateful behavior (model field add/remove/type-change, stored-compute, ORM
-create/write/unlink override, migration dir, or TransactionCase/HttpCase test). Skip for
-pure-frontend or docstring-only ranges. Decision from `commits[].modules[]` + P3 metadata -
-no inline diff read. If P8b's database collection lane already provisioned the run's instance,
-reuse that `INSTANCE_HANDLE` (`mode: reuse`); rebuild fresh when a break touched data files or schema. Full condition
-list: `references/rb-phase-detail.md` P10 § B3.
-When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags via `cli_help` (pass
-`odoo_version=<series>`); instance lifecycle protocol:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`; test invocation conventions:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+**P10 - Verify [git-ops range comparison + `odoo-diff-comparator` sonnet + conditional `odoo-instance`].** git-ops compares the original series with the rebased one commit by commit into `range-diff.txt`; the comparator confirms every P4 intent is present and unchanged in meaning; the dup-guard is OSM `entity_lookup`'s definition count across the inheritance chain (more than one fails), grep only locates. `verify.md` is the output. CONDITIONAL instance verify: invoke the `odoo-instance` skill (via the Skill tool) only when the range touches DB-stateful behaviour (a field change, a stored compute, an ORM override, a migration dir, a TransactionCase/HttpCase), reusing P8b's `INSTANCE_HANDLE` (`mode: reuse`) when one exists, fresh after a break touched data or schema; flags via `cli_help`, lifecycle per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`. Condition list and briefs: `references/rb-phase-detail.md` § P10.
 
 **P11 - Gate (STOP, human-confirm).**
 Present `rebase-log.md` + `verify.md` and ask, as a text question,
 `approve / skip / cancel`. STOP. Wait for `approve` before any push or PR; `skip` ends the run with the branch unpushed.
 
-**P12 - Final review + PR [delegated review capability - human merge].**
-Order follows the default tail (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail). FIRST delegate the final code review against `worktree:<WT_ROOT>/rb-integration` and clear
-its CRITICAL/HIGH findings on that worktree, BEFORE the branch is pushed and the PR opened. THEN resolve fork remote name and upstream org/repo from
-`origin_url` and `remotes` of a `repo_facts` call, invoke git-ops to push rb/<slug> to the fork
-remote, and invoke git-ops to open the PR against new-base on the upstream repo (head:
-fork-remote:rb/<slug>); pass the fork remote name and upstream org/repo as brief fields - never
-hardcode them. Only PR-OBSERVING work stays after the PR exists: CI-failure triage and the human
-merge. Wait for human merge. NEVER squash. Full dispatch briefs: `references/rb-phase-detail.md` P12.
+**P12 - Final review + PR [human merge].** In the order of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail: the final review of `worktree:<WT_ROOT>/rb-integration` with its CRITICAL/HIGH fixed, THEN git-ops pushes `rb/<slug>` to the fork remote and opens the PR against new-base on the upstream (both resolved from a `repo_facts` call, passed as brief fields). Only CI-failure triage and the human merge remain. NEVER squash. Briefs: `references/rb-phase-detail.md` § P12.
 
 ## Model triage
 

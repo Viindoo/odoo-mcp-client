@@ -1,5 +1,7 @@
 # Phase D - Dependency DAG Reasoning Reference
 
+**Contents:** Overview - Algorithm (cluster-cut heuristic) - Cluster-reasoning prompt (cluster-scoped) - Kahn topological sort (pseudocode) - Cycle detection + resolution - Critical path (EST / EFT) - Mermaid format - References
+
 > Live reference for `odoo-brl` Phase D. Read this file when running Phase D.
 > Output schema: `reference/schema.md` §dag.json.
 

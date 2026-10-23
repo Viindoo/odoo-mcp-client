@@ -1,5 +1,7 @@
 # odoo-deprecation-audit - Era Reference + Output Format
 
+**Contents:** Deprecation layers - Era quick-ref (version-range) - Output format - Deprecation Audit Report - Examples
+
 > **Scan at TARGET, not source.** This file seeds well-known pivots; it is NOT exhaustive.
 > Always verify each symbol at the TARGET version via OSM `api_version_diff` /
 > `find_deprecated_usage` before concluding BREAKING/WARN/STYLE. If OSM returns a result that

@@ -4,6 +4,8 @@
 
 # odoo-test-writing - Adapt Mode (Forward-Port Test Forwarding)
 
+**Contents:** When adapt mode applies - Inputs - Step 1 - Classify each assertion - Step 2 - Strip capture-code - Step 3 - Translate API to target - Step 4 - Prove it after the code - What is BANNED in adapt mode - Linking back to fp-merge-absorption - Continuation Contract for adapt mode
+
 Adapt mode translates existing test files from a source Odoo version to a target version
 during forward-port or rebase. It forwards the INTENT of tests, not their text, and it runs
 AFTER the adapt code exists.

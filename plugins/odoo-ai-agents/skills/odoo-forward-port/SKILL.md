@@ -212,28 +212,7 @@ substitute the captured absolute path); collect the `{ <sha>: <abs-path> }` map.
 
 **BAN (R2b): at most ONE `odoo-intent-extractor` instance per module across the ENTIRE run**, launched by walking the P0 `module -> [ordered sha list]` map with the module's full `commit_dump_paths`, resumed by its id on a retry, never re-launched; the brief's `SLUG` is `<slug>/<module>`, so every record lands under the module's own namespace. Dispatch tier (CHP Tier B fork, the Mode B budget counting modules) and the Tier-C replacement rule: `references/fp-phase-detail.md` § P1 - one extractor per module. Aggregate every returned summary into the P2 queue.
 
-**P2 - Classify + installable-probe [module-first order, per-commit bucket, OSM].** Walk modules in
-the SAME order P0/P1 established (the `module -> [ordered sha list]` map), and within each module
-walk its commits in that module's own order (R2a). For each commit, ground its symbols
-against the TARGET version (`set_active_version` once, then `api_version_diff` + `model_inspect`)
-and assign exactly one bucket a/b/c/d per commit. SSOT: `[[fp-intent-4outcome]]`. Append one row per commit to
-`merge-log.md`. `odoo-version-diff` in forward-port mode can supply the per-symbol bucket
-suggestion. Every Odoo Semantic call carries `odoo_version=` - never omit it. Once buckets are
-known, apply the **bucket-(c) upgrade-scale gate** to each bucket-(c) cluster: estimate its size
-and, if it is an upgrade-scale re-implement rather than a mechanical port, RECORD the
-`upgrade-scale` flag on that cluster now (`## Model triage`). Do NOT STOP at P2 - the recorded flag becomes a defer-or-do line in the P4 plan. A `(b) do now`
-cluster that ALSO meets the P3 non-trivial criterion proceeds to P3 design before P4.
-
-In the same phase, resolve each touched module's `installable` status from the TARGET CLEAN-TIP
-`<tgt-descriptor>` (Hard rule 11) - the state of the target branch BEFORE the merge, never
-post-merge. Invoke the
-`git-toolkit:git-ops` skill (read-only) to write that file, then read it: an absent key means
-installable, an absent FILE means the module is not on the clean tip. **Produce
-`manifest_path` for EVERY touched module, unconditionally** - it is the prober's required input, and
-the prober is a `role: leaf` that cannot fetch it. DISPATCH the read-only haiku leaf
-`odoo-installable-prober` only when the SOURCE HISTORY must ALSO be read to disambiguate category 3
-(the module's manifest was NOT touched by the forwarded commit range yet its target state is
-unclear); for categories 1-2 your own clean-tip read suffices.
+**P2 - Classify + installable-probe [module-first order, per-commit bucket, OSM].** Walk the modules and their commits in the P0 order; ground each commit's symbols at the TARGET (`set_active_version` once, then `api_version_diff` + `model_inspect`, every call with `odoo_version=`) and assign exactly one bucket a/b/c/d per `[[fp-intent-4outcome]]`, one `merge-log.md` row per commit; record the `upgrade-scale` flag on a bucket-(c) cluster that is a re-implement rather than a mechanical port (`## Model triage`), never stopping here. Resolve each module's `installable` from the target CLEAN-TIP descriptor (Hard rule 11) through a read-only git-ops write; dispatch the haiku `odoo-installable-prober` only for a category-3 ambiguity. Detail: `references/fp-phase-detail.md` § P2 - Classify.
 
 Pre-step for EVERY touched module: `git-toolkit:git-ops` (read-only) writes the clean-tip manifest (`manifest_path`) and the source-side descriptor history (`history_dump_path`); the prober's canonical inputs and both paths are in `references/fp-phase-detail.md` § P2 - installable pre-step. Record `installable_false=yes|no` as the module's OWN row in `merge-log.md` - the one field later phases read. Short-circuit and lint-only lane: `## Model triage`; SSOT: `[[fp-installable-false]]`.
 
@@ -251,29 +230,7 @@ design linked - do not re-run design. If `design_doc` is ABSENT from the returne
 commit back to `status=extracted` and re-enter P3 next run. Full contract:
 `references/fp-phase-detail.md` P3.
 
-**P4 - Plan gate [Plan Mode].** The request's one Plan-Mode gate (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One
-Plan-Mode gate per request): call `EnterPlanMode`, present the plan, `ExitPlanMode` on approve.
-The plan CONTENT is authored here (not routed through `odoo-planning`) and is MODULE-FIRST:
-module topology (each module's own ordered commit list, from the P0 map); per-module EXTRACT tier
-[the real triaged tier]; per-commit bucket [the
-real classification] and ADAPT tier within that module; installable routing per module; design-doc
-link for any commit P3 designed; and the ABSORPTION topology - how many batches, each batch's
-`<src-first-SHA>..<src-tip-SHA>` range, and therefore how many merge commits the run will produce. State
-that number explicitly (the human's ONLY chance to choose a multi-batch split; the default is ONE
-batch = ONE merge commit, never derived from the commit count). The plan also carries one `Docs: <module | site | both | none> - <facts>` line: the
-documentation target the closing step writes, taken from `odoo-intake`'s Documentation routing
-facts in the brief, or decided here by that rule when none came (ask only on a miss); `refine: no
-docs` drops it. `EnterPlanMode` MUST come before any branch, worktree, or file touch.
-
-After Plan Mode approval, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the
-JOB-tier integration worktree branched from B (Hard rule 1; dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
-Supply the branch name `fp/<slug>`, path `<path>/fp-integration`, and base `<target-branch>` in the
-brief. No branch is created before this point - everything up to and including the plan gate is read-only.
-
-THEN write `<ISOLATE_DIR>/forward-port/<slug>/plan.md` (module-first: one block per module carrying
-its EXTRACT tier + its ordered commits, each with bucket + ADAPT tier + installable routing +
-design-doc link + merge batch) as the resume RECORD that later phases and the checkpoint/continuation read. plan.md template:
-`references/fp-phase-detail.md` P4.
+**P4 - Plan gate [Plan Mode].** The request's one Plan-Mode gate (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request): `EnterPlanMode` BEFORE any branch, worktree or file touch; the MODULE-FIRST plan authored here (never through `odoo-planning`) shows each module's ordered commits with EXTRACT tier, bucket, ADAPT tier, installable routing and design-doc link, the ABSORPTION topology (how many batches and merge commits - the human's one chance to split, default ONE), and the `Docs: <module | site | both | none>` line decided by `odoo-intake`'s Documentation routing facts or by that rule here (`refine: no docs` drops it); `ExitPlanMode` on approve. Then git-ops creates the JOB-tier integration worktree `fp/<slug>` from B (Hard rule 1) and `plan.md` is written as the resume record. Template: `references/fp-phase-detail.md` § P4.
 
 **P5 - Merge, left uncommitted [critical section, in integration; ABSORB-ALL - runs ONCE per batch].**
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE for the whole batch, absorbing
@@ -316,14 +273,7 @@ Field-by-field brief, the bucket-(a) hunk map and the 8c sub-cases: `references/
 
 Per-batch protocol, the executor's result block and the P9 triage detail: `references/fp-phase-detail.md` § P9, P9.5 and P9.6.
 
-**P10 - Conclude the merge [self-decided, per batch].** Write `merge-log.md`, reconcile the file
-list, and commit - no human confirmation (a local merge on `fp/<slug>`; P12 presents it). Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE with the FULL file
-list - the union of every module row's `files:` (8b) plus the files P9.5 and P9.6 returned - and the request
-"stage these, then conclude the merge with one commit". That closes the batch's single open merge
-window: the whole range lands as ONE merge commit, and every SHA in the range is marked `done` in
-`checkpoint.json` (buckets a/d included - Hard rule 7). Then confirm the tree is clean (a `repo_facts` call on `<path>/fp-integration`: `dirty.is_dirty` false,
-`operation_in_progress` = `none`); a leftover path is a file the list missed:
-record it in `merge-log.md` for P12, never amend. Full brief: `references/fp-phase-detail.md` P10.
+**P10 - Conclude the merge [self-decided, per batch].** Write `merge-log.md`, then ONE git-ops request with the FULL file list (every module row's `files:` plus P9.5 and P9.6's) to stage and conclude the merge with one commit - the whole range as ONE merge commit, every SHA marked `done` in `checkpoint.json` (a/d included); no human gate (P12 presents it). Confirm the tree is clean with `repo_facts`; a leftover path is recorded for P12, never amended. Brief: `references/fp-phase-detail.md` § P10.
 
 **There is no P5 loop.** A single-batch run reaches P10 exactly once, then P11. Only when the human
 split the run into several batches at the P4 plan gate does the pipeline return to P5 - once PER
@@ -336,29 +286,8 @@ owner of the P9 verify instance (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardo
 before P11. Call `lease_park` instead only when a named later step of this run still needs the
 database. Never release it between batches - every batch reuses it.
 
-**P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
-only, BEFORE the P12 PR opens or reviews].** Runs after the P10 loop closes and BEFORE P12 pushes the
-branch, opens the PR, or runs its review gate (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`
-§ Default tail). Compute the verify scope by invoking `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`
-over every module touched across the batch (from `merge-log.md`), deriving the reverse-closure via
-OSM `impact_analysis` per that snippet's Step 1.
-Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch (never per commit
-or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
-(read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
-`merge-log.md` + each touched module's own `<module>/intents/<sha>.md` (§ P1 write path), `odoo_version`
-= target series; `INSTANCE_HANDLE: none provisioned` - NEVER P9's verify handle. `ACCEPTANCE` (by
-pointer) = each ported commit's behavioral contract recorded in the touched module's own
-`<module>/intents/<sha>.md` and any P3 design doc's §9 - NEVER a pre-built oracle. Do NOT hand it
-the implementation.
-**MANDATORY - narrow escape only.** Skip it ONLY when the touched set is a true dependency leaf with
-ZERO in-repo dependents AND no behavioral surface (no views, no models any other module consumes) -
-record that proof explicitly in `merge-log.md`; never skip silently. **The forward-port is not DONE
-until this stage returns ACCEPTED (PASS), or the narrow-escape condition above is explicitly met and
-recorded.**
-Carry the acceptance verdict (or the recorded narrow-escape) forward and present it ALONGSIDE the
-P12 human-merge decision below.
-Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
-from `merge-log.md`.
+**P11 - End-to-end acceptance [MANDATORY, cluster-wide, narrow escape only, BEFORE P12].** Compute the verify scope with `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` over every touched module of `merge-log.md` and invoke `odoo-acceptance` ONCE for the batch: `INPUTS` = the touched set, `scope_hint` = `merge-log.md` + each module's `<module>/intents/<sha>.md`, `odoo_version` = target, `INSTANCE_HANDLE: none provisioned` (never P9's), `ACCEPTANCE` by pointer to the intent records and any P3 design §9 - never the implementation. Skip only for a true dependency leaf with no in-repo dependents and no behavioural surface, recorded in `merge-log.md`. The forward-port is not DONE without ACCEPTED or that recorded escape; the verdict is presented with the P12 merge decision. Output `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. Brief: `references/fp-phase-detail.md` § P11.
+
 **P12 - PR + review [runs AFTER P11 acceptance clears].** Push `fp/<slug>` through `git-toolkit:git-ops`, then run `odoo-code-review` inline with `TARGET: worktree:<path>/fp-integration` BEFORE the PR opens: optional for a trivial port (docstring / string / comment-only buckets), MANDATORY whenever the batch grafts a new engine or mechanism - then every code path of the mechanism is enumerated and accounted for, and every finding is attributed by a git-ops diff of this port's lines before it is rated. A module `installable:False` at the target is rated for lint and syntax only. Ignore a `next: odoo-acceptance` the review emits - P11 already ran. NEVER squash: the PR carries the run's merge commit(s) and nothing else; B stays locked. Once the PR is open and CI ran, resolve or consciously waive every review-bot comment (informational, never a gate). Present the PR URL, the review findings and the P11 verdict together and wait for the human to merge. Enumeration list and the attribution rule: `references/fp-phase-detail.md` § P12 - PR and review.
 
 With the PR presented, document the ported user-visible features for the target the P4 plan

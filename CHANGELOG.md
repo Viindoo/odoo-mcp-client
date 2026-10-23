@@ -49,8 +49,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Every skill and command description is rewritten in third person, key use case first, within the
   official listing rules; three pure user shortcuts leave the listing (`disable-model-invocation`), and
   the plugin's listing share drops from 6,100 to 5,510 chars. `odoo-forward-port/SKILL.md` is under
-  500 lines again (its phase detail moved verbatim to `references/fp-phase-detail.md`), every
-  reference file over 100 lines opens with a contents line, and agent colours use the documented set.
+  500 lines again and the six other oversized skills (`odoo-intake`, `odoo-modules-upgrade`,
+  `odoo-instance`, `odoo-git-rebase`, `odoo-brl`, `odoo-deep-survey`) keep their rules and summaries
+  in `SKILL.md` with the step detail moved verbatim to a reference (`references/routing-table.md`,
+  `phase-0.md`, `dispatch-detail.md`, `procedure.md`, `phases.md` and the existing phase-detail
+  files), so the first 5,000 tokens re-attached after a compaction hold the rules; every reference
+  file over 100 lines opens with a contents line, and agent colours use the documented set.
+- `odoo-ai-agents` - **simple at the user, reversible by default.** ETHOS principle 1 is now
+  "Boil the Ocean - and KEEP EVERYTHING SIMPLE": complete is not more, simplicity is measured at
+  the people the result is for, and every state a user can reach has a simple way back.
+  `odoo-platform-design-principles.md` gains "Reversibility over blocking" (a guard needs evidence
+  and a way out for the same role; cascades only through core mechanisms; no narrowing of a
+  lifecycle core allows); the architect writes the way out into the SRS, a coder that meets the need
+  while coding decides it itself and records evidence and way out in its return, the reviewer's R2
+  rates a guard without either HIGH, and the QA planner adds a slip-and-recover scenario per
+  guarded action.
 
 
 ## [8.0.3] - 2026-10-21

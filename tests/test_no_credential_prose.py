@@ -84,7 +84,7 @@ IDE_SNIPPETS = (
 ALLOWLIST = (
     # --- code-review rules: hardcoded secrets in the REVIEWED code ---------------------------
     Allow(A + "skills/odoo-security-audit/*", "the audit rules and examples about a hardcoded secret in reviewed code"),
-    Allow(A + "skills/odoo-intake/SKILL.md", "routing phrase for the security audit",
+    Allow(A + "skills/odoo-intake/references/routing-table.md", "routing phrase for the security audit",
           shape=r'"hardcoded secret"'),
     # --- the Odoo test API --------------------------------------------------------------------
     Allow(A + "skills/_shared/coding_guidelines/*/tests.md", "the start_tour(login=...) argument of Odoo's test API",

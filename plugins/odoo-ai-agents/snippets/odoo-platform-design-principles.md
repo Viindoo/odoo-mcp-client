@@ -68,6 +68,17 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
   module: read them from the record, the company, the user or the context.
 - **A defect in Odoo core is reported, not patched in a downstream module.** The module works
   around nothing; the fix goes where the defect lives.
+- **Reversibility over blocking.** The default for a user action is confirm-and-allow-correction,
+  not a constraint. A blocking guard (a constraint, a refused transition, a cascade cancel) is
+  added only on evidence - an accounting or legal rule, a data corruption that happened, or a
+  block core Odoo itself enforces - never on "it could happen". Every guard that ships comes with
+  a cheap way out for the same role (back to draft, cancel this one record, correct and redo) -
+  named in the SRS when it is designed, or by the coder in its worklog and return when the need
+  appears while coding; a guard whose way out cannot be named is not shipped, the permissive
+  path is. A cascade (cancel the whole chain to fix one link) is used only where integrity truly
+  requires it, through the mechanism core provides (reversal, credit note, return), never a
+  custom one. A module never narrows a lifecycle core allows (draft -> cancel -> draft) without a
+  reason written in the SRS.
 
 ## 5. Change hygiene: versions, migrations, retirement
 

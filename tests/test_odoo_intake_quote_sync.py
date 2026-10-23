@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 INTAKE = PLUGIN / "skills" / "odoo-intake" / "SKILL.md"
+ROUTING_TABLE = PLUGIN / "skills" / "odoo-intake" / "references" / "routing-table.md"
 
 
 def _valid_targets():
@@ -54,7 +55,7 @@ KNOWN_NON_TARGETS = {
 
 def test_odoo_intake_targets_exist():
     valid = _valid_targets()
-    text = INTAKE.read_text(encoding="utf-8")
+    text = INTAKE.read_text(encoding="utf-8") + "\n" + ROUTING_TABLE.read_text(encoding="utf-8")
     referenced = set()
     for m in TARGET_RE.finditer(text):
         tok = m.group(1)

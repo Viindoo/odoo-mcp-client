@@ -99,6 +99,7 @@ not a style nit.
 | site | section anchor |
 |---|---|
 | `odoo-intake` | `Persist before you hand off` |
+| `skills/odoo-intake/references/phase-0.md` | `Persist before you hand off` |
 | `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1a - DAG build` |
 | `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1d - Transitive Symbol Survey` |
 
