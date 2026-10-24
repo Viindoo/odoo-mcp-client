@@ -6,6 +6,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.2.0] - 2026-10-24
+
+### Added
+
+- `odoo-ai-agents` - **a second local MCP server, `odoo-media`, carries every value the operator
+  configures through the plugin's own dialog.** The narration speech endpoint's value and the
+  YouTube OAuth client and refresh tokens are `userConfig` options of `plugin.json` (Claude Code's
+  masked dialog, stored by Claude Code; `/plugin` > odoo-ai-agents > Configure, or
+  `claude plugin configure ... --values-stdin`); `.mcp.json` maps them into the server's
+  environment and nothing else ever sees them - not a script an agent runs, not a skill, not a
+  tool result. Tools: `media_info` (which options are set, true/false), `speech_synthesize`,
+  `speech_transcribe`, `speech_voices`, `speech_probe` (a per-language round trip that catches a
+  voice/language mismatch before a recording run), `youtube_check` (with a live token test),
+  `youtube_upload`, `youtube_describe`, `youtube_set_privacy`, `youtube_delete` (title-matched,
+  always the human prompt), `youtube_status`. The permission hook auto-allows every odoo-media
+  tool except a public upload, a switch to public and a delete. Reference:
+  `docs/reference/MEDIA-SERVER-API.md`.
+- `odoo-ai-agents` - **YouTube channels by purpose** (`youtube.toml` `[channels.<purpose>]`,
+  `docs` required when YouTube is used, `marketing` and a third optional, one refresh-token slot
+  each; a channel's default privacy is never public). `75-youtube.sh consent --channel <purpose>
+  --client-json <file>` is the operator's own terminal command: the loopback OAuth flow with PKCE
+  that stores the client values and the channel's refresh token in the plugin configuration
+  itself. A purpose without a channel keeps the video local for the owner to publish.
+- `odoo-ai-agents` - **`/odoo-ai-agents:odoo-setup venv`** and `45-venv.sh create-venv --rebuild`:
+  rebuild the venv a declared row already uses (never a new location), refused while a lease or
+  a process uses it or when two rows share it (unless `--force`), the old venv kept aside until
+  the new one runs the Odoo launcher and restored on failure; `--extra SPEC` and `--override FILE`
+  (copied next to the venv) recorded on the row and re-applied by later rebuilds (`--no-recorded`,
+  `--no-override` drop them; a recorded hash shows when an overridden upstream pin moved);
+  `check` flags a dead python, a missing override file and a stale comment; lint packages an
+  addon's tests import are suggested as `--extra`. New catalog keys `extra_requirements`,
+  `uv_override`, `uv_override_basis`; the catalog writer takes its lock itself and keeps a comma
+  inside an array item; `instances_io read-row --json`.
+- `odoo-ai-agents` - **pronunciation registry** (`pronunciation.py registry`,
+  `<state root>/pronunciation.json`): the vendor brand, the AI vendors and models the products
+  show and common acronyms, pronounced the English way per narration language, confirmed by ear
+  once; every narration applies it, a storyboard may only add terms; two mapped terms that touch
+  get a pause. `video_publish.py verify-tools` (ffmpeg filters, title-card renderer, font and its
+  Vietnamese coverage) runs before any recording; the title card falls back to libass where
+  `drawtext` is missing; every narration clip is brought to one loudness before the mix.
+- `odoo-ai-agents` - `scripts/lib/doc_coverage_check.py` (a full guide accounts for every catalog
+  row), `scripts/lib/remote_branch_facts.py` (a series branch confirmed on the remote before a
+  clone is proposed), `scripts/lib/venv_holders.py` and `venv_facts.py` (the rebuild's guard and
+  safe moves), `snippets/video-destination.md` (where a video goes).
+
+### Changed
+
+- `odoo-ai-agents` - **`/odoo-ai-agents:odoo-setup` talks to a person who wants an outcome.** The
+  menu asks what the machine should be able to do, in plain words that say what each choice
+  writes; every fact the machine can state (the Odoo versions from the checkouts, the matching
+  profile, the addons path order, whether a venv is reused or built, the server-wide modules) is a
+  decision shown with its source; everything becomes one plan confirmed once, and under it only a
+  change to PostgreSQL authentication or to the user's permission and auto-mode settings asks a
+  one-line consent; no step number, file or tool name appears in a question; a missing
+  prerequisite stops with its fix; the summary leads with what works now.
+- `odoo-ai-agents` - **narrated videos, per language and published where they belong.** Each
+  narration language is its own recording with the UI in that language; `languages` is the union
+  of the embed targets' languages; a video is embedded only on a page in its own language (one
+  per site language; the English one or none on the App Store page; new docs-site acceptance
+  item); `odoo-intake` and `odoo-planner` read a workflow's declared inputs, so a video's
+  destination, languages and targets are asked or derived from checked facts, never left to a
+  default; the lines a transcript cannot judge (brands, URLs) are a human gate before any upload.
+- `odoo-ai-agents` - **documentation agents**: a full guide covers every catalog capability or
+  excludes it with a reason (coverage stamps + gate); a screenshot hides only a value that must
+  not be published; menu visibility comes from the menu group chain, checked live per role; UI
+  labels read exactly from the screen; the marketer recaptures on this build and writes no item
+  counts; an empty screen is seeded through the UI, never the ORM; a demo build's handle names
+  the account captures act as (`ui_user`); the no-git rule up front in every docs agent; the
+  writer brief says where guide images live.
+- `odoo-ai-agents` - **docs-site tooling**: the image gate reads `data-src` (lazy themes); the
+  language-switch item is `UNVERIFIED` on a local build; the check shot measures a page of the
+  same kind as the planned pages; the writer copies the sibling's page metadata and checks the
+  rendered column width on its first page; `author-profile.toml` keeps the organization site
+  (`website`) apart from the module-page pattern (`module_page_url`, `{series}` + `{module}`).
+- `odoo-ai-agents` - the speech configuration's `auth` mode (`bearer` | `none`) replaces the
+  variable-name keys; a file written with them is read as `auth`; `70-speech.sh propose` lists a
+  gateway the operator exported and every local container that answers the OpenAI audio shape,
+  with a remedy per missing ffmpeg filter; `speech_client.py probe` writes under the state root.
+- `odoo-ai-agents` - `odoo-planning`: a `refine` at the plan gate folds the feedback into the
+  harness plan file (a rejected `ExitPlanMode` leaves Plan Mode open) and the planner rewrites the
+  state-root plan once after approval; `lease_list` entries carry `started_at` and `age_s`.
+- `odoo-semantic-mcp` 1.0.2 -> 1.1.0 - `/odoo-semantic-mcp:connect` guides the operator to the
+  plugin's own configuration dialog for the server URL and key (nothing passes through the chat or
+  a command line), detects and offers to remove an older stand-alone registration that shadows the
+  plugin's server, verifies the connection through the server's tools after `/reload-plugins`;
+  the server gets a 90 s per-call timeout.
+
 ## [8.1.0] - 2026-10-23
 
 ### Changed

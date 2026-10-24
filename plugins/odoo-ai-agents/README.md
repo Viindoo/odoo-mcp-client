@@ -648,7 +648,7 @@ flowchart TD
 | `/odoo-plan-upgrade` | Comprehensive upgrade plan, saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
 | `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `<SHARE_DIR>/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
 | `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> narrate -> assemble; one publish-ready MP4 per language with captions, thumbnail and chapters), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
-| `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance, and - when your skill list is too long for Claude Code to show every description (the default budget on a 200k-token window) - offers to raise the listing budget, showing first how many tokens per turn that adds | - |
+| `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup, asked in outcomes (run Odoo locally, rebuild a venv, capture and record, let the AI work without prompts, publish docs and videos) with one plan confirmed once - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance, and - when your skill list is too long for Claude Code to show every description (the default budget on a 200k-token window) - offers to raise the listing budget, showing first how many tokens per turn that adds | - |
 
 ## Use cases - day in the life
 
@@ -829,9 +829,13 @@ bundled `.mcp.json`).
 
 Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP setup](docs/setup.md#visual-stack--browser-mcp-setup).
 
-### Local instance tools (`odoo-local`)
+### Local instance tools (`odoo-local`) and media tools (`odoo-media`)
 
-The bundled `.mcp.json` also registers `odoo-local`, a stdlib-only stdio MCP server that agents use
+The bundled `.mcp.json` also registers `odoo-media`, the server that holds the values you configure
+through the plugin's dialog (`/plugin` > odoo-ai-agents > Configure: the speech endpoint's value, the
+YouTube OAuth client and one refresh token per channel) and runs narration speech and YouTube
+publishing with them (`media_info`, `speech_*`, `youtube_*` - `docs/reference/MEDIA-SERVER-API.md`);
+nothing outside that server ever sees a value. And `odoo-local`, a stdlib-only stdio MCP server that agents use
 to lease an isolated database and ports, build and serve an instance, wait on long builds, and
 release or park what they hold, and export translation files (`lease_*`, `instance_*` including
 `instance_i18n_export`, `job_wait`, `catalog_*`, `db_preflight`, `series_detect`, `project_dir`,
