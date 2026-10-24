@@ -813,8 +813,8 @@ plugin version in the state root): values an earlier version read from your shel
 (`speech.toml` `api_key_env`, `youtube.toml` `*_env`) move into the plugin's configured options
 through `claude plugin configure --values-stdin`, the two files are rewritten in the current form
 (backups kept), a stand-alone `odoo-semantic` registration left by an earlier `/odoo-semantic-mcp:connect`
-moves into `odoo-semantic-mcp`'s options and is removed, and the moved values already work in that
-session. The next session start prints a one-line summary once; a value the pass could not find
+moves into `odoo-semantic-mcp`'s options and is removed (once that plugin is updated too), and the
+moved values already work in that session. The next session start prints a one-line summary once; a value the pass could not find
 (your shell did not export it) is named there and goes in the plugin dialog. When an update adds a
 plugin MCP server, `/reload-plugins` may ask for `--force` or a new session. The same pass is a
 command you can run yourself: `python3 <plugin>/scripts/lib/upgrade_values.py apply` and

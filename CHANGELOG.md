@@ -33,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   plugin's configured options through `claude plugin configure --values-stdin` and the files are
   rewritten (backups kept); a stand-alone `odoo-semantic` registration left by an earlier
   `/odoo-semantic-mcp:connect` moves into `odoo-semantic-mcp`'s options and is removed (that plugin's
-  new `scripts/migrate_connection.py`); the moved values already work in the same session; the next
+  new `scripts/migrate_connection.py`; a machine that updates this plugin first keeps that half
+  pending and finishes it when `odoo-semantic-mcp` is updated); the moved values already work in the same session; the next
   session start prints the result once. Both halves are also commands the operator can run
   (`scripts/lib/upgrade_values.py apply`, `migrate_connection.py apply`), and `connect` plus the
   `voice` / `youtube` setup steps hand them over when they find an earlier form.
