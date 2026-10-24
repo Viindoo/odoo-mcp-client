@@ -830,10 +830,11 @@ cmd_create_venv() {
         fi
         override="$kept"
     fi
-    # An existing venv is rebuilt only on request: the tool's behaviour on an existing directory
-    # is its own (uv replaces or prompts by version; virtualenv writes over it in place).
+    # An existing venv (a directory holding pyvenv.cfg - every venv has one) is rebuilt only on
+    # request: the tool's behaviour on an existing directory is its own (uv replaces or prompts by
+    # version; virtualenv writes over it in place). A directory that is not a venv is built into.
     local old_dir=""
-    if [[ -d "$path" ]]; then
+    if [[ -d "$path" && ( -f "$path/pyvenv.cfg" || "$rebuild" -eq 1 ) ]]; then
         if [[ "$rebuild" -eq 0 ]]; then
             echo "x a venv already exists at $path." >&2
             echo "  Pass --rebuild to rebuild it in place (the old one is kept aside until the new one is" >&2
