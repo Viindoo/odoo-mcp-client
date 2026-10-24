@@ -378,7 +378,8 @@ def lease_from_row(row):
 # --------------------------------------------------------------------------- #
 HANDLE_FIELDS = ("db_name", "http_port", "gevent_port", "db_port", "addons_path", "venv_python",
                  "demo", "languages_loaded", "facts_source", "log_path", "lease_token", "run_id",
-                 "server_pid")
+                 "server_pid", "ui_user")
+DEMO_UI_USER = "admin"   # the administrator account Odoo's demo data creates on every series
 
 
 def instance_handle(lease, log_path=None, server_pid=None, http_port=None):
@@ -404,6 +405,8 @@ def instance_handle(lease, log_path=None, server_pid=None, http_port=None):
         "lease_token": lease.get("token"),
         "run_id": lease.get("run_id") or "",
         "server_pid": server_pid,
+        # the account a browser-driven consumer acts as: known for a demo build, else the caller's
+        "ui_user": DEMO_UI_USER if built.get("demo") is True else None,
     }
 
 
@@ -500,6 +503,10 @@ HANDLE_SCHEMA = {
         "lease_token": _NULLABLE_STR,
         "run_id": {"type": "string"},
         "server_pid": _NULLABLE_INT,
+        "ui_user": dict(_NULLABLE_STR, description="The account a browser-driven consumer (a documentation "
+                                                   "capture, a demo recording) acts as: the demo build's "
+                                                   "administrator; null for a build without demo data, "
+                                                   "whose caller names the account."),
     },
 }
 

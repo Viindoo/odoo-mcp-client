@@ -110,8 +110,11 @@ provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One
       `odoo-marketer` with `MODE: landing` (`references/writer-brief.md` § The landing launch),
       passing the writer's catalog, role map, `facts.md` and staging directory so no screen is
       captured twice; same model rule.
-   4. **Verify.** Every reported file exists. Run the reference gate on `M` with no file
-      arguments; exit 2 stops the run `NEEDS_CONTEXT`. Compare each exit-1 finding with the
+   4. **Verify.** Every reported file exists. `DOC SCOPE: full-guide`: run
+      `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_coverage_check.py <feature-catalog.jsonl>`;
+      every `GAP=` line (a capability the guide neither documents nor excludes with a reason) goes
+      back to the writer as `FINDINGS` - a guide that covers part of its catalog is not DONE. Run
+      the reference gate on `M` with no file arguments; exit 2 stops the run `NEEDS_CONTEXT`. Compare each exit-1 finding with the
       baseline (same file, rule and reference): `IMG_ORPHAN` -> delete the file yourself and
       include it in the commit; a finding not in the baseline, or a baseline finding in a file of
       this run's layer -> send it to the agent that wrote the file as `FINDINGS` and re-run the gate; a baseline

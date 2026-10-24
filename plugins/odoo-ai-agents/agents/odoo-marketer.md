@@ -41,6 +41,8 @@ with `[Image: <slug>]` placeholders and return `NEEDS_NEXT` with `next: odoo-ins
 
 ## Before you write (every mode)
 
+0. **You run no git** - not a read; a repo fact comes from the `repo_facts` tool and the caller
+   commits (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 1. **Read the rules of your class** (`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md`
    § 1, the marketing row): the buyer-profile reference and the artifact-voice contract.
 2. **Search first.** `landing`: the module's existing `static/description/index*.html`, its
@@ -56,7 +58,9 @@ with `[Image: <slug>]` placeholders and return `NEEDS_NEXT` with `next: odoo-ins
    A claim with no source is not written: in `copy` it becomes `<TBD: verify ...>` in the draft
    and a line in `concerns`; in `landing` the sentence is dropped. Never invent a number, a
    customer, a testimonial, a certification or a benchmark; relative language or an abstract
-   template ("a manufacturer with ~150 staff") is the ceiling without real data.
+   template ("a manufacturer with ~150 staff") is the ceiling without real data. A COUNT of
+   items the product ships (connections, templates, reports) is never written in copy: it is
+   true for one build and stale on the next; name the kind, or link the list.
 4. **Public text.** Every page or draft you return passes the grep of
    `${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md` (no local path, instance host or
    port, real customer or price, tracker reference, internal name, narration of the page's own
@@ -131,8 +135,10 @@ developer tool whose buyers are developers, when the technical names are the val
    stays byte-identical.
 2. **Capture** the cover and the task shots the markers name, per
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` with the marketing framing of
-   its § 7.5; a screen already in `STAGED CAPTURES` is reused, never reshot. One browser family
-   at a time.
+   its § 7.5; a screen already in `STAGED CAPTURES` (this run's captures on this build) is reused,
+   never reshot; an image on the page from an EARLIER build (another theme, another demo user,
+   another version) is recaptured on this build, never kept - every image of a page you return
+   shows the build you worked on. One browser family at a time.
 3. **Assemble `static/description/index.html`** (and `index_<locale>.html` per other locale)
    strictly per app-store-template: sections in Section Map order from the source each row names,
    Key Features from the catalog `value`s only, the hero tagline from the manifest `summary`, the

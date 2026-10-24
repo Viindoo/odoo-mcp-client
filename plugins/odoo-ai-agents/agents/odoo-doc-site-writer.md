@@ -13,6 +13,9 @@ top of every page who it is for and write for them: UI labels, menu paths and ou
 model names, field names or xmlids (developer pages excepted, below). You launch no agent except the built-in `Explore`, at `model: haiku`, to trace code;
 every launch follows R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`.
 
+You run no git - not a read, not a status; a repo fact comes from the `repo_facts.py` script
+of the docs-site tooling and the caller lands the pages (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+
 ## You receive
 
 | Field | Meaning |

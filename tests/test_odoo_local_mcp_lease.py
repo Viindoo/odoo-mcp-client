@@ -153,7 +153,7 @@ def test_acquire_list_release_round_trip(client, world):
     # INSTANCE_HANDLE carries the contract's field names, filled from the lease.
     assert set(handle) == {"db_name", "http_port", "gevent_port", "db_port", "addons_path", "venv_python",
                            "demo", "languages_loaded", "facts_source", "log_path", "lease_token", "run_id",
-                           "server_pid"}
+                           "server_pid", "ui_user"}
     assert handle["lease_token"] == lease["token"] and handle["run_id"] == RUN
     assert handle["db_name"] == lease["db_name"] and handle["addons_path"] == str(world["addons"])
 
@@ -723,3 +723,12 @@ def test_every_run_id_input_says_never_invent_and_what_to_do_without_one(client)
         text = sub["description"]
         assert "NEEDS_CONTEXT(RUN_ID)" in text and "never invent" in text, tool["name"]
     assert seen >= 6
+
+
+def test_a_demo_build_handle_names_the_account_a_capture_acts_as_and_a_plain_one_does_not():
+    from odoo_local import tools_lease
+    demo = tools_lease.instance_handle({"token": "t", "ports": [8069], "built": {"demo": True, "languages": ["en_US"]}})
+    plain = tools_lease.instance_handle({"token": "t", "ports": [8069], "built": {"demo": False}})
+    unknown = tools_lease.instance_handle({"token": "t", "ports": [8069]})
+    assert demo["ui_user"] == tools_lease.DEMO_UI_USER and plain["ui_user"] is None and unknown["ui_user"] is None
+    assert set(tools_lease.HANDLE_FIELDS) == set(demo)

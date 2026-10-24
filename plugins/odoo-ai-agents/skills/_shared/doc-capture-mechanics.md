@@ -75,7 +75,8 @@ subtree.
 When the brief carries `INSTANCE_HANDLE: <db>:<port>`:
 - **The handle OUTRANKS every other way of resolving the target instance, including section 5's
   fallback.** Set `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` and use the
-  handle's DB name for all browser navigation and any live Odoo MCP call. NEVER recompute the URL from the declared catalog while a handle is present. Skip any self-provisioning step and skip the standalone install gate.
+  handle's DB name for all browser navigation and any live Odoo MCP call; the handle's `ui_user`
+  is the account the captures act as, and the brief adds nothing about it. NEVER recompute the URL from the declared catalog while a handle is present. Skip any self-provisioning step and skip the standalone install gate.
 - Still run the documentation-clean precondition check (demo data present, each resolved locale
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
   owns provisioning. Never drop or release the lease. CLOSE every browser page you drove, opened or
@@ -143,6 +144,10 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
    - **Marketing** (a prospect judging value): the visible outcome - a result, a dashboard, a
      completed document, never an empty form - plus the app name, legible at the slot width. A
      full-width slot (hero/banner) may capture the whole viewport at a deliberately chosen width.
+   - **What may be hidden.** CSS or a blur hides only a VALUE that must not be published (an
+     address, an identifier, a key-shaped string); an unwanted AREA is framed out or cropped from
+     the image file, never hidden in the page. Whether an element is the module's is read from
+     its view or field definition (`entity_lookup`, the XML), never from its label.
 6. **Final format at capture time.** chrome-devtools `take_screenshot` `format` `jpeg` + `quality`,
    or `png`; playwright `type`. A GIF's width = the slot width: record at a viewport within the step-3 cap and pass the slot width as
    `record_and_gif` `gifWidth` / `convert_to_gif` `width`.
@@ -206,6 +211,9 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
   4. Optional state-assert: confirm the step produced the expected record/state on the leased
      instance itself - the record's form or list view in the browser MCP - before driving the next
      step.
+  5. An empty screen (no demo record): create the record THROUGH THE UI as the scenario's role,
+     with the browser family you capture with, and remove it the same way after the shot - never
+     through the ORM, a shell or an RPC call.
   Each step's still is staged under its section-3 name.
 
 ## 10. Per-locale capture loop
