@@ -164,7 +164,10 @@ def test_a_process_using_the_venv_blocks_the_rebuild_until_force(world):
         holder.kill(); holder.wait()
 
 
-def test_a_venv_shared_by_two_rows_is_refused_unless_forced(world):
+def test_a_venv_shared_by_two_rows_is_split_one_venv_per_profile_and_the_orphan_is_removed_last(world):
+    """One venv per profile: rebuilding a row that shares its venv gives that row its own venv at
+    the per-profile path and leaves the shared one (and whatever runs on it) alone; when the last
+    row has left, the shared venv is removed."""
     toml = world["home"] / "instances.toml"
     toml.write_text(toml.read_text() + textwrap.dedent('''\
 
@@ -174,8 +177,21 @@ def test_a_venv_shared_by_two_rows_is_refused_unless_forced(world):
         addons_path = ["%s"]
         python = "%s"
         ''' % (world["odoo"] / "addons", world["venv"] / "bin" / "python")), encoding="utf-8")
+    shared = world["venv"]
     proc = _run(world, "create-venv", "--series", SERIES, "--profile", "std", "--rebuild")
-    assert proc.returncode == 1 and "17.0:other" in proc.stderr and "--force" in proc.stderr
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "SPLIT_FROM=%s" % shared in proc.stdout and "SHARED_BY=17.0:other" in proc.stdout
+    assert "PATH_SOURCE=split" in proc.stdout and "--force" not in proc.stderr
+    own = world["tmp"] / "share" / "venvs" / "17.0-std"
+    assert own.is_dir() and (own / "MARKER").read_text().strip() == "new"
+    assert (shared / "MARKER").read_text().strip() == "old"             # untouched for the other row
+    assert _row(world)["python"] == str(own / "bin" / "python")
+    assert "SHARED_VENV_KEPT=%s" % shared in proc.stdout and "17.0:other" in proc.stdout
+    # the other row is now the only user of the old venv: it rebuilds there in place, no split
+    proc = _run(world, "create-venv", "--series", SERIES, "--profile", "other", "--rebuild")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "PATH_SOURCE=row" in proc.stdout and "SPLIT_FROM" not in proc.stdout
+    assert (shared / "MARKER").read_text().strip() == "new" and (own / "MARKER").read_text().strip() == "new"
 
 
 def test_check_flags_a_dead_python_a_missing_override_and_a_stale_comment(world):

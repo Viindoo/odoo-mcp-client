@@ -201,6 +201,8 @@ cmd_check() {
         fi
     done
     python3 "$facts" stale-comments "$INSTANCES_TOML" 2>/dev/null | sed 's/^/  Warning: /' >&2 || true
+    # The whole registry, reviewed: every anomaly as a line the plan can show with its fix.
+    python3 "$SCRIPT_DIR/../lib/catalog_review.py" review "$INSTANCES_TOML" 2>/dev/null | grep '^FINDING' || true
     return "$rc"
 }
 
@@ -818,14 +820,28 @@ cmd_create_venv() {
             path_source="share"
         fi
     fi
+    # One venv per profile. A venv that another row also uses is never rebuilt in place (their
+    # packages would change under them): this row gets its own venv at the per-profile path, the
+    # shared one stays for the other rows until each is rebuilt too, then it is removed (below).
+    local split_from=""
+    if [[ -n "$shared_by" && "$path" == "$row_venv" ]]; then
+        local share_dir prof_slug
+        share_dir="$(resolve_project_dir_share)" || {
+            echo "x could not resolve the project SHARE dir for venvs/ (see resolve_project_dir.sh)." >&2
+            return 1
+        }
+        prof_slug="$(printf '%s' "${profile:-default}" | tr -c '[:alnum:]._-' '_')"
+        split_from="$path"
+        path="$share_dir/venvs/${series}-${prof_slug}"
+        [[ "$path" == "$split_from" ]] && path="$share_dir/venvs/${series}-${prof_slug}-own"
+        path_source="split"
+        echo "SPLIT_FROM=$split_from"
+        echo "SHARED_BY=$shared_by"
+        echo "  the venv at $split_from is also the python of: $shared_by - one venv per profile:" >&2
+        echo "  this row gets $path; the shared venv stays for them until they are rebuilt too." >&2
+    fi
     echo "VENV_PATH=$path"
     echo "PATH_SOURCE=$path_source"
-    if [[ -n "$shared_by" && "$force" -eq 0 && "$path" == "$row_venv" ]]; then
-        echo "x the venv at $path is also the python of: $shared_by" >&2
-        echo "  A rebuild with this row's requirements would change theirs too. Give this row its own" >&2
-        echo "  venv (--path <dir>), or pass --force to rebuild the shared one knowingly." >&2
-        return 1
-    fi
     # Recorded extras / override apply again unless the call says otherwise.
     if [[ "$extras_given" -eq 0 && "$no_recorded" -eq 0 && "${#rec_extras[@]}" -gt 0 ]]; then
         extras=("${rec_extras[@]}"); echo "EXTRA_FROM_ROW=${rec_extras[*]}"
@@ -1155,6 +1171,19 @@ cmd_create_venv() {
     if [[ -n "$old_dir" ]]; then
         python3 "$facts" finish "$path" >/dev/null || true
         echo "  The previous venv was removed."
+    fi
+    if [[ -n "$split_from" && "$_rec_rc" -eq 0 ]]; then
+        # The shared venv this row left: removed once no row references it and nothing runs on it.
+        local still_using
+        still_using="$(python3 "$facts" rows-using "$INSTANCES_TOML" "$split_from" 2>/dev/null || true)"
+        if [[ -n "$still_using" ]]; then
+            echo "SHARED_VENV_KEPT=$split_from (still the python of: $still_using)"
+        elif python3 "$holders" check "$split_from" --exclude-pid $$ >/dev/null 2>&1; then
+            rm -rf -- "$split_from" "$split_from.override.txt" "$split_from.build.log" 2>/dev/null || true
+            echo "REMOVED_SHARED_VENV=$split_from"
+        else
+            echo "SHARED_VENV_KEPT=$split_from (no row uses it, but a process or lease still does - remove it once free)"
+        fi
     fi
     _report_db_preflight "$series" "$profile"
     # A detector that could not decide is reported, not fatal: the venv IS ready
