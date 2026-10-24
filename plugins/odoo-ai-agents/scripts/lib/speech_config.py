@@ -393,6 +393,42 @@ def cmd_record(args):
     return 0
 
 
+def cmd_probe_endpoint(args):
+    """What the endpoint at --base-url says about itself, without any value (the setup
+    conversation runs it before anything is recorded)."""
+    speech_client = _load_client()
+    info = speech_client.probe_endpoint(args.base_url)
+    _emit("REACHABLE", 1 if info["reachable"] else 0)
+    _emit("AUTH", info["auth"])
+    _emit("MODELS", " ".join(info["models"]) or "none")
+    voices = info["voices"]
+    names = []
+    if isinstance(voices, dict):
+        names = [str(v) for v in (voices.get("voices") or voices.get("data") or [])]
+    elif isinstance(voices, list):
+        names = [str(v.get("id") or v.get("name")) if isinstance(v, dict) else str(v) for v in voices]
+    _emit("VOICES", " ".join(n for n in names if n) or "none")
+    _emit("TTS_MODEL_GUESS", info["tts_model_guess"] or "none")
+    _emit("STT_MODEL_GUESS", info["stt_model_guess"] or "none")
+    if info["detail"]:
+        _emit("DETAIL", info["detail"])
+    if not info["reachable"]:
+        return 1
+    if info["auth"] == "required":
+        _emit("NEXT", "the endpoint expects a value: the operator fills the plugin option titled "
+                      "'Speech endpoint key' (/plugin > odoo-ai-agents > Configure), then /reload-plugins, "
+                      "then the odoo-media speech_voices tool with this base_url lists models and voices")
+    return 0
+
+
+def _load_client():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("speech_client", os.path.join(_LIB_DIR, "speech_client.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def cmd_show(args):
     cfg, code = _load(speech_path())
     if code:
@@ -411,9 +447,11 @@ def main(argv=None):
     p = sub.add_parser("record")
     p.add_argument("--from-json", required=True, dest="from_json")
     sub.add_parser("show")
+    p = sub.add_parser("probe-endpoint")
+    p.add_argument("--base-url", required=True, dest="base_url")
     args = parser.parse_args(argv)
     return {"check": cmd_check, "propose": cmd_propose, "record": cmd_record,
-            "show": cmd_show}[args.cmd](args)
+            "show": cmd_show, "probe-endpoint": cmd_probe_endpoint}[args.cmd](args)
 
 
 if __name__ == "__main__":

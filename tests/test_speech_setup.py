@@ -174,3 +174,55 @@ def test_audition_candidates_and_the_rate_per_video_type_are_recorded_and_valida
     import speech_config as scfg
     assert scfg.rate_for(cfg, "marketing") == 1.1 and scfg.rate_for(GOOD, "tutorial") == 1.0
     assert scfg.candidates_for(cfg, "vi_VN")[0] == "voice-vi" and scfg.candidates_for(cfg, "en_US") == ["voice-en"]
+
+
+def test_probe_endpoint_tells_open_from_required_and_lists_models_and_voices_without_a_value(home, tmp_path):
+    """The voice conversation asks for a URL at most; everything else comes from the endpoint."""
+    import http.server
+    import threading
+
+    class Open(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_GET(self):
+            body = {"/v1/models": {"data": [{"id": "voice-tts"}, {"id": "voice-stt"}]},
+                    "/v1/audio/voices": {"voices": ["mai", "af_heart"]}}.get(self.path)
+            if body is None:
+                self.send_response(404); self.end_headers(); return
+            data = json.dumps(body).encode()
+            self.send_response(200); self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+
+    class Gated(Open):
+        def do_GET(self):
+            self.send_response(401); self.end_headers()
+
+    servers = []
+    try:
+        bases = {}
+        for name, handler in (("open", Open), ("gated", Gated)):
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            servers.append(srv)
+            bases[name] = "http://127.0.0.1:%d/v1" % srv.server_address[1]
+        import shlex
+
+        def facts(text):
+            return dict(line.split("=", 1) for line in shlex.split(text) if "=" in line)
+
+        proc = _step(home, "probe-endpoint", "--base-url", bases["open"])
+        assert proc.returncode == 0, proc.stderr
+        got = facts(proc.stdout)
+        assert got["REACHABLE"] == "1" and got["AUTH"] == "open"
+        assert got["MODELS"] == "voice-tts voice-stt" and got["VOICES"] == "mai af_heart"
+        assert got["TTS_MODEL_GUESS"] == "voice-tts" and got["STT_MODEL_GUESS"] == "voice-stt"
+        proc = _step(home, "probe-endpoint", "--base-url", bases["gated"])
+        assert proc.returncode == 0, proc.stderr
+        got = facts(proc.stdout)
+        assert got["AUTH"] == "required" and "speech_voices" in got["NEXT"]
+        proc = _step(home, "probe-endpoint", "--base-url", "http://127.0.0.1:9/v1")
+        assert proc.returncode == 1 and facts(proc.stdout)["REACHABLE"] == "0"
+    finally:
+        for srv in servers:
+            srv.shutdown()

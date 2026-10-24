@@ -103,6 +103,11 @@ goals ticked, run them in the table's order.
   non-interactively).
 - **Never a step number, a file name, an exit code or a tool name in a question.** They go in the
   plan and the summary, where a reader can follow them.
+- **Never a fill-in template.** A block of `key = value` lines for the operator to complete is
+  not a question. Each fact is ONE closed question with the choices the machine found, or a
+  decision the plan shows; the only free-text answers are a URL and a label. Model ids, voice
+  ids, auth modes, slots and ids of things the operator has not created yet are derived or
+  deferred, never typed.
 
 ## Steps for the AI agent
 
@@ -120,9 +125,9 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      - Responds normally → connected. Continue to Gate #2.
      - Tool is "not found" / unavailable → the server is not loaded in this
        session. **Stop setup and make no changes.** Tell the user: run
-       `/odoo-semantic-mcp:connect`, then restart Claude Code and open a NEW
-       session (MCP servers do not hot-reload), then re-run
-       `/odoo-ai-agents:odoo-setup`.
+       `/odoo-semantic-mcp:connect`, then `/reload-plugins` (the plugin's server reloads
+       with its configuration; only a server registered by hand needs a new session), then
+       re-run `/odoo-ai-agents:odoo-setup`.
      - Tool returns a 401 / auth error → Stop and suggest re-running
        `/odoo-semantic-mcp:connect`.
      - Tool returns some other error (server down, self-hosted instance offline)
@@ -411,8 +416,9 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    with its one-line cause; then the engine table: each step → `configured` / `skipped (already
    done)` / `skipped (declined)` / `failed`. List any served lease older than 7 days that another
    session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Then remind the user:
-   > MCP servers do NOT hot-reload - restart your Claude Code / Codex / Gemini
-   > session for the newly wired browser servers and permissions to take effect.
+   > `/reload-plugins` reloads the plugin's own servers (odoo-local, odoo-media) and their
+   > options; the browser families step 10 registers in your user configuration and the
+   > permission rules take effect in a NEW Claude Code / Codex / Gemini session.
 
 ## Refresh mode (`refresh [--version X.Y] [--profile P]`)
 
@@ -624,46 +630,60 @@ Resolve:
 - **70-speech** *(runs only via `voice`; never in `all` or `instance`)* - Narration for demo
   videos, vendor-neutral: any endpoint that speaks the OpenAI audio API (`POST
   <base_url>/audio/speech`, optional `GET <base_url>/audio/voices`) for text-to-speech, and
-  `POST <base_url>/audio/transcriptions` for the speech-to-text check. 1. Run
-  `"$STEPS_DIR/70-speech.sh" propose` (read-only): it lists the provider shapes it knows (a
-  gateway, hosted and self-hosted), a gateway the operator exported as `ODOO_AI_SPEECH_BASE_URL`,
-  and whether `ffmpeg` has the filters the assembler needs. 2. Ask the operator with
-  AskUserQuestion: the TTS `base_url`, `model`, the `auth` mode (`bearer` when the endpoint
-  expects a value, `none` for an open self-hosted one), one `voice` per narration language (a
-  voice is recorded with the language it is native to; a mismatch is refused), the STT
-  `base_url`, `model` and `auth`. When the TTS endpoint lists voices, offer that list. 3. Write
-  the confirmed configuration as JSON under `<state root>/scratch/speech-setup/`, run
-  `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file. 4. `auth = bearer`:
-  tell the operator to open `/plugin`, choose `odoo-ai-agents`, Configure, and fill in the option
-  titled "Speech endpoint key" (the value never goes through the chat), then run
-  `/reload-plugins`; then call the odoo-media `media_info` tool (the option shows `true`) and
-  `speech_probe` (one short sentence per language, synthesized and transcribed back: `verdict`
-  `pass` per language, else the voice or the endpoint is wrong). `check` validates the file only;
-  `apply` only advises. **Upgrading from an earlier version:** when `check` prints `UPGRADE=`,
+  `POST <base_url>/audio/transcriptions` for the speech-to-text check. The operator never types
+  a model id, a voice id or an auth mode: the endpoint states them. 1. Run
+  `"$STEPS_DIR/70-speech.sh" propose` (read-only): it lists what it found - a gateway the
+  operator exported as `ODOO_AI_SPEECH_BASE_URL`, local containers or services answering the
+  audio shape - the provider shapes it knows, and whether `ffmpeg` has the filters the assembler
+  needs. 2. ONE closed question: "Where does the narration voice come from?" with what `propose`
+  found as the first choices, then "my company's gateway - I give its URL", "a hosted vendor
+  with an OpenAI-compatible audio API - I give its URL", and "none for now (demo videos stay
+  silent)". A URL is the one free-text answer. 3. Run
+  `"$STEPS_DIR/70-speech.sh" probe-endpoint --base-url <URL>` (read-only, no value): it says
+  whether the endpoint answers, whether it is open or expects a value (`AUTH=open|required`),
+  and, when open, its models and voices. `AUTH=required`: tell the operator to open `/plugin`,
+  choose `odoo-ai-agents`, Configure, fill in "Speech endpoint key" (never through the chat),
+  then `/reload-plugins`; then the odoo-media `speech_voices` tool with that `base_url` lists
+  the models and voices. 4. Decide from the listing, show it in the plan: the TTS model (the one
+  id that names speech or tts; several -> one closed question from the list), the STT model
+  (the id that names transcription, stt or whisper; same rule), one voice per narration
+  language - the languages the docs-site and i18n registries declare, never asked again - from
+  the voices the endpoint tags for that language, else ONE closed question per language from
+  the list (a voice is native to one language; a mismatch is refused). 5. Write the confirmed
+  configuration as JSON under `<state root>/scratch/speech-setup/`, run
+  `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file; then call the
+  odoo-media `speech_probe` tool (one short sentence per language, synthesized and transcribed
+  back: `verdict` `pass` per language, else the voice or the endpoint is wrong) and let the
+  operator listen to the clips it names. `check` validates the file only; `apply` only advises. **Upgrading from an earlier version:** when `check` prints `UPGRADE=`,
   the file still names an environment variable; hand the operator the command on that line
-  (their own terminal, never yours) - it moves the value into the plugin configuration and
-  rewrites the file - then `/reload-plugins`, and step 4 is done.
+  (their own terminal, or this chat with a leading `!`; never yours) - it moves the value into
+  the plugin configuration and rewrites the file - then `/reload-plugins`, and step 3 is done.
 - **75-youtube** *(runs only via `youtube`; never in `all` or `instance`)* - The channels videos
   are published to, by purpose. 1. Run `"$STEPS_DIR/75-youtube.sh" propose` (read-only): it
   prints what the operator prepares on the Google side (a Cloud project with the YouTube Data
   API enabled, a Desktop-type OAuth client and its downloaded client JSON, the consent screen
-  External and In production with Branding filled in) and the slots. 2. Ask the operator with
-  AskUserQuestion, per channel: the purpose (`docs` for user guides, the docs site and the App
-  Store DEMO tab - at least this one; `marketing` for sales and marketing videos; a third purpose
-  of theirs), the channel label, the default privacy (`unlisted` until the docs are published),
-  an optional playlist id and default language. A purpose without a channel keeps its videos
-  local. 3. Per channel, write the confirmed table as JSON under `<state root>/scratch/youtube-setup/`,
+  External and In production with Branding filled in) and the slots. 2. Ask the operator ONE
+  closed question: which channels they publish to - `docs` (user guides, the docs site, the App
+  Store DEMO tab; at least this one), `marketing` (sales and marketing videos), a third purpose
+  of theirs - then, per chosen channel, its label (the channel's handle or name, free text).
+  Nothing else is asked: the default privacy is `unlisted` (a decision the plan states; public is
+  said per upload); a playlist id and a default language are never asked at setup - a playlist
+  is added later with `odoo-setup youtube` (its id is the `list=` value of the playlist's URL in
+  YouTube Studio), and every upload states its own language. A purpose without a channel keeps
+  its videos local. 3. Per channel, write the confirmed table as JSON under `<state root>/scratch/youtube-setup/`,
   run `"$STEPS_DIR/75-youtube.sh" record --channel <purpose> --from-json <file>` and remove the
   file. 4. Per channel, give the operator the one command THEY run in their own terminal, on a
   machine with a browser: `"$STEPS_DIR/75-youtube.sh" consent --channel <purpose> --client-json
   <downloaded client JSON>` - it completes the consent for the account that owns the channel and
   stores what it obtains in the plugin configuration itself, printing nothing of it; then
-  `/reload-plugins`. The agent never runs it. 5. Call the odoo-media `youtube_check` tool
+  `/reload-plugins`. The operator runs it in a terminal, or types it in this chat with a leading
+  `!` (it then runs on their machine, outside the agent); the agent never runs it. 5. Call the odoo-media `youtube_check` tool
   (channel = purpose, `live` true): the channel title comes back from Google, or the result names
   the option still missing. `check` validates the file only; `apply` only advises. **Upgrading
   from an earlier version:** when `check` prints `UPGRADE=`, hand the operator the command on
-  that line (their own terminal, never yours) - it moves the values into the plugin configuration
-  and rewrites the file as channels - then `/reload-plugins`, then step 5.
+  that line (their own terminal, or this chat with a leading `!`; never yours) - it moves the
+  values into the plugin configuration and rewrites the file as channels - then
+  `/reload-plugins`, then step 5.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `--reset` runs `apply --hard`: backs up `instances.toml` to `<path>.bak.<timestamp>` then
   writes an empty registry - what the menu option "Start the instance registry over" promises.

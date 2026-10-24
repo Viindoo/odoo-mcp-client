@@ -63,6 +63,8 @@ class _Fake(http.server.BaseHTTPRequestHandler):
         self.calls.append(("GET", self.path, self.headers.get("Authorization", ""), b""))
         if self.path.startswith("/v1/audio/voices"):
             return self._send(200, json.dumps({"voices": ["mai", "af_heart"]}).encode())
+        if self.path.startswith("/v1/models"):
+            return self._send(200, json.dumps({"data": [{"id": "voice-tts"}, {"id": "voice-stt"}]}).encode())
         if self.path.startswith("/youtube/v3/channels"):
             return self._send(200, json.dumps({"items": [{"id": "UCfake", "snippet": {"title": "Acme Docs"}}]}).encode())
         if self.path.startswith("/youtube/v3/videos"):
@@ -450,3 +452,18 @@ def test_the_connection_half_waits_for_the_sibling_plugin_and_runs_once_it_is_up
     assert "odoo-semantic" not in json.loads((cfg / ".claude.json").read_text())["mcpServers"]
     new_calls = (state / "calls.log").read_text()[len(calls_before):]
     assert "odoo-ai-agents@test-mkt" not in new_calls and '"--values-stdin"' in new_calls
+
+
+def test_speech_voices_lists_models_too_and_can_ask_an_endpoint_that_is_not_configured_yet(media, tmp_path):
+    """The setup conversation lists voices and models from the URL the operator gave, before any
+    speech.toml exists; the configured endpoint answers the same without an argument."""
+    client, home, fake = media
+    out = structured(client.call("speech_voices"))
+    assert out["voices"] == {"voices": ["mai", "af_heart"]} and out["models"] == ["voice-tts", "voice-stt"]
+    assert out["tts_model_guess"] == "voice-tts" and out["stt_model_guess"] == "voice-stt"
+    (home / "speech.toml").unlink()
+    out = structured(client.call("speech_voices", {"base_url": fake + "/v1"}))
+    assert out["models"] == ["voice-tts", "voice-stt"] and out["voices"]["voices"] == ["mai", "af_heart"]
+    sent = [c for c in _Fake.calls if c[1] in ("/v1/models", "/v1/audio/voices")]
+    assert sent and all(c[2].startswith("Bearer ") for c in sent)      # the configured value went along
+    assert "speech-value-0001" not in json.dumps(out)

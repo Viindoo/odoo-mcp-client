@@ -245,7 +245,8 @@ def cmd_propose(args):
                        "and the authorized domain of those URLs; an unverified app is fine (Advanced > continue)")
     _emit("PREPARE_4", "one consent per channel account, on a machine with a browser: "
                        "75-youtube.sh consent --channel <purpose> --client-json <downloaded file> "
-                       "(run by the operator in a terminal; it stores what it obtains in the plugin "
+                       "(run by the operator - in a terminal, or typed in the Claude Code chat with a leading "
+                       "'!' so it runs on their machine; it stores what it obtains in the plugin "
                        "configuration and prints nothing of it)")
     _emit("SCOPE", SCOPE)
     _emit("SLOTS", " ".join(SLOTS))
@@ -255,7 +256,11 @@ def cmd_propose(args):
     cfg, code = _load(youtube_path())
     _emit("DECLARED", 1 if code == 0 else 0)
     _emit("DECLARED_CHANNELS", " ".join(sorted(cfg["channels"])) if code == 0 else "")
-    _emit("FACTS_TO_CONFIRM", "purpose channel slot privacy playlist_id default_language")
+    _emit("FACTS_TO_CONFIRM", "purpose channel slot")
+    _emit("DECIDED", "privacy unlisted (public is said per upload)")
+    _emit("OPTIONAL", "playlist_id default_language - never asked at setup; added later with "
+                      "/odoo-ai-agents:odoo-setup youtube (a playlist id is the list= value of the playlist's "
+                      "URL in YouTube Studio; a language is said per upload)")
     _emit("RULE", "at least one channel; docs and marketing are the purposes this plugin's runs name; "
                   "a purpose without a channel keeps the video local")
     return 0

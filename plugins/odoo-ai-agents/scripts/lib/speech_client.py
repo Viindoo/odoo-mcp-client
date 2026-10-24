@@ -203,18 +203,89 @@ def stt(audio, lang, cfg=None, value=None, cancel=None, words=False):
     return {"text": text, "words": out}
 
 
-def voices(cfg=None, value=None):
-    cfg = cfg or _load()
-    table = cfg["tts"]
-    url = table.get("voices_url") or table["base_url"].rstrip("/") + "/audio/voices"
+def _get_json(url, headers, timeout=60):
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def voices(cfg=None, value=None, base_url=None):
+    """The voice listing as the endpoint returns it; `base_url` overrides the configured one
+    (the setup conversation lists voices before speech.toml exists)."""
+    cfg = cfg or (None if base_url else _load())
+    table = (cfg or {}).get("tts") or {"auth": "bearer" if value else "none"}
+    base = (base_url or table["base_url"]).rstrip("/")
+    url = (table.get("voices_url") if not base_url else None) or base + "/audio/voices"
     headers = _headers(table, value)
     headers.pop("Content-Type", None)
-    req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+        return _get_json(url, headers)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         raise SpeechError("%s: %s" % (url, exc), 1)
+
+
+def models(cfg=None, value=None, base_url=None):
+    """The model ids the endpoint lists at GET <base>/models (OpenAI shape), [] when it has none."""
+    cfg = cfg or (None if base_url else _load())
+    table = (cfg or {}).get("tts") or {"auth": "bearer" if value else "none"}
+    base = (base_url or table["base_url"]).rstrip("/")
+    headers = _headers(table, value)
+    headers.pop("Content-Type", None)
+    try:
+        data = _get_json(base + "/models", headers)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return []
+        raise SpeechError("%s/models: HTTP %d" % (base, exc.code), 1)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise SpeechError("%s/models: %s" % (base, exc), 1)
+    rows = data.get("data") if isinstance(data, dict) else data
+    out = []
+    for row in rows or []:
+        mid = row.get("id") if isinstance(row, dict) else row
+        if isinstance(mid, str) and mid.strip():
+            out.append(mid.strip())
+    return out
+
+
+def _guess(ids, words):
+    hits = [m for m in ids if any(w in m.lower() for w in words)]
+    return hits[0] if len(hits) == 1 else ""
+
+
+def probe_endpoint(base_url, timeout=5):
+    """What an audio endpoint says about itself WITHOUT a value: reachable or not, open or
+    expecting a value (401/403), and when open its models and voices.
+    {"reachable": bool, "auth": "open"|"required"|"unknown", "models": [...], "voices": ...,
+     "tts_model_guess": str, "stt_model_guess": str, "detail": str}"""
+    base = base_url.rstrip("/")
+    out = {"reachable": False, "auth": "unknown", "models": [], "voices": None,
+           "tts_model_guess": "", "stt_model_guess": "", "detail": ""}
+    status = None
+    for path in ("/models", "/audio/voices"):
+        try:
+            data = _get_json(base + path, {}, timeout=timeout)
+            out["reachable"] = True
+            if path == "/models":
+                rows = data.get("data") if isinstance(data, dict) else data
+                out["models"] = [str(r.get("id") if isinstance(r, dict) else r) for r in (rows or [])
+                                 if (r.get("id") if isinstance(r, dict) else r)]
+            else:
+                out["voices"] = data
+        except urllib.error.HTTPError as exc:
+            out["reachable"] = True
+            status = exc.code if status is None or exc.code in (401, 403) else status
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            out["detail"] = "%s%s: %s" % (base, path, exc)
+    if not out["reachable"]:
+        return out
+    if status in (401, 403):
+        out["auth"] = "required"
+    elif out["models"] or out["voices"] is not None:
+        out["auth"] = "open"
+    out["tts_model_guess"] = _guess(out["models"], ("tts", "speech"))
+    out["stt_model_guess"] = _guess(out["models"], ("stt", "whisper", "transcri"))
+    return out
 
 
 PROBE_MAX_WER = 0.35   # a round trip through a low-end engine pair is noisy; a mismatch is far above

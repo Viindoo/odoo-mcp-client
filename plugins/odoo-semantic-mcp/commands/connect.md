@@ -22,7 +22,8 @@ stores the key.
    SHADOW the plugin's server of the same name, so a value filled in the plugin dialog would never
    be used. Tell the operator this and give them the ONE command that moves what that entry holds
    (its URL and its value) into the plugin's configuration and then removes the entry, after a
-   backup of the file - run in THEIR own terminal, never by you:
+   backup of the file - run by THEM, in a terminal or typed in this chat with a leading `!`
+   (it then runs on their machine, outside you); never by you:
    ```
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/migrate_connection.py" apply
    ```
@@ -38,7 +39,8 @@ stores the key.
      the same is `claude plugin configure odoo-semantic-mcp@viindoo-plugins --values-stdin`
      with a JSON object of the two options on stdin (the plugin id is what `claude plugin list`
      shows). The key comes from your server admin or https://odoo-semantic.viindoo.com/install/.
-   - then `/reload-plugins` (or a new session).
+   - then `/reload-plugins`: the plugin's server restarts with the configured values at once
+     (verified); a new session is only needed for a server registered by hand.
    You never ask for the key, never receive it in chat, never write it anywhere.
 
 3. **Verify the connection from THIS session** once the operator says the dialog is done and the

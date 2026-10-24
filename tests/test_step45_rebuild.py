@@ -210,3 +210,60 @@ def test_the_catalog_upsert_keeps_a_comma_inside_an_array_item(tmp_path):
     row = json.loads(subprocess.run([sys.executable, str(LIB / "instances_io.py"), "read-row", str(toml), "17.0", "", "--json"],
                                     capture_output=True, text=True, check=True).stdout)
     assert row["extra_requirements"] == ["werkzeug>=2.0,<2.1", "requests"]
+
+
+def test_a_build_script_that_wants_pip_makes_the_build_fall_back_to_pip_and_the_row_remembers_it(world):
+    """fasttext's setup.py runs `pip install pybind11` inside uv's isolated build, where there is
+    no pip. The build must not stop at "check system build deps": pip is added to the venv uv
+    created, the requirements are installed with it, the row records build_tool = uv+pip and the
+    next rebuild goes straight to that path."""
+    uv_log = world["log"]
+    _write_exec(world["tmp"] / "bin" / "uv", '''\
+        #!/usr/bin/env bash
+        echo "$@" >> "%s"
+        if [ "$1" = "venv" ]; then
+          d="$2"; mkdir -p "$d/bin" "$d/lib"; echo "home = /usr/bin" > "$d/pyvenv.cfg"
+          printf '#!/usr/bin/env bash\\necho "$@" >> "%s"\\nexit 0\\n' > "$d/bin/python"; chmod +x "$d/bin/python"; echo new > "$d/MARKER"
+          exit 0
+        fi
+        case "$*" in
+          *"pip install"*" -r "*)
+            echo "  x Failed to build \\`fasttext==0.9.2\\`" >&2
+            echo "  ModuleNotFoundError: No module named 'pip'" >&2
+            exit 1 ;;
+        esac
+        exit 0
+        ''' % (uv_log, world["tmp"] / "python.log"))
+    proc = _run(world, "create-venv", "--series", SERIES, "--profile", "std", "--rebuild")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "BUILD_FALLBACK=pip reason=" in proc.stdout and "No module named 'pip'" in proc.stdout
+    assert "check system build deps" not in proc.stdout + proc.stderr
+    python_calls = (world["tmp"] / "python.log").read_text()
+    assert "-m pip install -r" in python_calls                      # pip, inside the venv uv created
+    assert "pip install --python" in uv_log.read_text() and " pip\n" in uv_log.read_text()   # pip was added by uv
+    assert _row(world)["build_tool"] == "uv+pip"
+    # the next rebuild honours the recorded tool: no uv install of the requirements, no fallback message
+    uv_log.write_text("")
+    (world["tmp"] / "python.log").write_text("")
+    proc = _run(world, "create-venv", "--series", SERIES, "--profile", "std", "--rebuild")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "BUILD_TOOL=uv+pip" in proc.stdout and "TOOL_SOURCE=row" in proc.stdout
+    assert "BUILD_FALLBACK" not in proc.stdout
+    assert " -r " not in uv_log.read_text() and "-m pip install -r" in (world["tmp"] / "python.log").read_text()
+
+
+def test_a_build_that_fails_for_another_reason_names_the_error_line_and_the_log(world):
+    _write_exec(world["tmp"] / "bin" / "uv", '''\
+        #!/usr/bin/env bash
+        if [ "$1" = "venv" ]; then
+          d="$2"; mkdir -p "$d/bin" "$d/lib"; echo "home = /usr/bin" > "$d/pyvenv.cfg"
+          printf '#!/usr/bin/env bash\\nexit 0\\n' > "$d/bin/python"; chmod +x "$d/bin/python"; exit 0
+        fi
+        echo "error: Failed to build \\`psycopg2==2.9.9\\`: pg_config executable not found" >&2
+        exit 1
+        ''')
+    proc = _run(world, "create-venv", "--series", SERIES, "--profile", "std", "--rebuild")
+    assert proc.returncode != 0
+    assert "pg_config executable not found" in proc.stderr and ".build.log" in proc.stderr
+    assert "check system build deps" not in proc.stderr
+    assert (world["venv"] / "MARKER").read_text() == "old"       # the old venv came back

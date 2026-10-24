@@ -56,8 +56,9 @@ case "${1:-}" in
     check)    cmd_check ;;
     apply)    cmd_apply ;;
     propose)  shift; python3 "$LIB" propose "$@" ;;
+    probe-endpoint) shift; python3 "$LIB" probe-endpoint "$@" ;;
     record)   shift; python3 "$LIB" record "$@" ;;
     show)     shift; python3 "$LIB" show "$@" ;;
     probe)    shift; python3 "$CLIENT" probe "$@" ;;
-    *) echo "usage: $0 {describe|check|apply|propose|record --from-json FILE|show|probe [--lang xx_YY]}" >&2; exit 2 ;;
+    *) echo "usage: $0 {describe|check|apply|propose|probe-endpoint --base-url URL|record --from-json FILE|show|probe [--lang xx_YY]}" >&2; exit 2 ;;
 esac
