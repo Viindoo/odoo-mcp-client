@@ -421,3 +421,32 @@ def test_a_checkout_loaded_with_plugin_dir_never_moves_anything(tmp_path):
     assert not (home / "state" / "upgrade.json").exists()
     assert not (state / "calls.log").exists()
     assert "api_key_env" in (home / "speech.toml").read_text()
+
+
+def test_the_connection_half_waits_for_the_sibling_plugin_and_runs_once_it_is_updated(tmp_path):
+    """A machine that updates odoo-ai-agents before odoo-semantic-mcp keeps its stand-alone
+    registration for now; the pass marks that half pending and finishes it at the first server
+    start after the sibling plugin is installed - without redoing the values half."""
+    home, state, cfg, env = _upgrade_world(tmp_path)
+    installed = cfg / "plugins" / "installed_plugins.json"
+    installed.write_text(json.dumps({"version": 2, "plugins": {}}))     # sibling not installed yet
+    stamp = home / "state" / "upgrade.json"
+    with McpClient(env, tmp_path, server=MEDIA_SERVER) as client:
+        client.initialize()
+        assert _wait_for(stamp)
+        info = structured(client.call("media_info"))
+        assert info["upgrade"]["connection"]["pending"] is True
+    assert "odoo-semantic" in json.loads((cfg / ".claude.json").read_text())["mcpServers"]
+    assert sorted(json.loads(stamp.read_text())["moved"]) == ["speech_api_key", "youtube_client_id"]
+    calls_before = (state / "calls.log").read_text()
+    installed.write_text(json.dumps({"version": 2, "plugins": {
+        "odoo-semantic-mcp@test-mkt": [{"scope": "user", "installPath": str(PLUGIN.parent / "odoo-semantic-mcp")}]}}))
+    (home / "state" / "upgrade-notice.txt").unlink()          # the hook consumed the first notice
+    with McpClient(env, tmp_path, server=MEDIA_SERVER) as client:
+        client.initialize()
+        assert _wait_for(home / "state" / "upgrade-notice.txt"), "the pending half did not run again"
+        info = structured(client.call("media_info"))
+        assert info["upgrade"]["connection"]["removed"] == "user"
+    assert "odoo-semantic" not in json.loads((cfg / ".claude.json").read_text())["mcpServers"]
+    new_calls = (state / "calls.log").read_text()[len(calls_before):]
+    assert "odoo-ai-agents@test-mkt" not in new_calls and '"--values-stdin"' in new_calls

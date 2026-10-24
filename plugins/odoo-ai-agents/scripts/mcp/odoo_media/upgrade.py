@@ -110,12 +110,32 @@ def _apply_in_process(moved, environ):
             os.environ[target] = value
 
 
+def _plugin_id(plugin_root, environ):
+    upgrade_values = cli.load_lib("upgrade_values")
+    # ODOO_MEDIA_PLUGIN_ID: the test seam that stands in for a marketplace install path
+    return environ.get("ODOO_MEDIA_PLUGIN_ID", "").strip() or upgrade_values.plugin_id(root=str(plugin_root))
+
+
+def connection_pending(stamp, plugin_root, environ=None):
+    """True when the last pass could not move the odoo-semantic registration because the sibling
+    plugin shipped no migration, and that sibling is installed now."""
+    environ = os.environ if environ is None else environ
+    if not (stamp.get("connection") or {}).get("pending"):
+        return False
+    pid = _plugin_id(plugin_root, environ)
+    if not pid:
+        return False
+    try:
+        return _sibling_module(pid.split("@", 1)[1]) is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def run_once(version, plugin_root, environ=None, claude=None, config_dir=None):
     """The pass itself. Returns the report, or None when nothing had to run."""
     environ = os.environ if environ is None else environ
     upgrade_values = cli.load_lib("upgrade_values")
-    # ODOO_MEDIA_PLUGIN_ID: the test seam that stands in for a marketplace install path
-    pid = environ.get("ODOO_MEDIA_PLUGIN_ID", "").strip() or upgrade_values.plugin_id(root=str(plugin_root))
+    pid = _plugin_id(plugin_root, environ)
     if not pid:
         log.info("upgrade pass skipped: %s is not a marketplace install", plugin_root)
         return None
@@ -147,8 +167,11 @@ def run_once(version, plugin_root, environ=None, claude=None, config_dir=None):
             if conn["error"] and conn["found"]:
                 clean = False
         elif "error" not in report["connection"]:
-            report["connection"] = {"found": None, "note": "%s on this machine ships no migration; "
-                                    "/odoo-semantic-mcp:connect handles an older registration" % SIBLING}
+            # the sibling is older than the one shipping the migration (or not installed): the
+            # registration stays for now and this half runs again once the sibling is updated
+            report["connection"] = {"found": None, "pending": True,
+                                    "note": "%s on this machine ships no migration yet; this half runs "
+                                            "again after it is updated" % SIBLING}
     if clean:
         _write_stamp(report)
     else:
@@ -183,7 +206,8 @@ def _write_stamp(report):
 def _locked_run(version, plugin_root):
     try:
         os.makedirs(state_dir(), exist_ok=True)
-        if read_stamp().get("version") == version:
+        stamp = read_stamp()
+        if stamp.get("version") == version and not connection_pending(stamp, plugin_root):
             return
         with open(os.path.join(state_dir(), LOCK_NAME), "a+") as lock:
             if fcntl is not None:
@@ -192,7 +216,8 @@ def _locked_run(version, plugin_root):
                 except OSError:
                     log.info("upgrade pass: another server holds the lock")
                     return
-            if read_stamp().get("version") == version:
+            stamp = read_stamp()
+            if stamp.get("version") == version and not connection_pending(stamp, plugin_root):
                 return
             report = run_once(version, plugin_root)
             if report:

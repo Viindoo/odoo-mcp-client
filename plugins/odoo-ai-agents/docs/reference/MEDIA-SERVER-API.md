@@ -80,8 +80,10 @@ plugin's options through `claude plugin configure --values-stdin`; the files are
 moved values are applied to this process so the tools work at once), then the sibling plugin's
 `scripts/migrate_connection.py apply` (found through Claude Code's installed-plugins record; the
 stand-alone `odoo-semantic` registration moves into `odoo-semantic-mcp`'s options and is removed).
-The stamp holds the report without any value; `upgrade-notice.txt` is shown once by the session-start
-readiness hook. A `--plugin-dir` checkout has no marketplace id and the pass does nothing; a failed
+When the installed odoo-semantic-mcp ships no migration yet (a machine that updated this plugin first),
+that half is marked `pending` in the stamp and runs at the first start after the sibling is updated;
+the values half is not repeated. The stamp holds the report without any value; `upgrade-notice.txt`
+is shown once by the session-start readiness hook. A `--plugin-dir` checkout has no marketplace id and the pass does nothing; a failed
 configure call leaves no stamp, so the next start retries; two servers are serialized by a lock.
 `ODOO_MEDIA_PLUGIN_ID` is the test seam that stands in for a marketplace path.
 
