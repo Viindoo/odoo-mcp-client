@@ -45,6 +45,7 @@ cmd_describe() {
 }
 
 _have() { command -v "$1" >/dev/null 2>&1; }
+_have_docutils() { python3 -c "import docutils" >/dev/null 2>&1; }
 
 # True when the instance steps (40/50) are in scope for the active filter.
 _needs_instance() { [[ "$SETUP_FILTER" == "all" || "$SETUP_FILTER" == "instance" ]]; }
@@ -401,7 +402,8 @@ cmd_apply() {
         echo "         fix: git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo17"
         echo "              (or set ODOO_GIT_BASE to where your repos live)"
         printf '  %s' "$(_mark _have docker)";   echo " docker (REQUIRED when your PostgreSQL runs in a container - db_run_mode=docker)"
-        printf '  %s' "$(_mark _have ffmpeg)";   echo " ffmpeg (optional - pagecast video/GIF recording)"
+        printf '  %s' "$(_mark _have ffmpeg)";   echo " ffmpeg (optional - video/GIF recording and the narrated-video assembler; 'video_publish.py verify-tools' lists the filters)"
+        printf '  %s' "$(_mark _have_docutils)"; echo " docutils for python3 (optional - the module-docs RST gate; fix: python3 -m pip install --user docutils)"
     fi
     echo
     echo "NEEDS YOUR CONFIRMATION (cannot be auto-detected):"

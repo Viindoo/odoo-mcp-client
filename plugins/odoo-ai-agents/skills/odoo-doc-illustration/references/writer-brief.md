@@ -18,12 +18,16 @@ LANGUAGES: <resolved list, en_US first>
 DOMAIN: <Domain line | none>   SRS: <path | none>
 FEATURE CATALOG: <path | none>   ROLE MAP: <path | none>   WALKTHROUGH: <path | none>
 CHANGE: <feature list | path of the file holding it | whole | none>
-DOC SCOPE: screenshot-doc | full-guide
+DOC SCOPE: screenshot-doc | full-guide   (full-guide = every catalog row stamped guide | setup | excluded: <reason>)
 CAPTURE MODE: screens | scenarios
 BROWSER MODE: headless | headed
 extends_in_scope: [<base module>, ...]
 USER LANGUAGE: <lang | omit>
 ```
+
+The writer's images live under `static/description/assets/` (the reference gate requires it) and
+the cover at the root of `static/description/`: a brief never puts `static/description/` out of the
+writer's scope; only `index*.html` there is the marketer's.
 
 ## The landing launch (`odoo-marketer`, after `full` returns)
 

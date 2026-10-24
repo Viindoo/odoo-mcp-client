@@ -35,6 +35,7 @@ depth, then alphabetically; `feature_id` is `<module-slug>-<NN>` and never chang
 | `depends_on` | `feature_id`s this one needs first |
 | `value` | one line of user benefit (the landing's Key Features grid reads it) |
 | `grounded` | `osm`, `hybrid`, `local-source` or `unknown` |
+| `coverage` | stamped by the guide writer, never by the cataloguer: `guide` (a chapter or task documents it), `setup` (the administrator's setup chapter does), or `excluded: <a reason the reader would accept>`; a `full-guide` with a row left unstamped is not done (`scripts/lib/doc_coverage_check.py`) |
 
 `feature-catalog.md` mirrors the JSONL as a table for a human reader, followed by the role table
 and a grounding count.
@@ -68,9 +69,12 @@ and a grounding count.
 ```
 
 - **Roles.** One role per group that gates something the module ships (a catalog `roles` entry, a
-  `groups=` on a menu, button, field or setting, or a group the module defines). When no group
-  gates its day-to-day surface, add one `kind: user` role for the group whose access rights reach
-  its main models (else `base.group_user`). Exactly one role is `kind: admin`: the group that
+  `groups=` on a menu, button, field or setting, or a group the module defines). What a role SEES
+  comes from the menu's `groups=` and those of every parent menu up to the root (a menu whose
+  ancestor is `base.group_system` only is an administrator's menu, whatever the access rights
+  say); access rights (`ir.model.access.csv`) decide what it may change, never what it sees.
+  When no group gates its day-to-day surface, add one `kind: user` role for the group whose
+  access rights reach its main models (else `base.group_user`). Exactly one role is `kind: admin`: the group that
   reaches configuration and settings. A role that implies another role of the map is `manager`,
   every other one `user`. `ui_name` is the privilege or category plus the group name as the
   access-rights screen shows them.

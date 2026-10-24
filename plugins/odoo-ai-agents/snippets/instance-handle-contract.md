@@ -22,6 +22,7 @@ shares. It carries exactly:
 - `lease_token` - the lease that owns the instance lifecycle
 - `run_id` - the run that owns the lease
 - `server_pid` (optional) - the server's process-group id; null for a build that does not listen
+- `ui_user` (optional) - the account a browser consumer acts as on a demo build; never asked for, never sought on disk
 
 Copy every field from the latest `instance_handle` a tool returned (after a build, the final
 `job_wait`'s).
@@ -111,6 +112,5 @@ One instance per run. Release rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-tea
 export, then the module docs, then the site docs) names the next consumer to the current one as
 `HAND_ON: <skill>`: that consumer keeps the lease running, returns the handle in its
 Continuation `next.inputs`, and the caller forwards it as `INSTANCE_HANDLE` to the next consumer
-when the build covers it (series, `demo`, `languages_loaded`, `addons_path`), else provisions
-anew. The caller releases the handle after the last consumer; no consumer releases a handle it
+when the build covers it (series, demo, languages, addons path), else provisions anew. The caller releases the handle after the last consumer; no consumer releases a handle it
 was forwarded or asked to hand on.

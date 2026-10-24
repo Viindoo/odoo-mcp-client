@@ -42,6 +42,8 @@ Missing `MODE`, `MODULE`, `WORKTREE_PATH`, `ODOO VERSION`, `SHARE_DIR` or `ISOLA
 
 ## Before you write (every mode)
 
+0. **You run no git** - not a read, not a status; a repo fact comes from the `repo_facts` tool
+   and the caller commits (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 1. **Read the rules of your class** (`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` § 1,
    the module-docs row).
 2. **Search first.** The module's existing `doc/*.rst`, README and `static/description/`, the
@@ -103,7 +105,8 @@ A run with `CHANGE` as a feature list updates the existing documents instead of 
 
 Write the three shared files (skip each one the brief already names):
 
-1. **Catalog.** Menus from the data XML on disk (parent path, action, `groups=`); views from
+1. **Catalog.** Menus from the data XML on disk (parent path, action, `groups=` of the menu AND
+   of every parent up to the root - the chain decides who sees it); views from
    `module_inspect(method='views')` and disk; OWL components from `module_inspect(method='owl')`;
    per model `model_inspect(method='summary')` for `key_fields` and `states`; `entity_lookup` on
    each main form view for which state shows each header button. One entry per capability,
@@ -131,9 +134,15 @@ Return the three paths and stop.
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § 7.
 4. **Capture** every shot per doc-capture-mechanics (family and mode § 1-2, staging § 3, the handle
    § 4, instance § 5, on-theme check § 6, the step loop § 8-9, locales § 10, the coverage report § 11,
-   degraded paths § 12). In `scenarios` mode drive each step as the scenario's role.
+   degraded paths § 12). In `scenarios` mode drive each step as the scenario's role. Before the
+   first chapter of a role, open its menus once as a user holding ONLY that role (the role map's
+   group): a menu that role cannot reach is not in its chapter, whatever the catalog inferred.
 5. **Write `doc/index.rst`** (English) and `doc/index_<locale>.rst` per other locale, prose and
-   headings in that locale, labels as the UI shows them in that locale. Skeleton, in order:
+   headings in that locale, labels EXACTLY as the UI shows them in that locale - read from the
+   screen you captured or the view on disk, never paraphrased from the English; a label you could
+   not read in a locale is a `concerns` line and the file is not returned as DONE until it is read.
+   Stamp every catalog row's `coverage` (`guide`, `setup`, or `excluded: <reason>`) as you place
+   it; `full-guide` means every row is stamped (the caller runs `doc_coverage_check.py`). Skeleton, in order:
    1. *Overview* - the business problem (manifest summary, catalog `value`s); the process as its
       stages with the acting role and the hand-off (`role-map.json` `process`); a table Role |
       What they do | Access right to assign (`ui_name`).
