@@ -880,3 +880,29 @@ def test_a_store_page_link_that_shows_its_host_or_stays_in_the_store_passes(modu
 
 def test_a_guide_link_is_not_held_to_the_store_text_rule(module):
     _clean(_rst(module, "Title\n=====\n\n`Open a ticket <https://support.acme-erp.com/t>`__\n"))
+
+
+def test_a_store_link_to_a_module_that_is_not_in_the_addons_path_is_reported(tmp_path):
+    """The EXTENSIONS cards link sibling modules root-relative; with --addons-path the gate refuses a
+    link to a module nobody ships (a name from memory)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "doc_refs_check.py"
+    addons = tmp_path / "addons"
+    for name in ("my_app", "my_app_extra"):
+        (addons / name).mkdir(parents=True)
+        (addons / name / "__manifest__.py").write_text("{'name': %r, 'depends': ['base']}" % name)
+    page = addons / "my_app" / "static" / "description"
+    page.mkdir(parents=True)
+    (page / "index.html").write_text(
+        '<a href="/apps/modules/17.0/my_app_extra">Extra</a> <a href="/apps/modules/17.0/my_app_ghost">Ghost</a>')
+    base = [sys.executable, str(script), "--module-root", str(addons / "my_app"), "--series", "17.0"]
+    with_path = subprocess.run(base + ["--addons-path", str(addons), str(page / "index.html")],
+                               capture_output=True, text=True)
+    assert with_path.returncode != 0
+    assert "LINK_MODULE_UNKNOWN" in with_path.stdout + with_path.stderr
+    assert "my_app_ghost" in with_path.stdout + with_path.stderr and "my_app_extra" not in (
+        [l for l in (with_path.stdout + with_path.stderr).splitlines() if "LINK_MODULE_UNKNOWN" in l][0])
+    without = subprocess.run(base + [str(page / "index.html")], capture_output=True, text=True)
+    assert "LINK_MODULE_UNKNOWN" not in without.stdout + without.stderr   # the check needs the directories

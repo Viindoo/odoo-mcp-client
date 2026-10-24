@@ -3,7 +3,7 @@
   "_comment_declared": "An entry here is also a DECLARATION that the file is a hot contract, and that declaration is itself an entry ticket: check_orchestration.py measures every listed path wherever it lives, not only the snippets/ + skills/_shared/ corpus the >=3-citer heuristic scans. That is the ONLY way a top-level skills/<name>/SKILL.md runtime contract can be capped - its basename SKILL.md is shared by every skill, so the citer count cannot see it. Keep every budget equal to the file's actual size when it was recorded: a budget above the real size silently hands back the space a trim just reclaimed.",
   "default_cap_bytes": 4096,
   "budgets": {
-    "snippets/module-doc-references.md": 5050,
+    "snippets/module-doc-references.md": 5171,
     "skills/_shared/debug-method.md": 6148,
     "skills/_shared/doc-cluster-plan.md": 11935,
     "skills/_shared/integration-loop.md": 7344,

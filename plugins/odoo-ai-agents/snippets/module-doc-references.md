@@ -52,7 +52,8 @@ English `index.html` shows the cover (in its HERO); a localized page, its cover 
 - RST: `` `<module> </apps/modules/<odoo_version>/<module>>`__ `` (anonymous `__`: a repeated named
   `_` link fails the RST render gate). HTML: `<a href="/apps/modules/<odoo_version>/<module>">`.
 - Never an absolute URL whose path is `/apps/modules/...` on any host (it sends readers to a
-  different store), and never a filesystem path to a sibling module (`../../<module>/...`).
+  different store), and never a filesystem path to a sibling module (`../../<module>/...`). With
+  `--addons-path`, a link to a module in none of those directories is `LINK_MODULE_UNKNOWN`.
 - Never a `mailto:` link or an email address, plain or obfuscated, in a doc file, an alt or a title:
   the gate's `LINK_MAILTO` / `EMAIL_ADDRESS`. Contact is a web page from the author profile; an
   address the author insists on ships only as an image (`${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`).
@@ -69,7 +70,7 @@ under `static/description/` or `doc/` that no other module file names (`icon.png
 exempt); delete an orphan.
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_refs_check.py" --module-root <abs module path> --series <resolved series> [files...]
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_refs_check.py" --module-root <abs module path> --series <resolved series> [--addons-path <dirs>] [files...]
 ```
 
 It also enforces the image fit above: `IMG_NOT_FLUID`, `IMG_STRETCHED`, `IMG_NO_WIDTH`,

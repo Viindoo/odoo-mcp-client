@@ -62,6 +62,8 @@ Rules
   LINK_STORE_SCHEME    store path that is neither exactly /apps/modules/<series>/<technical_name>
                        nor the vendor listing /apps/modules/browse?author=<vendor> (path exactly
                        /apps/modules/browse, a non-empty author parameter, no language prefix)
+  LINK_MODULE_UNKNOWN  (only with --addons-path) store link /apps/modules/<series>/<name> whose
+                       <name> is a directory with a manifest in none of the addons directories
   MANIFEST_IMAGE       manifest `images` entry that is not an existing png / gif / jpg / jpeg at
                        static/description/assets/<file> or static/description/<cover>
   MANIFEST_COVER       manifest images[0] that is not static/description/main_screenshot.<ext>
@@ -325,9 +327,10 @@ def _manifest_images(manifest_file):
 
 
 class Checker(object):
-    def __init__(self, module_root, series):
+    def __init__(self, module_root, series, addons_dirs=None):
         self.root = os.path.abspath(module_root)
         self.series = series
+        self.addons_dirs = [os.path.abspath(os.path.expanduser(d.strip())) for d in (addons_dirs or []) if d.strip()]
         self.description = os.path.join(self.root, *_DESCRIPTION)
         self.findings = []
 
@@ -435,11 +438,20 @@ class Checker(object):
             if _STORE_PATH.match(ref):
                 if not re.match(_STORE_EXACT % re.escape(self.series), ref):
                     self._add(doc_file, line, "LINK_STORE_SCHEME", ref)
+                elif self.addons_dirs and not self._module_exists(ref.rsplit("/", 1)[1]):
+                    self._add(doc_file, line, "LINK_MODULE_UNKNOWN", ref)
             else:
                 self._add(doc_file, line, "LINK_LOCAL", ref)
             return
         if not _inside(_resolve(ref, doc_file), self.root):
             self._add(doc_file, line, "LINK_SIBLING_PATH", ref)
+
+    def _module_exists(self, name):
+        for base in self.addons_dirs:
+            for manifest in _MANIFESTS:
+                if os.path.isfile(os.path.join(base, name, manifest)):
+                    return True
+        return False
 
     def emails(self, doc_file, line, text):
         for m in _EMAIL.finditer(text):
@@ -619,6 +631,8 @@ def main(argv):
     parser = argparse.ArgumentParser(prog="doc_refs_check.py", description=__doc__.split("\n")[0])
     parser.add_argument("--module-root", required=True)
     parser.add_argument("--series", required=True)
+    parser.add_argument("--addons-path", default="", dest="addons_path",
+                        help="comma-separated addons directories; a store link must name a module found there")
     parser.add_argument("files", nargs="*")
     try:
         args = parser.parse_args(argv)
@@ -637,7 +651,7 @@ def main(argv):
     if missing:
         sys.stderr.write("doc_refs_check.py: no such file: %s\n" % ", ".join(missing))
         return 2
-    checker = Checker(root, args.series)
+    checker = Checker(root, args.series, args.addons_path.split(",") if args.addons_path else None)
     for path in files:
         checker.check_file(path)
     if not args.files:

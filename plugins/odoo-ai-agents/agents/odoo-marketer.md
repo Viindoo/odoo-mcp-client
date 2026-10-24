@@ -146,8 +146,16 @@ developer tool whose buyers are developers, when the technical names are the val
    (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Brand-token fidelity) else
    the template's default, legacy `oe_*` classes kept when the module already uses them. After
    the hero, one line per `extends_in_scope` base, linked per
-   `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module. A marker
-   left in the shipped file means a capture degraded: say so in `concerns`.
+   `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module. The
+   EXTENSIONS section (the last one on the page) comes from
+   `${CLAUDE_PLUGIN_ROOT}/scripts/lib/module_dependents.py <MODULE> --addons-path <ADDONS_PATH>
+   --author "<manifest author>"`: one card per installable module it lists (up to 6, the ones the
+   buyer profile needs next; the rest in the report), the display name linked with the
+   root-relative store path of § Links to another module, the body from that module's manifest
+   `summary` or its own catalog in the buyer's words - never a module the script did not list;
+   nothing listed = no section. The TECH-REQUIREMENTS "Required modules" line links each module of
+   the same vendor the same way. A marker left in the shipped file means a capture degraded: say
+   so in `concerns`.
 4. **Contact and manifest.** The SUPPORT tab takes its two cards from `AUTHOR PROFILE`:
    `presales_url` and `support_url`, each written as an anchor whose visible text is the URL
    itself (the store renders an external anchor as plain text); a URL the profile lacks drops its
@@ -164,7 +172,8 @@ developer tool whose buyers are developers, when the technical names are the val
 5. **Finals and gates.** `mv` each final into `static/description/assets/` under its convention
    name (doc-capture-mechanics § 13), bring every off-convention reference into the convention,
    then run the gate of `module-doc-references.md` § Reference gate (`--series` = the resolved
-   `ODOO VERSION`) on every `index*.html` you wrote plus the descriptor until it exits 0; exit 2
+   `ODOO VERSION`, `--addons-path` = `ADDONS_PATH`, so a store link to a module that does not exist
+   is caught) on every `index*.html` you wrote plus the descriptor until it exits 0; exit 2
    is `NEEDS_CONTEXT` with the printed remedy. Close every page you drove
    (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).
 

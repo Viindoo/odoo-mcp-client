@@ -48,8 +48,10 @@ one - in the copy `odoo-content-draft` returns and in the skeleton below. Source
 block of that key in the supplied marketing copy, written from the buyer profile; `catalog` =
 `feature-catalog.jsonl`; `captures` = screenshots of the module's tasks; `manifest` = the module
 descriptor; `brief` = a value the caller supplies or the module already states (e.g. the manifest
-`support` key). A `Yes` section is always present; omit a `Recommended` or `Optional` section whose
-source is empty rather than leaving placeholders.
+`support` key); `dependents` = the vendor's own modules whose manifest `depends` names this module,
+listed by `${CLAUDE_PLUGIN_ROOT}/scripts/lib/module_dependents.py <module> --addons-path <ADDONS_PATH>
+--author "<manifest author>"` (installable ones only). A `Yes` section is always present; omit a
+`Recommended` or `Optional` section whose source is empty rather than leaving placeholders.
 
 | # | Key | ID | Content | Source | Required |
 |---|---|---|---|---|---|
@@ -65,10 +67,12 @@ source is empty rather than leaving placeholders.
 | 10 | SUPPORT | `#support` (tab) | Two contact cards, each a web page: pre-sales `{{PRESALES_URL}}`, technical support `{{SUPPORT_URL}}` - from the author profile (`AUTHOR PROFILE` in the brief, `author_profile_config.py show`); a card whose URL the profile lacks is omitted and reported as a gap, never filled | brief | Recommended |
 | 11 | TECH-REQUIREMENTS | `#requirement` (tab) | Series, supported editions, required modules, license | manifest | Recommended |
 | 12 | CHANGELOG | `#changelog` (tab) | Chronological list: date + badge (New / Improved / Fixed) + description | brief | Optional |
+| 13 | EXTENSIONS | `#extensions_block` | "Extend it further": `row`/`col-md-6 col-lg-4` cards, one per extension the vendor sells for this module - the extension's display name as a link in the root-relative store form of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module (the same path works on the vendor's marketplace and on the Odoo Apps Store) + 1-2 sentences of the outcome the buyer gets from adding it, from that extension's manifest `summary` / its own catalog, in the buyer's words. Up to 6 cards, the ones the buying committee needs next first; the rest named in the report. Only modules the `dependents` source lists - never a module from memory. | dependents | Recommended |
 
 HERO through WHO-ITS-FOR run as full-width sections in that order; SCREENS through CHANGELOG share
-one tab block (`<ul class="nav nav-tabs">`) after them. There is no call-to-action section - the
-store renders its own install / buy button.
+one tab block (`<ul class="nav nav-tabs">`) after them; EXTENSIONS is the last full-width section
+of the page, after the tab block (an upsell stays visible; a tab hides it). There is no
+call-to-action section - the store renders its own install / buy button.
 
 **Tone rule**: every section is buyer-facing and value-first. Never open with "This module extends
 X to support Y" or expose Python class names / field technical names in headings.
@@ -378,7 +382,10 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
               <strong>Editions:</strong> {{each edition the module supports}}
             </li>
             <li class="py-2">
-              <strong>Required modules:</strong> {{depends list from manifest}}
+              <strong>Required modules:</strong> {{depends list from manifest - each module of the
+              same vendor as a link in the store form of module-doc-references.md § Links to
+              another module, text = its display name; a core or third-party module as its display
+              name, no link}}
             </li>
             <li class="py-2">
               <strong>License:</strong> {{manifest license key}}
@@ -416,6 +423,35 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
   </div>
 
 </div><!-- /tab-content -->
+
+<!-- EXTENSIONS - the last section of the page; omit it entirely when `dependents` lists nothing -->
+<section id="extensions_block" class="py-4">
+  <div style="background-color:#f4f4f4;padding:40px;border-radius:15px;">
+    <h2 class="text-center mb-2"
+        style="font-size:30px;font-weight:bold;">Extend it further</h2>
+    <p class="text-center mb-4" style="font-size:15px;">
+      {{ONE LINE - what the buyer gains by adding the vendor's extensions, in their words}}
+    </p>
+    <div class="row g-4">
+      <!-- Repeat per extension (up to 6): only modules module_dependents.py listed -->
+      <div class="col-md-6 col-lg-4 d-flex">
+        <div class="flex-fill"
+             style="padding:24px;border-radius:12px;background:#fff;border:1px solid #e8e8e8;">
+          <h4 style="font-size:16px;font-weight:600;">
+            <a href="{{EXT_STORE_LINK - the root-relative store path of module-doc-references.md
+                     § Links to another module, for this extension's technical name}}"
+               style="color:{{PRIMARY_HEX}};text-decoration:none;">{{EXT_DISPLAY_NAME}}</a>
+          </h4>
+          <p class="mb-0" style="font-size:14px;">
+            {{EXT_BODY - the outcome of adding it, 1-2 sentences, from its manifest summary or
+            catalog, no code names}}
+          </p>
+        </div>
+      </div>
+      <!-- /extension card -->
+    </div>
+  </div>
+</section>
 ```
 
 ---
