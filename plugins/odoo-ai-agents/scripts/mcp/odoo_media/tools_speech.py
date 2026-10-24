@@ -4,7 +4,8 @@
                       of the language applied to the TEXT SENT ONLY, phoneme entries only when
                       `phonemes` says the engine accepts them)
   speech_transcribe   WAV -> transcript (speech_client.stt), word timestamps on request
-  speech_voices       the voice listing the endpoint publishes, as it returns it
+  speech_voices       the voice listing the endpoint publishes, as it returns it (null when it
+                      publishes none - the model ids still answer)
   speech_probe        per language: one sentence synthesized, transcribed in the same language and
                       scored - the round trip that catches a voice/language mismatch or an
                       endpoint that is not what the configuration says, BEFORE a recording run
@@ -171,7 +172,7 @@ def register(registry, ctx):
     registry.add(
         "speech_voices",
         "List the voices and the model ids the recorded speech endpoint publishes (voices as the endpoint "
-        "returns them; a gateway that publishes none answers an error), with a guess of the TTS and STT model "
+        "returns them, null when it publishes no listing - the models still answer), with a guess of the TTS and STT model "
         "ids. An endpoint-only speech.toml (70-speech.sh record --endpoint-only) is enough: the setup "
         "conversation records the endpoint, the operator configures the value, reloads, and this tool lists "
         "what to choose from. The value only ever goes to the recorded endpoint. Read-only.",
