@@ -15,8 +15,9 @@
 # POLICY: auto-allow every `mcp__plugin_<plugin>_odoo-local__*` tool call EXCEPT
 # `lease_gc` invoked with `tool_input.dry_run` explicitly `false` (an APPLY gc -
 # the one call in this surface that can actually reclaim/destroy something), and
-# every `mcp__plugin_<plugin>_odoo-media__*` call EXCEPT `youtube_upload` with
-# `tool_input.privacy` `public` (the one outward publication). A dry-run gc (the
+# every `mcp__plugin_<plugin>_odoo-media__*` call EXCEPT `youtube_upload` or
+# `youtube_set_privacy` with `tool_input.privacy` `public` (the outward publication)
+# and `youtube_delete` (irreversible). A dry-run gc (the
 # documented default) is a read-only listing and is auto-allowed like every other
 # local tool; only those two shapes fall through to the normal human-approval prompt.
 #
@@ -81,6 +82,11 @@ if short == "lease_gc":
 if short == "youtube_upload":
     if isinstance(tool_input, dict) and tool_input.get("privacy") == "public" and not tool_input.get("dry_run"):
         sys.exit(0)  # a public publication: fall through to the normal human prompt
+if short == "youtube_delete":
+    sys.exit(0)  # irreversible: always the human prompt
+if short == "youtube_set_privacy":
+    if isinstance(tool_input, dict) and tool_input.get("privacy") == "public":
+        sys.exit(0)  # going public is the outward step: the human prompt
 
 print(json.dumps({
     "hookSpecificOutput": {

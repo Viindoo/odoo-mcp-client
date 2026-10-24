@@ -65,7 +65,8 @@ class _Fake(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/youtube/v3/channels"):
             return self._send(200, json.dumps({"items": [{"id": "UCfake", "snippet": {"title": "Acme Docs"}}]}).encode())
         if self.path.startswith("/youtube/v3/videos"):
-            return self._send(200, json.dumps({"items": [{"status": {"uploadStatus": "processed", "privacyStatus": "unlisted"},
+            return self._send(200, json.dumps({"items": [{"id": "vid123", "snippet": {"title": "Demo", "channelId": "UCfake", "channelTitle": "Acme Docs"},
+                                                          "status": {"uploadStatus": "processed", "privacyStatus": "unlisted"},
                                                           "processingDetails": {"processingStatus": "succeeded"}}]}).encode())
         return self._send(404, b"{}")
 
@@ -95,7 +96,13 @@ class _Fake(http.server.BaseHTTPRequestHandler):
     def do_PUT(self):
         body = self._read()
         self.calls.append(("PUT", self.path, self.headers.get("Content-Range", ""), body))
+        if self.path.startswith("/youtube/v3/videos"):
+            return self._send(200, json.dumps({"id": "vid123", "status": {"privacyStatus": json.loads(body)["status"]["privacyStatus"]}}).encode())
         return self._send(200, json.dumps({"id": "vid123", "status": {"privacyStatus": "unlisted"}}).encode())
+
+    def do_DELETE(self):
+        self.calls.append(("DELETE", self.path, "", b""))
+        return self._send(204, b"")
 
 
 @pytest.fixture()
@@ -144,7 +151,8 @@ def test_initialize_names_the_media_server_and_lists_its_tools(tmp_path):
         assert "configured through the plugin's options" in result["instructions"]
         names = [t["name"] for t in client.request("tools/list")["result"]["tools"]]
         assert names == ["media_info", "speech_synthesize", "speech_transcribe", "speech_voices", "speech_probe",
-                         "youtube_check", "youtube_upload", "youtube_status"]
+                         "youtube_check", "youtube_upload", "youtube_describe", "youtube_set_privacy", "youtube_delete",
+                         "youtube_status"]
         assert client.stdout_violations == []
 
 
@@ -272,3 +280,17 @@ def test_a_revoked_refresh_token_is_reported_as_youtube_failed_with_the_consent_
     _Fake.token_status = 400
     err = structured(client.call("youtube_check", {"channel": "docs", "live": True}))["error"]
     assert err["code"] == "YOUTUBE_FAILED" and "invalid_grant" in err["message"] and "consent" in err["remedy"]
+
+
+def test_a_video_is_described_made_public_and_deleted_only_with_its_title(media):
+    client, home, fake = media
+    d = structured(client.call("youtube_describe", {"channel": "docs", "video_id": "vid123"}))
+    assert d["title"] == "Demo" and d["channel_title"] == "Acme Docs" and d["privacy"] == "unlisted"
+    pub = structured(client.call("youtube_set_privacy", {"channel": "docs", "video_id": "vid123", "privacy": "public"}))
+    assert pub["privacy"] == "public"
+    put = [c for c in _Fake.calls if c[0] == "PUT" and c[1].startswith("/youtube/v3/videos")][0]
+    assert json.loads(put[3])["status"]["privacyStatus"] == "public"
+    wrong = structured(client.call("youtube_delete", {"channel": "docs", "video_id": "vid123", "title": "Other"}))
+    assert wrong["error"]["code"] == "INVALID_ARGUMENTS" and not [c for c in _Fake.calls if c[0] == "DELETE"]
+    gone = structured(client.call("youtube_delete", {"channel": "docs", "video_id": "vid123", "title": "Demo"}))
+    assert gone["id"] == "vid123" and [c for c in _Fake.calls if c[0] == "DELETE"][0][1].endswith("id=vid123")
