@@ -1,4 +1,4 @@
-"""`catalog_review.py` reads the whole instance registry and names every anomaly with its fix,
+"""`registry_review.py` reads the whole instance registry and names every anomaly with its fix,
 so the setup plan shows them to the operator instead of a step stumbling on one later."""
 import json
 import os
@@ -9,7 +9,7 @@ import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "catalog_review.py"
+SCRIPT = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "registry_review.py"
 
 
 def _venv(path: Path, ok=True):

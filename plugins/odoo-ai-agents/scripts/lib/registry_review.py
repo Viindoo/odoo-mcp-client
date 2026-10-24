@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""catalog_review.py - read the WHOLE instance registry and name what is wrong with it, so the
+"""registry_review.py - read the WHOLE instance registry and name what is wrong with it, so the
 setup command shows the operator every anomaly as a plan line with its fix, instead of each step
 stumbling on one of them later (or working around it in silence).
 
-    catalog_review.py review <instances.toml> [--json]
+    registry_review.py review <instances.toml> [--json]
         One line per finding, then FINDINGS=<n>:
           FINDING=DUPLICATE_ROW   row=<key> detail=<n>th row with this key fix=<...>
           FINDING=SHARED_VENV     rows=<key key> detail=<venv dir> fix=<...>
@@ -12,13 +12,13 @@ stumbling on one of them later (or working around it in silence).
           FINDING=NO_PYTHON       row=<key> detail=source row without a python fix=<...>
           FINDING=STALE_COMMENT   detail=<comment line> fix=<...>
         Exit 0 always (a review is an answer, not a gate); `--json` prints the list of objects.
-    catalog_review.py dedupe <instances.toml>
+    registry_review.py dedupe <instances.toml>
         Drops every later [[instance]] block whose key repeats an earlier one (the first row is
         the one every writer already selects), after a backup, atomically. Prints
         DROPPED=<key> per block removed and KEPT=<n>. The only write this script does.
 
 A row's key is `instance_key`, else `series:profile`, else `series` (instances_io.instance_key_of).
-Stdlib only. Tests: tests/test_catalog_review.py.
+Stdlib only. Tests: tests/test_registry_review.py.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ import instances_io  # noqa: E402
 import venv_facts  # noqa: E402
 
 FIX = {
-    "DUPLICATE_ROW": "catalog_review.py dedupe keeps the first row and drops this one",
+    "DUPLICATE_ROW": "registry_review.py dedupe keeps the first row and drops this one",
     "SHARED_VENV": "one venv per profile: /odoo-ai-agents:odoo-setup venv --version <X.Y> --profile <P> gives each row its own",
     "DEAD_ADDONS_PATH": "re-declare the instance (/odoo-ai-agents:odoo-setup instance updates the row) or clone the repository back",
     "DEAD_PYTHON": "/odoo-ai-agents:odoo-setup venv --version <X.Y> --profile <P> rebuilds it",

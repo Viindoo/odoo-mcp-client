@@ -27,9 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   rebuild does the same without the detour, and the failure message names the real error line
   and the log instead of "check system build deps".
 - `odoo-ai-agents` - **the setup command reviews the whole registry before it plans.** A new
-  `catalog_review.py review` names every anomaly of `instances.toml` with its fix - two rows
+  `registry_review.py review` names every anomaly of `instances.toml` with its fix - two rows
   sharing one venv, a duplicate row, an addons path that is gone, a dead or missing Python, a
-  stale comment - and the plan shows each one in the operator's words; `catalog_review.py
+  stale comment - and the plan shows each one in the operator's words; `registry_review.py
   dedupe` drops a later duplicate row (the first is the one every writer already selects), with
   a backup. `45-venv.sh check` prints the same findings.
 - `odoo-ai-agents` - **one venv per profile.** A rebuild of a row whose venv another row also

@@ -87,12 +87,12 @@ goals ticked, run them in the table's order.
   the machine states is a DECISION the plan shows with its source ("Odoo <X.Y> - from the branch
   of <checkout>"), never a question.
 - **Review the whole registry, then tell.** Run
-  `python3 "$STEPS_DIR/../lib/catalog_review.py" review "$ODOO_AI_HOME/instances.toml"` before
+  `python3 "$STEPS_DIR/../lib/registry_review.py" review "$ODOO_AI_HOME/instances.toml"` before
   the plan (every goal that touches instances: `instance`, `venv`, `refresh`, `all`). Each
   `FINDING=` line - two rows sharing one venv, a duplicate row, an addons path that is gone, a
   dead or missing Python, a stale comment - is a line of the plan in the operator's words with
   the fix this run applies (a shared venv is split by the rebuild; a duplicate is dropped by
-  `catalog_review.py dedupe`, the first row kept) or the one choice left to them. Never work
+  `registry_review.py dedupe`, the first row kept) or the one choice left to them. Never work
   around a finding in silence, never fix one the plan did not show.
 - **Ask only what the machine cannot know**, in the operator's words, one closed question per
   fact, with the outcome in the question ("Which Odoo versions do you work on? I found <X.Y> and

@@ -202,7 +202,7 @@ cmd_check() {
     done
     python3 "$facts" stale-comments "$INSTANCES_TOML" 2>/dev/null | sed 's/^/  Warning: /' >&2 || true
     # The whole registry, reviewed: every anomaly as a line the plan can show with its fix.
-    python3 "$SCRIPT_DIR/../lib/catalog_review.py" review "$INSTANCES_TOML" 2>/dev/null | grep '^FINDING' || true
+    python3 "$SCRIPT_DIR/../lib/registry_review.py" review "$INSTANCES_TOML" 2>/dev/null | grep '^FINDING' || true
     return "$rc"
 }
 
