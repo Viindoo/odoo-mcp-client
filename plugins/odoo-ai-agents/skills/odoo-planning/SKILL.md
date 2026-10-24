@@ -137,9 +137,11 @@ RETURN_TO: [omit when absent; set to the caller skill name when return routing i
 
 This skill owns the request's one Plan-Mode gate
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request). Call
-`EnterPlanMode` HERE, after the planner returns and before presenting the plan. When `return_to` is
-set, the caller owns the gate: do not enter Plan Mode, present nothing, and hand the plan back
-(§ Continuation Contract).
+`EnterPlanMode` HERE, after the planner returns and before presenting the plan. Copy the plan's
+three blocks and the gate block into the plan file the harness names on entering Plan Mode: that
+file is the ONE file Plan Mode lets you write, and it is what the user reads at the gate. When
+`return_to` is set, the caller owns the gate: do not enter Plan Mode, present nothing, and hand the
+plan back (§ Continuation Contract).
 
 ## Plan-approval gate (who approves: the human)
 
@@ -176,10 +178,16 @@ Approve plan? (approve / refine: [feedback] / cancel)
   you; never read module source and never infer what a node will "really" touch. A coding node whose
   declared `modules` look wrong, or a missing verification node: `refine: [feedback]` back to the
   planner, never a field to correct at this gate.
-- `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.
-- `approve` -> call `ExitPlanMode`, then hand the approved 3-block plan to intake **Phase P**, which
-  serializes `<ISOLATE_DIR>/run-<id>.json`; the main agent then runs it per `plan-mode-schema.md`
-  § Running the plan. This skill never serializes the run file itself.
+- `refine: [feedback]` -> a rejected `ExitPlanMode` leaves Plan Mode OPEN, so launch no writing
+  agent: fold the feedback into the harness plan file yourself (nodes, acceptance, scope, tail,
+  docs target) and present the gate again with `ExitPlanMode`. The planner is resumed ONCE after
+  `approve`, before Phase P, with the approved text, so the state-root plan file matches what was
+  approved; nothing runs from the refined plan before that file is rewritten.
+- `approve` -> call `ExitPlanMode`; if a `refine` round changed the plan, resume the planner with the
+  approved text and wait for the rewritten `<SHARE_DIR>/plans/...` file; then hand the approved
+  3-block plan to intake **Phase P**, which serializes `<ISOLATE_DIR>/run-<id>.json`; the main
+  agent then runs it per `plan-mode-schema.md` § Running the plan. This skill never serializes the
+  run file itself.
 - `cancel` -> stop; the plan file remains on disk.
 
 ## What the plan binds
