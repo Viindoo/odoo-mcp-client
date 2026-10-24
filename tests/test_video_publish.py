@@ -145,3 +145,61 @@ def test_two_takes_at_different_levels_come_out_at_one_loudness(media, tmp_path)
         assert m, measured[-600:]
         levels.append(float(m.group(1)))
     assert abs(levels[0] - levels[1]) < 2.0, levels
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_pacing_compresses_logged_dead_time_zooms_on_the_focus_and_caps_the_held_frame(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=25:duration=6",
+                    "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "6", "-pix_fmt", "yuv420p", str(clip)],
+                   check=True, capture_output=True)
+    events = tmp_path / "ev.json"
+    events.write_text(json.dumps([{"kind": "typing", "start": 1.0, "end": 3.0}, {"kind": "wait", "start": 4.0, "end": 5.5}]))
+    paced = tmp_path / "paced.mp4"
+    proc = subprocess.run([sys.executable, str(TOOL), "speedup", "--clip", str(clip), "--events", str(events), "--out", str(paced)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    kv = _kv(proc.stdout)
+    # 2 s typing at 3x saves 1.33 s, a 1.5 s wait keeps 1 s: about 1.8 s saved of 6
+    assert 1.6 <= float(kv["SAVED_S"]) <= 2.1 and kv["SPANS"] == "2"
+    zoomed = tmp_path / "zoomed.mp4"
+    proc = subprocess.run([sys.executable, str(TOOL), "zoom", "--clip", str(clip), "--focus", "600,300,300,150", "--from", "1",
+                           "--to", "3", "--out", str(zoomed)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    size = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration",
+                           "-of", "csv=p=0", str(zoomed)], capture_output=True, text=True).stdout.strip().split(",")
+    assert size[0] == "1280" and size[1] == "720" and abs(float(size[2]) - 6.0) < 0.2
+    long_narr = tmp_path / "long.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=12", "-ac", "1", "-ar", "48000",
+                    "-sample_fmt", "s16", str(long_narr)], check=True, capture_output=True)
+    proc = subprocess.run([sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(long_narr), "--out",
+                           str(tmp_path / "f.mp4"), "--max-silence", "10", "--max-hold", "3"], capture_output=True, text=True)
+    assert proc.returncode == 5 and "HOLD=over" in proc.stdout and "freeze" in proc.stderr
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_the_music_bed_rides_under_the_narration_and_the_audition_renders_dry_and_wet_samples(media, tmp_path):
+    clip, narr = media
+    fitted = tmp_path / "fitted.mp4"
+    assert subprocess.run([sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(narr), "--out", str(fitted),
+                           "--max-silence", "10"], capture_output=True, text=True).returncode == 0
+    bed = tmp_path / "bed.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", "-ac", "2", "-ar", "48000", str(bed)],
+                   check=True, capture_output=True)
+    lst = tmp_path / "list.txt"; lst.write_text("%s\n" % fitted)
+    out = tmp_path / "final.mp4"
+    proc = subprocess.run([sys.executable, str(TOOL), "concat", "--list", str(lst), "--out", str(out), "--music", str(bed),
+                           "--music-license", "CC0 test tone"], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    kv = _kv(proc.stdout)
+    assert kv["MUSIC_LICENSE"] == "CC0 test tone" and abs(float(kv["DURATION_S"]) - 3.8) < 0.3  # lead-in + narration + fade
+    # the bed is audible in the lead-in (0-0.5 s), where no narration plays: the stream is not silent there
+    level = subprocess.run(["ffmpeg", "-i", str(out), "-t", "0.4", "-af", "volumedetect", "-f", "null", "-"],
+                           capture_output=True, text=True).stderr
+    import re
+    m = re.search(r"mean_volume: (-?\d+\.\d) dB", level)
+    assert m and float(m.group(1)) > -60.0, level[-300:]
+    proc = subprocess.run([sys.executable, str(TOOL), "audition", "--narration", str(narr), "--out-dir", str(tmp_path / "aud"),
+                           "--music", str(bed)], capture_output=True, text=True)
+    assert proc.returncode == 0 and "music=off" in proc.stdout and "music=on" in proc.stdout
+    assert (tmp_path / "aud" / "narr.dry.wav").exists() and (tmp_path / "aud" / "narr.music.wav").exists()

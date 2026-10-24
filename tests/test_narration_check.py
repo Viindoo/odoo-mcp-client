@@ -68,3 +68,15 @@ def test_a_sentence_that_runs_on_to_the_next_line_fails_the_script_check(tmp_pat
     proc = subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script),
                            "--transcript", str(t)], capture_output=True, text=True)
     assert proc.returncode == 1 and "VERDICT=fail" in proc.stdout
+
+
+def test_a_sentence_longer_than_the_spoken_limit_fails_the_script_check(tmp_path):
+    assert nc.long_sentences("Bạn mở đơn hàng. Bấm xác nhận.") == []
+    longs = nc.long_sentences("Trong phần này chúng ta sẽ cùng nhau tìm hiểu cách mà hệ thống xử lý một đơn hàng từ lúc tạo cho đến khi xác nhận xong.", 15)
+    assert len(longs) == 1 and longs[0][1] > 15
+    script = tmp_path / "s.txt"
+    script.write_text("Trong phần này chúng ta sẽ cùng nhau tìm hiểu cách mà hệ thống xử lý một đơn hàng từ lúc tạo cho đến khi xác nhận xong.\n", encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script)], capture_output=True, text=True)
+    assert proc.returncode == 1 and "SENTENCES_LONG=1:" in proc.stdout and "LONG=1" in proc.stdout
+    assert subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script), "--max-words", "0"],
+                          capture_output=True, text=True).returncode == 0

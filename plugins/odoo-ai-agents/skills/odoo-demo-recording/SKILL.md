@@ -11,6 +11,16 @@ Demo/marketing recorder for Odoo. Turn a described workflow into a clean, script
 through the live instance and produce a polished video or GIF artifact. Plan the path before
 recording (which menus, which records, what to type) so the take is smooth and re-runnable.
 
+## Events log (what the assembler compresses)
+
+Beside every clip you record, write `<clip>.events.json`: a list of `{"kind": "typing" | "wait" |
+"travel" | "load", "start": <s>, "end": <s>}` spans timed from the recording's start - each
+typed input, each wait for an indicator or a page load, each cursor travel or scroll to find a
+target. `video-produce`'s assembler plays a typing span at 3x, keeps the first second of a wait
+and cuts the rest, plays travel and loads at 2x (`video_publish.py speedup`); a clip without the
+log plays as recorded. A click is a cut point: the next shot opens when its result is on screen,
+never on the "clicked, now waiting" footage.
+
 ## Out of Scope
 
 - **Rating how a screen looks** (aesthetic/a11y/performance verdict) → `odoo-ui-review`

@@ -32,6 +32,8 @@ SYNTHESIZE_IN = {
         "out": {"type": "string", "minLength": 1, "description": "Absolute path of the WAV to write."},
         "pronunciation": {"type": "object", "description": "Pronunciation map {lang: [{written, spoken, kind}]} (pronunciation.py); applied to the text sent to the engine only."},
         "phonemes": {"type": "boolean", "default": False, "description": "True when the engine accepts the map's phoneme entries (inline IPA); else they are skipped."},
+        "speed": {"type": "number", "minimum": 0.5, "maximum": 2.0, "description": "Speaking-rate factor (the OpenAI speed parameter): the video type's rate from speech.toml; an engine may ignore it - speech_probe with speed says."},
+        "voice": {"type": "string", "minLength": 1, "description": "A voice id to audition instead of the recorded one (speech.toml tts.candidates)."},
     },
     "additionalProperties": False,
 }
@@ -52,7 +54,10 @@ TRANSCRIBE_OUT = {
                        "word": {"type": "string"}, "start": {"type": "number"}, "end": {"type": "number"}}}}},
 }
 VOICES_OUT = {"type": "object", "required": ["voices"], "properties": {"voices": {"type": ["array", "object", "string", "null"]}}}
-PROBE_IN = {"type": "object", "properties": {"lang": _LANG, "out_dir": _ABS}, "additionalProperties": False}
+PROBE_IN = {"type": "object", "properties": {"lang": _LANG, "out_dir": _ABS,
+                                             "speed": {"type": "number", "minimum": 0.5, "maximum": 2.0,
+                                                       "description": "Also render the sentence at this rate and report whether the engine honoured it."}},
+            "additionalProperties": False}
 PROBE_OUT = {
     "type": "object", "required": ["ok", "results"],
     "properties": {"ok": {"type": "boolean"}, "results": {"type": "array", "items": {"type": "object"}}},
@@ -108,7 +113,8 @@ def register(registry, ctx):
         text = _text(args)
         try:
             out, dur = sc.tts(text, args["lang"], args["out"], args.get("pronunciation"), cfg=cfg,
-                              value=_value(cfg, sc), cancel=protocol.cancel_event(), phonemes=args.get("phonemes", False))
+                              value=_value(cfg, sc), cancel=protocol.cancel_event(), phonemes=args.get("phonemes", False),
+                              speed=args.get("speed"), voice=args.get("voice"))
         except sc.SpeechError as exc:
             raise _translate(exc)
         return {"out": out, "duration_s": round(dur, 3), "lang": args["lang"]}
@@ -137,7 +143,7 @@ def register(registry, ctx):
         sc = _speech_client()
         cfg = _config(sc)
         results = sc.probe(args.get("lang"), args.get("out_dir"), value=_value(cfg, sc), cfg=cfg,
-                           cancel=protocol.cancel_event())
+                           cancel=protocol.cancel_event(), speed=args.get("speed"))
         return {"ok": all(r["ok"] and r["verdict"] == "pass" for r in results), "results": results}
 
     registry.add(

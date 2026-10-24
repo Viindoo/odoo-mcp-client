@@ -155,3 +155,22 @@ def test_propose_lists_the_gateway_first_then_local_services_that_answer_the_aud
     assert "127.0.0.1:%d" % dead not in proc.stdout
     if "FFMPEG_FILTERS_MISSING='none'" not in proc.stdout:
         assert "REMEDY_" in proc.stdout
+
+
+def test_audition_candidates_and_the_rate_per_video_type_are_recorded_and_validated(home):
+    cfg = json.loads(json.dumps(GOOD))
+    cfg["tts"]["candidates"] = {"vi_VN": ["voice-vi", "voice-vi-2", "voice-vi-3"]}
+    cfg["tts"]["rate"] = {"tutorial": "1.0", "marketing": "1.1"}
+    assert _record(home, cfg).returncode == 0
+    text = (home / "speech.toml").read_text(encoding="utf-8")
+    assert "[tts.candidates]" in text and "[tts.rate]" in text and 'marketing = "1.1"' in text
+    shown = json.loads(_step(home, "show").stdout)
+    assert shown["tts"]["candidates"]["vi_VN"] == ["voice-vi", "voice-vi-2", "voice-vi-3"]
+    bad = json.loads(json.dumps(GOOD)); bad["tts"]["rate"] = {"marketing": "9"}
+    proc = _record(home, bad)
+    assert proc.returncode == 1 and "tts.rate" in proc.stderr
+    import sys as _sys
+    _sys.path.insert(0, str(PLUGIN / "scripts" / "lib"))
+    import speech_config as scfg
+    assert scfg.rate_for(cfg, "marketing") == 1.1 and scfg.rate_for(GOOD, "tutorial") == 1.0
+    assert scfg.candidates_for(cfg, "vi_VN")[0] == "voice-vi" and scfg.candidates_for(cfg, "en_US") == ["voice-en"]

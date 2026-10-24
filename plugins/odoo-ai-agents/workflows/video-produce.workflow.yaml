@@ -22,6 +22,7 @@ inputs:
                     # targets' languages - narrower only with a reason shown at the plan gate
   - destination     # none (default: the file stays local) | pr | youtube | youtube:<purpose>
   - targets         # optional: the surfaces that will embed it (docs-site row key, module, store page)
+  - video_type      # tutorial | marketing (default: marketing when the destination's purpose is marketing, else tutorial)
 
 resume: true
 fallback: standalone
@@ -46,6 +47,8 @@ phases:
     #                    offered after the odoo-media youtube_check for the purpose was run)
     #   - targets        (optional: what embeds the video - a docs-site row key, a module's guide
     #                    or App Store page - decides languages and purpose)
+    #   - video_type     (tutorial | marketing: decides the script rules, the voice ranking, the
+    #                    speaking rate, the music bed default and the shot length below)
     # Resolves the series per snippets/project-facts-resolution.md and the instance target
     # per snippets/instance-resolution.md.
     # Narrated run (languages given): read the speech configuration FIRST -
@@ -58,15 +61,40 @@ phases:
     # says whether the speech option is set; `speech_probe` proves the round trip per language.
     # Produces the storyboard as Markdown AND as storyboard.json
     # (<ISOLATE_DIR>/video/<project_label>/storyboard.json), the plan approved once:
-    #   { "title", "languages": [...], "lead_in_s": 0.5, "fade_s": 0.3, "max_silence_s": 3.0, "publish_profile":
+    #   { "title", "video_type", "languages": [...], "lead_in_s": 0.5, "fade_s": 0.3, "max_silence_s": 3.0,
+    #     "max_hold_s": 3.0, "shot_seconds": [2, 4] (marketing) | [3, 8] (tutorial), "publish_profile":
     #     "youtube-1080p", "pronunciation": {"<lang>": [{"written","spoken","kind"}]},
+    #     "voice": {"<lang>": "<the audition's pick>"}, "speed": <tts.rate of the video type>,
+    #     "music": {"on": true|false (marketing: on; tutorial: off unless asked), "file", "license",
+    #               "gain_db": -18},
     #     "scenes": [{ "id", "title": {"<lang>": ...}, "click_path": [...],
     #                  "target_seconds", "narration": {"<lang>": "..."},
+    #                  "focus": [{"box": [x, y, w, h], "from_s", "to_s"}]  (the area that matters: the
+    #                           answer, the key number, the button just clicked - zoomed 1.2-2x),
     #                  "must_see": [[start_s, end_s]] }],
     #     "publish": {"<lang>": {"title", "description"}} }
-    # Narration per scene and language is written for the ear: short sentences, the
-    # written form of every brand and acronym (the pronunciation map respells them for the
-    # engine only), no term the embedding docs site bans (`docs_site_config.py show --key <row>`
+    # Pacing rules the storyboard encodes: a shot opens when the result appears and cuts at the
+    # click (no "clicked, now waiting" footage); no still frame longer than max_hold_s without
+    # narration - shorten the narration, or fill the gap with a meaningful shot (a zoom on the
+    # result), never a freeze; marketing shots 2-4 s, a tutorial's longer but under the same cap.
+    # Voice and music, decided ONCE per project (the audition): list the voices
+    # (`speech_voices`); when the listing carries descriptions or style tags, rank them for the
+    # video type - conversational / natural first, a news or story-reading style last for
+    # marketing - and take the top one; when no listing is reachable, or on request, render the
+    # hook line with every candidate of speech.toml `tts.candidates` (`speech_synthesize` with
+    # `voice`), run `speech_transcribe` + narration_check on each, then
+    # `video_publish.py audition --narration <wavs> --music <author profile music_file>` and
+    # give the operator the sample paths: ONE AskUserQuestion per language (the voice; music on or
+    # off) whose answer goes into the storyboard - no voice name is ever written in plugin prose.
+    # The speaking rate is speech.toml `tts.rate` for the video type, verified by
+    # `speech_probe` with `speed` (`speed_honoured` false = the engine ignores it: say so, keep 1.0).
+    # Narration per scene and language is SPOKEN text, never prose: sentences of 8-15 words with
+    # one idea each (`narration_check.py --script` refuses a longer one); the first 5 seconds are a
+    # hook - a question or the viewer's pain - never a description; second person ("you"); the
+    # benefit before the feature, a before/after contrast where there is one; punctuation at every
+    # idea boundary so the engine pauses there; marketing: result first (show the outcome, then
+    # the how); the written form of every brand and acronym (the pronunciation map respells them
+    # for the engine only), no term the embedding docs site bans (`docs_site_config.py show --key <row>`
     # policy.banned_terms, when a target is a docs-site row) and URLs said the way the author
     # profile states them (the page by its name, never spelled out), and it talks the viewer
     # through the scene - what is on the screen, why the
@@ -94,7 +122,11 @@ phases:
     skill: odoo-demo-recording
     nl_trigger: >
       Record all scenes from the storyboard produced in the storyboard phase, ONCE PER
-      NARRATION LANGUAGE (a silent video: once): before a language's scenes, switch the demo
+      NARRATION LANGUAGE (a silent video: once), and beside each clip write
+      <clip>.events.json - [{"kind": "typing|wait|travel|load", "start": s, "end": s}] for every
+      span you drove (each typed input, each wait for an indicator or a page load, each cursor
+      travel or scroll to find a target), timed from the recording's start; the assembler
+      compresses those spans (typing plays 3x, a wait keeps its first second, travel 2x): before a language's scenes, switch the demo
       user's interface language to that language the way the plugin's documentation captures do
       (through the UI, never a database write), and name each clip {project_label}-{lang}-scene-N.
       For each scene in order: plan the click path using the storyboard description,
@@ -129,7 +161,9 @@ phases:
     #      the pronunciation self-check once per run:
     #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/pronunciation.py selfcheck --map <storyboard pronunciation as JSON>
     #   2. Synthesise with the odoo-media tool `speech_synthesize` (text_file <txt>, lang, out
-    #      .../narration/<lang>/<scene>.wav, pronunciation = the storyboard map): the endpoint's
+    #      .../narration/<lang>/<scene>.wav, pronunciation = the storyboard map, voice = the
+    #      storyboard's pick for the language, speed = the storyboard's rate when the probe said
+    #      the engine honours it): the endpoint's
     #      value is the plugin's configured option, which only that server holds; a
     #      VALUE_NOT_CONFIGURED result is a NEEDS_CONTEXT naming the option, never a question for
     #      a value in chat. One clip at a time (the endpoint is a shared service).
@@ -153,19 +187,29 @@ phases:
     #      convert_to_mp4 / convert_to_gif convert ONE clip each and never join clips.
     #      Every ffmpeg step below goes through ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_publish.py
     #      so the publish profile is applied once, from data.
-    #   1. Narrated: per scene and language, with THAT language's clip, `video_publish.py fit --clip <scene clip> --narration <wav>
+    #   0b. Pace each scene clip first: `video_publish.py speedup --clip <clip> --events
+    #      <clip>.events.json --out .../assembly/<lang>/<scene>.paced.mp4` (no events file = the
+    #      clip as recorded, and `SPEEDUP=none` in the report), then per storyboard focus
+    #      `video_publish.py zoom --clip <paced> --focus x,y,w,h --from s --to s --factor <1.2-2>
+    #      --out ...` (never a caption or a title card).
+    #   1. Narrated: per scene and language, with THAT language's clip, `video_publish.py fit --clip <paced or zoomed clip> --narration <wav>
     #      --out .../assembly/<lang>/<scene>.mp4 --lead-in <storyboard lead_in_s> --fade <fade_s>
-    #      --max-silence <storyboard max_silence_s>` (narration after the lead-in; the last frame
-    #      held when it outlasts the clip). Exit 4 = the screen moves longer than max_silence_s
-    #      with nobody speaking: extend that scene's narration with what the screen shows (back to
-    #      narrate for the scene) or shorten its click path (back to record-scenes); never ship it.
-    #      Silent: the scene clips as recorded.
+    #      --max-silence <storyboard max_silence_s> --max-hold <max_hold_s>` (narration after the
+    #      lead-in; the last frame held when it outlasts the clip, within the cap). Exit 4 = the
+    #      screen moves longer than max_silence_s with nobody speaking: extend that scene's
+    #      narration with what the screen shows (back to narrate for the scene) or shorten its click
+    #      path (back to record-scenes); exit 5 = the frame would freeze longer than max_hold_s to
+    #      fit the narration: shorten the narration or add a meaningful shot (a zoom on the result);
+    #      never ship either. Silent: the scene clips as recorded.
     #   2. Optional title card: `video_publish.py title --text "<storyboard title for the language>"
     #      --out .../assembly/<lang>/00-title.mp4 --font <author profile font_file>` (drawtext, or
     #      libass on a build without it - verify-tools said which; neither = skip the card and say so).
     #   3. `video_publish.py concat --list <ordered clip list> --out
-    #      <ISOLATE_DIR>/video/<project_label>-<lang>-<YYYY-MM-DD>.mp4` (re-encode to the profile,
-    #      two-pass loudnorm). A gif deliverable: pagecast convert_to_gif on the concatenated mp4.
+    #      <ISOLATE_DIR>/video/<project_label>-<lang>-<YYYY-MM-DD>.mp4 [--music <storyboard
+    #      music.file> --music-gain <gain_db> --music-license "<license>"]` (re-encode to the
+    #      profile; the bed ducked under the narration, faded in and out; then the two-pass
+    #      loudnorm). The licence line goes into the report and the description sidecar. A gif
+    #      deliverable: pagecast convert_to_gif on the concatenated mp4.
     #   4. `video_publish.py verify --video <final> --profile <storyboard publish_profile>`: any FAIL
     #      line fails the run - report the lines, never ship the file as publish-ready.
     #   5. Side files per language: `video_publish.py sidecar --storyboard storyboard.json --lang

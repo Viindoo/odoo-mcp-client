@@ -34,10 +34,10 @@ YouTube ones itself.
 | Tool | Does | Long-running |
 |---|---|---|
 | `media_info` | version, options present (true/false), `speech.toml` / `youtube.toml` state, languages, channels and slots, ffmpeg filters missing | no |
-| `speech_synthesize` | text (one sentence per line) + lang + out [+ pronunciation map, phonemes] -> 48 kHz mono WAV, duration | yes |
+| `speech_synthesize` | text (one sentence per line) + lang + out [+ pronunciation map, phonemes, `speed` (the video type's rate), `voice` (an audition candidate)] -> 48 kHz mono WAV, duration | yes |
 | `speech_transcribe` | WAV + lang [+ words] -> transcript [+ word timestamps] | yes |
 | `speech_voices` | the endpoint's voice listing as returned | yes |
-| `speech_probe` | per language: one sentence synthesized, transcribed back, word error rate, `verdict` pass/fail; clips under `<state root>/scratch/speech-probe` | yes |
+| `speech_probe` | per language: one sentence synthesized, transcribed back, word error rate, `verdict` pass/fail; with `speed`, whether the engine honoured it (`speed_honoured`, measured by duration); clips under `<state root>/scratch/speech-probe` | yes |
 | `youtube_check` | channel of a purpose: slot, privacy, options present; `live` = one access refresh + `channels.list(mine)` -> channel id and title | yes |
 | `youtube_upload` | resumable upload + captions + thumbnail + playlist; `dry_run` plans; returns watch/embed/short URLs | yes |
 | `youtube_describe` | title, channel and privacy of a video (read before a change) | yes |

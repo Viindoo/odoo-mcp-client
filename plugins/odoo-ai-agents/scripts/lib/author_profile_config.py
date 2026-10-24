@@ -19,7 +19,9 @@ next to instances.toml). The doc writers read it instead of inventing or copying
   address_policy  `never` (default): no address in any published text; `image`: an address the
                   vendor insists on is rendered by email_image.py and embedded as an image
   font_file       optional absolute path of a TTF/OTF with Latin Extended coverage, used by
-                  email_image.py; absent -> fc-match picks one
+                  email_image.py and the video title card; absent -> fc-match picks one
+  music_file      optional absolute path of the royalty-free music bed demo videos duck under the
+                  narration; music_license (required with it) is the licence the report states
 
 Every URL is https://, public (no local or reserved host) and never an email. `record` writes
 only an operator-confirmed profile; `propose` reads candidate values from module descriptors under
@@ -53,7 +55,7 @@ import paths  # noqa: E402
 
 FILE_NAME = "author-profile.toml"
 KEYS = ("vendor", "website", "module_page_url", "module_page_url_alt", "presales_url", "support_url",
-        "support_email", "address_policy", "font_file")
+        "support_email", "address_policy", "font_file", "music_file", "music_license")
 REQUIRED = ("vendor",)
 URL_KEYS = ("website", "presales_url", "support_url")
 PATTERN_KEYS = ("module_page_url", "module_page_url_alt")
@@ -125,6 +127,14 @@ def validate(profile):
         v = profile["font_file"]
         if not isinstance(v, str) or not os.path.isabs(v) or not os.path.isfile(v):
             problems.append("font_file: an absolute path of an existing TTF/OTF file")
+    if "music_file" in profile:
+        v = profile["music_file"]
+        if not isinstance(v, str) or not os.path.isabs(v) or not os.path.isfile(v):
+            problems.append("music_file: an absolute path of an existing audio file (the royalty-free music bed)")
+        lic = profile.get("music_license")
+        if not isinstance(lic, str) or not lic.strip():
+            problems.append("music_license: required with music_file - the licence (name, source, terms) the "
+                            "video report states")
     return problems
 
 
