@@ -29,7 +29,7 @@ interactive checkbox menu (see "Interactive menu" below).
 | `venv`         | `45-venv` only, for the declared rows matching `--version` / `--profile` (all rows with a `python` when neither is given): `create-venv --rebuild` in the venv the row already uses, with `--extra SPEC` / `--override FILE` when given and the extras and override the row recorded otherwise, then `record-env`; builds nothing else, asks nothing but the row list - the filter for "requirements changed" or "pin a package" |
 | `voice`        | `70-speech` only (no preflight): `propose` the speech providers reachable from this machine, ask for the endpoint, model, key variable NAME and a voice per language, `record` on confirmation - see its step-specific note |
 | `youtube`      | `75-youtube` only (no preflight): `propose` what to prepare, ask for the channel label, the OAuth variable NAMES, the default privacy and an optional playlist, `record` on confirmation - see its step-specific note |
-| `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
+| `--reset`      | Runs ONLY `47-instance-reset.sh apply --hard`: backs `instances.toml` up, then clears it. No other steps run. Re-declaring an instance never needs it (see AI-3). |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
 For `instance` spin-up, also accept a trailing `--version X.Y` and pass it
@@ -242,6 +242,13 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    with the confirmed spec via env
    `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` refuses
    to auto-write without this env - never call `40 apply` without it.
+
+   **Running it again is the normal way to change an instance.** A series and profile already
+   declared is UPDATED in place by `40 apply`: its addons path follows the plan (a repository
+   added, removed or reordered), its port, database and Python stay. The plan says which it is
+   ("Instance <X.Y>:<profile>: already declared - addons path will be updated" or
+   "- unchanged"); nothing is duplicated and nothing is skipped silently. `--reset` is for
+   starting the whole registry over, never for changing one instance.
 
    **AI-4 - Venv scan (CONFIRM #4)**
 
@@ -652,11 +659,11 @@ Resolve:
   (channel = purpose, `live` true): the channel title comes back from Google, or the result names
   the option still missing. `check` validates the file only; `apply` only advises.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
-  `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
-  clean replacement. Default mode (`apply`): removes entries whose addons paths
-  no longer exist; reformats any dotted-key block into the `[[instance]]` array-of-tables shape
-  (the only filter is path existence). Hard mode (`apply --hard`): wipes all entries
-  unconditionally. `check` always exits 0.
+  `--reset` runs `apply --hard`: backs up `instances.toml` to `<path>.bak.<timestamp>` then
+  writes an empty registry - what the menu option "Start the instance registry over" promises.
+  The script's plain `apply` (hand-run only, no filter reaches it) keeps the rows whose addons
+  paths still exist and drops the rest, reformatting any dotted-key block into the
+  `[[instance]]` array-of-tables shape. `check` always exits 0.
 - **48-db-local-auth** *(instance sub-step - runs between 45 and 50)* - lets Odoo
   reach the declared PostgreSQL role from THIS host, via one
   delimited managed block in that cluster's `pg_hba.conf`:
@@ -687,7 +694,9 @@ Resolve:
 - **Never sudo silently.** ffmpeg, system packages and a native SERVER's
   `pg_hba.conf` are only *advised*; the user runs any privileged change themselves.
 - **Idempotent.** Always run a step's `check` before its `apply`. Re-running
-  the whole command must be a no-op when everything is already configured.
+  the whole command must be a no-op when everything is already configured, and re-running a
+  goal with a changed answer updates what that answer owns (an instance's addons path, a venv's
+  packages, a channel's privacy) - never a second copy, never a silent skip.
 - **Spawn a HAIKU subagent ONLY for read-only local filesystem scans** (repo →
   local path mapping in AI-3, venv → series mapping in AI-4). Every file
   mutation goes through the deterministic `*.sh` step scripts (40/45/46/47/48/50/60),

@@ -386,3 +386,45 @@ def test_step40_writes_profile_and_instance_key_fields(tmp_path):
     assert re.fullmatch(r"odoo_17_0_[0-9a-f]{8}_dev", inst.get("db_name", "")), (
         f"Expected db_name matching 'odoo_17_0_<repo-key8>_dev', got {inst.get('db_name')!r}"
     )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_redeclaring_an_instance_updates_its_addons_path_and_keeps_its_port(tmp_path):
+    """Re-running setup with a changed repo set must update the declared row in place.
+
+    A second `apply` for the same series and profile with a different addons path
+    rewrites that row's addons path, keeps its port and database, adds no second
+    row, and says so; a third `apply` with the same spec reports it unchanged.
+    """
+    instances_toml = tmp_path / "instances.toml"
+    core = tmp_path / "core17"
+    extra = tmp_path / "extra17"
+    core.mkdir()
+    extra.mkdir()
+    env_extra = {"ODOO_AI_INSTANCES": str(instances_toml), "HOME": str(tmp_path)}
+
+    def declare(paths):
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps([{
+            "series": "17.0", "profile": "std", "addons_path": paths, "http_port": 8069,
+        }]), encoding="utf-8")
+        proc = _run_step40("apply", env_extra={**env_extra, "ODOO_AI_PROFILE_SPEC": str(spec_file)},
+                           cwd=tmp_path)
+        assert proc.returncode == 0, f"apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+        return proc.stdout
+
+    declare([str(core)])
+    first = tomllib.loads(instances_toml.read_text())["instance"]
+    assert len(first) == 1
+    db_name = first[0]["db_name"]
+
+    out = declare([str(extra), str(core)])
+    rows = tomllib.loads(instances_toml.read_text())["instance"]
+    assert len(rows) == 1, f"a re-declared instance must not be duplicated:\n{instances_toml.read_text()}"
+    assert rows[0]["addons_path"] == [str(extra), str(core)], rows[0]["addons_path"]
+    assert rows[0]["http_port"] == 8069 and rows[0]["db_name"] == db_name
+    assert "updated" in out and "skip" not in out, out
+
+    out = declare([str(extra), str(core)])
+    assert "unchanged" in out, out
+    assert tomllib.loads(instances_toml.read_text())["instance"][0]["addons_path"] == [str(extra), str(core)]
