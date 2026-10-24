@@ -123,3 +123,35 @@ def test_a_keyless_self_hosted_endpoint_is_valid(home):
     assert _record(home, cfg).returncode == 0
     check = _step(home, "check")
     assert check.returncode == 0 and "AUTH=none" in check.stdout
+
+
+def test_propose_lists_the_gateway_first_then_local_services_that_answer_the_audio_shape(home, tmp_path):
+    """A fake docker on PATH publishes one container port; a loopback HTTP stub answers /v1/models
+    there; a second published port answers nothing."""
+    import http.server, threading, socket
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def do_GET(self):
+            body = b'{"data": [{"id": "voice-tts"}]}'
+            self.send_response(200 if self.path == "/v1/models" else 404); self.send_header("Content-Length", str(len(body)))
+            self.end_headers(); self.wfile.write(body)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0)); dead = s.getsockname()[1]
+    bindir = tmp_path / "bin"; bindir.mkdir()
+    fake = bindir / "docker"
+    fake.write_text("#!/usr/bin/env bash\necho 'voice-kokoro 0.0.0.0:%d->8880/tcp'\necho 'db 127.0.0.1:%d->5432/tcp'\n" % (port, dead))
+    fake.chmod(0o755)
+    try:
+        proc = _step(home, "propose", env={"PATH": "%s:%s" % (bindir, os.environ["PATH"]),
+                                          "ODOO_AI_SPEECH_BASE_URL": "https://gateway.example.test/v1"})
+    finally:
+        srv.shutdown()
+    assert proc.returncode == 0, proc.stderr
+    assert "PROVIDER_1='gateway https://gateway.example.test/v1" in proc.stdout
+    assert "PROVIDER_2='voice-kokoro http://127.0.0.1:%d/v1" % port in proc.stdout
+    assert "127.0.0.1:%d" % dead not in proc.stdout
+    if "FFMPEG_FILTERS_MISSING='none'" not in proc.stdout:
+        assert "REMEDY_" in proc.stdout

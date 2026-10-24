@@ -32,9 +32,12 @@ was given, none when empty) and rewritten on the next `record`.
 Subcommands (stdlib only):
   check     exit 0 when speech.toml is valid; 1 otherwise with the remedy; 2 unreadable. Whether the
             configured value is present is reported by the odoo-media `media_info` tool, not here.
-  propose   prints KEY=VALUE facts: the provider shapes this file knows (PROVIDER_<n>=<label>
-            <base_url shape> <needs voice?> auth: <mode>), GATEWAY (ODOO_AI_SPEECH_BASE_URL when
-            an operator exported one), FFMPEG and the filters the assembler needs, DECLARED
+  propose   prints KEY=VALUE facts: GATEWAY (ODOO_AI_SPEECH_BASE_URL when an operator exported
+            one) first, then every local container or service that answers the OpenAI audio shape
+            (docker ps published ports + the well-known local ports, probed once), then the
+            provider shapes this file knows (PROVIDER_<n>=<label> <base_url shape> <needs voice?>
+            auth: <mode>), FFMPEG, the filters the assembler needs and a REMEDY per missing one,
+            DECLARED
   record    --from-json FILE   validate and write (backup, atomic)
   show      print the configuration as JSON
 """
@@ -225,13 +228,83 @@ def ffmpeg_filters_missing():
     return [f for f in FFMPEG_FILTERS if " %s " % f not in out]
 
 
+LOCAL_PROBE_PORTS = (8080, 8880, 8000, 8100, 8300)   # the shapes above + two common container ports
+FILTER_REMEDY = {
+    "drawtext": "an ffmpeg build with libfreetype (the distro package); a static build without it renders "
+                "the title card through libass instead when `subtitles` is present",
+    "subtitles": "an ffmpeg build with libass (the distro package)",
+}
+
+
+def _answers_openai_audio(base, timeout=2.0):
+    """The base URL when GET <base>/models or <base>/audio/voices answers HTTP 200 (or 401/403:
+    reachable, wants a value), else None."""
+    import urllib.error
+    import urllib.request
+    for path in ("/models", "/audio/voices"):
+        try:
+            with urllib.request.urlopen(base.rstrip("/") + path, timeout=timeout) as resp:
+                if resp.status == 200:
+                    return base
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return base
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return None
+
+
+def discover_local(docker_cmd="docker", probe_ports=LOCAL_PROBE_PORTS):
+    """[(name, base_url)] of local services that speak the OpenAI audio shape: every published
+    port of a running container (`docker ps`) and the well-known local ports, each probed once."""
+    found, seen = [], set()
+    if shutil.which(docker_cmd):
+        try:
+            out = subprocess.run([docker_cmd, "ps", "--format", "{{.Names}} {{.Ports}}"], capture_output=True,
+                                 text=True, timeout=15, check=False).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            out = ""
+        for line in out.splitlines():
+            name, _, ports = line.partition(" ")
+            for m in re.finditer(r"(?:0\.0\.0\.0|127\.0\.0\.1|\[::\]|):(\d+)->", ports):
+                port = int(m.group(1))
+                if port in seen:
+                    continue
+                seen.add(port)
+                base = _answers_openai_audio("http://127.0.0.1:%d/v1" % port)
+                if base:
+                    found.append((name, base))
+    for port in probe_ports:
+        if port in seen:
+            continue
+        seen.add(port)
+        base = _answers_openai_audio("http://127.0.0.1:%d/v1" % port)
+        if base:
+            found.append(("local:%d" % port, base))
+    return found
+
+
 def cmd_propose(args):
-    for i, (label, shape, voice, auth) in enumerate(PROVIDER_SHAPES, 1):
-        _emit("PROVIDER_%d" % i, "%s %s (%s) auth: %s" % (label, shape, voice, auth))
     gateway = os.environ.get("ODOO_AI_SPEECH_BASE_URL", "").strip()
     _emit("GATEWAY", gateway or "none")
+    n = 0
+    if gateway:
+        n += 1
+        _emit("PROVIDER_%d" % n, "gateway %s (voice per engine) auth: bearer - exported by the operator" % gateway)
+    for name, base in discover_local():
+        n += 1
+        _emit("PROVIDER_%d" % n, "%s %s (local container or service answering the OpenAI audio shape) auth: none"
+              % (name, base))
+    for label, shape, voice, auth in PROVIDER_SHAPES:
+        if label == "gateway" and gateway:
+            continue
+        n += 1
+        _emit("PROVIDER_%d" % n, "%s %s (%s) auth: %s" % (label, shape, voice, auth))
     _emit("FFMPEG", shutil.which("ffmpeg") or "missing")
-    _emit("FFMPEG_FILTERS_MISSING", " ".join(ffmpeg_filters_missing()) or "none")
+    missing = ffmpeg_filters_missing()
+    _emit("FFMPEG_FILTERS_MISSING", " ".join(missing) or "none")
+    for f in missing:
+        _emit("REMEDY_%s" % f, FILTER_REMEDY.get(f, "an ffmpeg build with the %s filter (the distro package)" % f))
     _emit("FFPROBE", shutil.which("ffprobe") or "missing")
     cfg, code = _load(speech_path())
     _emit("DECLARED", 1 if code == 0 else 0)

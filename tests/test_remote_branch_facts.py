@@ -36,3 +36,8 @@ def test_present_and_absent_branches_are_told_apart_and_an_unreachable_remote_is
 def test_credentials_never_appear_in_the_printed_remote():
     assert rbf.strip_credentials("https://user:s3cret@example.org/acme/repo.git") == "https://example.org/acme/repo.git"
     assert rbf.strip_credentials("git@github.com:acme/repo.git") == "git@github.com:acme/repo.git"
+
+
+def test_an_option_like_or_command_transport_url_is_never_passed_to_git():
+    assert rbf.remote_heads("--upload-pack=touch /tmp/pwned", timeout=5) is None
+    assert rbf.remote_heads("ext::sh -c touch% /tmp/pwned", timeout=5) is None
