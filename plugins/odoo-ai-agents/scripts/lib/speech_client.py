@@ -137,10 +137,12 @@ def wav_duration(path):
         return wf.getnframes() / float(wf.getframerate() or 1)
 
 
-def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phonemes=False):
+def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phonemes=False, speed=None, voice=None):
+    """`speed` is the OpenAI speaking-rate factor (sent only when it differs from 1.0; an engine may
+    ignore it - probe() measures that); `voice` overrides the recorded voice (an audition)."""
     cfg = cfg or _load()
     table = cfg["tts"]
-    voice = table["voices"].get(lang)
+    voice = voice or table["voices"].get(lang)
     if not voice:
         raise SpeechError("no voice recorded for %s - run /odoo-ai-agents:odoo-setup voice" % lang, 1)
     # the registry always applies (brands, vendors, acronyms confirmed once); the map adds terms
@@ -148,8 +150,10 @@ def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phone
     if entries:
         text = pronunciation.apply_map(text, entries, phonemes=phonemes)
     fmt = table.get("response_format", "wav")
-    body = json.dumps({"model": table["model"], "input": text, "voice": voice,
-                       "response_format": fmt}).encode("utf-8")
+    payload = {"model": table["model"], "input": text, "voice": voice, "response_format": fmt}
+    if speed is not None and abs(float(speed) - 1.0) > 1e-6:
+        payload["speed"] = float(speed)
+    body = json.dumps(payload).encode("utf-8")
     raw, _ctype = _post(table["base_url"].rstrip("/") + "/audio/speech", _headers(table, value), body,
                         cancel=cancel)
     if not raw:
@@ -220,10 +224,12 @@ def probe_dir():
     return os.path.join(paths.state_root(), "scratch", "speech-probe")
 
 
-def probe(lang=None, out_dir=None, value=None, cfg=None, cancel=None):
+def probe(lang=None, out_dir=None, value=None, cfg=None, cancel=None, speed=None):
     """Per language: synthesize the probe sentence, transcribe it in the same language, score the
     word error rate (tone-aware, narration_check.wer). A high rate means the voice does not speak
-    that language or the endpoint is not what the configuration says. Returns a list of dicts."""
+    that language or the endpoint is not what the configuration says. With `speed`, a second clip
+    at that rate is rendered and `speed_honoured` says whether the engine changed the duration (a
+    5 percent difference or more) - never assumed. Returns a list of dicts."""
     import narration_check
     cfg = cfg or _load()
     out_dir = out_dir or probe_dir()
@@ -237,9 +243,16 @@ def probe(lang=None, out_dir=None, value=None, cfg=None, cancel=None):
             path, dur = tts(sentence, code, clip, cfg=cfg, value=value, cancel=cancel)
             heard = stt(path, code, cfg=cfg, value=value, cancel=cancel)
             rate = narration_check.wer(sentence, heard)
-            results.append({"lang": code, "ok": True, "clip": path, "duration_s": round(dur, 2),
-                            "sentence": sentence, "heard": heard, "wer": round(rate, 3),
-                            "verdict": "pass" if rate <= PROBE_MAX_WER else "fail"})
+            entry = {"lang": code, "ok": True, "clip": path, "duration_s": round(dur, 2),
+                     "sentence": sentence, "heard": heard, "wer": round(rate, 3),
+                     "verdict": "pass" if rate <= PROBE_MAX_WER else "fail"}
+            if speed is not None and abs(float(speed) - 1.0) > 1e-6:
+                fast = os.path.join(out_dir, "probe-%s-x%g.wav" % (code, float(speed)))
+                _p, fdur = tts(sentence, code, fast, cfg=cfg, value=value, cancel=cancel, speed=speed)
+                expected = dur / float(speed)
+                entry.update({"speed": float(speed), "duration_at_speed_s": round(fdur, 2),
+                              "speed_honoured": abs(fdur - dur) >= 0.05 * dur and abs(fdur - expected) < abs(fdur - dur)})
+            results.append(entry)
         except SpeechError as exc:
             results.append({"lang": code, "ok": False, "clip": clip, "duration_s": 0.0, "sentence": sentence,
                             "heard": "", "wer": 1.0, "verdict": "fail", "error": exc.args[0]})
@@ -254,6 +267,8 @@ def main(argv=None):
     p.add_argument("--lang", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--map")
+    p.add_argument("--speed", type=float)
+    p.add_argument("--voice")
     p = sub.add_parser("stt")
     p.add_argument("--audio", required=True)
     p.add_argument("--lang", required=True)
@@ -262,6 +277,7 @@ def main(argv=None):
     p = sub.add_parser("probe")
     p.add_argument("--lang")
     p.add_argument("--out-dir")
+    p.add_argument("--speed", type=float)
     args = parser.parse_args(argv)
     value = os.environ.get(VALUE_ENV) or None
     try:
@@ -272,7 +288,7 @@ def main(argv=None):
             if args.map:
                 with open(args.map, encoding="utf-8") as fh:
                     pron = json.load(fh)
-            out, dur = tts(text, args.lang, args.out, pron, value=value)
+            out, dur = tts(text, args.lang, args.out, pron, value=value, speed=args.speed, voice=args.voice)
             print("OUT=%s" % out)
             print("DURATION_S=%.2f" % dur)
             return 0
@@ -285,7 +301,7 @@ def main(argv=None):
         if args.cmd == "voices":
             print(json.dumps(voices(value=value), indent=2, ensure_ascii=False))
             return 0
-        results = probe(args.lang, args.out_dir, value=value)
+        results = probe(args.lang, args.out_dir, value=value, speed=args.speed)
         for r in results:
             if r["ok"]:
                 print("%s OUT=%s DURATION_S=%.2f WER=%.3f VERDICT=%s" % (

@@ -127,3 +127,12 @@ def test_record_keeps_a_backup_of_the_previous_profile(home):
     backups = [p for p in home.iterdir() if p.name.startswith("author-profile.toml.bak")]
     assert backups, sorted(p.name for p in home.iterdir())
     assert json.loads(_step(home, "show").stdout)["vendor"] == "Acme ERP Ltd"
+
+
+def test_a_music_bed_needs_its_licence(home, tmp_path):
+    bed = tmp_path / "bed.mp3"; bed.write_bytes(b"ID3")
+    assert _record(home, dict(GOOD, music_file=str(bed), music_license="CC0 - example library, track 12")).returncode == 0
+    proc = _record(home, dict(GOOD, music_file=str(bed)))
+    assert proc.returncode == 1 and "music_license" in proc.stderr
+    proc = _record(home, dict(GOOD, music_file=str(tmp_path / "missing.mp3"), music_license="x"))
+    assert proc.returncode == 1 and "music_file" in proc.stderr

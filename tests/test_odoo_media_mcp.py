@@ -294,3 +294,17 @@ def test_a_video_is_described_made_public_and_deleted_only_with_its_title(media)
     assert wrong["error"]["code"] == "INVALID_ARGUMENTS" and not [c for c in _Fake.calls if c[0] == "DELETE"]
     gone = structured(client.call("youtube_delete", {"channel": "docs", "video_id": "vid123", "title": "Demo"}))
     assert gone["id"] == "vid123" and [c for c in _Fake.calls if c[0] == "DELETE"][0][1].endswith("id=vid123")
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_speed_and_an_audition_voice_reach_the_engine_and_the_probe_says_whether_speed_was_honoured(media, tmp_path):
+    client, home, fake = media
+    out = tmp_path / "fast.wav"
+    res = structured(client.call("speech_synthesize", {"text": "Xin chào.", "lang": "vi_VN", "out": str(out), "speed": 1.2,
+                                                        "voice": "mai-2"}))
+    assert res["duration_s"] > 0
+    sent = json.loads(_Fake.calls[-1][3].decode("utf-8"))
+    assert sent["speed"] == 1.2 and sent["voice"] == "mai-2"
+    probe = structured(client.call("speech_probe", {"lang": "vi_VN", "speed": 1.3}))
+    entry = probe["results"][0]
+    assert entry["speed"] == 1.3 and entry["speed_honoured"] is False   # the fake returns the same clip whatever the speed

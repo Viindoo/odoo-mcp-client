@@ -4,7 +4,14 @@
 Subcommands (stdlib + ffmpeg/ffprobe on PATH):
   verify-tools [--font F]  what this machine can do (ffmpeg, the filters, title card via drawtext or
             libass, the font and its Vietnamese coverage) - run BEFORE recording; exit 1 on a gap.
-  fit       --clip scene.mp4 --narration scene.wav --out scene-fitted.mp4 [--lead-in 0.5]
+  speedup   --clip scene.mp4 --events scene.events.json --out scene-paced.mp4 [--typing 3] [--travel 2]
+            [--wait-keep 1]   the dead time the recorder logged (typing, cursor travel, page loads,
+            waits) plays faster or is cut to its first second; everything else stays 1x.
+  zoom      --clip scene.mp4 --focus x,y,w,h --from s --to s --out scene-zoomed.mp4 [--factor 1.6]
+            a smooth punch-in on the area that matters (ease in, hold, ease out) at output resolution.
+  audition  --narration a.wav [--narration b.wav ...] --out-dir D [--music bed.mp3]
+            the same line per candidate voice, dry and with the music bed, for the owner to pick once.
+  fit       --clip scene.mp4 --narration scene.wav --out scene-fitted.mp4 [--lead-in 0.5] [--max-hold 3]
             [--fade 0.3] [--max-silence 3.0]  The narration starts after the lead-in; when it outlasts the clip the
             last frame is held; a short fade closes the scene. Prints DURATION_S.
   concat    --list clips.txt --out video.mp4  Concatenates fitted scenes (ffmpeg concat demuxer,
@@ -103,6 +110,13 @@ def cmd_fit(args):
     fps = frame_rate_of(args.clip) or 25.0
     total = max(clip_s, args.lead_in + narration_s + args.fade)
     hold = max(0.0, total - clip_s)
+    if hold > args.max_hold:
+        print("HOLD_S=%.3f" % hold)
+        print("HOLD=over")
+        print("x the last frame would freeze for %.1f s to fit the narration (limit %.1f s): shorten the "
+              "narration or extend the footage - a frozen frame is what makes a video feel slow" % (hold, args.max_hold),
+              file=sys.stderr)
+        return 5
     # the part of the scene where the screen moves and nobody speaks (the lead-in is deliberate)
     silent = max(0.0, clip_s - args.lead_in - narration_s)
     vf = "tpad=stop_mode=clone:stop_duration=%.3f,fade=t=out:st=%.3f:d=%.3f" % (
@@ -141,6 +155,28 @@ def loudnorm_measure(path, profile):
     return json.loads(m.group(0)) if m else None
 
 
+MUSIC_GAIN_DB = -18.0        # the bed under speech
+DUCK = "sidechaincompress=threshold=0.03:ratio=8:attack=30:release=500:makeup=1"
+
+
+def music_filter(duration_s, gain_db, fade_s=2.0):
+    """ffmpeg filter_complex: the bed (input 1, looped) faded, ducked by the narration (input 0's
+    audio) and mixed under it; the narration's own level is untouched."""
+    return ("[1:a]aloop=loop=-1:size=2e9,atrim=0:%.3f,asetpts=N/SR/TB,volume=%gdB,"
+            "afade=t=in:d=%g,afade=t=out:st=%.3f:d=%g[bed];"
+            "[bed][0:a]%s[duck];[0:a][duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]"
+            % (duration_s, gain_db, fade_s, max(0.0, duration_s - fade_s - 1.0), fade_s + 1.0, DUCK))
+
+
+def add_music(src, music, out, gain_db=MUSIC_GAIN_DB):
+    """`src` with the music bed mixed under its narration -> `out` (video copied)."""
+    dur = duration_of(src)
+    proc = _run(["ffmpeg", "-v", "error", "-y", "-i", src, "-stream_loop", "-1", "-i", music,
+                 "-filter_complex", music_filter(dur, gain_db), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+                 "-c:a", "pcm_s16le", "-t", "%.3f" % dur, out])
+    return proc
+
+
 def cmd_concat(args):
     _need("ffmpeg")
     with open(args.list, encoding="utf-8") as fh:
@@ -160,6 +196,16 @@ def cmd_concat(args):
         if proc.returncode != 0:
             print("x concat failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
             return 1
+        if getattr(args, "music", None):
+            bedded = args.out + ".bed.mkv"
+            proc = add_music(raw, args.music, bedded, args.music_gain)
+            if proc.returncode != 0:
+                print("x music bed failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
+                return 1
+            os.replace(bedded, raw + ".mkv")
+            raw = raw + ".mkv"
+            print("MUSIC=%s (%gdB under the narration, ducked)" % (os.path.basename(args.music), args.music_gain))
+            print("MUSIC_LICENSE=%s" % (args.music_license or "UNSTATED - the report must state it"))
         measured = loudnorm_measure(raw, args.profile)
         p = PROFILES[args.profile]
         af = "loudnorm=I=%s:TP=%s:LRA=11" % (p["lufs"], p["true_peak"])
@@ -173,11 +219,135 @@ def cmd_concat(args):
             print("x loudnorm pass failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
             return 1
     finally:
-        for f in (listfile, raw):
+        for f in (listfile, raw, args.out + ".raw.mp4", args.out + ".raw.mp4.mkv"):
             if os.path.exists(f):
                 os.unlink(f)
     print("OUT=%s" % args.out)
     print("DURATION_S=%.3f" % duration_of(args.out))
+    return 0
+
+
+# --------------------------------------------------------------------------- pacing
+def _ease(expr):
+    """smoothstep of a 0..1 expression, as ffmpeg expression text."""
+    return "(%s)*(%s)*(3-2*(%s))" % (expr, expr, expr)
+
+
+def cmd_zoom(args):
+    """A smooth punch-in on the focus box between --from and --to (ease in, hold, ease out), rendered
+    at the output resolution so text stays sharp; the rest of the clip is untouched. Captions and
+    title cards are never zoomed - this runs on a scene clip only."""
+    _need("ffmpeg")
+    fps = frame_rate_of(args.clip) or 25.0
+    info = ffprobe(args.clip)
+    v = next((s for s in info["streams"] if s.get("codec_type") == "video"), {})
+    W, H = int(v.get("width") or 1920), int(v.get("height") or 1080)
+    fx, fy, fw, fh = [float(x) for x in args.focus.split(",")]
+    z = max(1.0, min(float(args.factor), W / max(fw, 1.0), H / max(fh, 1.0)))
+    seg_frames = max(1, int(round((args.to - args.frm) * fps)))
+    ramp = max(1, int(round(args.ramp * fps)))
+    ramp = min(ramp, max(1, seg_frames // 2))
+    cx, cy = fx + fw / 2.0, fy + fh / 2.0
+    # zoom level per output frame `on`: ease in over `ramp`, hold, ease out over the last `ramp`
+    t_in = "min(on/%d,1)" % ramp
+    t_out = "min((%d-on)/%d,1)" % (seg_frames, ramp)
+    zexpr = "1+(%g-1)*min(%s,%s)" % (z, _ease(t_in), _ease(t_out))
+    xexpr = "min(max(%g-(iw/zoom)/2,0),iw-iw/zoom)" % cx
+    yexpr = "min(max(%g-(ih/zoom)/2,0),ih-ih/zoom)" % cy
+    zp = "zoompan=z='%s':x='%s':y='%s':d=1:s=%dx%d:fps=%g" % (zexpr, xexpr, yexpr, W, H, fps)
+    fc = ("[0:v]split=3[a][b][c];"
+          "[a]trim=0:%(f).3f,setpts=PTS-STARTPTS[pre];"
+          "[b]trim=%(f).3f:%(t).3f,setpts=PTS-STARTPTS,%(zp)s[mid];"
+          "[c]trim=%(t).3f,setpts=PTS-STARTPTS[post];"
+          "[pre][mid][post]concat=n=3:v=1:a=0[v]" % {"f": args.frm, "t": args.to, "zp": zp})
+    cmd = ["ffmpeg", "-v", "error", "-y", "-i", args.clip, "-filter_complex", fc, "-map", "[v]"]
+    if any(s.get("codec_type") == "audio" for s in info["streams"]):
+        cmd += ["-map", "0:a", "-c:a", "copy"]
+    cmd += video_args(args.profile, fps) + [args.out]
+    proc = _run(cmd)
+    if proc.returncode != 0:
+        print("x zoom failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
+        return 1
+    print("OUT=%s" % args.out)
+    print("ZOOM=%g over %.2f-%.2f s" % (z, args.frm, args.to))
+    return 0
+
+
+def cmd_speedup(args):
+    """Compress the dead time the recorder logged: each event span of a kind named in --typing /
+    --wait / --travel plays faster (typing, cursor travel, scrolling, a page load) or keeps only its
+    first second (a wait with an indicator); everything else plays at 1x. The events file is the
+    recorder's `<scene>.events.json`: [{"kind": "typing|wait|travel|load", "start": s, "end": s}]."""
+    _need("ffmpeg")
+    with open(args.events, encoding="utf-8") as fh:
+        events = sorted((e for e in json.load(fh) if isinstance(e, dict)), key=lambda e: float(e.get("start", 0)))
+    total = duration_of(args.clip)
+    factors = {"typing": args.typing, "travel": args.travel, "load": args.travel}
+    spans, cursor = [], 0.0
+    for e in events:
+        s, en, kind = float(e.get("start", 0)), float(e.get("end", 0)), e.get("kind", "")
+        if en <= s or s < cursor or en > total + 0.01:
+            continue
+        if kind == "wait":
+            keep = min(args.wait_keep, en - s)
+            if s > cursor:
+                spans.append((cursor, s, 1.0))
+            spans.append((s, s + keep, 1.0))
+            if en > s + keep:
+                spans.append((s + keep, en, 0.0))   # 0 = cut
+        elif kind in factors and factors[kind] > 1.0:
+            if s > cursor:
+                spans.append((cursor, s, 1.0))
+            spans.append((s, en, factors[kind]))
+        else:
+            continue
+        cursor = en
+    if cursor < total:
+        spans.append((cursor, total, 1.0))
+    kept = [sp for sp in spans if sp[2] > 0]
+    if not kept:
+        print("x nothing left after the cuts", file=sys.stderr)
+        return 1
+    parts = []
+    for i, (s, en, f) in enumerate(kept):
+        setpts = "setpts=(PTS-STARTPTS)/%g" % f if f != 1.0 else "setpts=PTS-STARTPTS"
+        parts.append("[0:v]trim=%.3f:%.3f,%s[v%d]" % (s, en, setpts, i))
+    fc = ";".join(parts) + ";" + "".join("[v%d]" % i for i in range(len(kept))) + "concat=n=%d:v=1:a=0[v]" % len(kept)
+    fps = frame_rate_of(args.clip) or 25.0
+    proc = _run(["ffmpeg", "-v", "error", "-y", "-i", args.clip, "-filter_complex", fc, "-map", "[v]", "-an"]
+                + video_args(args.profile, fps) + [args.out])
+    if proc.returncode != 0:
+        print("x speedup failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
+        return 1
+    new_total = duration_of(args.out)
+    print("OUT=%s" % args.out)
+    print("DURATION_S=%.3f" % new_total)
+    print("SAVED_S=%.3f" % (total - new_total))
+    print("SPANS=%d" % len([sp for sp in spans if sp[2] != 1.0]))
+    return 0
+
+
+def cmd_audition(args):
+    """The same spoken line as several candidate clips, each with and without the music bed, so the
+    owner picks a voice and the music by ear once per project. Prints one line per sample."""
+    _need("ffmpeg")
+    os.makedirs(args.out_dir, exist_ok=True)
+    for clip in args.narration:
+        base = os.path.splitext(os.path.basename(clip))[0]
+        dry = os.path.join(args.out_dir, base + ".dry.wav")
+        proc = _run(["ffmpeg", "-v", "error", "-y", "-i", clip, "-af", "loudnorm=I=%s:TP=%s:LRA=11" % (NARRATION_LUFS, NARRATION_TP),
+                     "-ar", "48000", "-ac", "2", dry])
+        if proc.returncode != 0:
+            print("x %s: %s" % (clip, proc.stderr.strip()[-200:]), file=sys.stderr)
+            continue
+        print("SAMPLE=%s voice=%s music=off" % (dry, base))
+        if args.music:
+            wet = os.path.join(args.out_dir, base + ".music.wav")
+            dur = duration_of(dry)
+            proc = _run(["ffmpeg", "-v", "error", "-y", "-i", dry, "-stream_loop", "-1", "-i", args.music,
+                         "-filter_complex", music_filter(dur, args.music_gain), "-map", "[a]", "-t", "%.3f" % dur, wet])
+            if proc.returncode == 0:
+                print("SAMPLE=%s voice=%s music=on" % (wet, base))
     return 0
 
 
@@ -425,9 +595,21 @@ def main(argv=None):
     p = sub.add_parser("fit"); p.add_argument("--clip", required=True); p.add_argument("--narration", required=True)
     p.add_argument("--out", required=True); p.add_argument("--lead-in", type=float, default=0.5, dest="lead_in")
     p.add_argument("--max-silence", type=float, default=3.0, dest="max_silence")
+    p.add_argument("--max-hold", type=float, default=3.0, dest="max_hold")
     p.add_argument("--fade", type=float, default=0.3); p.add_argument("--profile", default="youtube-1080p")
     p = sub.add_parser("concat"); p.add_argument("--list", required=True); p.add_argument("--out", required=True)
     p.add_argument("--profile", default="youtube-1080p")
+    p.add_argument("--music", help="royalty-free bed, ducked under the narration"); p.add_argument("--music-gain", type=float, default=MUSIC_GAIN_DB, dest="music_gain")
+    p.add_argument("--music-license", dest="music_license", help="the licence the report states")
+    p = sub.add_parser("zoom"); p.add_argument("--clip", required=True); p.add_argument("--out", required=True)
+    p.add_argument("--focus", required=True, help="x,y,w,h of the area that matters, in clip pixels")
+    p.add_argument("--from", type=float, required=True, dest="frm"); p.add_argument("--to", type=float, required=True)
+    p.add_argument("--factor", type=float, default=1.6); p.add_argument("--ramp", type=float, default=0.6); p.add_argument("--profile", default="youtube-1080p")
+    p = sub.add_parser("speedup"); p.add_argument("--clip", required=True); p.add_argument("--events", required=True); p.add_argument("--out", required=True)
+    p.add_argument("--typing", type=float, default=3.0); p.add_argument("--travel", type=float, default=2.0)
+    p.add_argument("--wait-keep", type=float, default=1.0, dest="wait_keep"); p.add_argument("--profile", default="youtube-1080p")
+    p = sub.add_parser("audition"); p.add_argument("--narration", action="append", required=True); p.add_argument("--out-dir", required=True, dest="out_dir")
+    p.add_argument("--music"); p.add_argument("--music-gain", type=float, default=MUSIC_GAIN_DB, dest="music_gain")
     p = sub.add_parser("title"); p.add_argument("--text", required=True); p.add_argument("--out", required=True)
     p.add_argument("--seconds", type=float, default=3.0); p.add_argument("--font"); p.add_argument("--size", default="1920x1080")
     p.add_argument("--fps", type=float, default=25.0); p.add_argument("--profile", default="youtube-1080p")
@@ -440,10 +622,11 @@ def main(argv=None):
     p = sub.add_parser("preview"); p.add_argument("--video", required=True); p.add_argument("--out", required=True)
     p.add_argument("--max-mb", type=float, default=10.0, dest="max_mb"); p.add_argument("--profile", default="youtube-1080p")
     args = parser.parse_args(argv)
-    if args.cmd not in ("sidecar", "verify-tools") and getattr(args, "profile", "youtube-1080p") not in PROFILES:
+    if args.cmd not in ("sidecar", "verify-tools", "audition") and getattr(args, "profile", "youtube-1080p") not in PROFILES:
         print("x unknown profile %s (known: %s)" % (args.profile, ", ".join(PROFILES)), file=sys.stderr)
         return 1
     return {"fit": cmd_fit, "concat": cmd_concat, "title": cmd_title, "verify": cmd_verify, "verify-tools": cmd_verify_tools,
+            "zoom": cmd_zoom, "speedup": cmd_speedup, "audition": cmd_audition,
             "sidecar": cmd_sidecar, "thumbnail": cmd_thumbnail, "preview": cmd_preview}[args.cmd](args)
 
 

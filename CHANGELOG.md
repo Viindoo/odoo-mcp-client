@@ -84,6 +84,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   variable-name keys; a file written with them is read as `auth`; `70-speech.sh propose` lists a
   gateway the operator exported and every local container that answers the OpenAI audio shape,
   with a remedy per missing ffmpeg filter; `speech_client.py probe` writes under the state root.
+- `odoo-ai-agents` - **narration with energy, by video type.** The storyboard writes SPOKEN
+  text (8-15 words per sentence, a hook in the first 5 s, second person, benefit before feature,
+  result first for marketing; `narration_check.py` refuses a longer sentence); the voice is
+  picked once per project from the engine's style tags or an audition of the configured
+  candidates (`speech.toml` `[tts.candidates]`, `speech_synthesize` with `voice`,
+  `video_publish.py audition` dry and with the music bed, one question to the owner); the
+  speaking rate per video type (`[tts.rate]`, the OpenAI `speed`) is verified by `speech_probe`
+  (`speed_honoured`), never assumed; a royalty-free music bed from the author profile
+  (`music_file` + `music_license`) is ducked under the narration (`concat --music`, marketing on
+  by default); pacing: the recorder logs typing, waits, travel and loads (`<clip>.events.json`)
+  and `video_publish.py speedup` compresses them, `zoom` punches in on the storyboard's focus box
+  with eased keyframes at output resolution, `fit --max-hold` refuses a frame frozen longer than
+  the cap, shots cut at the click and open on the result.
 - `odoo-ai-agents` - **a video goes public when its PR merges, without polling.** The default
   tail gains `publish-videos` (after `merge` / `merge-site`): when the owner resumes the run after
   merging, one read of each embedding PR's state, then `youtube_set_privacy` public for the videos

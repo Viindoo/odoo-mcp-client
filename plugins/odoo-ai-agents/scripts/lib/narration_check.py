@@ -12,7 +12,9 @@ The script's shape is checked first, with or without a transcript: a speech engi
 line break as at a sentence end, so a sentence that continues on the next line is read as two
 broken halves. A non-empty line that ends without sentence-final punctuation while text follows it
 is reported as a broken line and fails the check; the author rewrites the script as one sentence
-(or more) per line.
+(or more) per line. A sentence longer than --max-words (15 by default: spoken text carries one
+idea per 8-15 words) is reported as SENTENCES_LONG and fails the check too - a long descriptive
+sentence is what makes a narration sound like storytelling.
 
 Usage:
     python3 narration_check.py --script S.txt [--transcript T.txt] [--slots "Viindoo,AI"]
@@ -46,6 +48,21 @@ def broken_lines(text):
         if follows and not _SENTENCE_END.search(line):
             broken.append(i + 1)
     return broken
+
+
+_SENTENCE_SPLIT = re.compile(r'(?<=[.!?\u2026])\s+')
+
+
+def long_sentences(text, max_words=15):
+    """[(line no, word count, sentence)] of sentences longer than max_words - spoken text carries one
+    idea per 8-15 words; a longer sentence is read as prose and sounds like storytelling."""
+    out = []
+    for no, line in enumerate(text.splitlines(), 1):
+        for sentence in _SENTENCE_SPLIT.split(line.strip()):
+            n = len(tokens(sentence))
+            if n > max_words:
+                out.append((no, n, sentence.strip()))
+    return out
 
 
 def tokens(text):
@@ -98,14 +115,21 @@ def main(argv=None):
     parser.add_argument("--map")
     parser.add_argument("--lang")
     parser.add_argument("--max-wer", type=float, default=0.15)
+    parser.add_argument("--max-words", type=int, default=15,
+                        help="longest spoken sentence; 0 disables the check")
     args = parser.parse_args(argv)
     with open(args.script, encoding="utf-8") as fh:
         script = fh.read()
     broken = broken_lines(script)
     print("LINES_BROKEN=%s" % (",".join(str(n) for n in broken) or "none"))
+    longs = long_sentences(script, args.max_words) if args.max_words else []
+    print("SENTENCES_LONG=%s" % (",".join("%d:%dw" % (no, n) for no, n, _s in longs) or "none"))
+    for no, n, s in longs:
+        print("LONG=%d %d words: %s" % (no, n, s[:80]))
     if args.transcript is None:
-        print("VERDICT=%s" % ("fail" if broken else "pass"))
-        return 1 if broken else 0
+        bad = bool(broken or longs)
+        print("VERDICT=%s" % ("fail" if bad else "pass"))
+        return 1 if bad else 0
     with open(args.transcript, encoding="utf-8") as fh:
         transcript = fh.read()
     pron = None
@@ -117,7 +141,7 @@ def main(argv=None):
     missing, ambiguous = slot_status(slots, transcript, pron)
     verdict = "pass"
     code = 0
-    if rate > args.max_wer or missing or broken:
+    if rate > args.max_wer or missing or broken or longs:
         verdict, code = "fail", 1
     elif ambiguous:
         verdict, code = "listen", 3

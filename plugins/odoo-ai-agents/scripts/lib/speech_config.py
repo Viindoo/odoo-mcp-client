@@ -26,8 +26,11 @@ locale, and the same voice id under two languages (a voice reads a second langua
 and mangles names). No credential value enters this file: the value the `bearer` mode sends is the
 plugin's configured `speech_api_key` option (Claude Code's own masked dialog, stored by Claude
 Code), which only the odoo-media MCP server receives; `record` refuses a value that looks like one.
-A configuration written by 8.1.0 (`api_key_env = "<NAME>"`) is read as `auth` (bearer when a name
-was given, none when empty) and rewritten on the next `record`.
+A configuration that spells `api_key_env = "<NAME>"` is read as `auth` (bearer when a name was
+given, none when empty) and rewritten on the next `record`. Optional tables: `[tts.candidates]`
+(locale -> voice ids to audition for a project) and `[tts.rate]` (`tutorial` / `marketing` ->
+the speaking-rate factor sent as the OpenAI `speed` parameter; the probe measures whether the
+engine honours it).
 
 Subcommands (stdlib only):
   check     exit 0 when speech.toml is valid; 1 otherwise with the remedy; 2 unreadable. Whether the
@@ -60,9 +63,11 @@ import paths  # noqa: E402
 
 FILE_NAME = "speech.toml"
 TTS_KEYS = ("provider", "base_url", "model", "auth", "response_format", "voices_url")
+VIDEO_TYPES = ("tutorial", "marketing")
+DEFAULT_RATE = {"tutorial": 1.0, "marketing": 1.08}   # the OpenAI `speed` parameter, where the engine honours it
 STT_KEYS = ("provider", "base_url", "model", "auth")
 AUTH_MODES = ("bearer", "none")   # bearer: the configured value is sent as `Authorization: Bearer`
-LEGACY_KEY = "api_key_env"        # 8.1.0 spelled the variable NAME here; read as auth=bearer, rewritten on record
+LEGACY_KEY = "api_key_env"        # an older configuration's key; read as auth, rewritten on record
 LOCALE_RE = re.compile(r"^[a-z]{2,3}_[A-Z]{2}$")
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{2,}$")
 # OpenAI-audio-API shapes a setup can offer; labels only, no vendor is required.
@@ -103,8 +108,28 @@ def validate(cfg):
         return problems
     tts, stt = cfg["tts"], cfg["stt"]
     for key in tts:
-        if key not in TTS_KEYS + ("voices",):
+        if key not in TTS_KEYS + ("voices", "candidates", "rate"):
             problems.append("[tts] unknown key %r" % key)
+    cands = tts.get("candidates")
+    if cands is not None:
+        if not isinstance(cands, dict):
+            problems.append("[tts.candidates] a table: locale -> list of voice ids to audition")
+        else:
+            for lang, lst in cands.items():
+                if not LOCALE_RE.match(str(lang)) or not isinstance(lst, list) or not all(isinstance(v, str) and v.strip() for v in lst):
+                    problems.append("[tts.candidates] %s: a locale key and a list of voice ids" % lang)
+    rate = tts.get("rate")
+    if rate is not None:
+        if not isinstance(rate, dict):
+            problems.append("[tts.rate] a table: tutorial / marketing -> speed factor")
+        else:
+            for kind, v in rate.items():
+                try:
+                    ok = kind in VIDEO_TYPES and 0.5 <= float(v) <= 2.0
+                except (TypeError, ValueError):
+                    ok = False
+                if not ok:
+                    problems.append("[tts.rate] %s: one of %s with a factor between 0.5 and 2.0" % (kind, " | ".join(VIDEO_TYPES)))
     for key in stt:
         if key not in STT_KEYS:
             problems.append("[stt] unknown key %r" % key)
@@ -149,6 +174,17 @@ def render(cfg):
     out += ["", "[tts.voices]"]
     for lang in sorted(cfg["tts"]["voices"]):
         out.append("%s = %s" % (lang, q(str(cfg["tts"]["voices"][lang]))))
+    cands = cfg["tts"].get("candidates") or {}
+    if cands:
+        out += ["", "[tts.candidates]"]
+        for lang in sorted(cands):
+            out.append("%s = [%s]" % (lang, ", ".join(q(str(v)) for v in cands[lang])))
+    rate = cfg["tts"].get("rate") or {}
+    if rate:
+        out += ["", "[tts.rate]"]
+        for kind in VIDEO_TYPES:
+            if kind in rate:
+                out.append("%s = %s" % (kind, q("%g" % float(rate[kind]))))   # a string: the subset reader has no floats
     out += ["", "[stt]"]
     for key in STT_KEYS:
         if key in cfg["stt"]:
@@ -157,8 +193,8 @@ def render(cfg):
 
 
 def migrate(cfg):
-    """8.1.0 wrote `api_key_env = "<NAME>"` (empty = no key). It is read as `auth`: bearer when a
-    name was given, none when empty. Returns the keys that were migrated (for a notice)."""
+    """A configuration that spells `api_key_env = "<NAME>"` (empty = no key) is read as `auth`:
+    bearer when a name was given, none when empty. Returns the sections migrated (for a notice)."""
     migrated = []
     if not isinstance(cfg, dict):
         return migrated
@@ -176,6 +212,26 @@ def read_config(path=None):
         cfg = docs_site_config._loads(fh.read())
     migrate(cfg)
     return cfg
+
+
+def rate_for(cfg, video_type):
+    """The speed factor for a video type: the configured one, else the default."""
+    table = (cfg.get("tts") or {}).get("rate") or {}
+    try:
+        return float(table.get(video_type, DEFAULT_RATE.get(video_type, 1.0)))
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def candidates_for(cfg, lang):
+    """Voices to audition for a language: the configured candidates, else the recorded voice alone."""
+    tts = cfg.get("tts") or {}
+    lst = (tts.get("candidates") or {}).get(lang) or []
+    voice = (tts.get("voices") or {}).get(lang)
+    out = [v for v in lst if v]
+    if voice and voice not in out:
+        out.insert(0, voice)
+    return out
 
 
 def needs_value(cfg):
