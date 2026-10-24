@@ -133,6 +133,10 @@ def test_an_unlisted_or_private_upload_is_allowed_and_a_public_one_falls_through
     _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs"}})
     _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs", "privacy": "public", "dry_run": True}})
     _silent({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs", "privacy": "public"}})
+    _silent({"tool_name": f"{MEDIA_PREFIX}__youtube_delete", "tool_input": {"channel": "docs", "video_id": "v", "title": "t"}})
+    _silent({"tool_name": f"{MEDIA_PREFIX}__youtube_set_privacy", "tool_input": {"channel": "docs", "video_id": "v", "privacy": "public"}})
+    _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_set_privacy", "tool_input": {"channel": "docs", "video_id": "v", "privacy": "private"}})
+    _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_describe", "tool_input": {"channel": "docs", "video_id": "v"}})
 
 
 def test_lease_gc_with_dry_run_as_string_false_is_still_allowed():

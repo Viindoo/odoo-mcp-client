@@ -40,6 +40,9 @@ YouTube ones itself.
 | `speech_probe` | per language: one sentence synthesized, transcribed back, word error rate, `verdict` pass/fail; clips under `<state root>/scratch/speech-probe` | yes |
 | `youtube_check` | channel of a purpose: slot, privacy, options present; `live` = one access refresh + `channels.list(mine)` -> channel id and title | yes |
 | `youtube_upload` | resumable upload + captions + thumbnail + playlist; `dry_run` plans; returns watch/embed/short URLs | yes |
+| `youtube_describe` | title, channel and privacy of a video (read before a change) | yes |
+| `youtube_set_privacy` | unlisted -> public when the docs go live; -> private to retire a video | yes |
+| `youtube_delete` | delete a superseded video; runs only when the given title matches; the human prompt always applies | yes |
 | `youtube_status` | upload / privacy / processing status of a video | yes |
 
 Every call retries once per backoff step on HTTP 429 / 503 (a shared low-end gateway queues a
@@ -53,9 +56,9 @@ second caller) and stops at the call's cancel event. Calls are meant to run one 
 
 ## Permissions
 
-`hooks/auto-approve-local.sh` auto-allows every odoo-media tool except `youtube_upload` with
-`privacy: public` (and not `dry_run`), which falls through to the human prompt - the one outward
-publication this server makes. A channel's DEFAULT privacy is never `public` (`youtube_config`
+`hooks/auto-approve-local.sh` auto-allows every odoo-media tool except `youtube_upload` or
+`youtube_set_privacy` with `privacy: public` (the outward publication) and `youtube_delete`
+(irreversible), which fall through to the human prompt. A channel's DEFAULT privacy is never `public` (`youtube_config`
 refuses it), so a public upload is always the explicit argument the hook sees.
 
 ## Configuration files (state root, never committed)

@@ -58,6 +58,18 @@ UPLOAD_OUT = {
                    "captions": {"type": "object", "additionalProperties": {"type": "string"}},
                    "thumbnail": {"type": ["string", "null"]}, "playlist": {"type": ["string", "null"]}},
 }
+DETAILS_OUT = {"type": "object", "required": ["id", "title", "channel_id", "channel_title", "privacy"],
+               "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "channel_id": {"type": "string"},
+                              "channel_title": {"type": "string"}, "privacy": {"type": ["string", "null"]}}}
+PRIVACY_IN = {"type": "object", "required": ["channel", "video_id", "privacy"],
+              "properties": {"channel": _PURPOSE, "video_id": {"type": "string", "minLength": 1},
+                             "privacy": {"type": "string", "enum": ["unlisted", "private", "public"]}},
+              "additionalProperties": False}
+DELETE_IN = {"type": "object", "required": ["channel", "video_id", "title"],
+             "properties": {"channel": _PURPOSE, "video_id": {"type": "string", "minLength": 1},
+                            "title": {"type": "string", "minLength": 1,
+                                      "description": "The title the video has, as youtube_describe returned it: the deletion runs only when it matches."}},
+             "additionalProperties": False}
 STATUS_IN = {"type": "object", "required": ["channel", "video_id"],
              "properties": {"channel": _PURPOSE, "video_id": {"type": "string", "minLength": 1}}, "additionalProperties": False}
 STATUS_OUT = {"type": "object", "required": ["upload_status", "privacy", "processing"],
@@ -176,6 +188,53 @@ def register(registry, ctx):
         "outward call here, so confirm it with the user first. dry_run=true plans the requests and sends "
         "nothing. Returns the watch, embed and short URLs the docs embed. Long-running.",
         UPLOAD_IN, UPLOAD_OUT, upload, title="Upload to YouTube", long_running=True, destructive=False)
+    def describe(args, ctx):
+        yu = _lib()
+        table = _table(yu, args["channel"])
+        try:
+            d, _t = yu.video_details(_creds(table), args["video_id"], cancel=protocol.cancel_event())
+        except yu.UploadError as exc:
+            raise _translate(exc)
+        return d
+
+    def privacy(args, ctx):
+        yu = _lib()
+        table = _table(yu, args["channel"])
+        try:
+            return yu.set_privacy(_creds(table), args["video_id"], args["privacy"], cancel=protocol.cancel_event())
+        except yu.UploadError as exc:
+            raise _translate(exc)
+
+    def delete(args, ctx):
+        yu = _lib()
+        table = _table(yu, args["channel"])
+        creds = _creds(table)
+        try:
+            d, _t = yu.video_details(creds, args["video_id"], cancel=protocol.cancel_event())
+            if d["title"] != args["title"]:
+                raise ToolError("INVALID_ARGUMENTS", "arguments.title: the video %s is titled %r, not %r - nothing deleted"
+                                % (args["video_id"], d["title"], args["title"]))
+            return yu.delete_video(creds, args["video_id"], cancel=protocol.cancel_event())
+        except yu.UploadError as exc:
+            raise _translate(exc)
+
+    registry.add(
+        "youtube_describe",
+        "The title, channel and privacy of a video on the channel of a purpose - read it before changing or deleting "
+        "a video, and show the title to the user. Read-only.",
+        STATUS_IN, DETAILS_OUT, describe, title="Describe a YouTube video", read_only=True, long_running=True)
+    registry.add(
+        "youtube_set_privacy",
+        "Change a video's privacy on the channel of a purpose: unlisted -> public when the documentation that embeds "
+        "it is published (confirm with the user first), -> private to retire a superseded video without losing its "
+        "URL. Long-running.",
+        PRIVACY_IN, DETAILS_OUT, privacy, title="Set a video's privacy", long_running=True, destructive=False, idempotent=True)
+    registry.add(
+        "youtube_delete",
+        "Delete a superseded video for good (a re-voiced or re-cut video can only be re-uploaded; the old one is "
+        "deleted or made private once every page that embedded it points at the new one). Irreversible: the user "
+        "confirms the title first (youtube_describe), and the call deletes only when `title` matches. Long-running.",
+        DELETE_IN, DETAILS_OUT, delete, title="Delete a YouTube video", long_running=True, destructive=True)
     registry.add(
         "youtube_status",
         "Processing and privacy status of a video uploaded to the channel of a purpose. Read-only.",

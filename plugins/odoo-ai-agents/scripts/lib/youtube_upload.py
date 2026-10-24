@@ -15,6 +15,11 @@ short backoff and honour a cancel Event.
          Prints VIDEO_ID, WATCH_URL, EMBED_URL, SHORT_URL, PRIVACY and one CAPTION_<lang>=ok|failed
          line per caption file. --dry-run prints the request plan and sends nothing.
   status --channel P --video-id ID   prints the processing and privacy status.
+  describe --channel P --video-id ID the video's title, channel and privacy (read before a change).
+  set-privacy --channel P --video-id ID --privacy unlisted|private|public
+         when the docs that embed it go live (-> public) or it is retired (-> private).
+  delete --channel P --video-id ID --yes   removes a superseded video for good (a re-voiced
+         video can only be re-uploaded); `describe` first, a human confirms, then --yes.
   check  --channel P [--live]        the configuration, and with --live ONE token refresh plus
          channels.list(mine=true): prints CHANNEL_ID and CHANNEL_TITLE, so a revoked or expired
          refresh token is caught before a recording run (1 quota unit).
@@ -288,6 +293,39 @@ def publish(table, creds, video, title, description, tags=(), language=None, pri
     return result
 
 
+def video_details(creds, video_id, cancel=None):
+    """{id, title, channel_id, channel_title, privacy} of a video, read before any change to it."""
+    token = access_token(creds, cancel=cancel)
+    _s, _h, body = _request(VIDEOS_URL + "?part=snippet,status&id=" + urllib.parse.quote(video_id), None,
+                            _auth(token), "GET", cancel=cancel)
+    items = json.loads(body.decode("utf-8")).get("items") or []
+    if not items:
+        raise UploadError("video %s not found (or not this channel's)" % video_id, 1)
+    sn, st = items[0].get("snippet", {}), items[0].get("status", {})
+    return {"id": items[0].get("id"), "title": sn.get("title", ""), "channel_id": sn.get("channelId", ""),
+            "channel_title": sn.get("channelTitle", ""), "privacy": st.get("privacyStatus")}, token
+
+
+def set_privacy(creds, video_id, privacy, cancel=None):
+    """Change a video's privacy (unlisted -> public when the docs that embed it go live; -> private
+    to retire it). Returns the details after the change."""
+    details, token = video_details(creds, video_id, cancel=cancel)
+    body = json.dumps({"id": video_id, "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False,
+                                                  "embeddable": True}}).encode("utf-8")
+    _request(VIDEOS_URL + "?part=status", body, _auth(token, {"Content-Type": "application/json"}), "PUT",
+             cancel=cancel)
+    details["privacy"] = privacy
+    return details
+
+
+def delete_video(creds, video_id, cancel=None):
+    """Delete a video for good (a re-voiced video can only be re-uploaded: YouTube never replaces a
+    file). Returns the details it had. Irreversible: the caller confirms with a human first."""
+    details, token = video_details(creds, video_id, cancel=cancel)
+    _request(VIDEOS_URL + "?id=" + urllib.parse.quote(video_id), None, _auth(token), "DELETE", cancel=cancel)
+    return details
+
+
 def video_status(creds, video_id, cancel=None):
     token = access_token(creds, cancel=cancel)
     _s, _h, body = _request(VIDEOS_URL + "?part=status,processingDetails&id=" + urllib.parse.quote(video_id),
@@ -338,6 +376,31 @@ def cmd_status(args):
     return 0
 
 
+def cmd_describe(args):
+    table = channel_config(args.channel)
+    d, _t = video_details(credentials_from_env(table), args.video_id)
+    for k in ("id", "title", "channel_id", "channel_title", "privacy"):
+        print("%s=%s" % (k.upper(), d[k]))
+    return 0
+
+
+def cmd_set_privacy(args):
+    table = channel_config(args.channel)
+    d = set_privacy(credentials_from_env(table), args.video_id, args.privacy)
+    print("VIDEO_ID=%s\nTITLE=%s\nPRIVACY=%s" % (d["id"], d["title"], d["privacy"]))
+    return 0
+
+
+def cmd_delete(args):
+    table = channel_config(args.channel)
+    if not args.yes:
+        print("x delete is irreversible: re-run with --yes after confirming the title with `describe`", file=sys.stderr)
+        return 2
+    d = delete_video(credentials_from_env(table), args.video_id)
+    print("DELETED=%s (%s)" % (d["id"], d["title"]))
+    return 0
+
+
 def cmd_check(args):
     table = channel_config(args.channel)
     print("CHANNEL=%s slot=%s privacy=%s" % (table["channel"], table["slot"], table.get("privacy", "unlisted")))
@@ -365,9 +428,15 @@ def main(argv=None):
     p = sub.add_parser("status"); p.add_argument("--channel", required=True)
     p.add_argument("--video-id", required=True, dest="video_id")
     p = sub.add_parser("check"); p.add_argument("--channel", required=True); p.add_argument("--live", action="store_true")
+    p = sub.add_parser("describe"); p.add_argument("--channel", required=True); p.add_argument("--video-id", required=True, dest="video_id")
+    p = sub.add_parser("set-privacy"); p.add_argument("--channel", required=True); p.add_argument("--video-id", required=True, dest="video_id")
+    p.add_argument("--privacy", required=True, choices=youtube_config.PRIVACY)
+    p = sub.add_parser("delete"); p.add_argument("--channel", required=True); p.add_argument("--video-id", required=True, dest="video_id")
+    p.add_argument("--yes", action="store_true")
     args = parser.parse_args(argv)
     try:
-        return {"upload": cmd_upload, "status": cmd_status, "check": cmd_check}[args.cmd](args)
+        return {"upload": cmd_upload, "status": cmd_status, "check": cmd_check, "describe": cmd_describe,
+                "set-privacy": cmd_set_privacy, "delete": cmd_delete}[args.cmd](args)
     except UploadError as exc:
         print("x " + exc.args[0], file=sys.stderr)
         return exc.args[1] if len(exc.args) > 1 else 1
