@@ -30,6 +30,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
+INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 FACTS="$SCRIPT_DIR/../lib/odoo_source_facts.py"
 # Postgres client-surface detector + db_run_mode vocabulary SSOT.
 # shellcheck source=../lib/pg_mode.sh
@@ -239,13 +240,71 @@ _write_instance_from_spec() {
     } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance "$match_field" "$match_value" )"
     if printf '%s' "$out" | grep -q '^exists'; then
         local label="${ver}${profile:+:$profile}"
-        echo "  [[instance]] $label already present - skip"
+        _update_declared_row "$ver" "$profile" "$spec_file" "$spec_idx" "$py" "$label"
         return 0
     else
         local label="${ver}${profile:+:$profile}"
         echo "  wrote [[instance]] $label (http_port=$port) -> $INSTANCES_TOML"
         return 1   # signal: new item written (caller increments port_idx)
     fi
+}
+
+# ---------------------------------------------------------------------------
+# _update_declared_row  (re-declaring an instance updates it, never duplicates it)
+#   $1 = series  $2 = profile  $3 = spec file  $4 = item index  $5 = python from
+#   the spec (may be empty)  $6 = label for the report
+# The confirmed plan owns the addons path (the operator re-confirmed the repo set), so
+# an existing row FOLLOWS it; its port, database and Python (unless the spec names one)
+# are the row's own and stay. Prints "unchanged" when the plan and the row agree.
+# ---------------------------------------------------------------------------
+_update_declared_row() {
+    local ver="$1" profile="$2" spec_file="$3" spec_idx="$4" py="$5" label="$6"
+    local plan note rc=0
+    local note_file="$INSTANCES_TOML.update-note"
+    plan="$(python3 - "$INSTANCES_IO" "$INSTANCES_TOML" "$ver" "$profile" "$spec_file" "$spec_idx" "$py" <<'PYEOF' 2>"$note_file"
+import json, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[1])))
+import instances_io
+toml_path, series, profile, spec_file, idx, py = sys.argv[2:8]
+items = instances_io.load_instances(toml_path)
+row, reason = instances_io.select_row(items, series, profile)
+if row is None:
+    sys.stderr.write("%s\n" % reason)
+    sys.exit(1)
+spec = json.load(open(spec_file))[int(idx)]
+wanted = [str(p) for p in spec.get("addons_path", [])]
+current = list(instances_io.addons_path_list(row))
+changes = []
+if wanted != current:
+    changes.append("addons_path[]+=")
+    changes.extend("addons_path[]+=%s" % p for p in wanted)
+    sys.stderr.write("addons path %d -> %d entries\n" % (len(current), len(wanted)))
+if py and py != str(row.get("python") or ""):
+    changes.append("python=%s" % py)
+    sys.stderr.write("python -> %s\n" % py)
+print("\n".join(changes))
+PYEOF
+)" || rc=$?
+    note="$(tr '\n' ';' <"$note_file" 2>/dev/null || true)"
+    rm -f -- "$note_file"
+    if [[ "$rc" -ne 0 ]]; then
+        echo "x [[instance]] $label is declared but could not be read back: ${note:-see above}" >&2
+        return 1
+    fi
+    if [[ -z "$plan" ]]; then
+        echo "  [[instance]] $label already declared - unchanged"
+        return 0
+    fi
+    local -a pairs=()
+    local line
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && pairs+=("$line")
+    done <<<"$plan"
+    if ! python3 "$LIB" toml-upsert-instance-keys "$INSTANCES_TOML" "$ver" "$profile" "${pairs[@]}" >/dev/null; then
+        echo "x [[instance]] $label: could not update the row (see above)" >&2
+        return 1
+    fi
+    echo "  [[instance]] $label already declared - updated: ${note%;} -> $INSTANCES_TOML"
 }
 
 # ---------------------------------------------------------------------------

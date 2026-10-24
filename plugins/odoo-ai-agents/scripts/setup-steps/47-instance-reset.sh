@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # 47-instance-reset.sh - Reset instances.toml: backup then clear (--reset; --hard wipes all).
 #
-# This step is ROUTED EXPLICITLY (not via the `all` glob loop) through a
-# --reset or --hard flag on the setup command. The `check` subcommand always
+# This step is ROUTED EXPLICITLY (not via the `all` glob loop): the setup
+# command's --reset runs `apply --hard` (backup, then an empty registry). The
+# plain `apply` below is a hand-run prune. The `check` subcommand always
 # exits 0 so the step is treated as satisfied by the automatic loop.
 #
 # Subcommands:

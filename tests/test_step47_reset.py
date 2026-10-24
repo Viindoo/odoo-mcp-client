@@ -211,3 +211,11 @@ def test_step47_check_always_satisfied_when_file_exists(tmp_path):
     assert proc.returncode == 0, (
         f"check returned non-zero when file present:\nstdout={proc.stdout}\nstderr={proc.stderr}"
     )
+
+
+def test_the_setup_command_reset_filter_runs_the_hard_mode():
+    """The menu promises "back up, then clear"; only `apply --hard` clears, so the command's
+    `--reset` row must name it (the plain `apply` only prunes dead rows)."""
+    setup = (ROOT / "plugins" / "odoo-ai-agents" / "commands" / "odoo-setup.md").read_text(encoding="utf-8")
+    reset_row = next(line for line in setup.splitlines() if line.startswith("| `--reset`"))
+    assert "apply --hard" in reset_row, reset_row

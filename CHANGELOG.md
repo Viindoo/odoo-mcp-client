@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [8.2.0] - 2026-10-24
 
+### Fixed
+
+- `odoo-ai-agents` - **re-declaring an instance updates it.** `odoo-setup instance` on a
+  series and profile already in `instances.toml` used to skip the row silently, so a repository
+  added to the profile never reached the addons path and the only way out was `--reset`. Step
+  40 now updates the declared row in place (addons path from the confirmed plan; port, database
+  and Python kept) and reports `updated` or `unchanged`.
+- `odoo-ai-agents` - **`--reset` does what the menu says.** The filter and the menu promised
+  "back up, then clear" while the step's default mode only dropped rows whose addons paths were
+  gone; `--reset` now runs the step's `--hard` mode, and the prune mode stays a hand-run
+  command of the script.
+- `README` - states that `odoo-ai-agents` needs both `odoo-semantic-mcp` and `git-toolkit`
+  enabled: with either disabled, Claude Code loads none of the plugin and the session shows no
+  `odoo-*` command at all.
+
 ### Added
 
 - `odoo-ai-agents` - **a second local MCP server, `odoo-media`, carries every value the operator

@@ -287,7 +287,8 @@ Inside Claude Code, run it once:
 /odoo-ai-agents:odoo-setup
 ```
 
-It is **idempotent and extensible** - re-running only applies what is missing, and it drives
+It is **idempotent and extensible** - re-running only applies what is missing, re-declaring
+an instance you changed (a repository added, a different profile) updates its row in place, and it drives
 a registry of numbered step scripts (`scripts/setup-steps/`), so new capabilities are
 drop-in. What it does:
 
