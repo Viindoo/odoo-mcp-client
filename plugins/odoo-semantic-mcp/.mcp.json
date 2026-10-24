@@ -5,7 +5,8 @@
       "url": "${user_config.mcp_url}",
       "headers": {
         "X-API-Key": "${user_config.api_key}"
-      }
+      },
+      "timeout": 90000
     }
   }
 }
