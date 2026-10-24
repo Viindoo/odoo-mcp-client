@@ -46,5 +46,49 @@
     "./commands/odoo-produce-video.md"
   ],
   "mcpServers": "./.mcp.json",
-  "dependencies": ["odoo-semantic-mcp", "git-toolkit"]
+  "dependencies": ["odoo-semantic-mcp", "git-toolkit"],
+  "userConfig": {
+    "speech_api_key": {
+      "type": "string",
+      "title": "Speech endpoint key",
+      "sensitive": true,
+      "required": false,
+      "description": "Sent as the bearer value to the narration speech endpoint declared by /odoo-ai-agents:odoo-setup voice (speech.toml auth = bearer). Leave empty for an endpoint that needs none."
+    },
+    "youtube_client_id": {
+      "type": "string",
+      "title": "YouTube OAuth client id",
+      "sensitive": true,
+      "required": false,
+      "description": "The Desktop OAuth client of your Google Cloud project with the YouTube Data API enabled; 75-youtube.sh consent stores it for you from the downloaded client JSON."
+    },
+    "youtube_client_secret": {
+      "type": "string",
+      "title": "YouTube OAuth client secret",
+      "sensitive": true,
+      "required": false,
+      "description": "The same client's secret; stored by 75-youtube.sh consent."
+    },
+    "youtube_refresh_token_docs": {
+      "type": "string",
+      "title": "YouTube refresh token - docs channel",
+      "sensitive": true,
+      "required": false,
+      "description": "Refresh token (scope youtube.force-ssl) of the account owning the channel in youtube.toml slot docs; obtained once by 75-youtube.sh consent --channel <purpose>."
+    },
+    "youtube_refresh_token_marketing": {
+      "type": "string",
+      "title": "YouTube refresh token - marketing channel",
+      "sensitive": true,
+      "required": false,
+      "description": "Same, for the channel in slot marketing (optional)."
+    },
+    "youtube_refresh_token_third": {
+      "type": "string",
+      "title": "YouTube refresh token - third channel",
+      "sensitive": true,
+      "required": false,
+      "description": "Same, for a third channel in slot third (optional)."
+    }
+  }
 }

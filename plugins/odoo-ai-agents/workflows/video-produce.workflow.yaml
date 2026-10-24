@@ -31,7 +31,7 @@ phases:
     #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
     #   - output_format  (mp4 or gif; default mp4)
     #   - languages      (narration languages as locales, e.g. vi_VN,en_US; empty = silent video)
-    #   - destination    (none | pr | youtube; where the publish phase sends the result)
+    #   - destination    (none | pr | youtube | youtube:<purpose>; where the publish phase sends the result)
     # Resolves the series per snippets/project-facts-resolution.md and the instance target
     # per snippets/instance-resolution.md.
     # Narrated run (languages given): read the speech configuration FIRST -
@@ -96,10 +96,12 @@ phases:
     #      exit 1 = a sentence runs on to the next line; rejoin it before any synthesis), and run
     #      the pronunciation self-check once per run:
     #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/pronunciation.py selfcheck --map <storyboard pronunciation as JSON>
-    #   2. Synthesise: python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/speech_client.py tts
-    #        --text-file <txt> --lang <lang> --out .../narration/<lang>/<scene>.wav --map <map.json>
-    #      (the key comes from the environment variable speech.toml names; nothing is echoed).
-    #   3. Check it: python3 .../speech_client.py stt --audio <wav> --lang <lang> > <scene>.stt.txt, then
+    #   2. Synthesise with the odoo-media tool `speech_synthesize` (text_file <txt>, lang, out
+    #      .../narration/<lang>/<scene>.wav, pronunciation = the storyboard map): the endpoint's
+    #      value is the plugin's configured option, which only that server holds; a
+    #      VALUE_NOT_CONFIGURED result is a NEEDS_CONTEXT naming the option, never a question for
+    #      a value in chat. One clip at a time (the endpoint is a shared service).
+    #   3. Check it: the odoo-media tool `speech_transcribe` (audio <wav>, lang) -> <scene>.stt.txt, then
     #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/narration_check.py --script <txt> --transcript <stt.txt>
     #          --slots "<brands and acronyms of the scene>" --map <map.json> --lang <lang>
     #      exit 1 = generate another take (at most 3 per line) and keep the lowest WER;
@@ -159,13 +161,16 @@ phases:
     # destinations: ${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md § Where a video goes):
     #   - `pr`: hand the `preview` rendition and the PR to git-toolkit:git-ops with the request to
     #     attach it to the PR body or a comment; the caller's size cap applies.
-    #   - `youtube`: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/75-youtube.sh check` (exit 1 =
-    #     NEEDS_CONTEXT naming `/odoo-ai-agents:odoo-setup youtube`), then per language
-    #     `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/youtube_upload.py upload --video <final>
-    #     --title "<publish title>" --description-file <deliverables/<lang>.txt> --language <lang>
-    #     --captions <lang>=<deliverables/<lang>.srt> --thumbnail <thumbnail.jpg>`; record the
-    #     WATCH_URL and EMBED_URL per language in the return. Privacy is youtube.toml's default
-    #     (unlisted) unless the caller states `public`; the caller is who embeds the URL.
+    #   - `youtube` or `youtube:<purpose>` (purpose defaults to `docs`; `marketing` for a sales or
+    #     marketing video): the odoo-media tool `youtube_check` (channel = purpose, live = true)
+    #     first - YOUTUBE_CHANNEL_UNKNOWN / YOUTUBE_NOT_CONFIGURED = the video stays local, the
+    #     return names its path and `/odoo-ai-agents:odoo-setup youtube`; VALUE_NOT_CONFIGURED =
+    #     NEEDS_CONTEXT naming the option - then per language the odoo-media tool `youtube_upload`
+    #     (channel, video <final>, title "<publish title>", description_file
+    #     <deliverables/<lang>.txt>, language <lang>, captions {<lang>: <deliverables/<lang>.srt>},
+    #     thumbnail <thumbnail.jpg>); record watch_url and embed_url per language in the return.
+    #     Privacy is the channel's default (unlisted) unless the caller states `public`, which is
+    #     confirmed with the user first; the caller is who embeds the URL.
     #   - `none` (default): no publishing; the deliverables stay under the run directory.
     # Then delete <ISOLATE_DIR>/video/<project_label>/takes/, narration/ and assembly/ (the
     # deliverables stay until the run that owns them ends and removes the whole label directory).

@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
-"""youtube_upload.py - publish a documentation video to the configured YouTube channel.
+"""youtube_upload.py - publish a video to one of the configured YouTube channels.
 
-YouTube Data API v3, resumable upload, from the configuration youtube_config.py reads. The OAuth
-client id, secret and refresh token come from the environment variables the configuration NAMES
-(scope youtube.force-ssl); the access token lives in memory for one run and nothing secret is
-printed, logged or written.
+YouTube Data API v3, resumable upload, to the channel of a PURPOSE (`youtube_config.py`:
+`[channels.<purpose>]`). The OAuth client id, client secret and the channel's refresh token are
+passed in by the caller - the odoo-media MCP server passes the plugin's configured options; the
+CLI below reads the environment variables YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET and
+YOUTUBE_REFRESH_TOKEN_<SLOT> for a human running it by hand. The access token lives in memory
+for one call and nothing secret is printed, logged or written. Calls retry on 429 / 503 with a
+short backoff and honour a cancel Event.
 
-  upload --video V.mp4 --title T --description-file D.txt [--tags a,b] [--language vi]
+  upload --channel P --video V.mp4 --title T --description-file D.txt [--tags a,b] [--language vi]
          [--privacy unlisted|private|public] [--category 28] [--captions vi_VN=path.srt ...]
          [--thumbnail thumb.jpg] [--playlist PLAYLIST_ID] [--dry-run]
          Prints VIDEO_ID, WATCH_URL, EMBED_URL, SHORT_URL, PRIVACY and one CAPTION_<lang>=ok|failed
-         line per caption file. --dry-run prints the request plan (endpoints, parts, sizes) and
-         sends nothing.
-  status --video-id ID   prints the processing and privacy status.
+         line per caption file. --dry-run prints the request plan and sends nothing.
+  status --channel P --video-id ID   prints the processing and privacy status.
+  check  --channel P [--live]        the configuration, and with --live ONE token refresh plus
+         channels.list(mine=true): prints CHANNEL_ID and CHANNEL_TITLE, so a revoked or expired
+         refresh token is caught before a recording run (1 quota unit).
 
-Exit: 0 ok, 1 the API refused (reason on stderr, never a token), 2 missing configuration.
+Exit: 0 ok, 1 the API refused (reason on stderr, never a value), 2 missing configuration,
+3 a needed value was not supplied.
 Quota (per the API reference): one upload counts in a 100-per-day upload bucket; a caption insert
 costs 400 units, a thumbnail set 50, a playlist insert 50 of the daily 10,000.
 """
@@ -34,60 +40,116 @@ if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 import youtube_config  # noqa: E402
 
-TOKEN_URL = "https://oauth2.googleapis.com/token"
-UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
-CAPTIONS_URL = "https://www.googleapis.com/upload/youtube/v3/captions"
-THUMB_URL = "https://www.googleapis.com/upload/youtube/v3/thumbnails/set"
-PLAYLIST_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
-VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
+# ODOO_AI_GOOGLE_BASE replaces both Google hosts (a test double, or a corporate proxy that fronts them).
+_GOOGLE_BASE = os.environ.get("ODOO_AI_GOOGLE_BASE", "").rstrip("/")
+_API = _GOOGLE_BASE or "https://www.googleapis.com"
+_OAUTH = _GOOGLE_BASE or "https://oauth2.googleapis.com"
+TOKEN_URL = _OAUTH + "/token"
+UPLOAD_URL = _API + "/upload/youtube/v3/videos"
+CAPTIONS_URL = _API + "/upload/youtube/v3/captions"
+THUMB_URL = _API + "/upload/youtube/v3/thumbnails/set"
+PLAYLIST_URL = _API + "/youtube/v3/playlistItems"
+VIDEOS_URL = _API + "/youtube/v3/videos"
+CHANNELS_URL = _API + "/youtube/v3/channels"
 CHUNK = 8 * 1024 * 1024  # a multiple of 256 KiB, as the resumable protocol requires
+RETRY_STATUS = (429, 503)
+RETRY_BACKOFF_S = (2.0, 6.0, 18.0)
+# the CLI's sources of the values (the MCP server passes them in instead)
+CLIENT_ID_ENV = "YOUTUBE_CLIENT_ID"
+CLIENT_SECRET_ENV = "YOUTUBE_CLIENT_SECRET"
+TOKEN_ENV = {s: "YOUTUBE_REFRESH_TOKEN_%s" % s.upper() for s in youtube_config.SLOTS}
 
 
 class UploadError(Exception):
     pass
 
 
-def _cfg():
-    try:
-        cfg = youtube_config.read_config()
-    except FileNotFoundError:
-        raise UploadError("no YouTube configuration - run /odoo-ai-agents:odoo-setup youtube", 2)
+def channel_config(purpose, cfg=None):
+    """The channel table of `purpose` (validated configuration), or UploadError 2."""
+    if cfg is None:
+        try:
+            cfg = youtube_config.read_config()
+        except FileNotFoundError:
+            raise UploadError("no YouTube configuration - run /odoo-ai-agents:odoo-setup youtube", 2)
     problems = youtube_config.validate(cfg)
     if problems:
         raise UploadError("youtube.toml invalid: " + "; ".join(problems), 2)
-    missing = youtube_config.missing_env(cfg)
+    table = youtube_config.channel(cfg, purpose)
+    if table is None:
+        raise UploadError("no channel for purpose %r (declared: %s) - the video stays local unless "
+                          "/odoo-ai-agents:odoo-setup youtube declares one" % (
+                              purpose, ", ".join(sorted(cfg["channels"]))), 2)
+    return table
+
+
+def credentials_from_env(table):
+    """The CLI's credentials for a channel, from the fixed environment variable names."""
+    names = (CLIENT_ID_ENV, CLIENT_SECRET_ENV, TOKEN_ENV[table["slot"]])
+    values = [os.environ.get(n) for n in names]
+    missing = [n for n, v in zip(names, values) if not v]
     if missing:
-        raise UploadError("environment variable(s) not set: " + ", ".join(missing), 2)
-    return cfg["youtube"]
+        raise UploadError("value(s) not supplied: %s (the odoo-media server passes the plugin options; "
+                          "a human running this CLI exports these names)" % ", ".join(missing), 3)
+    return {"client_id": values[0], "client_secret": values[1], "refresh_token": values[2]}
 
 
-def _request(url, data=None, headers=None, method=None, timeout=120):
-    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, dict(resp.headers), resp.read()
-    except urllib.error.HTTPError as exc:
-        body = exc.read()[:400].decode("utf-8", errors="replace")
-        if exc.code == 308:
-            return 308, dict(exc.headers), b""
-        raise UploadError("%s answered %d: %s" % (url.split("?")[0], exc.code, body), 1)
-    except (urllib.error.URLError, OSError) as exc:
-        raise UploadError("%s unreachable: %s" % (url.split("?")[0], exc), 1)
+def _cancelled(cancel):
+    return cancel is not None and cancel.is_set()
 
 
-def access_token(cfg):
-    y = cfg
+def _request(url, data=None, headers=None, method=None, timeout=120, cancel=None):
+    attempt = 0
+    while True:
+        if _cancelled(cancel):
+            raise UploadError("cancelled before %s" % url.split("?")[0], 1)
+        req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, dict(resp.headers), resp.read()
+        except urllib.error.HTTPError as exc:
+            body = exc.read()[:400].decode("utf-8", errors="replace")
+            if exc.code == 308:
+                return 308, dict(exc.headers), b""
+            if exc.code in RETRY_STATUS and attempt < len(RETRY_BACKOFF_S):
+                _wait(RETRY_BACKOFF_S[attempt], cancel)
+                attempt += 1
+                continue
+            raise UploadError("%s answered %d: %s" % (url.split("?")[0], exc.code, body), 1)
+        except (urllib.error.URLError, OSError) as exc:
+            raise UploadError("%s unreachable: %s" % (url.split("?")[0], exc), 1)
+
+
+def _wait(delay, cancel):
+    if cancel is not None:
+        cancel.wait(delay)
+    else:
+        import time
+        time.sleep(delay)
+
+
+def access_token(creds, cancel=None):
+    """One access token minted from the refresh token; lives in memory only."""
     form = urllib.parse.urlencode({
         "grant_type": "refresh_token",
-        "refresh_token": os.environ[y["refresh_token_env"]],
-        "client_id": os.environ[y["client_id_env"]],
-        "client_secret": os.environ[y["client_secret_env"]],
+        "refresh_token": creds["refresh_token"],
+        "client_id": creds["client_id"],
+        "client_secret": creds["client_secret"],
     }).encode("utf-8")
-    _s, _h, body = _request(TOKEN_URL, form, {"Content-Type": "application/x-www-form-urlencoded"}, "POST")
+    _s, _h, body = _request(TOKEN_URL, form, {"Content-Type": "application/x-www-form-urlencoded"}, "POST",
+                            cancel=cancel)
     token = json.loads(body.decode("utf-8")).get("access_token")
     if not token:
         raise UploadError("the token endpoint returned no access token", 1)
     return token
+
+
+def my_channel(token, cancel=None):
+    """{id, title} of the channel the token belongs to (channels.list mine=true, 1 unit)."""
+    _s, _h, body = _request(CHANNELS_URL + "?part=snippet&mine=true", None, _auth(token), "GET", cancel=cancel)
+    items = json.loads(body.decode("utf-8")).get("items") or []
+    if not items:
+        raise UploadError("the token belongs to an account with no YouTube channel", 1)
+    return {"id": items[0].get("id", ""), "title": (items[0].get("snippet") or {}).get("title", "")}
 
 
 def _auth(token, extra=None):
@@ -106,7 +168,7 @@ def video_resource(title, description, tags, language, privacy, category):
                                            "embeddable": True}}
 
 
-def resumable_upload(token, path, resource):
+def resumable_upload(token, path, resource, cancel=None):
     size = os.path.getsize(path)
     mime = mimetypes.guess_type(path)[0] or "video/mp4"
     init_url = UPLOAD_URL + "?uploadType=resumable&part=snippet,status"
@@ -124,7 +186,7 @@ def resumable_upload(token, path, resource):
             last = sent + len(chunk) - 1
             status, h, body = _request(session, chunk, {"Content-Type": mime, "Content-Length": str(len(chunk)),
                                                         "Content-Range": "bytes %d-%d/%d" % (sent, last, size)},
-                                       "PUT", timeout=600)
+                                       "PUT", timeout=600, cancel=cancel)
             if status == 308:
                 rng = h.get("Range") or h.get("range") or ""
                 sent = int(rng.split("-")[-1]) + 1 if rng else last + 1
@@ -184,67 +246,109 @@ def plan(args, cfg):
     playlist = args.playlist or cfg.get("playlist_id")
     if playlist:
         lines.append("PLAYLIST=%s (%s)" % (PLAYLIST_URL, playlist))
-    lines.append("SECRETS=from environment variables %s, %s, %s (never printed)" % (
-        cfg["client_id_env"], cfg["client_secret_env"], cfg["refresh_token_env"]))
+    lines.append("CHANNEL=%s (slot %s; the values come from the plugin options, never printed)" % (
+        cfg["channel"], cfg["slot"]))
     return lines
 
 
-def cmd_upload(args):
-    cfg = _cfg()
-    with open(args.description_file, encoding="utf-8") as fh:
-        description = fh.read()
-    if args.dry_run:
-        print("\n".join(plan(args, cfg)))
-        return 0
-    token = access_token(cfg)
-    privacy = args.privacy or cfg.get("privacy", "unlisted")
-    language = args.language or cfg.get("default_language")
-    resource = video_resource(args.title, description, [t for t in (args.tags or "").split(",") if t],
-                              language, privacy, args.category)
-    video = resumable_upload(token, args.video, resource)
-    video_id = video.get("id")
+def publish(table, creds, video, title, description, tags=(), language=None, privacy=None, category="28",
+            captions=None, thumbnail=None, playlist=None, cancel=None):
+    """Upload + captions + thumbnail + playlist for one channel table. Returns a result dict; the
+    extras never fail the upload (their outcome is reported per item)."""
+    token = access_token(creds, cancel=cancel)
+    privacy = privacy or table.get("privacy", "unlisted")
+    language = language or table.get("default_language")
+    resource = video_resource(title, description, list(tags or []), language, privacy, category)
+    resource_out = resumable_upload(token, video, resource, cancel=cancel)
+    video_id = resource_out.get("id")
     if not video_id:
         raise UploadError("the upload returned no video id", 1)
-    print("VIDEO_ID=%s" % video_id)
-    for name, value in urls(video_id).items():
-        print("%s=%s" % (name, value))
-    print("PRIVACY=%s" % (video.get("status", {}).get("privacyStatus") or privacy))
-    for item in args.captions or []:
-        lang, _, path = item.partition("=")
+    result = {"video_id": video_id, "privacy": resource_out.get("status", {}).get("privacyStatus") or privacy,
+              "captions": {}, "thumbnail": None, "playlist": None}
+    result.update({k.lower(): v for k, v in urls(video_id).items()})
+    for lang, path in (captions or {}).items():
         try:
             insert_caption(token, video_id, lang, path)
-            print("CAPTION_%s=ok" % lang)
+            result["captions"][lang] = "ok"
         except UploadError as exc:
-            print("CAPTION_%s=failed (%s)" % (lang, exc.args[0]))
-    if args.thumbnail:
+            result["captions"][lang] = "failed (%s)" % exc.args[0]
+    if thumbnail:
         try:
-            set_thumbnail(token, video_id, args.thumbnail)
-            print("THUMBNAIL=ok")
+            set_thumbnail(token, video_id, thumbnail)
+            result["thumbnail"] = "ok"
         except UploadError as exc:
-            print("THUMBNAIL=failed (%s)" % exc.args[0])
-    playlist = args.playlist or cfg.get("playlist_id")
+            result["thumbnail"] = "failed (%s)" % exc.args[0]
+    playlist = playlist or table.get("playlist_id")
     if playlist:
         try:
             add_to_playlist(token, video_id, playlist)
-            print("PLAYLIST=ok")
+            result["playlist"] = "ok"
         except UploadError as exc:
-            print("PLAYLIST=failed (%s)" % exc.args[0])
+            result["playlist"] = "failed (%s)" % exc.args[0]
+    return result
+
+
+def video_status(creds, video_id, cancel=None):
+    token = access_token(creds, cancel=cancel)
+    _s, _h, body = _request(VIDEOS_URL + "?part=status,processingDetails&id=" + urllib.parse.quote(video_id),
+                            None, _auth(token), "GET", cancel=cancel)
+    items = json.loads(body.decode("utf-8")).get("items") or []
+    if not items:
+        raise UploadError("video %s not found" % video_id, 1)
+    st = items[0].get("status", {})
+    pr = items[0].get("processingDetails", {})
+    return {"upload_status": st.get("uploadStatus"), "privacy": st.get("privacyStatus"),
+            "processing": pr.get("processingStatus")}
+
+
+def cmd_upload(args):
+    table = channel_config(args.channel)
+    with open(args.description_file, encoding="utf-8") as fh:
+        description = fh.read()
+    if args.dry_run:
+        print("\n".join(plan(args, table)))
+        return 0
+    creds = credentials_from_env(table)
+    captions = {}
+    for item in args.captions or []:
+        lang, _, path = item.partition("=")
+        captions[lang] = path
+    result = publish(table, creds, args.video, args.title, description,
+                     [t for t in (args.tags or "").split(",") if t], args.language, args.privacy, args.category,
+                     captions, args.thumbnail, args.playlist)
+    print("VIDEO_ID=%s" % result["video_id"])
+    for name in ("watch_url", "embed_url", "short_url"):
+        print("%s=%s" % (name.upper(), result[name]))
+    print("PRIVACY=%s" % result["privacy"])
+    for lang, outcome in result["captions"].items():
+        print("CAPTION_%s=%s" % (lang, outcome))
+    if result["thumbnail"]:
+        print("THUMBNAIL=%s" % result["thumbnail"])
+    if result["playlist"]:
+        print("PLAYLIST=%s" % result["playlist"])
     return 0
 
 
 def cmd_status(args):
-    cfg = _cfg()
-    token = access_token(cfg)
-    _s, _h, body = _request(VIDEOS_URL + "?part=status,processingDetails&id=" + urllib.parse.quote(args.video_id),
-                            None, _auth(token), "GET")
-    items = json.loads(body.decode("utf-8")).get("items") or []
-    if not items:
-        raise UploadError("video %s not found" % args.video_id, 1)
-    st = items[0].get("status", {})
-    pr = items[0].get("processingDetails", {})
-    print("UPLOAD_STATUS=%s" % st.get("uploadStatus"))
-    print("PRIVACY=%s" % st.get("privacyStatus"))
-    print("PROCESSING=%s" % pr.get("processingStatus"))
+    table = channel_config(args.channel)
+    st = video_status(credentials_from_env(table), args.video_id)
+    print("UPLOAD_STATUS=%s" % st["upload_status"])
+    print("PRIVACY=%s" % st["privacy"])
+    print("PROCESSING=%s" % st["processing"])
+    return 0
+
+
+def cmd_check(args):
+    table = channel_config(args.channel)
+    print("CHANNEL=%s slot=%s privacy=%s" % (table["channel"], table["slot"], table.get("privacy", "unlisted")))
+    if not args.live:
+        print("ok configuration (pass --live to test the values against Google)")
+        return 0
+    creds = credentials_from_env(table)
+    mine = my_channel(access_token(creds))
+    print("CHANNEL_ID=%s" % mine["id"])
+    print("CHANNEL_TITLE=%s" % mine["title"])
+    print("ok live")
     return 0
 
 
@@ -252,15 +356,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("upload")
+    p.add_argument("--channel", required=True)
     p.add_argument("--video", required=True); p.add_argument("--title", required=True)
     p.add_argument("--description-file", required=True, dest="description_file")
     p.add_argument("--tags"); p.add_argument("--language"); p.add_argument("--privacy", choices=youtube_config.PRIVACY)
     p.add_argument("--category", default="28"); p.add_argument("--captions", action="append")
     p.add_argument("--thumbnail"); p.add_argument("--playlist"); p.add_argument("--dry-run", action="store_true", dest="dry_run")
-    p = sub.add_parser("status"); p.add_argument("--video-id", required=True, dest="video_id")
+    p = sub.add_parser("status"); p.add_argument("--channel", required=True)
+    p.add_argument("--video-id", required=True, dest="video_id")
+    p = sub.add_parser("check"); p.add_argument("--channel", required=True); p.add_argument("--live", action="store_true")
     args = parser.parse_args(argv)
     try:
-        return {"upload": cmd_upload, "status": cmd_status}[args.cmd](args)
+        return {"upload": cmd_upload, "status": cmd_status, "check": cmd_check}[args.cmd](args)
     except UploadError as exc:
         print("x " + exc.args[0], file=sys.stderr)
         return exc.args[1] if len(exc.args) > 1 else 1

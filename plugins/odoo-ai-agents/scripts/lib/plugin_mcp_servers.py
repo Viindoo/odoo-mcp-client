@@ -8,7 +8,9 @@ they must never be treated alike:
     UI-automation surfaces, safe to blanket-auto-allow. Their SSOT is
     `browser_prefixes.py`.
   - LOCAL servers - talk to THIS MACHINE's own on-disk state (allocator leases,
-    instance lifecycle, catalog reads) via a `${CLAUDE_PLUGIN_ROOT}`-relative
+    instance lifecycle, catalog reads: `odoo-local`) or carry the values the
+    operator configured through the plugin's options (narration speech and
+    YouTube publishing: `odoo-media`) via a `${CLAUDE_PLUGIN_ROOT}`-relative
     Python entry point. Some of their tools are destructive (a lease release or an
     applied gc can stop a process group and drop a database), so they are NOT a
     browser-style blanket-allow surface, and `${CLAUDE_PLUGIN_ROOT}` only resolves
@@ -58,7 +60,7 @@ FALLBACK_PLUGIN_NAME = "odoo-ai-agents"
 
 # The plugin-bundled LOCAL stdio MCP servers. See module docstring for why these
 # are kept separate from browser_prefixes.py's STATIC_SERVERS.
-LOCAL_SERVERS = frozenset({"odoo-local"})
+LOCAL_SERVERS = frozenset({"odoo-local", "odoo-media"})
 
 _SAFE = re.compile(r"[^A-Za-z0-9_-]")
 

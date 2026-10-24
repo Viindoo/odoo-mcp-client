@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 """speech_client.py - text-to-speech and speech-to-text over the OpenAI audio API shape.
 
-Reads `speech.toml` (speech_config.py). The key comes from the environment variable the
-configuration NAMES and is sent as `Authorization: Bearer`; it is never printed, logged or written.
-Hosted vendors and self-hosted servers that speak this shape all work; a server that needs no key
-leaves `api_key_env` empty.
+Reads `speech.toml` (speech_config.py). In `auth = "bearer"` mode the caller passes the value to
+send as `Authorization: Bearer` - the odoo-media MCP server passes the plugin's configured option;
+the CLI below reads the environment variable SPEECH_API_KEY for a human running it by hand. The
+value is never printed, logged or written. Every HTTP call retries on 429 / 503 / a timeout with a
+short backoff (a shared low-end gateway queues a second caller), and honours a cancel Event.
 
   tts    --text-file F --lang xx_YY --out clip.wav [--map MAP.json]
          POST <tts.base_url>/audio/speech with {model, input, voice, response_format}; the input
          is the text after the pronunciation map of its language; the reply is normalised to
-         48 kHz 16-bit mono WAV with ffmpeg; prints OUT=<path> DURATION_S=<seconds>.
-  stt    --audio clip.wav --lang xx_YY
+         48 kHz 16-bit mono WAV with ffmpeg (engines differ: 24 kHz mp3 here, 48 kHz wav there);
+         prints OUT=<path> DURATION_S=<seconds>.
+  stt    --audio clip.wav --lang xx_YY [--words]
          POST <stt.base_url>/audio/transcriptions (multipart: file, model, language) and prints
-         the transcript on stdout.
+         the transcript; --words asks verbose_json with word timestamps and prints JSON.
   voices GET <tts.voices_url> or <tts.base_url>/audio/voices; prints the JSON the server returns.
-  probe  [--lang xx_YY]  one short sentence per configured language through tts; prints each
-         clip's path and duration; exit 1 when a language fails.
+  probe  [--lang xx_YY] [--out-dir DIR]  one short sentence per configured language through tts,
+         then through stt in the same language, and the word error rate between them: the round
+         trip that catches a voice/language mismatch and a brand misread before a recording run.
+         DIR defaults to <state root>/scratch/speech-probe (never the working directory).
 
 Exit: 0 ok, 1 the endpoint refused or the configuration is invalid (reason on stderr, never the
-key), 2 ffmpeg missing or the configuration file missing.
+value), 2 ffmpeg missing or the configuration file missing.
 """
 from __future__ import annotations
 
@@ -38,6 +42,11 @@ if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 import pronunciation  # noqa: E402
 import speech_config  # noqa: E402
+import paths  # noqa: E402
+
+VALUE_ENV = "SPEECH_API_KEY"      # the CLI's source of the bearer value; the MCP server passes it in
+RETRY_STATUS = (429, 503)
+RETRY_BACKOFF_S = (2.0, 6.0, 18.0)
 
 PROBE_SENTENCES = {
     "vi_VN": "Xin chào, đây là bản thử giọng đọc cho video giới thiệu.",
@@ -61,27 +70,51 @@ def _load():
     return cfg
 
 
-def _headers(table):
+def _headers(table, value):
     headers = {"Content-Type": "application/json"}
-    env = table.get("api_key_env", "")
-    if env:
-        key = os.environ.get(env)
-        if not key:
-            raise SpeechError("environment variable %s is not set" % env, 1)
-        headers["Authorization"] = "Bearer " + key
+    if table.get("auth", "bearer") == "bearer":
+        if not value:
+            raise SpeechError("the speech endpoint needs the configured value and none was supplied "
+                              "(odoo-media: the plugin option speech_api_key; CLI: %s)" % VALUE_ENV, 3)
+        headers["Authorization"] = "Bearer " + value
     return headers
 
 
-def _post(url, headers, data, timeout=120):
-    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read(), resp.headers.get("Content-Type", "")
-    except urllib.error.HTTPError as exc:
-        body = exc.read()[:300].decode("utf-8", errors="replace")
-        raise SpeechError("%s answered %d: %s" % (url, exc.code, body), 1)
-    except (urllib.error.URLError, OSError) as exc:
-        raise SpeechError("%s unreachable: %s" % (url, exc), 1)
+def _cancelled(cancel):
+    return cancel is not None and cancel.is_set()
+
+
+def _post(url, headers, data, timeout=120, cancel=None):
+    attempt = 0
+    while True:
+        if _cancelled(cancel):
+            raise SpeechError("cancelled before %s" % url, 1)
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read(), resp.headers.get("Content-Type", "")
+        except urllib.error.HTTPError as exc:
+            body = exc.read()[:300].decode("utf-8", errors="replace")
+            if exc.code in RETRY_STATUS and attempt < len(RETRY_BACKOFF_S):
+                _backoff(attempt, cancel)
+                attempt += 1
+                continue
+            raise SpeechError("%s answered %d: %s" % (url, exc.code, body), 1)
+        except (urllib.error.URLError, OSError) as exc:
+            if attempt < len(RETRY_BACKOFF_S) and "timed out" in str(exc).lower():
+                _backoff(attempt, cancel)
+                attempt += 1
+                continue
+            raise SpeechError("%s unreachable: %s" % (url, exc), 1)
+
+
+def _backoff(attempt, cancel):
+    delay = RETRY_BACKOFF_S[attempt]
+    if cancel is not None:
+        cancel.wait(delay)
+    else:
+        import time
+        time.sleep(delay)
 
 
 def _normalise_wav(raw, out, source_format):
@@ -104,18 +137,19 @@ def wav_duration(path):
         return wf.getnframes() / float(wf.getframerate() or 1)
 
 
-def tts(text, lang, out, pron_map=None, cfg=None):
+def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phonemes=False):
     cfg = cfg or _load()
     table = cfg["tts"]
     voice = table["voices"].get(lang)
     if not voice:
         raise SpeechError("no voice recorded for %s - run /odoo-ai-agents:odoo-setup voice" % lang, 1)
     if pron_map:
-        text = pronunciation.apply_map(text, pron_map.get(lang) or [])
+        text = pronunciation.apply_map(text, pron_map.get(lang) or [], phonemes=phonemes)
     fmt = table.get("response_format", "wav")
     body = json.dumps({"model": table["model"], "input": text, "voice": voice,
                        "response_format": fmt}).encode("utf-8")
-    raw, _ctype = _post(table["base_url"].rstrip("/") + "/audio/speech", _headers(table), body)
+    raw, _ctype = _post(table["base_url"].rstrip("/") + "/audio/speech", _headers(table, value), body,
+                        cancel=cancel)
     if not raw:
         raise SpeechError("the speech endpoint returned no audio", 1)
     os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
@@ -123,36 +157,51 @@ def tts(text, lang, out, pron_map=None, cfg=None):
     return out, wav_duration(out)
 
 
-def stt(audio, lang, cfg=None):
+def stt(audio, lang, cfg=None, value=None, cancel=None, words=False):
+    """The transcript text; with words=True a dict {text, words: [{word, start, end}]} when the
+    engine returns word timestamps (verbose_json), else {text, words: []}."""
     cfg = cfg or _load()
     table = cfg["stt"]
     boundary = "----odooai" + uuid.uuid4().hex
     with open(audio, "rb") as fh:
         payload = fh.read()
     parts = []
-    for name, value in (("model", table["model"]), ("language", lang.split("_")[0]),
-                        ("response_format", "json")):
+    fields = [("model", table["model"]), ("language", lang.split("_")[0]),
+              ("response_format", "verbose_json" if words else "json")]
+    if words:
+        fields.append(("timestamp_granularities[]", "word"))
+    for name, field in fields:
         parts.append(("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n"
-                      % (boundary, name, value)).encode("utf-8"))
+                      % (boundary, name, field)).encode("utf-8"))
     parts.append(("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
                   "Content-Type: audio/wav\r\n\r\n" % (boundary, os.path.basename(audio))).encode("utf-8"))
     parts.append(payload)
     parts.append(("\r\n--%s--\r\n" % boundary).encode("utf-8"))
-    headers = _headers(table)
+    headers = _headers(table, value)
     headers["Content-Type"] = "multipart/form-data; boundary=" + boundary
     raw, _ctype = _post(table["base_url"].rstrip("/") + "/audio/transcriptions", headers,
-                        b"".join(parts), timeout=300)
+                        b"".join(parts), timeout=300, cancel=cancel)
     try:
-        return json.loads(raw.decode("utf-8")).get("text", "").strip()
+        data = json.loads(raw.decode("utf-8"))
     except ValueError:
-        return raw.decode("utf-8", errors="replace").strip()
+        text = raw.decode("utf-8", errors="replace").strip()
+        return {"text": text, "words": []} if words else text
+    text = (data.get("text") or "").strip()
+    if not words:
+        return text
+    out = []
+    for w in data.get("words") or []:
+        if isinstance(w, dict) and "word" in w:
+            out.append({"word": str(w.get("word")), "start": float(w.get("start") or 0.0),
+                        "end": float(w.get("end") or 0.0)})
+    return {"text": text, "words": out}
 
 
-def voices(cfg=None):
+def voices(cfg=None, value=None):
     cfg = cfg or _load()
     table = cfg["tts"]
     url = table.get("voices_url") or table["base_url"].rstrip("/") + "/audio/voices"
-    headers = _headers(table)
+    headers = _headers(table, value)
     headers.pop("Content-Type", None)
     req = urllib.request.Request(url, headers=headers)
     try:
@@ -160,6 +209,39 @@ def voices(cfg=None):
             return json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as exc:
         raise SpeechError("%s: %s" % (url, exc), 1)
+
+
+PROBE_MAX_WER = 0.35   # a round trip through a low-end engine pair is noisy; a mismatch is far above
+
+
+def probe_dir():
+    return os.path.join(paths.state_root(), "scratch", "speech-probe")
+
+
+def probe(lang=None, out_dir=None, value=None, cfg=None, cancel=None):
+    """Per language: synthesize the probe sentence, transcribe it in the same language, score the
+    word error rate (tone-aware, narration_check.wer). A high rate means the voice does not speak
+    that language or the endpoint is not what the configuration says. Returns a list of dicts."""
+    import narration_check
+    cfg = cfg or _load()
+    out_dir = out_dir or probe_dir()
+    os.makedirs(out_dir, exist_ok=True)
+    langs = [lang] if lang else sorted(cfg["tts"]["voices"])
+    results = []
+    for code in langs:
+        sentence = PROBE_SENTENCES.get(code, DEFAULT_PROBE)
+        clip = os.path.join(out_dir, "probe-%s.wav" % code)
+        try:
+            path, dur = tts(sentence, code, clip, cfg=cfg, value=value, cancel=cancel)
+            heard = stt(path, code, cfg=cfg, value=value, cancel=cancel)
+            rate = narration_check.wer(sentence, heard)
+            results.append({"lang": code, "ok": True, "clip": path, "duration_s": round(dur, 2),
+                            "sentence": sentence, "heard": heard, "wer": round(rate, 3),
+                            "verdict": "pass" if rate <= PROBE_MAX_WER else "fail"})
+        except SpeechError as exc:
+            results.append({"lang": code, "ok": False, "clip": clip, "duration_s": 0.0, "sentence": sentence,
+                            "heard": "", "wer": 1.0, "verdict": "fail", "error": exc.args[0]})
+    return results
 
 
 def main(argv=None):
@@ -173,11 +255,13 @@ def main(argv=None):
     p = sub.add_parser("stt")
     p.add_argument("--audio", required=True)
     p.add_argument("--lang", required=True)
+    p.add_argument("--words", action="store_true")
     sub.add_parser("voices")
     p = sub.add_parser("probe")
     p.add_argument("--lang")
-    p.add_argument("--out-dir", default=".")
+    p.add_argument("--out-dir")
     args = parser.parse_args(argv)
+    value = os.environ.get(VALUE_ENV) or None
     try:
         if args.cmd == "tts":
             with open(args.text_file, encoding="utf-8") as fh:
@@ -186,28 +270,27 @@ def main(argv=None):
             if args.map:
                 with open(args.map, encoding="utf-8") as fh:
                     pron = json.load(fh)
-            out, dur = tts(text, args.lang, args.out, pron)
+            out, dur = tts(text, args.lang, args.out, pron, value=value)
             print("OUT=%s" % out)
             print("DURATION_S=%.2f" % dur)
             return 0
         if args.cmd == "stt":
-            print(stt(args.audio, args.lang))
+            if args.words:
+                print(json.dumps(stt(args.audio, args.lang, value=value, words=True), ensure_ascii=False))
+            else:
+                print(stt(args.audio, args.lang, value=value))
             return 0
         if args.cmd == "voices":
-            print(json.dumps(voices(), indent=2, ensure_ascii=False))
+            print(json.dumps(voices(value=value), indent=2, ensure_ascii=False))
             return 0
-        cfg = _load()
-        langs = [args.lang] if args.lang else sorted(cfg["tts"]["voices"])
-        failed = 0
-        for lang in langs:
-            out = os.path.join(args.out_dir, "probe-%s.wav" % lang)
-            try:
-                path, dur = tts(PROBE_SENTENCES.get(lang, DEFAULT_PROBE), lang, out, cfg=cfg)
-                print("%s OUT=%s DURATION_S=%.2f" % (lang, path, dur))
-            except SpeechError as exc:
-                failed += 1
-                print("%s FAILED: %s" % (lang, exc.args[0]), file=sys.stderr)
-        return 1 if failed else 0
+        results = probe(args.lang, args.out_dir, value=value)
+        for r in results:
+            if r["ok"]:
+                print("%s OUT=%s DURATION_S=%.2f WER=%.3f VERDICT=%s" % (
+                    r["lang"], r["clip"], r["duration_s"], r["wer"], r["verdict"]))
+            else:
+                print("%s FAILED: %s" % (r["lang"], r["error"]), file=sys.stderr)
+        return 1 if any(not r["ok"] or r["verdict"] == "fail" for r in results) else 0
     except SpeechError as exc:
         print("x " + exc.args[0], file=sys.stderr)
         return exc.args[1] if len(exc.args) > 1 else 1

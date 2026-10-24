@@ -288,12 +288,16 @@ class ToolRegistry(object):
 
 
 class ServerContext(object):
-    """What a handler may need besides its arguments. Built once at startup."""
+    """What a handler may need besides its arguments. Built once at startup. `name` and
+    `instructions` identify the server on the wire: odoo-local's by default, a sibling server's
+    (odoo-media) when it reuses this frame."""
 
-    def __init__(self, version, anchor, plugin_root):
+    def __init__(self, version, anchor, plugin_root, name=None, instructions=None):
         self.version = version
         self.anchor = anchor
         self.plugin_root = plugin_root
+        self.name = name or SERVER_NAME
+        self.instructions = instructions or INSTRUCTIONS
         self.protocol_version = None
         self.client_info = None
 
@@ -455,8 +459,8 @@ class Server(object):
         self._result(req_id, {
             "protocolVersion": negotiated,
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": SERVER_NAME, "version": self.ctx.version},
-            "instructions": INSTRUCTIONS,
+            "serverInfo": {"name": self.ctx.name, "version": self.ctx.version},
+            "instructions": self.ctx.instructions,
         })
 
     def _tools_call(self, req_id, params):
@@ -585,7 +589,7 @@ SERVER_INFO_OUTPUT = {
 def register_core_tools(registry, ctx):
     def server_info(args, ctx):
         return {
-            "name": SERVER_NAME,
+            "name": ctx.name,
             "version": ctx.version,
             "protocol_version": ctx.protocol_version,
             "python": "%d.%d.%d" % sys.version_info[:3],
