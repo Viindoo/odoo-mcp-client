@@ -244,3 +244,60 @@ def test_an_endpoint_only_record_is_accepted_and_check_says_what_is_still_missin
     assert "speech_voices" in proc.stdout
     proc = _step(home, "record", "--from-json", str(spec))          # a complete record refuses the same file
     assert proc.returncode == 1 and "model" in proc.stderr
+
+
+def test_an_endpoint_that_publishes_no_voice_listing_still_answers_with_its_models(home):
+    """The voice listing is optional (70-speech.sh and the odoo-setup voice step both say so), so a
+    gateway that does not publish /audio/voices must still be usable: voices reads as "none
+    published" and the model ids - which that same gateway does serve - still come back. A refusal
+    that means the value or the endpoint is wrong, such as 401, must stay loud."""
+    import http.server
+    import threading
+
+    class NoListing(http.server.BaseHTTPRequestHandler):
+        """A LiteLLM-shaped gateway: /models answers, /audio/voices is simply not published."""
+
+        def log_message(self, *_):
+            pass
+
+        def do_GET(self):
+            if self.path == "/v1/models":
+                data = json.dumps({"data": [{"id": "voice-tts"}, {"id": "voice-stt"}]}).encode()
+                self.send_response(200); self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data))); self.end_headers()
+                self.wfile.write(data); return
+            self.send_response(404); self.end_headers()
+
+    class Gated(NoListing):
+        def do_GET(self):
+            self.send_response(401); self.end_headers()
+
+    sys.path.insert(0, str(PLUGIN / "scripts" / "lib"))
+    import speech_client
+
+    servers = []
+    try:
+        bases = {}
+        for name, handler in (("quiet", NoListing), ("gated", Gated)):
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            servers.append(srv)
+            bases[name] = "http://127.0.0.1:%d/v1" % srv.server_address[1]
+
+        cfg = {"tts": {"base_url": bases["quiet"], "model": "voice-tts", "auth": "none",
+                       "response_format": "wav", "voices": {"vi_VN": "Mai Anh"}},
+               "stt": {"base_url": bases["quiet"], "model": "voice-stt", "auth": "none"}}
+
+        # the listing is absent -> "none published", not a failure
+        assert speech_client.voices(cfg=cfg) is None
+        # and the models the gateway DOES serve are still reachable
+        assert speech_client.models(cfg=cfg) == ["voice-tts", "voice-stt"]
+
+        # a 401 is the value or the endpoint being wrong - it must still raise
+        gated = {"tts": dict(cfg["tts"], base_url=bases["gated"]),
+                 "stt": dict(cfg["stt"], base_url=bases["gated"])}
+        with pytest.raises(speech_client.SpeechError):
+            speech_client.voices(cfg=gated)
+    finally:
+        for srv in servers:
+            srv.shutdown()
