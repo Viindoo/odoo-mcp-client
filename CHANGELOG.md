@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `odoo-ai-agents` - **an upgrade pass that runs itself.** Claude Code runs no plugin code when a
+  plugin is installed, updated or reloaded (verified against the 2.1.x binary and the docs); the one
+  thing that starts again at `/reload-plugins` is the plugin's stdio MCP server. The `odoo-media`
+  server therefore runs a one-time pass per plugin version (stamp `<state root>/state/upgrade.json`):
+  the values an earlier `speech.toml` / `youtube.toml` read from environment variables move into the
+  plugin's configured options through `claude plugin configure --values-stdin` and the files are
+  rewritten (backups kept); a stand-alone `odoo-semantic` registration left by an earlier
+  `/odoo-semantic-mcp:connect` moves into `odoo-semantic-mcp`'s options and is removed (that plugin's
+  new `scripts/migrate_connection.py`); the moved values already work in the same session; the next
+  session start prints the result once. Both halves are also commands the operator can run
+  (`scripts/lib/upgrade_values.py apply`, `migrate_connection.py apply`), and `connect` plus the
+  `voice` / `youtube` setup steps hand them over when they find an earlier form.
 - `odoo-ai-agents` - **a second local MCP server, `odoo-media`, carries every value the operator
   configures through the plugin's own dialog.** The narration speech endpoint's value and the
   YouTube OAuth client and refresh tokens are `userConfig` options of `plugin.json` (Claude Code's

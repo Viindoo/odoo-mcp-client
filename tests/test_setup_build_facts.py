@@ -462,8 +462,9 @@ def test_step40_never_overwrites_a_row_whose_server_wide_set_was_confirmed(tmp_p
     assert _run([STEP46, "record", "--series", "17.0", "--modules", "to_base"],
                 env46).returncode == 0
     res = _run([STEP40, "apply"], env, cwd=project)
-    assert res.returncode == 0 and "already present" in res.stdout
-    assert tomllib.loads(catalog.read_text())["instance"][0]["server_wide_modules"] == ["to_base"]
+    assert res.returncode == 0 and "already declared" in res.stdout
+    rows = tomllib.loads(catalog.read_text())["instance"]
+    assert len(rows) == 1 and rows[0]["server_wide_modules"] == ["to_base"]
 
 
 # ============================================================ python range (steps 40 / 45)

@@ -73,6 +73,15 @@ if [ "${#_unread[@]}" -gt 0 ]; then
   echo "i  browser MCP flags not checked ($(_join "${_unread[@]}") config unreadable) - if captures are refused, run /odoo-ai-agents:odoo-setup browser, then restart the session." >&2
 fi
 
+# (f) the one-line result of the upgrade pass the odoo-media server ran when the plugin version
+# changed (it moved earlier values into the plugin configuration): shown once, then removed.
+_state_home="${ODOO_AI_HOME:-${HOME}/.odoo-ai}"
+_upgrade_notice="${_state_home%/}/state/upgrade-notice.txt"
+if [ -f "${_upgrade_notice}" ]; then
+  echo "i  $(head -c 1000 "${_upgrade_notice}")" >&2
+  rm -f -- "${_upgrade_notice}"
+fi
+
 # Emit the human dep hint on STDERR (visible console nudge; does not collide with the
 # JSON we put on stdout for SessionStart context injection).
 if [ "${#missing[@]}" -gt 0 ]; then

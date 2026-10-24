@@ -39,6 +39,8 @@ def main():
     ctx = protocol.ServerContext(cli.plugin_version(), cli.anchor(), cli.PLUGIN_ROOT,
                                  name=SERVER_NAME, instructions=media_registry.INSTRUCTIONS)
     registry = media_registry.build_registry(ctx)
+    from odoo_media import upgrade
+    upgrade.start(ctx.version, cli.PLUGIN_ROOT)   # one-time pass on a new plugin version; never blocks serving
     logging.getLogger("odoo-local").info("starting %s v%s pid=%d tools=%s", SERVER_NAME, ctx.version,
                                          os.getpid(), registry.names())
     protocol.Server(registry, ctx, wire_out).serve(in_stream)

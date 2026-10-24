@@ -18,11 +18,17 @@ stores the key.
    claude mcp get odoo-semantic 2>&1 | head -5
    ```
    A line `Scope: User` (or `Local` / `Project`) means a stand-alone `odoo-semantic` entry was
-   registered by hand earlier; Claude Code lets it SHADOW the plugin's server of the same name,
-   so a value filled in the plugin dialog would never be used. Tell the operator this, and ask
-   (one closed question) whether to remove that entry so the plugin's server takes over; on yes
-   run `claude mcp remove odoo-semantic --scope <that scope>`; on no, stop - the stand-alone
-   entry stays theirs to manage.
+   registered by hand earlier (an earlier version of this command did that); Claude Code lets it
+   SHADOW the plugin's server of the same name, so a value filled in the plugin dialog would never
+   be used. Tell the operator this and give them the ONE command that moves what that entry holds
+   (its URL and its value) into the plugin's configuration and then removes the entry, after a
+   backup of the file - run in THEIR own terminal, never by you:
+   ```
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/migrate_connection.py" apply
+   ```
+   It prints `MOVED=`, `REMOVED=` and `NEXT=/reload-plugins`, and never prints a value. When it
+   ran, step 2 is already done: continue at step 3 after `/reload-plugins`. An operator who
+   prefers to keep the stand-alone entry: stop - it stays theirs to manage.
 
 2. **The values.** Tell the operator, in their language:
    - the server URL: the default `https://odoo-semantic.viindoo.com/mcp` serves most; a

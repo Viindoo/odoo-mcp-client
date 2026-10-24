@@ -210,7 +210,8 @@ def migrate(cfg):
 def read_config(path=None):
     with open(path or speech_path(), encoding="utf-8") as fh:
         cfg = docs_site_config._loads(fh.read())
-    migrate(cfg)
+    if migrate(cfg) and isinstance(cfg, dict):
+        cfg["_migrated"] = True   # the file still names a variable; upgrade_values.py moves its value
     return cfg
 
 
@@ -264,6 +265,10 @@ def cmd_check(args):
     if problems:
         return 1
     print("ok speech configuration: %s (voices: %s)" % (path, ", ".join(sorted(cfg["tts"]["voices"]))))
+    if cfg.get("_migrated"):
+        print("UPGRADE=the file still names an environment variable from an earlier plugin version; "
+              "the operator runs in their own terminal: python3 %s apply"
+              % os.path.join(_LIB_DIR, "upgrade_values.py"))
     print("AUTH=%s" % ("bearer (the value comes from the plugin configuration; the odoo-media "
                        "media_info tool reports whether it is set)" if needs_value(cfg) else "none"))
     return 0

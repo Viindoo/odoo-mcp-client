@@ -33,7 +33,7 @@ YouTube ones itself.
 
 | Tool | Does | Long-running |
 |---|---|---|
-| `media_info` | version, options present (true/false), `speech.toml` / `youtube.toml` state, languages, channels and slots, ffmpeg filters missing | no |
+| `media_info` | version, options present (true/false), `speech.toml` / `youtube.toml` state, languages, channels and slots, ffmpeg filters missing, the last upgrade pass (`upgrade`: version, moved, missing, connection) | no |
 | `speech_synthesize` | text (one sentence per line) + lang + out [+ pronunciation map, phonemes, `speed` (the video type's rate), `voice` (an audition candidate)] -> 48 kHz mono WAV, duration | yes |
 | `speech_transcribe` | WAV + lang [+ words] -> transcript [+ word timestamps] | yes |
 | `speech_voices` | the endpoint's voice listing as returned | yes |
@@ -70,11 +70,29 @@ refuses it), so a public upload is always the explicit argument the hook sees.
   playlist_id, default_language; at least one channel; one channel per slot. A single `[youtube]`
   table from an older plugin is read as `channels.docs` and rewritten on the next `record`.
 
+## Upgrade pass at start (`scripts/mcp/odoo_media/upgrade.py`)
+
+Claude Code runs no plugin code at install, update or reload; the stdio server is what starts again
+at `/reload-plugins`. So this server, in a daemon thread that never delays serving, compares the
+plugin version with `<state root>/state/upgrade.json` and runs once per version: `upgrade_values.apply`
+(the values an earlier `speech.toml` / `youtube.toml` named by environment variable move into the
+plugin's options through `claude plugin configure --values-stdin`; the files are rewritten; the
+moved values are applied to this process so the tools work at once), then the sibling plugin's
+`scripts/migrate_connection.py apply` (found through Claude Code's installed-plugins record; the
+stand-alone `odoo-semantic` registration moves into `odoo-semantic-mcp`'s options and is removed).
+The stamp holds the report without any value; `upgrade-notice.txt` is shown once by the session-start
+readiness hook. A `--plugin-dir` checkout has no marketplace id and the pass does nothing; a failed
+configure call leaves no stamp, so the next start retries; two servers are serialized by a lock.
+`ODOO_MEDIA_PLUGIN_ID` is the test seam that stands in for a marketplace path.
+
 ## Human-run commands
 
 - `75-youtube.sh consent --channel <purpose> --client-json <file>` (`scripts/lib/youtube_oauth.py`):
   loopback OAuth with PKCE for the Desktop client, scope `youtube.force-ssl`, `prompt=consent`;
   stores the client values and the channel's slot value through `claude plugin configure
   --values-stdin` (or `--out-json FILE`, mode 0600, for the operator to feed and delete).
+- `scripts/lib/upgrade_values.py plan|apply` and `odoo-semantic-mcp/scripts/migrate_connection.py plan|apply`:
+  the upgrade pass as a command, for an operator whose session did not run it (an option is only
+  ever written through `claude plugin configure --values-stdin`, never printed).
 - The `speech_client.py` / `youtube_upload.py` CLIs read the same values from the environment of
   the human who runs them (the names are in each script's header); an agent uses the tools.
