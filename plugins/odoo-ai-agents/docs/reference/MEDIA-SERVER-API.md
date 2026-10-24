@@ -36,7 +36,7 @@ YouTube ones itself.
 | `media_info` | version, options present (true/false), `speech.toml` / `youtube.toml` state, languages, channels and slots, ffmpeg filters missing, the last upgrade pass (`upgrade`: version, moved, missing, connection) | no |
 | `speech_synthesize` | text (one sentence per line) + lang + out [+ pronunciation map, phonemes, `speed` (the video type's rate), `voice` (an audition candidate)] -> 48 kHz mono WAV, duration | yes |
 | `speech_transcribe` | WAV + lang [+ words] -> transcript [+ word timestamps] | yes |
-| `speech_voices` | the endpoint's voice listing as returned, plus its model ids and a TTS / STT model guess; `base_url` asks an endpoint that is not configured yet (the setup conversation, after the operator configured the value and reloaded) | yes |
+| `speech_voices` | the recorded endpoint's voice listing as returned, plus its model ids and a TTS / STT model guess; an endpoint-only `speech.toml` (`70-speech.sh record --endpoint-only`) is enough, and the value only ever goes to that recorded endpoint | yes |
 | `speech_probe` | per language: one sentence synthesized, transcribed back, word error rate, `verdict` pass/fail; with `speed`, whether the engine honoured it (`speed_honoured`, measured by duration); clips under `<state root>/scratch/speech-probe` | yes |
 | `youtube_check` | channel of a purpose: slot, privacy, options present; `live` = one access refresh + `channels.list(mine)` -> channel id and title | yes |
 | `youtube_upload` | resumable upload + captions + thumbnail + playlist; `dry_run` plans; returns watch/embed/short URLs | yes |

@@ -641,10 +641,12 @@ Resolve:
   silent)". A URL is the one free-text answer. 3. Run
   `"$STEPS_DIR/70-speech.sh" probe-endpoint --base-url <URL>` (read-only, no value): it says
   whether the endpoint answers, whether it is open or expects a value (`AUTH=open|required`),
-  and, when open, its models and voices. `AUTH=required`: tell the operator to open `/plugin`,
-  choose `odoo-ai-agents`, Configure, fill in "Speech endpoint key" (never through the chat),
-  then `/reload-plugins`; then the odoo-media `speech_voices` tool with that `base_url` lists
-  the models and voices. 4. Decide from the listing, show it in the plan: the TTS model (the one
+  and, when open, its models and voices. `AUTH=required`: record the endpoint first
+  (`"$STEPS_DIR/70-speech.sh" record --endpoint-only --from-json <file>` with the TTS and STT
+  `base_url` and `auth` only - the value will only ever travel to this recorded endpoint), tell
+  the operator to open `/plugin`, choose `odoo-ai-agents`, Configure, fill in "Speech endpoint
+  key" (never through the chat), then `/reload-plugins`; then the odoo-media `speech_voices`
+  tool lists the models and voices. 4. Decide from the listing, show it in the plan: the TTS model (the one
   id that names speech or tts; several -> one closed question from the list), the STT model
   (the id that names transcription, stt or whisper; same rule), one voice per narration
   language - the languages the docs-site and i18n registries declare, never asked again - from

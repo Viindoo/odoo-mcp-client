@@ -454,16 +454,21 @@ def test_the_connection_half_waits_for_the_sibling_plugin_and_runs_once_it_is_up
     assert "odoo-ai-agents@test-mkt" not in new_calls and '"--values-stdin"' in new_calls
 
 
-def test_speech_voices_lists_models_too_and_can_ask_an_endpoint_that_is_not_configured_yet(media, tmp_path):
-    """The setup conversation lists voices and models from the URL the operator gave, before any
-    speech.toml exists; the configured endpoint answers the same without an argument."""
+def test_speech_voices_lists_models_too_and_works_on_an_endpoint_only_file_but_never_takes_a_url(media, tmp_path):
+    """The setup conversation records the endpoint first, the operator configures the value, and
+    the tool lists voices and models from THAT endpoint; a caller can never point it elsewhere."""
     client, home, fake = media
     out = structured(client.call("speech_voices"))
     assert out["voices"] == {"voices": ["mai", "af_heart"]} and out["models"] == ["voice-tts", "voice-stt"]
     assert out["tts_model_guess"] == "voice-tts" and out["stt_model_guess"] == "voice-stt"
-    (home / "speech.toml").unlink()
-    out = structured(client.call("speech_voices", {"base_url": fake + "/v1"}))
+    (home / "speech.toml").write_text('[tts]\nbase_url = "%s/v1"\nauth = "bearer"\n[stt]\nbase_url = "%s/v1"\nauth = "bearer"\n'
+                                      % (fake, fake), encoding="utf-8")   # endpoint only: no model, no voices
+    out = structured(client.call("speech_voices"))
     assert out["models"] == ["voice-tts", "voice-stt"] and out["voices"]["voices"] == ["mai", "af_heart"]
     sent = [c for c in _Fake.calls if c[1] in ("/v1/models", "/v1/audio/voices")]
     assert sent and all(c[2].startswith("Bearer ") for c in sent)      # the configured value went along
     assert "speech-value-0001" not in json.dumps(out)
+    before = len(_Fake.calls)
+    refused = client.call("speech_voices", {"base_url": "http://127.0.0.1:1/v1"})
+    assert refused.get("error") or structured(refused).get("error")     # no caller-chosen destination
+    assert len(_Fake.calls) == before
