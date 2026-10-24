@@ -732,3 +732,15 @@ def test_a_demo_build_handle_names_the_account_a_capture_acts_as_and_a_plain_one
     unknown = tools_lease.instance_handle({"token": "t", "ports": [8069]})
     assert demo["ui_user"] == tools_lease.DEMO_UI_USER and plain["ui_user"] is None and unknown["ui_user"] is None
     assert set(tools_lease.HANDLE_FIELDS) == set(demo)
+
+
+def test_a_listed_lease_says_when_it_started_and_how_old_it_is():
+    import datetime
+    from odoo_local import tools_lease
+    then = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=10)).isoformat()
+    row = {"token": "a" * 32, "mode": "ephemeral", "series": "17.0", "ports": [8069],
+           "owner": {"pid": 1, "run_id": "r", "started_at": then}, "verdict": {"state": "running"}}
+    entry = tools_lease._list_entry(row, mine=set())
+    assert entry["started_at"] == then and 10 * 86400 - 60 <= entry["age_s"] <= 10 * 86400 + 600
+    bare = tools_lease._list_entry({"token": "b" * 32, "owner": {}, "verdict": {}}, mine=set())
+    assert bare["started_at"] is None and bare["age_s"] is None

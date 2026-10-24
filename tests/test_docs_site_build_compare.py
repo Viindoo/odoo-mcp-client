@@ -471,3 +471,14 @@ def test_compare_json_is_written_even_when_the_base_ref_cannot_be_exported(site)
         stderr=subprocess.PIPE, universal_newlines=True)
     assert proc.returncode == 1 and "Traceback" not in proc.stderr
     assert json.loads((work / "compare.json").read_text())["cand_html"] == {}
+
+
+def test_a_lazy_loading_theme_s_images_are_seen_by_the_image_gate():
+    spec = importlib.util.spec_from_file_location(
+        "bc", Path(__file__).resolve().parent.parent / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "docs_site" / "build_compare.py")
+    bc = importlib.util.module_from_spec(spec); spec.loader.exec_module(bc)
+    html = ('<img class="lazy" data-src="_images/01-menu.vi.jpg">'
+            '<img src="_images/02-form.vi.jpg?v=3">'
+            '<img class="lazy" src="data:image/gif;base64,R0lG" data-src="_images/03-list.vi.jpg">'
+            '<img srcset="_images/04-a.vi.jpg 1x, _images/04-a@2x.vi.jpg 2x">')
+    assert bc.img_basenames(html) == {"01-menu.vi.jpg", "02-form.vi.jpg", "03-list.vi.jpg", "04-a.vi.jpg"}

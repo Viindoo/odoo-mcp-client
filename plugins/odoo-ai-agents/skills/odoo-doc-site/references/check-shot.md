@@ -17,8 +17,10 @@ Provisioned with the parameters of `SKILL.md` step 3.
 ## Capture
 
 Launch `odoo-doc-site-writer` with a PAGE PLAN holding the single row `work: check-shot` and the
-screen to capture (the first app menu of the area), and the content page it measures: the area's
-index page, else the first planned page. The writer captures it per language following
+screen to capture (the first app menu of the area), and the content page it measures: a published
+page of the SAME KIND as the planned pages (a task page for task pages, an index for an index -
+the nearest sibling of the first planned page; an index page and a page that hides its local
+table of contents are wider than a task page with one), never a page of another kind. The writer captures it per language following
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` and returns the paths,
 `reference_viewport` and `content_width`; it writes no page.
 
@@ -38,6 +40,6 @@ DOM, the element named by its role in the page, not by a theme-specific selector
 `reference_viewport` and `content_width`.
 
 Store: `<SHARE_DIR>/docs-site/<site>/<series>/content-width.json` (`site`, `series`, the capture
-instance key, `reference_viewport`, `content_width`), written by this skill after the shots are
-judged. Every later capture derives its viewport width from `content_width` (at most 1.25 times
+instance key, `reference_viewport`, `content_width`, `measured_page` and its `page_kind`), written
+by this skill after the shots are judged. Every later capture derives its viewport width from `content_width` (at most 1.25 times
 it).

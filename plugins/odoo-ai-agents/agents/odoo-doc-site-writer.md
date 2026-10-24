@@ -87,7 +87,13 @@ only. `wire`: toctree entries and cross-references only. `fill`: translation ent
    `figure_language_filename` of the repo facts spells it.
 5. **Install images** with `images.py install --staging S --worktree <SITE WORKTREE>` run by
    `DOCS PYTHON`. A recapture is staged under the name and size of the image it replaces.
-6. **Write the RST** in the source language, shaped like the sibling.
+6. **Write the RST** in the source language, shaped like the sibling, its page-level metadata
+   (the field list at the top of the sibling - a local-toc or display-toc field, an orphan or
+   nosearch mark) copied as it stands: those fields decide the page's column width.
+   **First page only:** build it (the `DOCS PYTHON` build of step 8 on that one page), open it
+   at the `CONTENT WIDTH` record's `reference_viewport` and read the main article's CSS width the
+   way a `check-shot` row does; a width that differs from `CONTENT WIDTH` by more than 5 percent
+   is a finding to fix NOW (the metadata, or a wrong record) - before a single image is captured.
 7. **Translate.** `po_sync.py` (run by `DOCS PYTHON`) `generate` adds the entries of your pages; `fill` writes the
    `msgstr` for the target language. UI terms are exactly what the target-language UI shows: reuse
    the module `.po` files and the module guides; never invent a term. The page meta description

@@ -541,3 +541,13 @@ def test_the_config_without_tomllib_refuses_toml_it_cannot_read_instead_of_misre
     assert "docs-sites.toml" in res.stderr
     machine["sites"].write_text('[[site]]\nkey = "docs"\nseries.x = 1\n', encoding="utf-8")
     assert _run_no_tomllib(machine, "show").returncode == 2
+
+
+def test_show_without_a_key_lists_every_row_with_its_series_instances(machine):
+    row = _row(machine)
+    assert _record(machine, row).returncode == 0
+    listed = json.loads(_run(machine, "show").stdout)
+    one = json.loads(_run(machine, "show", "--key", row["key"]).stdout)
+    assert isinstance(listed, list) and listed == [one]
+    for series, entry in one["series"].items():
+        assert entry.get("instance"), series

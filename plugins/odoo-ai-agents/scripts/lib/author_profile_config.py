@@ -5,7 +5,12 @@ One `[author]` table in the machine-global, never-committed `author-profile.toml
 next to instances.toml). The doc writers read it instead of inventing or copying contact details:
 
   vendor          the vendor name as the store shows it (manifest `author`)
-  website         the vendor site (manifest `website`)
+  website         the ORGANIZATION's site: scheme + host, at most a trailing slash (the bare
+                  `website` of the manifests whose value is not a module page)
+  module_page_url the pattern of a module's own page on the vendor site, with the placeholders
+                  `{series}` and `{module}` (e.g. https://vendor.example/apps/modules/{series}/{module}),
+                  generalised from the manifests by `propose`; braces are allowed HERE only
+  module_page_url_alt  optional second pattern the manifests also use
   presales_url    the web page a prospect contacts sales through (a form or a page) - the
                   Pre-Sales card of the App Store page; absent -> that card is omitted
   support_url     the ticket or helpdesk page - the Technical Support card; absent -> omitted
@@ -22,8 +27,10 @@ an addons directory (git READ only, no network) and never fills anything in.
 
 Subcommands (stdlib only; tomllib when present, else the subset reader of docs_site_config):
   check     exit 0 when a profile exists and is valid, 1 when none (remedy on stderr), 2 unreadable
-  propose   --addons DIR  prints KEY=VALUE candidates: VENDOR, WEBSITE, SUPPORT_EMAIL (from the
-            manifests), DECLARED, FACTS_TO_CONFIRM; writes nothing
+  propose   --addons DIR  prints KEY=VALUE candidates from the manifests: VENDOR, WEBSITE (the
+            bare organization site), MODULE_PAGE_URL_<n> (each module-page pattern with its count),
+            MANIFEST_WEBSITE_DRIFT (manifests whose page names another module), SUPPORT_EMAIL,
+            DECLARED, FACTS_TO_CONFIRM; writes nothing
   record    --from-json FILE  validates and writes the profile (backup, atomic)
   show      prints the profile as JSON
 """
@@ -45,10 +52,12 @@ import docs_site_config  # noqa: E402  (the TOML subset reader, one home)
 import paths  # noqa: E402
 
 FILE_NAME = "author-profile.toml"
-KEYS = ("vendor", "website", "presales_url", "support_url", "support_email", "address_policy",
-        "font_file")
+KEYS = ("vendor", "website", "module_page_url", "module_page_url_alt", "presales_url", "support_url",
+        "support_email", "address_policy", "font_file")
 REQUIRED = ("vendor",)
 URL_KEYS = ("website", "presales_url", "support_url")
+PATTERN_KEYS = ("module_page_url", "module_page_url_alt")
+PLACEHOLDERS = ("{series}", "{module}")
 POLICIES = ("never", "image")
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 _RESERVED = ("localhost", "local", "internal", "lan", "home.arpa", "test", "invalid", "example",
@@ -88,6 +97,23 @@ def validate(profile):
             p = _url_problem(key, profile[key])
             if p:
                 problems.append(p)
+            elif "{" in str(profile[key]) or "}" in str(profile[key]):
+                problems.append("%s: a fixed page, no placeholder - a module-page pattern belongs in "
+                                "module_page_url" % key)
+            elif key == "website" and urlsplit(str(profile[key]).strip()).path.strip("/"):
+                problems.append("website: the organization's site (scheme and host only) - a page path "
+                                "belongs in presales_url, support_url or module_page_url")
+    for key in PATTERN_KEYS:
+        if key in profile:
+            value = str(profile[key]).strip()
+            probe = value
+            for ph in PLACEHOLDERS:
+                probe = probe.replace(ph, "x")
+            p = _url_problem(key, probe)
+            if p:
+                problems.append(p)
+            elif not all(ph in value for ph in PLACEHOLDERS):
+                problems.append("%s: a pattern with both {series} and {module}" % key)
     if "support_email" in profile:
         v = profile["support_email"]
         if not isinstance(v, str) or not _EMAIL.match(v.strip()):
@@ -177,24 +203,60 @@ def _emit(name, value):
                      "'" + value.replace("'", "'\\''") + "'"))
 
 
+_MODULE_PAGE = re.compile(r"^(https?://[^/]+/.*?)(\d+\.\d+)/([A-Za-z0-9_]+)/?$")
+
+
+def generalise_website(value, module=None):
+    """A manifest `website`: ("site", "https://host") for a bare organization site, or
+    ("pattern", "https://host/.../{series}/{module}") for a module page (the series and the last
+    path segment replaced). Anything else is ("other", value)."""
+    v = (value or "").strip()
+    parts = urlsplit(v)
+    if not parts.scheme or not parts.hostname:
+        return "other", v
+    if not parts.path.strip("/"):
+        return "site", "%s://%s" % (parts.scheme, parts.netloc)
+    m = _MODULE_PAGE.match(v)
+    if m and (module is None or m.group(3) == module or True):
+        return "pattern", "%s{series}/{module}" % m.group(1)
+    return "other", v
+
+
 def cmd_propose(args):
     counts = {"author": {}, "website": {}, "support": {}}
+    sites, patterns, drift, total = {}, {}, 0, 0
     for m in _manifests(os.path.abspath(args.addons)):
-        for key, value in _manifest_values(m).items():
+        values = _manifest_values(m)
+        for key, value in values.items():
             if value:
                 counts[key][value] = counts[key].get(value, 0) + 1
-    def top(key):
-        return max(counts[key], key=counts[key].get) if counts[key] else ""
-    _emit("VENDOR", top("author"))
-    _emit("WEBSITE", top("website"))
-    _emit("SUPPORT_EMAIL", top("support"))
+        web = values.get("website")
+        if web:
+            total += 1
+            kind, norm = generalise_website(web)
+            if kind == "site":
+                sites[norm] = sites.get(norm, 0) + 1
+            elif kind == "pattern":
+                patterns[norm] = patterns.get(norm, 0) + 1
+                mm = _MODULE_PAGE.match(web.strip())
+                if mm and mm.group(3) != os.path.basename(os.path.dirname(m)):
+                    drift += 1
+    def top(d):
+        return max(d, key=d.get) if d else ""
+    _emit("VENDOR", top(counts["author"]))
+    _emit("WEBSITE", top(sites))
+    for i, (pat, n) in enumerate(sorted(patterns.items(), key=lambda kv: -kv[1]), 1):
+        _emit("MODULE_PAGE_URL_%d" % i, "%s %d" % (pat, n))
+    _emit("MANIFEST_WEBSITE_DRIFT", drift)
+    _emit("SUPPORT_EMAIL", top(counts["support"]))
     _emit("MANIFESTS_READ", sum(counts["author"].values()))
     profile, code = _load(profile_path())
     _emit("DECLARED", 1 if code == 0 else 0)
-    _emit("FACTS_TO_CONFIRM", "vendor website presales_url support_url support_email "
+    _emit("FACTS_TO_CONFIRM", "vendor website module_page_url presales_url support_url support_email "
                               "address_policy font_file")
-    _emit("NOTE", "presales_url and support_url are web pages the vendor states; nothing here "
-                  "derives them")
+    _emit("NOTE", "website is the organization's site; module_page_url is the pattern of a module's page "
+                  "({series}, {module}); presales_url and support_url are web pages the vendor states - "
+                  "nothing here derives them")
     return 0
 
 
