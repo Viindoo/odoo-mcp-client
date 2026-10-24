@@ -29,8 +29,9 @@ def _log(msg):
     sys.stderr.flush()
 
 
-def degraded_main(in_stream, out_stream):
-    """Minimal MCP loop for an interpreter below MIN_PYTHON. Streams are binary."""
+def degraded_main(in_stream, out_stream, server_name="odoo-local"):
+    """Minimal MCP loop for an interpreter below MIN_PYTHON. Streams are binary. A sibling server
+    (odoo-media) reuses it with its own name."""
     import odoo_local
     from odoo_local import errors
 
@@ -41,8 +42,8 @@ def degraded_main(in_stream, out_stream):
         version = "0.0.0+unknown"
     found = "%d.%d.%d" % tuple(sys.version_info[:3])
     need = "%d.%d" % MIN_PYTHON
-    message = "odoo-local needs Python %s or newer; this server was started with Python %s (%s)" % (
-        need, found, sys.executable)
+    message = "%s needs Python %s or newer; this server was started with Python %s (%s)" % (
+        server_name, need, found, sys.executable)
     payload = {"error": {"code": "PYTHON_TOO_OLD", "message": message,
                          "remedy": errors.SERVER_CODES["PYTHON_TOO_OLD"],
                          "diagnostics": {"python": found, "executable": sys.executable, "required": need}}}
@@ -69,15 +70,15 @@ def degraded_main(in_stream, out_stream):
                                     if params.get("protocolVersion") in odoo_local.SUPPORTED_PROTOCOL_VERSIONS
                                     else odoo_local.SUPPORTED_PROTOCOL_VERSIONS[0]),
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "odoo-local", "version": version},
-                "instructions": "odoo-local is DISABLED: " + message + ". " + errors.SERVER_CODES["PYTHON_TOO_OLD"],
+                "serverInfo": {"name": server_name, "version": version},
+                "instructions": server_name + " is DISABLED: " + message + ". " + errors.SERVER_CODES["PYTHON_TOO_OLD"],
             }})
         elif method == "ping":
             send({"jsonrpc": "2.0", "id": rid, "result": {}})
         elif method == "tools/list":
             send({"jsonrpc": "2.0", "id": rid, "result": {"tools": [{
                 "name": "server_info",
-                "description": "odoo-local is disabled on this Python (PYTHON_TOO_OLD); calling this returns the remedy.",
+                "description": server_name + " is disabled on this Python (PYTHON_TOO_OLD); calling this returns the remedy.",
                 "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
             }]}})
         elif method == "tools/call":

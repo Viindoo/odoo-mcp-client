@@ -82,7 +82,7 @@ def test_setup_exposes_author_voice_and_youtube_steps_outside_all():
 def test_a_video_of_code_rides_the_pr_and_a_video_of_docs_goes_to_the_channel_last():
     tail = _read("snippets/docs-after-change.md")
     assert "## Where a video goes" in tail
-    assert "pull request body" in tail and "youtube.toml" in tail and "youtube_upload.py" in tail
+    assert "pull request body" in tail and "youtube.toml" in tail and "`youtube_upload`" in tail
     assert "after acceptance passed and the i18n reconcile" in tail
     assert "deleted when the run ends" in tail and "never committed" in tail
     workflow = _read("workflows/video-produce.workflow.yaml")
@@ -95,5 +95,7 @@ def test_a_video_of_code_rides_the_pr_and_a_video_of_docs_goes_to_the_channel_la
 def test_the_video_workflow_gates_narration_on_the_speech_configuration():
     wf = _read("workflows/video-produce.workflow.yaml")
     assert "70-speech.sh check" in wf and "- id: narrate" in wf
-    assert "speech_client.py tts" in wf and "narration_check.py" in wf
+    assert "`speech_synthesize`" in wf and "`speech_transcribe`" in wf and "narration_check.py" in wf
+    assert "speech_client.py" not in wf and "youtube_upload.py" not in wf  # the values live in the odoo-media server
+    assert "`youtube_check`" in wf and "youtube:<purpose>" in wf
     assert "video_publish.py verify" in wf and "never ask for a key" in wf

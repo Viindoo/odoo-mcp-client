@@ -566,30 +566,39 @@ Resolve:
   videos, vendor-neutral: any endpoint that speaks the OpenAI audio API (`POST
   <base_url>/audio/speech`, optional `GET <base_url>/audio/voices`) for text-to-speech, and
   `POST <base_url>/audio/transcriptions` for the speech-to-text check. 1. Run
-  `"$STEPS_DIR/70-speech.sh" propose` (read-only): it lists the provider shapes it knows
-  (hosted and self-hosted), which key environment variables are set on this machine (names
-  only, never values), and whether `ffmpeg` has the filters the assembler needs. 2. Ask the
-  operator with AskUserQuestion: the TTS `base_url`, `model`, the NAME of the environment
-  variable holding the key (never the key), one `voice` per narration language (a voice is
-  recorded with the language it is native to; a mismatch is refused), the STT `base_url`,
-  `model` and key variable name. When the TTS endpoint lists voices, offer that list. 3. Write
+  `"$STEPS_DIR/70-speech.sh" propose` (read-only): it lists the provider shapes it knows (a
+  gateway, hosted and self-hosted), a gateway the operator exported as `ODOO_AI_SPEECH_BASE_URL`,
+  and whether `ffmpeg` has the filters the assembler needs. 2. Ask the operator with
+  AskUserQuestion: the TTS `base_url`, `model`, the `auth` mode (`bearer` when the endpoint
+  expects a value, `none` for an open self-hosted one), one `voice` per narration language (a
+  voice is recorded with the language it is native to; a mismatch is refused), the STT
+  `base_url`, `model` and `auth`. When the TTS endpoint lists voices, offer that list. 3. Write
   the confirmed configuration as JSON under `<state root>/scratch/speech-setup/`, run
-  `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file. `check` exits 0
-  only when the configuration is valid AND the named key variables are set in this shell;
-  `probe` sends one short sentence per language to the endpoint and reports the clip length,
-  on the operator's say-so only (it costs a call). `apply` only advises.
-- **75-youtube** *(runs only via `youtube`; never in `all` or `instance`)* - Where documentation
-  videos are published. 1. Run `"$STEPS_DIR/75-youtube.sh" propose` (read-only): it prints what
-  the operator prepares on the Google side (a Cloud project with the YouTube Data API enabled, a
-  Desktop-type OAuth client, the one-time consent on a machine with a browser, the consent screen
-  published) and which of the three OAuth environment variables it expects are already set
-  (names only). 2. Ask the operator with AskUserQuestion: the channel label, the NAMES of those
-  three variables (never a value), the default privacy (`unlisted` until the docs are
-  published), an optional playlist id and default language. 3. Write the
-  confirmed configuration as JSON under `<state root>/scratch/youtube-setup/`, run
-  `"$STEPS_DIR/75-youtube.sh" record --from-json <file>` and remove the file. `check` exits 0
-  only when the configuration is valid and the variables are set in this shell; `apply` only
-  advises. A first upload is the test that the project is not locked to private.
+  `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file. 4. `auth = bearer`:
+  tell the operator to open `/plugin`, choose `odoo-ai-agents`, Configure, and fill in the option
+  titled "Speech endpoint key" (the value never goes through the chat), then run
+  `/reload-plugins`; then call the odoo-media `media_info` tool (the option shows `true`) and
+  `speech_probe` (one short sentence per language, synthesized and transcribed back: `verdict`
+  `pass` per language, else the voice or the endpoint is wrong). `check` validates the file only;
+  `apply` only advises.
+- **75-youtube** *(runs only via `youtube`; never in `all` or `instance`)* - The channels videos
+  are published to, by purpose. 1. Run `"$STEPS_DIR/75-youtube.sh" propose` (read-only): it
+  prints what the operator prepares on the Google side (a Cloud project with the YouTube Data
+  API enabled, a Desktop-type OAuth client and its downloaded client JSON, the consent screen
+  External and In production with Branding filled in) and the slots. 2. Ask the operator with
+  AskUserQuestion, per channel: the purpose (`docs` for user guides, the docs site and the App
+  Store DEMO tab - at least this one; `marketing` for sales and marketing videos; a third purpose
+  of theirs), the channel label, the default privacy (`unlisted` until the docs are published),
+  an optional playlist id and default language. A purpose without a channel keeps its videos
+  local. 3. Per channel, write the confirmed table as JSON under `<state root>/scratch/youtube-setup/`,
+  run `"$STEPS_DIR/75-youtube.sh" record --channel <purpose> --from-json <file>` and remove the
+  file. 4. Per channel, give the operator the one command THEY run in their own terminal, on a
+  machine with a browser: `"$STEPS_DIR/75-youtube.sh" consent --channel <purpose> --client-json
+  <downloaded client JSON>` - it completes the consent for the account that owns the channel and
+  stores what it obtains in the plugin configuration itself, printing nothing of it; then
+  `/reload-plugins`. The agent never runs it. 5. Call the odoo-media `youtube_check` tool
+  (channel = purpose, `live` true): the channel title comes back from Google, or the result names
+  the option still missing. `check` validates the file only; `apply` only advises.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths

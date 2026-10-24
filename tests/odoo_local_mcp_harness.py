@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 MCP_DIR = PLUGIN / "scripts" / "mcp"
 SERVER = MCP_DIR / "odoo_local_server.py"
+MEDIA_SERVER = MCP_DIR / "odoo_media_server.py"
 PACKAGE = MCP_DIR / "odoo_local"
 LIB_DIR = PLUGIN / "scripts" / "lib"
 
@@ -44,12 +45,13 @@ def hermetic_env(home: Path, **extra) -> dict:
 
 
 class McpClient:
-    def __init__(self, env: dict, cwd: Path, timeout: float = 30.0, launcher=()):
+    def __init__(self, env: dict, cwd: Path, timeout: float = 30.0, launcher=(), server=None):
         """`launcher` prefixes the server command line - a staged parent process tree the server
-        is started through (its stdio must pass through to the server untouched)."""
+        is started through (its stdio must pass through to the server untouched). `server` picks
+        the entry point (odoo-local by default; MEDIA_SERVER for odoo-media)."""
         self.timeout = timeout
         self.proc = subprocess.Popen(
-            [str(a) for a in launcher] + [sys.executable, str(SERVER)],
+            [str(a) for a in launcher] + [sys.executable, str(server or SERVER)],
             cwd=str(cwd),
             env=env,
             stdin=subprocess.PIPE,

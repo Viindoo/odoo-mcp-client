@@ -117,6 +117,24 @@ def test_lease_gc_with_dry_run_false_falls_through_to_human_prompt():
     _silent({"tool_name": f"{PREFIX}__lease_gc", "tool_input": {"dry_run": False}})
 
 
+MEDIA_PREFIX = f"mcp__plugin_{NAME}_{_normalize('odoo-media')}"
+
+
+@pytest.mark.parametrize("tool_short", ["media_info", "speech_synthesize", "speech_transcribe", "speech_probe",
+                                        "youtube_check", "youtube_status"])
+def test_every_odoo_media_tool_but_a_public_upload_is_allowed(tool_short):
+    """odoo-media is the second LOCAL server: its speech and YouTube tools are auto-allowed like
+    odoo-local's; only the one outward publication below is left to the human."""
+    _allowed({"tool_name": f"{MEDIA_PREFIX}__{tool_short}", "tool_input": {"channel": "docs"}})
+
+
+def test_an_unlisted_or_private_upload_is_allowed_and_a_public_one_falls_through():
+    _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs", "privacy": "unlisted"}})
+    _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs"}})
+    _allowed({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs", "privacy": "public", "dry_run": True}})
+    _silent({"tool_name": f"{MEDIA_PREFIX}__youtube_upload", "tool_input": {"channel": "docs", "privacy": "public"}})
+
+
 def test_lease_gc_with_dry_run_as_string_false_is_still_allowed():
     """Only the JSON boolean `false` triggers the exception - a truthy/non-bool value (a model
     mistake, or a future caller that passes a string) must not silently widen the exception into
@@ -180,6 +198,7 @@ def test_hooks_json_local_matcher_accepts_odoo_local_tools():
     entry = _permission_request_local_entry()
     pattern = entry["matcher"]
     assert re.match(pattern, f"{PREFIX}__lease_acquire")
+    assert re.match(pattern, f"{MEDIA_PREFIX}__youtube_upload"), "the matcher mirrors LOCAL_SERVERS: both servers"
     assert re.match(pattern, f"{PREFIX}__lease_gc")
 
 

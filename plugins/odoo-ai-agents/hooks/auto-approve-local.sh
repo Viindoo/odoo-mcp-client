@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # auto-approve-local.sh - PermissionRequest hook that auto-approves this
 # plugin's LOCAL (non-browser) MCP tools IN-SESSION - the odoo-local server's
-# lease/instance/catalog tools (scripts/mcp/odoo_local_server.py).
+# lease/instance/catalog tools (scripts/mcp/odoo_local_server.py) and the
+# odoo-media server's speech/YouTube tools (scripts/mcp/odoo_media_server.py).
 #
 # WHY A SEPARATE HOOK FROM auto-approve-browser.sh: odoo-local's tools are NOT a
 # browser-automation family - browser_prefixes.py / plugin_mcp_servers.py
@@ -13,10 +14,11 @@
 #
 # POLICY: auto-allow every `mcp__plugin_<plugin>_odoo-local__*` tool call EXCEPT
 # `lease_gc` invoked with `tool_input.dry_run` explicitly `false` (an APPLY gc -
-# the one call in this surface that can actually reclaim/destroy something). A
-# dry-run gc (the documented default) is a read-only listing and is auto-allowed
-# like every other local tool; only an explicit `dry_run:false` falls through to
-# the normal human-approval prompt.
+# the one call in this surface that can actually reclaim/destroy something), and
+# every `mcp__plugin_<plugin>_odoo-media__*` call EXCEPT `youtube_upload` with
+# `tool_input.privacy` `public` (the one outward publication). A dry-run gc (the
+# documented default) is a read-only listing and is auto-allowed like every other
+# local tool; only those two shapes fall through to the normal human-approval prompt.
 #
 # Contract: read stdin (the PermissionRequest payload as JSON), and:
 #   - ODOO_AI_NO_AUTO_PERMS=1 -> pass-through (exit 0, no output);
@@ -72,10 +74,13 @@ server, short = mod.split_local_tool(tool)
 if server is None:
     sys.exit(0)
 
+tool_input = data.get("tool_input")
 if short == "lease_gc":
-    tool_input = data.get("tool_input")
     if isinstance(tool_input, dict) and tool_input.get("dry_run") is False:
         sys.exit(0)  # apply-mode gc: fall through to the normal human prompt
+if short == "youtube_upload":
+    if isinstance(tool_input, dict) and tool_input.get("privacy") == "public" and not tool_input.get("dry_run"):
+        sys.exit(0)  # a public publication: fall through to the normal human prompt
 
 print(json.dumps({
     "hookSpecificOutput": {

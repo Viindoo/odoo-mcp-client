@@ -75,11 +75,18 @@ markers**. Editing inside the markers is wasted work - `make gen-check` (and CI)
 To change tool descriptions, edit the JSON SSOT and run `make gen`, then commit the regenerated
 output. The generator is idempotent: a clean tree must produce zero diff.
 
-### The `odoo-local` MCP server (local runtime)
+### The `odoo-local` and `odoo-media` MCP servers (local runtime)
 
 `plugins/odoo-ai-agents/.mcp.json` registers `odoo-local`, a stdio MCP server
 (`scripts/mcp/odoo_local_server.py` + `scripts/mcp/odoo_local/`) exposing the lease, instance,
-translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`. Rules:
+translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`,
+and `odoo-media` (`scripts/mcp/odoo_media_server.py` + `scripts/mcp/odoo_media/`, the same
+protocol frame) exposing narration speech and YouTube publishing. `odoo-media` exists because its
+tools need values the operator configured through the plugin's `userConfig` options (Claude Code's
+masked dialog; `plugin.json` declares them, `.mcp.json` maps `${user_config.*}` into the server's
+env): a value reaches a plugin MCP server's env and exec-form hooks only, never a script run through
+Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
+`docs/reference/MEDIA-SERVER-API.md`). Rules:
 
 - **Claude Code only.** Its command resolves `${CLAUDE_PLUGIN_ROOT}`, so `gen_mcp_manifests.py`
   excludes it from the Codex/Gemini manifests; those runtimes use the allocator CLI.

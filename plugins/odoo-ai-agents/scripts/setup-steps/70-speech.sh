@@ -5,22 +5,23 @@
 # (POST <base_url>/audio/transcriptions) that checks every narration clip against its
 # script. Writes the machine-global, never-committed `speech.toml` in the state root.
 #
-# The key itself never enters any file: the configuration names the ENVIRONMENT VARIABLE
-# that holds it, and `check` verifies the variable is set in the current shell.
+# No credential value enters any file: the value the `bearer` mode sends is the plugin's
+# configured option (Claude Code's own dialog), which only the odoo-media MCP server
+# receives; `check` validates the configuration, and the odoo-media `media_info` and
+# `speech_probe` tools say whether the value is present and whether the round trip works.
 #
-#   propose   prints the provider shapes this plugin knows (hosted and self-hosted), which
-#             known key variables are set on this machine (names only), and whether ffmpeg
-#             has the filters the assembler needs. Writes nothing.
+#   propose   prints the provider shapes this plugin knows (a gateway, hosted and
+#             self-hosted), a gateway the operator exported as ODOO_AI_SPEECH_BASE_URL, and
+#             whether ffmpeg has the filters the assembler needs. Writes nothing.
 #   record    --from-json FILE  validates the operator-CONFIRMED configuration and writes it.
-#             Refuses a key where a variable name belongs, a voice recorded under two
+#             Refuses a value where a configuration key belongs, a voice recorded under two
 #             languages, a non-locale language key.
 #   show      prints the configuration as JSON.
-#   probe     [--lang xx_YY]  synthesises one short sentence per configured language (one
-#             call each - run it only when the operator agrees) and prints each clip's path
-#             and duration; exit 1 when a language fails.
+#   probe     [--lang xx_YY]  the CLI round trip for a human with the value exported as
+#             SPEECH_API_KEY; an agent calls the odoo-media speech_probe tool instead.
 #
 # Subcommands: describe | check | apply | propose | record | show | probe
-#   check   exit 0 when speech.toml is valid and every key variable is set; 1 otherwise.
+#   check   exit 0 when speech.toml is valid; 1 otherwise.
 #   apply   advise-only: says what to run; writes nothing.
 #
 # CONFIG:
@@ -45,7 +46,7 @@ cmd_apply() {
         echo "ok speech configuration declared"
         return 0
     fi
-    echo "Speech not configured. Run: $0 propose, confirm the endpoint, model, key variable NAME and a voice per language, then"
+    echo "Speech not configured. Run: $0 propose, confirm the endpoint, model, auth mode and a voice per language, then"
     echo "  $0 record --from-json <file>   (the setup command drives this; nothing is written here)"
     return 1
 }

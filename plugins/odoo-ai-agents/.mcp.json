@@ -1,6 +1,17 @@
 {
   "mcpServers": {
     "chrome-devtools": { "type": "stdio", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/browser_mcp_launch.py", "chrome-devtools"] },
-    "odoo-local": { "type": "stdio", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/odoo_local_server.py"] }
+    "odoo-local": { "type": "stdio", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/odoo_local_server.py"] },
+    "odoo-media": {
+      "type": "stdio", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/odoo_media_server.py"],
+      "env": {
+        "SPEECH_API_KEY": "${user_config.speech_api_key}",
+        "YOUTUBE_CLIENT_ID": "${user_config.youtube_client_id}",
+        "YOUTUBE_CLIENT_SECRET": "${user_config.youtube_client_secret}",
+        "YOUTUBE_REFRESH_TOKEN_DOCS": "${user_config.youtube_refresh_token_docs}",
+        "YOUTUBE_REFRESH_TOKEN_MARKETING": "${user_config.youtube_refresh_token_marketing}",
+        "YOUTUBE_REFRESH_TOKEN_THIRD": "${user_config.youtube_refresh_token_third}"
+      }
+    }
   }
 }
