@@ -1,6 +1,6 @@
 {
   "name": "odoo-semantic-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "MCP server connection for Odoo Semantic - semantic code intelligence (inheritance chains, field impact, model inspect, ORM validation) over HTTP. Fill the server URL and key in the plugin's configuration dialog; /odoo-semantic-mcp:connect guides and verifies.",
   "keywords": [
     "odoo",

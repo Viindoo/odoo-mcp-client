@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `/reload-plugins` restarts the plugin's servers with their configured values (verified live);
   only the browser families registered in the user configuration and the permission rules need a
   new session. The consent and migration commands may be typed in the chat with a leading `!`.
+- `odoo-semantic-mcp` 1.1.0 -> 1.1.1 - `/odoo-semantic-mcp:connect` says the plugin's server reloads
+  with `/reload-plugins` (verified live), offers the migration command for typing in the chat with a
+  leading `!`, and the README's reload note replaces the old "restart Claude Code" one.
 - `odoo-ai-agents` - the six plugin options say "leave empty when Claude Code asks at install"
   and which command fills them, so the install dialog no longer looks like a form to complete.
 
