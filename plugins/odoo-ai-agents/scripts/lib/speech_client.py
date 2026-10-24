@@ -59,12 +59,12 @@ class SpeechError(Exception):
     pass
 
 
-def _load():
+def _load(complete=True):
     try:
         cfg = speech_config.read_config()
     except FileNotFoundError:
         raise SpeechError("no speech configuration - run /odoo-ai-agents:odoo-setup voice", 2)
-    problems = speech_config.validate(cfg)
+    problems = speech_config.validate(cfg, complete=complete)
     if problems:
         raise SpeechError("speech.toml invalid: " + "; ".join(problems), 1)
     return cfg
@@ -209,13 +209,12 @@ def _get_json(url, headers, timeout=60):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def voices(cfg=None, value=None, base_url=None):
-    """The voice listing as the endpoint returns it; `base_url` overrides the configured one
-    (the setup conversation lists voices before speech.toml exists)."""
-    cfg = cfg or (None if base_url else _load())
-    table = (cfg or {}).get("tts") or {"auth": "bearer" if value else "none"}
-    base = (base_url or table["base_url"]).rstrip("/")
-    url = (table.get("voices_url") if not base_url else None) or base + "/audio/voices"
+def voices(cfg=None, value=None):
+    """The voice listing as the recorded endpoint returns it (an endpoint-only configuration is
+    enough: the value only ever travels to the endpoint speech.toml records)."""
+    cfg = cfg or _load(complete=False)
+    table = cfg["tts"]
+    url = table.get("voices_url") or table["base_url"].rstrip("/") + "/audio/voices"
     headers = _headers(table, value)
     headers.pop("Content-Type", None)
     try:
@@ -224,11 +223,11 @@ def voices(cfg=None, value=None, base_url=None):
         raise SpeechError("%s: %s" % (url, exc), 1)
 
 
-def models(cfg=None, value=None, base_url=None):
-    """The model ids the endpoint lists at GET <base>/models (OpenAI shape), [] when it has none."""
-    cfg = cfg or (None if base_url else _load())
-    table = (cfg or {}).get("tts") or {"auth": "bearer" if value else "none"}
-    base = (base_url or table["base_url"]).rstrip("/")
+def models(cfg=None, value=None):
+    """The model ids the recorded endpoint lists at GET <base>/models (OpenAI shape), [] when none."""
+    cfg = cfg or _load(complete=False)
+    table = cfg["tts"]
+    base = table["base_url"].rstrip("/")
     headers = _headers(table, value)
     headers.pop("Content-Type", None)
     try:

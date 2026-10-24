@@ -97,7 +97,10 @@ def _looks_like_a_key(value):
     return len(v) > 24 and any(c.islower() for c in v) and any(c.isdigit() for c in v)
 
 
-def validate(cfg):
+def validate(cfg, complete=True):
+    """Problems with the configuration. `complete=False` accepts an endpoint-only file (base_url
+    and auth recorded, models and voices not chosen yet) - the stage the setup conversation records
+    before the operator configures the value, so the value only ever travels to that endpoint."""
     problems = []
     if not isinstance(cfg, dict):
         return ["the configuration is not a table"]
@@ -136,7 +139,7 @@ def validate(cfg):
     for section, table in (("tts", tts), ("stt", stt)):
         if not _url_ok(table.get("base_url")):
             problems.append("[%s] base_url: an http(s) URL of the audio API root" % section)
-        if not isinstance(table.get("model"), str) or not table["model"].strip():
+        if complete and (not isinstance(table.get("model"), str) or not table["model"].strip()):
             problems.append("[%s] model: a non-empty string" % section)
         auth = table.get("auth", "bearer")
         if auth not in AUTH_MODES:
@@ -149,7 +152,8 @@ def validate(cfg):
         problems.append("[tts] voices_url: an http(s) URL")
     voices = tts.get("voices")
     if not isinstance(voices, dict) or not voices:
-        problems.append("[tts.voices] at least one language -> voice entry")
+        if complete:
+            problems.append("[tts.voices] at least one language -> voice entry")
     else:
         seen = {}
         for lang, voice in voices.items():
@@ -171,9 +175,11 @@ def render(cfg):
     for key in TTS_KEYS:
         if key in cfg["tts"]:
             out.append("%s = %s" % (key, q(str(cfg["tts"][key]))))
-    out += ["", "[tts.voices]"]
-    for lang in sorted(cfg["tts"]["voices"]):
-        out.append("%s = %s" % (lang, q(str(cfg["tts"]["voices"][lang]))))
+    voices = cfg["tts"].get("voices") or {}
+    if voices:
+        out += ["", "[tts.voices]"]
+        for lang in sorted(voices):
+            out.append("%s = %s" % (lang, q(str(voices[lang]))))
     cands = cfg["tts"].get("candidates") or {}
     if cands:
         out += ["", "[tts.candidates]"]
@@ -260,6 +266,12 @@ def cmd_check(args):
     if code:
         return code
     problems = validate(cfg)
+    if problems and not validate(cfg, complete=False):
+        print("INCOMPLETE=%s" % " ".join(sorted(p.split(":")[0].strip("[] ").replace("] ", ".")
+                                                 for p in problems)))
+        print("ok endpoint declared in %s; models and voices not chosen yet - the odoo-media speech_voices "
+              "tool lists them once the value is configured and the plugins reloaded" % path)
+        return 1
     for p in problems:
         print("x " + p, file=sys.stderr)
     if problems:
@@ -378,7 +390,9 @@ def cmd_propose(args):
 def cmd_record(args):
     with open(args.from_json, encoding="utf-8") as fh:
         cfg = json.load(fh)
-    problems = validate(cfg)
+    if "tts" in cfg and isinstance(cfg["tts"], dict):
+        cfg["tts"].setdefault("voices", {})
+    problems = validate(cfg, complete=not args.endpoint_only)
     if problems:
         for p in problems:
             print("x " + p, file=sys.stderr)
@@ -415,9 +429,10 @@ def cmd_probe_endpoint(args):
     if not info["reachable"]:
         return 1
     if info["auth"] == "required":
-        _emit("NEXT", "the endpoint expects a value: the operator fills the plugin option titled "
-                      "'Speech endpoint key' (/plugin > odoo-ai-agents > Configure), then /reload-plugins, "
-                      "then the odoo-media speech_voices tool with this base_url lists models and voices")
+        _emit("NEXT", "the endpoint expects a value: record it first (record --endpoint-only), the operator "
+                      "fills the plugin option titled 'Speech endpoint key' (/plugin > odoo-ai-agents > "
+                      "Configure), then /reload-plugins, then the odoo-media speech_voices tool lists its "
+                      "models and voices (the value only ever goes to the recorded endpoint)")
     return 0
 
 
@@ -446,6 +461,8 @@ def main(argv=None):
     sub.add_parser("propose")
     p = sub.add_parser("record")
     p.add_argument("--from-json", required=True, dest="from_json")
+    p.add_argument("--endpoint-only", action="store_true", dest="endpoint_only",
+                   help="record base_url and auth only (models and voices come from the endpoint later)")
     sub.add_parser("show")
     p = sub.add_parser("probe-endpoint")
     p.add_argument("--base-url", required=True, dest="base_url")

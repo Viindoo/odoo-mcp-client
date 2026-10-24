@@ -226,3 +226,21 @@ def test_probe_endpoint_tells_open_from_required_and_lists_models_and_voices_wit
     finally:
         for srv in servers:
             srv.shutdown()
+
+
+def test_an_endpoint_only_record_is_accepted_and_check_says_what_is_still_missing(home, tmp_path):
+    """The gated-endpoint path: the endpoint is recorded before the value exists, so the value can
+    only ever travel there; the file is not a working configuration until models and voices are in."""
+    spec = tmp_path / "endpoint.json"
+    spec.write_text(json.dumps({"tts": {"base_url": "https://gateway.example.test/v1", "auth": "bearer"},
+                                "stt": {"base_url": "https://gateway.example.test/v1", "auth": "bearer"}}))
+    proc = _step(home, "record", "--from-json", str(spec), "--endpoint-only")
+    assert proc.returncode == 0, proc.stderr
+    text = (home / "speech.toml").read_text(encoding="utf-8")
+    assert 'base_url = "https://gateway.example.test/v1"' in text and "[tts.voices]" not in text
+    proc = _step(home, "check")
+    assert proc.returncode == 1
+    assert "INCOMPLETE=" in proc.stdout and "tts.model" in proc.stdout and "tts.voices" in proc.stdout
+    assert "speech_voices" in proc.stdout
+    proc = _step(home, "record", "--from-json", str(spec))          # a complete record refuses the same file
+    assert proc.returncode == 1 and "model" in proc.stderr

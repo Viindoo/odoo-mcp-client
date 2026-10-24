@@ -53,10 +53,6 @@ TRANSCRIBE_OUT = {
                    "words": {"type": "array", "items": {"type": "object", "properties": {
                        "word": {"type": "string"}, "start": {"type": "number"}, "end": {"type": "number"}}}}},
 }
-VOICES_IN = {"type": "object", "properties": {
-    "base_url": {"type": "string", "minLength": 1,
-                 "description": "Audio API root to ask instead of the configured one (the setup conversation, before speech.toml exists)."}},
-    "additionalProperties": False}
 VOICES_OUT = {"type": "object", "required": ["voices", "models"],
               "properties": {"voices": {"type": ["array", "object", "string", "null"]},
                              "models": {"type": "array", "items": {"type": "string"}},
@@ -81,9 +77,9 @@ def _value(cfg, sc):
     return values.require(values.SPEECH) if speech_config.needs_value(cfg) else None
 
 
-def _config(sc):
+def _config(sc, complete=True):
     try:
-        return sc._load()
+        return sc._load(complete=complete)
     except sc.SpeechError as exc:
         raise _translate(exc)
 
@@ -140,15 +136,11 @@ def register(registry, ctx):
 
     def voices(args, ctx):
         sc = _speech_client()
-        base_url = args.get("base_url")
-        if base_url:
-            cfg, value = None, (os.environ.get(values.SPEECH, "") if values.present(values.SPEECH) else None)
-        else:
-            cfg = _config(sc)
-            value = _value(cfg, sc)
+        cfg = _config(sc, complete=False)   # an endpoint-only speech.toml is enough here
+        value = _value(cfg, sc)             # and the value goes to that recorded endpoint only
         try:
-            listing = sc.voices(cfg=cfg, value=value, base_url=base_url)
-            ids = sc.models(cfg=cfg, value=value, base_url=base_url)
+            listing = sc.voices(cfg=cfg, value=value)
+            ids = sc.models(cfg=cfg, value=value)
         except sc.SpeechError as exc:
             raise _translate(exc)
         return {"voices": listing, "models": ids,
@@ -178,11 +170,12 @@ def register(registry, ctx):
         TRANSCRIBE_IN, TRANSCRIBE_OUT, transcribe, title="Transcribe a clip", read_only=True, long_running=True)
     registry.add(
         "speech_voices",
-        "List the voices and the model ids the speech endpoint publishes (voices as the endpoint returns them; "
-        "a gateway that publishes none answers an error), with a guess of the TTS and STT model ids. "
-        "`base_url` asks another endpoint than the configured one - the setup conversation, after the "
-        "operator configured the value and reloaded. Read-only.",
-        VOICES_IN, VOICES_OUT, voices,
+        "List the voices and the model ids the recorded speech endpoint publishes (voices as the endpoint "
+        "returns them; a gateway that publishes none answers an error), with a guess of the TTS and STT model "
+        "ids. An endpoint-only speech.toml (70-speech.sh record --endpoint-only) is enough: the setup "
+        "conversation records the endpoint, the operator configures the value, reloads, and this tool lists "
+        "what to choose from. The value only ever goes to the recorded endpoint. Read-only.",
+        {"type": "object", "properties": {}, "additionalProperties": False}, VOICES_OUT, voices,
         title="List voices", read_only=True, long_running=True)
     registry.add(
         "speech_probe",

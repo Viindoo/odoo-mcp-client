@@ -14,8 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   one closed question (where the narration voice comes from, with what the machine found as the
   first choices), takes a URL at most, and derives the rest from the endpoint: a new
   `70-speech.sh probe-endpoint` says whether it is open or expects a value and lists its models
-  and voices, and the odoo-media `speech_voices` tool takes a `base_url` and returns the models
-  too. The command's rules now ban a fill-in template in the chat.
+  and voices; a gated endpoint is recorded first (`record --endpoint-only`) and the odoo-media
+  `speech_voices` tool then lists its models and voices - the configured value only ever travels
+  to the recorded endpoint, never to a URL a caller names. The command's rules now ban a fill-in
+  template in the chat.
 - `odoo-ai-agents` - **`odoo-setup youtube` no longer asks for a playlist id or a default
   language**: one question (which channels), a label per channel; privacy is a stated decision;
   the two optional keys are added later with the same command.
