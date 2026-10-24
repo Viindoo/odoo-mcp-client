@@ -303,7 +303,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
           <h3 style="font-size:22px;font-weight:700;">
             See {{MODULE_DISPLAY_NAME}} in Action
           </h3>
-          <!-- YouTube embed only (permitted CDN). Replace VIDEO_ID. -->
+          <!-- YouTube embed only (permitted CDN). Replace VIDEO_ID with the id of the ENGLISH narration (the store page is English); no English video = drop this DEMO block. -->
           <!-- Bootstrap 5 `.ratio` supplies the 16:9 box; no inline position/padding-top styles. -->
           <div class="ratio ratio-16x9 overflow-hidden mb-3" style="border-radius:14px;">
             <iframe src="https://www.youtube.com/embed/{{VIDEO_ID}}"

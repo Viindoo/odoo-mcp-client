@@ -54,6 +54,7 @@ opens every image of `IMAGES TO REVIEW` (item 12).
 | 10 | Console | no console error on load or after scrolling |
 | 11 | Language switch | the switch reaches the same page in the other language |
 | 12 | Image content | an image of `IMAGES TO REVIEW`, opened as a file, shows no banned term and no off-brand UI |
+| 13 | Embedded video | a video embedded on the page is narrated in the page's language (its id is the one the plan lists for that language); a page with no video in its language embeds none |
 
 ## Loop
 

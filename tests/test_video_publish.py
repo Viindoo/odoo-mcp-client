@@ -99,3 +99,49 @@ def test_fit_reports_a_scene_that_moves_longer_than_the_silence_limit_with_nobod
     assert out.exists()  # the file is still written so the author can watch the silent stretch
     ok = subprocess.run(base + ["--max-silence", "3.0"], capture_output=True, text=True)
     assert ok.returncode == 0 and "SILENCE=ok" in ok.stdout
+
+
+def test_verify_tools_reports_the_card_renderer_the_filters_and_the_font_coverage():
+    if not HAS_FFMPEG:
+        pytest.skip("ffmpeg/ffprobe not on PATH")
+    proc = subprocess.run([sys.executable, str(TOOL), "verify-tools"], capture_output=True, text=True)
+    kv = _kv(proc.stdout)
+    assert kv["TITLE_CARD"] in ("drawtext", "libass", "none") and kv["FILTER_loudnorm"] in ("ok", "missing")
+    assert kv["FONT_VI_COVERAGE"] in ("ok", "missing", "unknown") or kv["FONT"] == "none"
+    assert kv["VERDICT"] in ("pass", "fail")
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_the_title_card_renders_with_whichever_text_filter_this_ffmpeg_has(tmp_path):
+    out = tmp_path / "title.mp4"
+    proc = subprocess.run([sys.executable, str(TOOL), "title", "--text", "Trợ lý AI của Viindoo", "--out", str(out),
+                           "--seconds", "1"], capture_output=True, text=True)
+    tools = _kv(subprocess.run([sys.executable, str(TOOL), "verify-tools"], capture_output=True, text=True).stdout)
+    if tools["TITLE_CARD"] == "none":
+        assert proc.returncode == 1 and "neither" in proc.stderr
+        return
+    assert proc.returncode == 0, proc.stderr
+    assert _kv(proc.stdout)["RENDERED_WITH"] == tools["TITLE_CARD"] and out.stat().st_size > 1000
+    assert not (tmp_path / "title.mp4.ass").exists() and not (tmp_path / "title.mp4.txt").exists()
+
+
+def test_two_takes_at_different_levels_come_out_at_one_loudness(media, tmp_path):
+    """A retake recorded louder or softer than its neighbours is brought to the same level before
+    the mix: the fitted clips of a loud and a soft narration measure within 2 LU of each other."""
+    import re
+    clip, narr = media
+    soft = tmp_path / "soft.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(narr), "-af", "volume=-18dB", "-ac", "1", "-ar", "48000",
+                    "-sample_fmt", "s16", str(soft)], check=True, capture_output=True)
+    levels = []
+    for wav in (narr, soft):
+        out = tmp_path / ("%s-fitted.mp4" % wav.stem)
+        proc = subprocess.run([sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(wav),
+                               "--out", str(out), "--max-silence", "5"], capture_output=True, text=True)
+        assert proc.returncode == 0, proc.stderr
+        measured = subprocess.run(["ffmpeg", "-i", str(out), "-af", "ebur128", "-f", "null", "-"],
+                                  capture_output=True, text=True).stderr
+        m = re.search(r"Integrated loudness:\s+I:\s+(-?\d+\.\d) LUFS", measured)
+        assert m, measured[-600:]
+        levels.append(float(m.group(1)))
+    assert abs(levels[0] - levels[1]) < 2.0, levels

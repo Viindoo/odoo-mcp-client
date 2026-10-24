@@ -2,6 +2,8 @@
 """video_publish.py - narrated assembly and publish-profile verification for demo videos (ffmpeg).
 
 Subcommands (stdlib + ffmpeg/ffprobe on PATH):
+  verify-tools [--font F]  what this machine can do (ffmpeg, the filters, title card via drawtext or
+            libass, the font and its Vietnamese coverage) - run BEFORE recording; exit 1 on a gap.
   fit       --clip scene.mp4 --narration scene.wav --out scene-fitted.mp4 [--lead-in 0.5]
             [--fade 0.3] [--max-silence 3.0]  The narration starts after the lead-in; when it outlasts the clip the
             last frame is held; a short fade closes the scene. Prints DURATION_S.
@@ -32,6 +34,9 @@ import re
 import shutil
 import subprocess
 import sys
+
+NARRATION_LUFS = -16   # integrated loudness every narration clip is brought to before the mix
+NARRATION_TP = -1.5
 
 PROFILES = {
     "youtube-1080p": {
@@ -102,7 +107,11 @@ def cmd_fit(args):
     silent = max(0.0, clip_s - args.lead_in - narration_s)
     vf = "tpad=stop_mode=clone:stop_duration=%.3f,fade=t=out:st=%.3f:d=%.3f" % (
         hold, max(0.0, total - args.fade), args.fade)
-    af = "adelay=%d|%d,apad=whole_dur=%.3f" % (int(args.lead_in * 1000), int(args.lead_in * 1000), total)
+    # one integrated loudness per narration clip BEFORE the mix: a retake recorded on another day (or
+    # another take of one line) sits at the same level as its neighbours; the final two-pass loudnorm
+    # in concat then only evens the whole file
+    af = "loudnorm=I=%s:TP=%s:LRA=11,aresample=48000,adelay=%d|%d,apad=whole_dur=%.3f" % (
+        NARRATION_LUFS, NARRATION_TP, int(args.lead_in * 1000), int(args.lead_in * 1000), total)
     cmd = ["ffmpeg", "-v", "error", "-y", "-i", args.clip, "-i", args.narration,
            "-filter_complex", "[0:v]%s[v];[1:a]%s[a]" % (vf, af), "-map", "[v]", "-map", "[a]",
            "-t", "%.3f" % total] + video_args(args.profile, fps) + audio_args(args.profile) + [args.out]
@@ -172,33 +181,124 @@ def cmd_concat(args):
     return 0
 
 
-def cmd_title(args):
-    _need("ffmpeg")
-    font = args.font
+def have_filter(name):
+    try:
+        out = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True, timeout=20,
+                             check=False).stdout
+    except OSError:
+        return False
+    return " %s " % name in out
+
+
+def _font(args):
+    font = getattr(args, "font", None)
     if not font and shutil.which("fc-match"):
         font = _run(["fc-match", "-f", "%{file}", "sans-serif"]).stdout.strip() or None
+    return font
+
+
+def _ass_card(text, font_path, size):
+    w, h = size.split("x")
+    family = os.path.splitext(os.path.basename(font_path))[0] if font_path else "Sans"
+    esc = text.replace("\\", "\\\\").replace("\n", "\\N")
+    return ("[Script Info]\nScriptType: v4.00+\nPlayResX: %s\nPlayResY: %s\n\n[V4+ Styles]\n"
+            "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
+            "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, "
+            "MarginV, Encoding\nStyle: Title,%s,64,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1\n\n"
+            "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            "Dialogue: 0,0:00:00.00,9:59:59.00,Title,,0,0,0,,%s\n") % (w, h, family, esc)
+
+
+def cmd_title(args):
+    _need("ffmpeg")
+    font = _font(args)
     if not font:
         print("x no font - pass --font <ttf with Latin Extended coverage>", file=sys.stderr)
         return 2
-    textfile = args.out + ".txt"
-    with open(textfile, "w", encoding="utf-8") as fh:
-        fh.write(args.text)
     esc = lambda v: v.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")  # noqa: E731
-    vf = ("drawtext=fontfile=%s:textfile=%s:fontsize=64:fontcolor=white:x=(w-text_w)/2:"
-          "y=(h-text_h)/2" % (esc(font), esc(textfile)))
+    sidecar = None
+    if have_filter("drawtext"):
+        sidecar = args.out + ".txt"
+        with open(sidecar, "w", encoding="utf-8") as fh:
+            fh.write(args.text)
+        vf = ("drawtext=fontfile=%s:textfile=%s:fontsize=64:fontcolor=white:x=(w-text_w)/2:"
+              "y=(h-text_h)/2" % (esc(font), esc(sidecar)))
+        how = "drawtext"
+    elif have_filter("subtitles") or have_filter("ass"):
+        # the static builds that lack drawtext carry libass: the card is an .ass subtitle over a plain colour
+        sidecar = args.out + ".ass"
+        with open(sidecar, "w", encoding="utf-8") as fh:
+            fh.write(_ass_card(args.text, font, args.size))
+        vf = "subtitles=%s:fontsdir=%s" % (esc(sidecar), esc(os.path.dirname(font)))
+        how = "libass"
+    else:
+        print("x title card needs an ffmpeg with the drawtext or the subtitles (libass) filter; this build has "
+              "neither - install the distro's ffmpeg package", file=sys.stderr)
+        return 1
     try:
         proc = _run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi",
                      "-i", "color=c=0x1f1f1f:s=%s:r=%g:d=%s" % (args.size, args.fps, args.seconds),
                      "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-vf", vf, "-t", str(args.seconds)]
                     + video_args(args.profile, args.fps) + audio_args(args.profile) + [args.out])
     finally:
-        os.unlink(textfile)
+        if sidecar and os.path.exists(sidecar):
+            os.unlink(sidecar)
     if proc.returncode != 0:
-        print("x title card failed (an ffmpeg without drawtext cannot render it): %s"
-              % proc.stderr.strip()[-300:], file=sys.stderr)
+        print("x title card failed (%s): %s" % (how, proc.stderr.strip()[-300:]), file=sys.stderr)
         return 1
     print("OUT=%s" % args.out)
+    print("RENDERED_WITH=%s" % how)
     return 0
+
+
+VIETNAMESE_SAMPLE = "ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ"
+
+
+def font_covers(font_path, sample=VIETNAMESE_SAMPLE):
+    """Whether the font's charset (fc-query) holds every character of `sample`; None when fc-query
+    is unavailable."""
+    if not shutil.which("fc-query"):
+        return None
+    out = _run(["fc-query", "-f", "%{charset}", font_path]).stdout.strip()
+    if not out:
+        return False
+    covered = set()
+    for rng in out.split():
+        lo, _, hi = rng.partition("-")
+        try:
+            a, b = int(lo, 16), int(hi or lo, 16)
+        except ValueError:
+            continue
+        covered.update(range(a, b + 1))
+    return all(ord(ch) in covered for ch in sample)
+
+
+def cmd_verify_tools(args):
+    """What this machine can do for a video run, BEFORE anything is recorded."""
+    ok = True
+    for tool in ("ffmpeg", "ffprobe"):
+        path = shutil.which(tool)
+        print("%s=%s" % (tool.upper(), path or "missing"))
+        ok = ok and bool(path)
+    if shutil.which("ffmpeg"):
+        card = "drawtext" if have_filter("drawtext") else ("libass" if (have_filter("subtitles") or have_filter("ass")) else "none")
+        print("TITLE_CARD=%s" % card)
+        for f in ("loudnorm", "ebur128", "aresample", "tpad"):
+            present = have_filter(f)
+            print("FILTER_%s=%s" % (f, "ok" if present else "missing"))
+            ok = ok and present
+        if card == "none":
+            print("REMEDY=install an ffmpeg build with drawtext or libass (the distro package has both)")
+    font = _font(args)
+    print("FONT=%s" % (font or "none"))
+    if font:
+        cov = font_covers(font)
+        print("FONT_VI_COVERAGE=%s" % ("unknown" if cov is None else ("ok" if cov else "missing")))
+        if cov is False:
+            print("REMEDY=the font has no Vietnamese glyphs: record a font that has them as the author profile's font_file")
+            ok = False
+    print("VERDICT=%s" % ("pass" if ok else "fail"))
+    return 0 if ok else 1
 
 
 def verify(video, profile):
@@ -332,6 +432,7 @@ def main(argv=None):
     p.add_argument("--seconds", type=float, default=3.0); p.add_argument("--font"); p.add_argument("--size", default="1920x1080")
     p.add_argument("--fps", type=float, default=25.0); p.add_argument("--profile", default="youtube-1080p")
     p = sub.add_parser("verify"); p.add_argument("--video", required=True); p.add_argument("--profile", default="youtube-1080p")
+    p = sub.add_parser("verify-tools"); p.add_argument("--font")
     p = sub.add_parser("sidecar"); p.add_argument("--storyboard", required=True); p.add_argument("--lang", required=True)
     p.add_argument("--durations", required=True); p.add_argument("--out-dir", required=True, dest="out_dir")
     p = sub.add_parser("thumbnail"); p.add_argument("--video", required=True); p.add_argument("--at", type=float, default=2.0)
@@ -339,10 +440,10 @@ def main(argv=None):
     p = sub.add_parser("preview"); p.add_argument("--video", required=True); p.add_argument("--out", required=True)
     p.add_argument("--max-mb", type=float, default=10.0, dest="max_mb"); p.add_argument("--profile", default="youtube-1080p")
     args = parser.parse_args(argv)
-    if args.cmd != "sidecar" and getattr(args, "profile", "youtube-1080p") not in PROFILES:
+    if args.cmd not in ("sidecar", "verify-tools") and getattr(args, "profile", "youtube-1080p") not in PROFILES:
         print("x unknown profile %s (known: %s)" % (args.profile, ", ".join(PROFILES)), file=sys.stderr)
         return 1
-    return {"fit": cmd_fit, "concat": cmd_concat, "title": cmd_title, "verify": cmd_verify,
+    return {"fit": cmd_fit, "concat": cmd_concat, "title": cmd_title, "verify": cmd_verify, "verify-tools": cmd_verify_tools,
             "sidecar": cmd_sidecar, "thumbnail": cmd_thumbnail, "preview": cmd_preview}[args.cmd](args)
 
 

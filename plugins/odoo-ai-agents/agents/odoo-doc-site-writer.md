@@ -73,7 +73,10 @@ only. `wire`: toctree entries and cross-references only. `fill`: translation ent
    instance. Every role a page names is exercised with a user holding only that role. One demo
    record is carried through a page. Demo data is in the language of the shot, the company name
    from `POLICY`; personal data is never real (`example.com` addresses). Internal identifiers
-   visible in a shot are blurred. A core string that shows a banned term is a finding for the
+   visible in a shot are blurred. A video the brief lists (`VIDEOS`) is embedded with the id of the
+   page's language only: the source page carries the source-language id and the translation
+   catalog's entry for that embed carries the target-language id, so each build shows its own
+   narration; a language with no video gets no embed and no note about another language's video. A core string that shows a banned term is a finding for the
    branding owner: never edit it in the docs, never paint over it.
 4. **Capture** once per site language per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md`,
    § Docs-site writer. Each shot's final relative path:

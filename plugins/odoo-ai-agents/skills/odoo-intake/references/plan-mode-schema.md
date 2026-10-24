@@ -34,7 +34,7 @@ must land separately. Each node carries:
 | `when` | a condition the runner evaluates with a tool before launching (§ Default tail); absent = always |
 | `depends_on` | node ids; the only ordering statement |
 | `files_in_scope` | file globs the node writes; two nodes that may run in parallel must have DISJOINT sets, else they are ordered by `depends_on` |
-| `inputs` | `objective`, `acceptance` (verbatim, with their SRS or design pointer), `survey` (`none` when none), optional `recon_findings`, `needs_worktree` |
+| `inputs` | `objective`, `acceptance` (verbatim, with their SRS or design pointer), `survey` (`none` when none), optional `recon_findings`, `needs_worktree`; a workflow node also carries `workflow_inputs` - every input of the YAML's `inputs:` block that changes the outcome, with the value decided and WHY (`video-produce`: `destination` from the odoo-media `youtube_check` of the purpose, `languages` = the union of the embed targets' languages, `targets`) - never left to the YAML's default silently |
 
 **A node's module set is closed under "same landing moment":** two modules belong in ONE node
 when no other node depends on one without the other, neither needs independent revert, and
@@ -216,7 +216,7 @@ place; the rest keep their order.
   depends_on: [docs-module]
   when: a docs site is declared for the product and the change is user-visible, or the user asked for site docs
 - id: integrate
-  approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo; a demo video of the change rides as the PR attachment (docs-after-change.md § Where a video goes)
+  approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo; a demo video of the change rides as the PR attachment (video-destination.md)
   approach_kind: integrate
   depends_on: [docs-module, migration]
 - id: monitor

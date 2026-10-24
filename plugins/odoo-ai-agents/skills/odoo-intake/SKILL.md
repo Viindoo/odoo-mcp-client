@@ -108,7 +108,7 @@ The execution plan is authored by `odoo-planning`'s planner; its schema is SSOT 
 | Target | What it is | How the main agent dispatches it |
 |---|---|---|
 | a **skill** (`leaf` or `spawner-agent`) - e.g. `odoo-code-review`, `odoo-coding`, `odoo-feature-check`, `odoo-planning` | a **skill**, NOT an agentType | **Skill tool** (deterministic). For a `spawner-agent` skill the Skill tool loads it in the main context so the skill itself fans out its own subagents. |
-| a **workflow** - e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch |
+| a **workflow** - e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch. Before proposing a workflow, read its `inputs:` block: every input that changes the outcome and has no default the YAML states (`video-produce`: `destination`, `languages`, `targets`) is a closed question in the approach step, or a default you CHECKED against the facts it depends on and cite (the odoo-media `youtube_check` for a destination, the embed targets' languages for `languages`) - never a default you assumed. The chosen values travel on the plan node as `workflow_inputs` |
 | a **command** - e.g. `/odoo-respond-bid` | a slash command | the user's slash kickoff / its command |
 
 Skills always go through the Skill tool. Agents are launched directly - inside intake, only the Phase R read-only recon agent.
