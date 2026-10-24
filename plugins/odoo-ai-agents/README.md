@@ -806,6 +806,20 @@ classified as destructive and the one human gate left is a push to a protected b
 pull-request merge. A SessionStart hook keeps those entries current after a plugin update and never
 touches entries you wrote yourself.
 
+**Upgrading from an earlier version.** Claude Code runs nothing of a plugin when it is updated; the
+first thing of this plugin that starts on the new version is its `odoo-media` MCP server, at
+`/reload-plugins` or at the next session. That server runs a one-time upgrade pass (stamped per
+plugin version in the state root): values an earlier version read from your shell environment
+(`speech.toml` `api_key_env`, `youtube.toml` `*_env`) move into the plugin's configured options
+through `claude plugin configure --values-stdin`, the two files are rewritten in the current form
+(backups kept), a stand-alone `odoo-semantic` registration left by an earlier `/odoo-semantic-mcp:connect`
+moves into `odoo-semantic-mcp`'s options and is removed, and the moved values already work in that
+session. The next session start prints a one-line summary once; a value the pass could not find
+(your shell did not export it) is named there and goes in the plugin dialog. When an update adds a
+plugin MCP server, `/reload-plugins` may ask for `--force` or a new session. The same pass is a
+command you can run yourself: `python3 <plugin>/scripts/lib/upgrade_values.py apply` and
+`python3 <odoo-semantic-mcp plugin>/scripts/migrate_connection.py apply`.
+
 **After updating the plugin, re-run `/odoo-ai-agents:odoo-setup browser` and restart the session**
 (MCP does not hot-reload). Setup replaces any registration that differs from what it would write
 today (older pin, missing flag, moved `$ODOO_AI_HOME`). On Claude Code a SessionStart hint

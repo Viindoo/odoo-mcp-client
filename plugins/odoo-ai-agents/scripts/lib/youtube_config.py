@@ -222,6 +222,8 @@ def cmd_check(args):
         return 1
     if cfg.get("_migrated"):
         print("NOTICE=the file still holds the single-table form; the next record rewrites it as channels")
+        print("UPGRADE=its variable names come from an earlier plugin version; the operator runs in their "
+              "own terminal: python3 %s apply" % os.path.join(_LIB_DIR, "upgrade_values.py"))
     for purpose in sorted(cfg["channels"]):
         table = cfg["channels"][purpose]
         print("CHANNEL_%s=%s slot=%s privacy=%s option=%s" % (

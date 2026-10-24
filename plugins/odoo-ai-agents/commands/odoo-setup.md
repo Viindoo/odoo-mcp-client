@@ -639,7 +639,10 @@ Resolve:
   `/reload-plugins`; then call the odoo-media `media_info` tool (the option shows `true`) and
   `speech_probe` (one short sentence per language, synthesized and transcribed back: `verdict`
   `pass` per language, else the voice or the endpoint is wrong). `check` validates the file only;
-  `apply` only advises.
+  `apply` only advises. **Upgrading from an earlier version:** when `check` prints `UPGRADE=`,
+  the file still names an environment variable; hand the operator the command on that line
+  (their own terminal, never yours) - it moves the value into the plugin configuration and
+  rewrites the file - then `/reload-plugins`, and step 4 is done.
 - **75-youtube** *(runs only via `youtube`; never in `all` or `instance`)* - The channels videos
   are published to, by purpose. 1. Run `"$STEPS_DIR/75-youtube.sh" propose` (read-only): it
   prints what the operator prepares on the Google side (a Cloud project with the YouTube Data
@@ -657,7 +660,10 @@ Resolve:
   stores what it obtains in the plugin configuration itself, printing nothing of it; then
   `/reload-plugins`. The agent never runs it. 5. Call the odoo-media `youtube_check` tool
   (channel = purpose, `live` true): the channel title comes back from Google, or the result names
-  the option still missing. `check` validates the file only; `apply` only advises.
+  the option still missing. `check` validates the file only; `apply` only advises. **Upgrading
+  from an earlier version:** when `check` prints `UPGRADE=`, hand the operator the command on
+  that line (their own terminal, never yours) - it moves the values into the plugin configuration
+  and rewrites the file as channels - then `/reload-plugins`, then step 5.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `--reset` runs `apply --hard`: backs up `instances.toml` to `<path>.bak.<timestamp>` then
   writes an empty registry - what the menu option "Start the instance registry over" promises.

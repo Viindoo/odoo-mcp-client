@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import os
 import shutil
 import struct
 import threading
@@ -308,3 +309,115 @@ def test_speed_and_an_audition_voice_reach_the_engine_and_the_probe_says_whether
     probe = structured(client.call("speech_probe", {"lang": "vi_VN", "speed": 1.3}))
     entry = probe["results"][0]
     assert entry["speed"] == 1.3 and entry["speed_honoured"] is False   # the fake returns the same clip whatever the speed
+
+
+# --- the one-time upgrade pass at server start ------------------------------------------------
+
+_CLAUDE_STUB = r'''#!/usr/bin/env python3
+import json, os, sys
+state = os.environ["STUB_STATE"]
+open(os.path.join(state, "calls.log"), "a").write(json.dumps(sys.argv[1:]) + "\n")
+cfg_path = os.path.join(state, "configured.json")
+configured = json.load(open(cfg_path)) if os.path.exists(cfg_path) else {}
+pid = sys.argv[3] if len(sys.argv) > 3 else ""
+if sys.argv[1:3] == ["plugin", "configure"] and "--json" in sys.argv:
+    print(json.dumps({"pluginId": pid, "configured": configured.get(pid, [])}))
+elif sys.argv[1:3] == ["plugin", "configure"] and "--values-stdin" in sys.argv:
+    values = json.loads(sys.stdin.read())
+    json.dump(values, open(os.path.join(state, "values-%s.json" % pid.split("@")[0]), "w"))
+    configured[pid] = sorted(set(configured.get(pid, [])) | set(values))
+    json.dump(configured, open(cfg_path, "w"))
+elif sys.argv[1:3] == ["mcp", "remove"]:
+    path = os.path.join(os.environ["CLAUDE_CONFIG_DIR"], ".claude.json")
+    data = json.load(open(path)); data["mcpServers"].pop(sys.argv[3], None); json.dump(data, open(path, "w"))
+else:
+    sys.exit(2)
+'''
+
+
+def _upgrade_world(tmp_path):
+    import stat
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "speech.toml").write_text(
+        '[tts]\nprovider = "gateway"\nbase_url = "http://127.0.0.1:1/v1"\nmodel = "voice-tts"\napi_key_env = "OLD_SPEECH_NAME"\n'
+        '[tts.voices]\nvi_VN = "mai"\n[stt]\nbase_url = "http://127.0.0.1:1/v1"\nmodel = "voice-stt"\napi_key_env = "OLD_SPEECH_NAME"\n',
+        encoding="utf-8")
+    (home / "youtube.toml").write_text('[youtube]\nchannel = "Acme Docs"\nprivacy = "unlisted"\n', encoding="utf-8")
+    state = tmp_path / "stub-state"
+    state.mkdir()
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "claude"
+    stub.write_text(_CLAUDE_STUB, encoding="utf-8")
+    stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
+    cfg = tmp_path / "claude-config"
+    (cfg / "plugins").mkdir(parents=True)
+    (cfg / ".claude.json").write_text(json.dumps({"mcpServers": {"odoo-semantic": {
+        "type": "http", "url": "https://osm.example.test/mcp", "headers": {"X-API-Key": "osm_old_value"}}}}))
+    (cfg / "plugins" / "installed_plugins.json").write_text(json.dumps({"version": 2, "plugins": {
+        "odoo-semantic-mcp@test-mkt": [{"scope": "user", "installPath": str(PLUGIN.parent / "odoo-semantic-mcp")}]}}))
+    env = hermetic_env(home, PATH="%s:%s" % (bindir, os.environ.get("PATH", "")), STUB_STATE=str(state),
+                       CLAUDE_CONFIG_DIR=str(cfg), ODOO_MEDIA_PLUGIN_ID="odoo-ai-agents@test-mkt",
+                       OLD_SPEECH_NAME="speech-value-moved-1", YOUTUBE_CLIENT_ID="id.apps.moved")
+    env.pop("SPEECH_API_KEY", None)
+    return home, state, cfg, env
+
+
+def _wait_for(path: Path, seconds=10.0):
+    import time
+    end = time.time() + seconds
+    while time.time() < end:
+        if path.exists():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_a_new_plugin_version_moves_earlier_values_once_and_the_tools_work_in_the_same_session(tmp_path):
+    home, state, cfg, env = _upgrade_world(tmp_path)
+    stamp = home / "state" / "upgrade.json"
+    with McpClient(env, tmp_path, server=MEDIA_SERVER) as client:
+        client.initialize()
+        assert _wait_for(stamp), "the upgrade pass did not finish: %s" % "".join(client.stderr_chunks)[-2000:]
+        info = structured(client.call("media_info"))
+        assert info["options"]["speech_api_key"] is True          # applied to this process, no reload needed
+        assert info["options"]["youtube_client_id"] is True
+        assert info["upgrade"]["version"] == PLUGIN_VERSION
+        assert sorted(info["upgrade"]["moved"]) == ["speech_api_key", "youtube_client_id"]
+        assert "youtube_client_secret" in info["upgrade"]["missing"]
+        assert info["upgrade"]["connection"]["removed"] == "user"
+        assert "speech-value-moved-1" not in json.dumps(info) and "osm_old_value" not in json.dumps(info)
+    sent = json.loads((state / "values-odoo-ai-agents.json").read_text())
+    assert sent == {"speech_api_key": "speech-value-moved-1", "youtube_client_id": "id.apps.moved"}
+    conn = json.loads((state / "values-odoo-semantic-mcp.json").read_text())
+    assert conn == {"mcp_url": "https://osm.example.test/mcp", "api_key": "osm_old_value"}
+    assert "odoo-semantic" not in json.loads((cfg / ".claude.json").read_text())["mcpServers"]
+    assert "api_key_env" not in (home / "speech.toml").read_text()
+    assert "[channels.docs]" in (home / "youtube.toml").read_text()
+    stderr = "".join(client.stderr_chunks)
+    assert "speech-value-moved-1" not in stderr and "osm_old_value" not in stderr
+    # the readiness hook shows the notice once, then it is gone
+    import subprocess
+    hook = PLUGIN / "hooks" / "check-setup-deps.sh"
+    proc = subprocess.run(["bash", str(hook)], capture_output=True, text=True, env=env)
+    assert "upgrade" in proc.stderr and "speech_api_key" in proc.stderr and "/reload-plugins" in proc.stderr
+    assert not (home / "state" / "upgrade-notice.txt").exists()
+    # a second start on the same version runs nothing
+    calls_before = (state / "calls.log").read_text()
+    with McpClient(env, tmp_path, server=MEDIA_SERVER) as client:
+        client.initialize()
+        structured(client.call("media_info"))
+    assert (state / "calls.log").read_text() == calls_before
+
+
+def test_a_checkout_loaded_with_plugin_dir_never_moves_anything(tmp_path):
+    home, state, cfg, env = _upgrade_world(tmp_path)
+    env.pop("ODOO_MEDIA_PLUGIN_ID")
+    with McpClient(env, tmp_path, server=MEDIA_SERVER) as client:
+        client.initialize()
+        info = structured(client.call("media_info"))
+        assert info["upgrade"] == {"version": None}
+    assert not (home / "state" / "upgrade.json").exists()
+    assert not (state / "calls.log").exists()
+    assert "api_key_env" in (home / "speech.toml").read_text()

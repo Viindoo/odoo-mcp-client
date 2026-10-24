@@ -237,6 +237,15 @@ Files the servers write on their own (playwright's auto-named files, pagecast re
 24 hours) and `visual/adhoc/<slug>/` captures no skill owns (older than 30 days) are pruned when the
 eager server starts and at session end.
 
+> **Upgrading from an earlier version.** The `odoo-media` server, when it first starts on a new
+> plugin version (at `/reload-plugins` or the next session), runs a one-time upgrade pass: the values
+> an earlier version read from your shell environment move into the plugin's configured options,
+> `speech.toml` / `youtube.toml` are rewritten in the current form (backups kept), and a stand-alone
+> `odoo-semantic` registration from an earlier connect command moves into `odoo-semantic-mcp`'s
+> options and is removed. The next session start prints the result once; anything the pass could not
+> find is named there and goes in the plugin dialog (`/plugin` > odoo-ai-agents > Configure). The
+> `media_info` tool shows the same under `upgrade`.
+
 > **After every plugin update, re-run `/odoo-ai-agents:odoo-setup browser`, then restart the
 > session** (MCP does not hot-reload). Setup compares each registered family with the spec it would
 > write now (pin, flags, environment, state root) and **replaces** a drifted entry rather than

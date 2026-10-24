@@ -5,7 +5,7 @@ import sys
 
 from odoo_local import cli, protocol
 
-from . import SERVER_NAME, tools_speech, tools_youtube, values
+from . import SERVER_NAME, tools_speech, tools_youtube, upgrade, values
 
 INSTRUCTIONS = (
     "odoo-media runs the two surfaces that need a value the operator configured through the plugin's "
@@ -29,6 +29,7 @@ INFO_OUT = {
         "speech": {"type": "object"},
         "youtube": {"type": "object"},
         "ffmpeg": {"type": "object"},
+        "upgrade": {"type": "object"},
         "tools": {"type": "array", "items": {"type": "string"}},
     },
 }
@@ -84,15 +85,16 @@ def build_registry(ctx):
             "name": SERVER_NAME, "version": ctx.version, "protocol_version": ctx.protocol_version,
             "python": "%d.%d.%d" % sys.version_info[:3], "plugin_root": str(ctx.plugin_root),
             "options": values.presence(), "speech": _speech_state(), "youtube": _youtube_state(),
-            "ffmpeg": _ffmpeg_state(), "tools": registry.names(),
+            "ffmpeg": _ffmpeg_state(), "upgrade": upgrade.summary(), "tools": registry.names(),
         }
 
     registry.add(
         "media_info",
         "Report this odoo-media server's version and what it can do right now: which plugin options it received "
         "(true/false per option, never a value), whether speech.toml and youtube.toml are valid, the narration "
-        "languages, the declared channels and their slots, and the ffmpeg filters the assembler needs. Call it "
-        "first in a narration or publishing run; an option shown false is filled by the operator in the plugin's "
+        "languages, the declared channels and their slots, the ffmpeg filters the assembler needs, and what the last "
+        "upgrade pass moved into the plugin configuration or still expects from the operator. Call it first in a "
+        "narration or publishing run; an option shown false is filled by the operator in the plugin's "
         "configuration dialog, then /reload-plugins. Read-only.",
         {"type": "object", "properties": {}, "additionalProperties": False}, INFO_OUT, media_info,
         title="odoo-media server info", read_only=True)
