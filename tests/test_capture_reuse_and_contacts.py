@@ -121,3 +121,12 @@ def test_a_video_is_embedded_only_in_its_own_language():
     assert "Embedded video" in _read("skills/odoo-doc-site/references/acceptance.md")
     assert "VIDEOS:" in _read("skills/odoo-doc-site/references/writer-brief.md")
     assert "ENGLISH narration" in _read("skills/odoo-doc-illustration/references/app-store-template.md")
+
+
+def test_unlisted_uploads_go_public_after_the_embedding_pr_merged_without_polling():
+    schema = _read("skills/odoo-intake/references/plan-mode-schema.md")
+    assert "- id: publish-videos" in schema and "produced.videos" in schema and "youtube_set_privacy" in schema
+    assert "when: the plan has a coding node" in schema   # monitor is optional
+    assert "publish-videos" in _read("agents/odoo-planner.md")
+    assert "publish-videos" in _read("snippets/video-destination.md")
+    assert "produced.videos" in _read("workflows/video-produce.workflow.yaml")
