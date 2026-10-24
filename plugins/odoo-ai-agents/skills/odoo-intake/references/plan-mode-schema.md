@@ -219,22 +219,33 @@ place; the rest keep their order.
   approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo; a demo video of the change rides as the PR attachment (video-destination.md)
   approach_kind: integrate
   depends_on: [docs-module, migration]
-- id: monitor
+- id: monitor   # OPTIONAL: polling costs tokens on every tick; off unless the plan has a coding node or the user asked to be watched
   approach: odoo-pr-monitoring
   approach_kind: skill
   depends_on: [integrate]
-- id: merge
-  approach: odoo-pr-monitoring   # the human gate, always
+  when: the plan has a coding node, or the user asked for the PR to be watched
+- id: merge   # the human gate, always; without monitor it is ONE question ("merged on GitHub, or merge it now?") and one git-ops merge or READ
+  approach: odoo-pr-monitoring   # with monitor; without it: inline, git-toolkit:git-ops
   approach_kind: skill
-  depends_on: [monitor]
-- id: monitor-site   # tagged with the docs repo; watches the PR odoo-doc-site opened
+  depends_on: [monitor]   # [integrate] when monitor is skipped
+- id: monitor-site   # tagged with the docs repo; watches the PR odoo-doc-site opened; same when: as monitor
   approach: odoo-pr-monitoring
   approach_kind: skill
   depends_on: [docs-site]
+  when: the plan has a coding node, or the user asked for the PR to be watched
 - id: merge-site   # the human gate, always; the docs PR never merges before the code it documents
-  approach: odoo-pr-monitoring
+  approach: odoo-pr-monitoring   # with monitor-site; without it: inline, git-toolkit:git-ops
   approach_kind: skill
   depends_on: [monitor-site, merge]   # merge only where the plan has a code repo's merge
+- id: publish-videos   # every video a node of this plan uploaded unlisted goes public once the PR that embeds it is merged
+  approach_kind: inline
+  approach: >-
+    when the run resumes after the owner merged (or merges here), ONE git-ops READ of each
+    embedding PR's merged state; for every video of the run file's produced.videos whose
+    embedded_in PRs are all merged, the odoo-media tool youtube_set_privacy (channel = its
+    purpose, privacy public); no polling, no tick - the run is resumed by the owner's word
+  depends_on: [merge, merge-site]   # whichever of the two the plan has
+  when: a node of this plan published a video to a channel (produced.videos is not empty)
 ```
 
 **The documentation target is decided once, from facts, by the Documentation routing rule of
@@ -242,9 +253,10 @@ place; the rest keep their order.
 both | none> - <the facts that decided it>`, so the user can change it; `none` drops `docs-module`
 and `docs-site` with the user's reason written in the plan. What the change file holds and which
 modules it leaves out: `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`. A docs-only request (target `both`)
-is a plan with the nodes `docs-module` then `docs-site`, the code repo's `integrate`, `monitor`
-and `merge`, the docs repo's `monitor-site` and `merge-site`, and no build or verification node:
-no coding node exists, so there is no module set for `odoo-instance` to cover.
+is a plan with the nodes `docs-module` then `docs-site`, the code repo's `integrate` and `merge`,
+the docs repo's `merge-site`, `publish-videos` when a video was uploaded, and no build,
+verification or monitor node: no coding node exists, so there is no module set for
+`odoo-instance` to cover and nothing to poll - the merge gates are one question each.
 
 ## Running the plan (the main agent, inline)
 
@@ -351,7 +363,10 @@ Written once by intake Phase P, then only by the runner. `run_id`, `intent`, `au
 `id` origin-derived, `base`, `verify`, `commit`, `confidential`, `worktree_root` from
 `project_dir` axis `worktree`; the docs repo's entry has no `worktree_root`), `nodes[]` (the Block 1 fields plus `status`
 `PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED|NEEDS_CONTEXT`, `produced`, `contract` = the last
-continuation block), `dynamic_nodes[]`, `gate_log[]`, `completion`. `repo: null` only for a node
+continuation block), `dynamic_nodes[]`, `gate_log[]`, `completion`. A node that uploaded a video
+records it in its `produced.videos[]`: `{video_id, lang, purpose, watch_url, embed_url,
+embedded_in: [<repo id>#<PR number>, ...]}` - what `publish-videos` reads to know which video
+belongs to which PR. `repo: null` only for a node
 that writes into no repository and gates no delivery; every source-writing, verification,
 `integrate` and tail node names a declared `repos[].id`. Resume: skip `DONE` nodes, continue at
 the first ready node in topological order.

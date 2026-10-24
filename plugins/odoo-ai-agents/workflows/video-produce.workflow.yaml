@@ -204,7 +204,9 @@ phases:
     #     NEEDS_CONTEXT naming the option - then per language the odoo-media tool `youtube_upload`
     #     (channel, video <final>, title "<publish title>", description_file
     #     <deliverables/<lang>.txt>, language <lang>, captions {<lang>: <deliverables/<lang>.srt>},
-    #     thumbnail <thumbnail.jpg>); record watch_url and embed_url per language in the return.
+    #     thumbnail <thumbnail.jpg>); record per language {video_id, lang, purpose, watch_url,
+    #     embed_url} as `videos` in the return - the run file's produced.videos, which the plan's
+    #     publish-videos node reads to make them public once the PR that embeds them merged.
     #     Privacy is the channel's default (unlisted) unless the caller states `public`, which is
     #     confirmed with the user first; the caller is who embeds the URL.
     #   - `none` (default): no publishing; the deliverables stay under the run directory.

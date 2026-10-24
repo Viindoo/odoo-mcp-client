@@ -84,6 +84,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   variable-name keys; a file written with them is read as `auth`; `70-speech.sh propose` lists a
   gateway the operator exported and every local container that answers the OpenAI audio shape,
   with a remedy per missing ffmpeg filter; `speech_client.py probe` writes under the state root.
+- `odoo-ai-agents` - **a video goes public when its PR merges, without polling.** The default
+  tail gains `publish-videos` (after `merge` / `merge-site`): when the owner resumes the run after
+  merging, one read of each embedding PR's state, then `youtube_set_privacy` public for the videos
+  the run file recorded (`produced.videos` with their `embedded_in` PRs). `monitor` and
+  `monitor-site` are optional - off for a plan with no coding node, whose merge gate is one
+  question and one git-ops call.
 - `odoo-ai-agents` - `odoo-planning`: a `refine` at the plan gate folds the feedback into the
   harness plan file (a rejected `ExitPlanMode` leaves Plan Mode open) and the planner rewrites the
   state-root plan once after approval; `lease_list` entries carry `started_at` and `age_s`.
