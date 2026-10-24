@@ -15,7 +15,8 @@ short backoff (a shared low-end gateway queues a second caller), and honours a c
   stt    --audio clip.wav --lang xx_YY [--words]
          POST <stt.base_url>/audio/transcriptions (multipart: file, model, language) and prints
          the transcript; --words asks verbose_json with word timestamps and prints JSON.
-  voices GET <tts.voices_url> or <tts.base_url>/audio/voices; prints the JSON the server returns.
+  voices GET <tts.voices_url> or <tts.base_url>/audio/voices; prints the JSON the server returns,
+         or null when the endpoint publishes no listing (optional - models still answer).
   probe  [--lang xx_YY] [--out-dir DIR]  one short sentence per configured language through tts,
          then through stt in the same language, and the word error rate between them: the round
          trip that catches a voice/language mismatch and a brand misread before a recording run.
@@ -210,8 +211,11 @@ def _get_json(url, headers, timeout=60):
 
 
 def voices(cfg=None, value=None):
-    """The voice listing as the recorded endpoint returns it (an endpoint-only configuration is
-    enough: the value only ever travels to the endpoint speech.toml records)."""
+    """The voice listing as the recorded endpoint returns it, or None when the endpoint publishes
+    none: the listing is optional (70-speech.sh and the odoo-setup voice step both say so), so a
+    404 is an answer, not a failure. Every other refusal - auth, TLS, a 5xx, a dead host - still
+    raises, because those mean the value or the endpoint is wrong. An endpoint-only configuration
+    is enough: the value only ever travels to the endpoint speech.toml records."""
     cfg = cfg or _load(complete=False)
     table = cfg["tts"]
     url = table.get("voices_url") or table["base_url"].rstrip("/") + "/audio/voices"
@@ -219,6 +223,10 @@ def voices(cfg=None, value=None):
     headers.pop("Content-Type", None)
     try:
         return _get_json(url, headers)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise SpeechError("%s: %s" % (url, exc), 1)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         raise SpeechError("%s: %s" % (url, exc), 1)
 
