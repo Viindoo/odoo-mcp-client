@@ -25,11 +25,11 @@ All knowledge and computation live on the OSM server; this plugin is a thin conn
 /odoo-semantic-mcp:connect
 ```
 
-Then **restart Claude Code** so the MCP tools load (see [known bugs](#known-claude-code-bugs)).
-
 You will need an **API key** (format `osm_...`) from the
 [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL**
-(default `https://odoo-semantic.viindoo.com/mcp`).
+(default `https://odoo-semantic.viindoo.com/mcp`). Fill both in the plugin's configuration dialog
+(`/plugin` > `odoo-semantic-mcp` > Configure), then `/reload-plugins`; `connect` walks you through
+it and verifies the result.
 
 > **Want the persona skills too?** Install [`odoo-ai-agents`](../odoo-ai-agents/)
 > instead - it declares `odoo-semantic-mcp` as a dependency, so the skills, agents, commands,
@@ -39,13 +39,15 @@ You will need an **API key** (format `osm_...`) from the
 
 `/odoo-semantic-mcp:connect`:
 
-1. Prompts for your MCP server URL and API key.
-2. Validates the key format (`osm_...`).
-3. Registers the server via `claude mcp add --scope user`.
-4. Probes the server health endpoint.
-5. Pre-approves all `mcp__odoo-semantic__*` tools in `~/.claude/settings.json` (idempotent).
+1. Detects a stand-alone `odoo-semantic` registration from an older setup, which Claude Code lets
+   shadow the plugin's own server, and offers to remove it.
+2. Tells you where the two values go: `/plugin` > `odoo-semantic-mcp` > **Configure** (Claude
+   Code's masked dialog), or `claude plugin configure odoo-semantic-mcp@viindoo-plugins
+   --values-stdin` in your terminal. The key never passes through the chat.
+3. After `/reload-plugins`, verifies the connection by calling the server's tools.
+4. Pre-approves all `mcp__odoo-semantic__*` tools in `~/.claude/settings.json` (idempotent).
 
-Full parameter details and the manual snippet for `permissions.allow` are in
+The manual snippet for `permissions.allow` is in
 [`docs/setup.md#claude-code-auto-trust`](../odoo-ai-agents/docs/setup.md#claude-code-auto-trust).
 
 ## MCP tools and resources
@@ -68,8 +70,9 @@ This plugin declares a `userConfig` block (API key + MCP URL) consumed by `.mcp.
 | `api_key` | Odoo Semantic API key (`osm_...`), marked sensitive | *(required)* |
 | `mcp_url` | Base URL of your MCP server | `https://odoo-semantic.viindoo.com/mcp` |
 
-If Claude Code does not prompt for these at install time (a known v2.1.x bug), run
-`/odoo-semantic-mcp:connect` afterward to set them.
+`claude plugin install` does not prompt for them: fill them in afterwards through the dialog
+(`/plugin` > `odoo-semantic-mcp` > Configure) or `claude plugin configure <id> --values-stdin`;
+`/odoo-semantic-mcp:connect` guides and verifies.
 
 <a name="known-claude-code-bugs"></a>
 <details>

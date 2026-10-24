@@ -35,52 +35,74 @@ interactive checkbox menu (see "Interactive menu" below).
 For `instance` spin-up, also accept a trailing `--version X.Y` and pass it
 through to `50-instance-spinup`.
 
-## Interactive menu (no-argument mode)
+## The conversation (no-argument mode)
 
-When `$ARGUMENTS` is empty **or** not a valid filter token above, do **NOT**
-silently run `all`. Present an **AskUserQuestion** with `multiSelect: true` listing these checkbox
-options:
+When `$ARGUMENTS` is empty **or** not a valid filter token above, do **NOT** silently run `all`.
+Ask what the operator wants to be able to DO, in their own words, with two AskUserQuestion pages
+of four options each (`multiSelect: true`). Each option says what it changes on this machine; no
+option names a step number, a file or a tool (those belong to the plan it produces).
+
+Page 1 - "What do you want this machine to do?"
 
 ```
-Which parts of the Odoo visual workflow would you like to set up?
-(You may tick more than one.)
+[ ] Run Odoo locally for development and testing - finds your Odoo checkouts, builds the
+    Python environment, lets Odoo reach PostgreSQL, starts an instance. Writes the instance
+    registry and a Python environment under your home.
 
-[ ] Browser automation stack - wire the opt-in browser MCP families, install
-    browser deps, and auto-allow tool permissions (runs steps 10, 12, 20, 30)
+[ ] Rebuild the Python environment of an Odoo you already declared - after a requirements
+    change, to pin a package, or when Python is out of range. Rewrites that environment only.
 
-[ ] Declare + spin up a local Odoo instance - OSM-grounded propose-then-confirm
-    flow that writes $ODOO_AI_HOME/instances.toml and launches an Odoo process
-    (runs steps AI-1..AI-6 + 40 + optional 45 + 46 + 48 + 50)
+[ ] Take screenshots and record videos of Odoo for documentation and demos - installs the
+    browser tooling and allows its tools. Writes browser settings for your AI clients.
 
-[ ] Let auto mode run routine Odoo development without prompts - derive the trusted roots,
-    organization and protected branches from this machine, review, then write them
-    (runs step 34; equivalent to auto-mode)
-
-[ ] Show every skill description to the model - measure the skill listing and,
-    if it overflows, offer to raise its budget (runs step 35; equivalent to listing)
-
-[ ] Refresh declared instances - re-derive each declared row's venv facts
-    and confirm its server-wide modules (equivalent to refresh)
-
-[ ] Declare a product docs site - repo, series, capture instance and site policy
-    (runs step 60)
-
-[ ] Record the vendor's public contact profile - pre-sales and support pages for
-    App Store pages and docs, never an email (runs step 65; equivalent to author)
-
-[ ] Configure narration voices - an OpenAI-compatible speech endpoint, a voice per
-    language and the speech-to-text check for demo videos (runs step 70; equivalent to voice)
-
-[ ] Configure the YouTube channel documentation videos are published to - OAuth variable
-    names, default privacy, playlist (runs step 75; equivalent to youtube)
-
-[ ] Reset instances.toml - backup then clean the instance registry
-    (runs step 47 only; equivalent to --reset)
+[ ] Let the AI do routine Odoo development without asking each time, with protected branches
+    kept behind a human - writes the auto-mode rules of your user settings after you review them.
 ```
 
-Map each ticked option to its filter in the table above (`browser`, `listing`, `instance`,
-`refresh`, `docs-site`, `author`, `voice`, `youtube`, `--reset`); with several ticked, run them in that order. Confirm the plan before
-executing - the per-step [Y/n] gates still apply.
+Page 2 - "Anything else?"
+
+```
+[ ] Publish documentation: the docs site, your company's public contact pages, and the module
+    guides - writes the docs-site and vendor profile registries.
+
+[ ] Narrated videos and YouTube publishing - the speech endpoint and voices, and the channels
+    videos are published to. Writes two registries; the values go through the plugin's dialog.
+
+[ ] Make the AI see every skill description (when the list is too long) - writes one number to
+    your user settings.
+
+[ ] Start the instance registry over - backs it up, then clears it.
+```
+
+Map: page 1 = `instance`, `venv`, `browser`, `auto-mode`; page 2 = `docs-site` + `author`,
+`voice` + `youtube`, `listing`, `--reset`. Free text in "Other" is mapped to the closest goal and
+shown in the plan as "you asked for: <their words> -> <goal>"; never run as `all`. With several
+goals ticked, run them in the table's order.
+
+## How this command asks (every question, every goal)
+
+- **Decide from the machine first.** Before asking anything, read what is there: the checkouts
+  under `$ODOO_GIT_BASE`, the declared rows of the instance registry, the Python environments
+  those rows name, the PostgreSQL that answers, the browser packages, the user settings. A fact
+  the machine states is a DECISION the plan shows with its source ("Odoo <X.Y> - from the branch
+  of <checkout>"), never a question.
+- **Ask only what the machine cannot know**, in the operator's words, one closed question per
+  fact, with the outcome in the question ("Which Odoo versions do you work on? I found <X.Y> and
+  <X.Z> checkouts") and the vocabulary explained at first use ("a profile is the set of
+  repositories your Odoo is built from").
+- **One plan, one confirmation.** Everything decided and everything asked becomes one plan:
+  what will be written where, what will be installed, what will be started. The operator
+  confirms it once (`approve / refine: [feedback] / cancel`); under it nothing asks again,
+  except the consent lines below. A `refine` edits the plan and re-presents it.
+- **Consent lines - the only questions under an approved plan**: a change to PostgreSQL's
+  authentication (`48`), to the permission or auto-mode rules of the user settings (`30`, `32`,
+  `34`), or a clone the operator must run themselves. Each is one line that says what changes
+  and how it is undone.
+- **Never twice.** A fact answered once (a version, a fork account, a repository path) is used
+  by every step; a step's own `[Y/n]` is covered by the plan confirmation (the scripts run
+  non-interactively).
+- **Never a step number, a file name, an exit code or a tool name in a question.** They go in the
+  plan and the summary, where a reader can follow them.
 
 ## Steps for the AI agent
 
@@ -116,15 +138,15 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
    **Gate #2 - Host prerequisites.** Only after Gate #1 passes. Skip this gate
    entirely for `permissions` and `runtime` (they only edit config files).
-   - Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply` and show
-     the checklist.
-   - Then require an explicit choice from the user before continuing:
-     - `ready` → all required items are satisfied; proceed.
-     - `skip instance` → run only browser/permissions steps; skip AI-1..AI-6 and
-       `40`, `45`, `46`, `48`, `50`.
-     - `cancel` → stop, make no changes.
-   - Any REQUIRED auto-detected item shown as missing (marked `[ -- ]`) must be
-     fixed before `ready` - point the user at the suggested fix command.
+   - Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply` and read the checklist.
+   - Every REQUIRED item present: continue without asking - the plan lists what was found.
+   - A REQUIRED item missing: stop before the plan with the item in the operator's words and the
+     fix the checklist prints ("PostgreSQL is not answering on this machine - start it, or tell
+     me where it runs"); when only the instance goal is blocked, offer to go on with the other
+     goals and leave the instance for a later run.
+   - The two "cannot be auto-detected" boxes of the checklist are not questions: the build
+     dependencies are checked by the venv build itself, and a declared venv by the venv gate
+     below.
    - **Venv hard-gate.** For every DECLARED source-mode instance in `instances.toml`, the
      checklist verifies the instance's `python` field is populated AND
      `<python> <odoo-bin> --version` actually runs. A source-mode instance with no working venv
@@ -137,8 +159,10 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    ```bash
    for s in "$STEPS_DIR"/*.sh; do echo "- $(basename "$s"): $("$s" describe)"; done
    ```
-   Print this as the plan, mapping the `$ARGUMENTS` filter to the matching scripts
-   (table above). Exclude `47-instance-reset` from `all` and `instance`
+   This is the engine's list; what the OPERATOR sees is the plan of § How this command asks:
+   per goal, the decisions with their sources, the questions still open, what will be written,
+   installed and started, and which consent lines will come. Map the `$ARGUMENTS` filter to the
+   matching scripts (table above) underneath it. Exclude `47-instance-reset` from `all` and `instance`
    plan listings - it runs only via `--reset` - and `60-docs-site`, `65-author-profile`,
    `70-speech` and `75-youtube` - they run only via `docs-site`, `author`, `voice` and `youtube`.
 
@@ -150,14 +174,17 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    **AI-1 - OSM version + profile probe (CONFIRM #1)**
 
    Call `mcp__odoo-semantic__list_available_versions` and
-   `mcp__odoo-semantic__list_available_profiles` (no arguments). Present the
-   results to the user and ask:
-   - Which Odoo version(s) / version range do you want to set up? (e.g. `17.0`,
-     `16.0-17.0`)
-   - Which profile should be used? (pick from the list OSM returned, or type a
-     custom name)
-
-   Wait for the user's answer - this is **CONFIRM #1**.
+   `mcp__odoo-semantic__list_available_profiles` (no arguments). Then DECIDE before asking:
+   - **Versions**: `--version` when given; else the series of every Odoo checkout under
+     `$ODOO_GIT_BASE` (the odoo-local `series_detect` tool on each) and of every declared row.
+     One or more found: they are the decision, shown with their sources. None: ask "Which Odoo
+     versions do you work on?" with the index's list to pick from.
+   - **Profile** (explain it once: the set of repositories your Odoo is built from): `--profile`
+     when given; else the index profile whose repositories match the checkouts found (their
+     `origin_url` through `repo_facts`); exactly one match is the decision; several or none: ask
+     which, offering the matches first.
+   The decisions and any answer are **CONFIRM #1** - a line of the plan, not a question of their
+   own.
 
    **OSM unavailable - Degraded Case 2:** If `list_available_versions` or
    `list_available_profiles` fails or is unreachable, do NOT abort. Warn the user that there is no
@@ -172,13 +199,15 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    mcp__odoo-semantic__profile_inspect(method='repos', name=<profile>, odoo_version=<version>)
    ```
    (fall back to `method='summary'` if `repos` is unsupported). OSM returns a
-   repo set: SSH URL @ branch, own vs. inherited. Present this list to the user
-   and ask:
-   - Are there repos NOT listed by OSM that you want to include? (provide SSH
-     URL, branch, and role - `own` or `inherited`)
-
-   Wait for the user's answer - this is **CONFIRM #2**. Merge any user-added
-   repos into the set.
+   repo set: SSH URL @ branch, own vs. inherited. Before anything is proposed, confirm each
+   repository HAS a branch for the series on its remote: `python3
+   "$STEPS_DIR/../lib/remote_branch_facts.py" <url> <branch>` (one probe per repository, the
+   clone of a sibling series answers for its origin). A repository whose branch is absent is
+   listed in the plan as "<repo>: no <series> branch on its remote - left out" and never
+   proposed for a clone; an unreachable remote is listed as unknown and the clone command of
+   AI-3 still goes to the operator. Show the set in the plan ("Repositories: ... from the
+   index"); a repository the operator wants added is given when they confirm the plan
+   (`refine: add <url> <branch> own|inherited`). This is **CONFIRM #2** - part of the plan.
 
    **AI-3 - Local repo scan + missing repo guidance (CONFIRM #3)**
 
@@ -207,12 +236,10 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      re-run this step - or confirm they want to skip that repo. Fork resolution runs
      for an `own` repo once it is cloned.
 
-   Present the matched paths and addons_path ordering to the user. Default
-   ordering: **own repos first → ancestor/inherited repos → Odoo core last**.
-   The user may reorder at this point.
-
-   Wait for the user's final confirmation of paths and order - this is
-   **CONFIRM #3**. Then call `40 apply` with the confirmed spec via env
+   The addons path order is a rule, shown and not asked: **own repos first → ancestor/inherited
+   repos → Odoo core last**; a reorder arrives as a `refine` of the plan. The matched paths and
+   the order are **CONFIRM #3** - a block of the plan. Once the plan is approved, call `40 apply`
+   with the confirmed spec via env
    `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` refuses
    to auto-write without this env - never call `40 apply` without it.
 
@@ -258,10 +285,14 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      directly, treat as MATCHED and continue; (b) if the user points at the core
      repo path, re-run Probe 1 with that path.
 
-   Wait for the user's choice (reuse existing venv / build new / skip) - this
-   is **CONFIRM #4**. The orchestrator then runs `45 apply` for the chosen series,
-   and then, for EVERY series in the confirmed spec - including a series whose
-   venv was reused or skipped:
+   The decision is made from the probes and shown in the plan - **CONFIRM #4**: `MATCHED` =
+   reuse that venv (its path in the plan); `MISSING` = build one with the Python the checkout
+   recommends and `uv` when installed else `pip` ("Python environment for <X.Y>: will be built
+   with Python <version> at <path>, about 5 minutes"); only `UNKNOWN` is a question ("Which of these
+   environments runs your Odoo <X.Y>?", or "where is the core checkout?"). The operator changes a
+   decision with a `refine`. After approval the orchestrator runs `45-venv.sh create-venv` for the
+   series to build, and then, for EVERY series in the confirmed spec - including a series whose
+   venv was reused:
 
    ```
    "$STEPS_DIR/45-venv.sh" record-env --series <X.Y> [--profile <name>]
@@ -278,8 +309,10 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    Exit `0` → nothing to do. Exit `1` → show the rule `apply` adds to that cluster's `pg_hba.conf`
    (`host all <declared db_user> <discovered-addr>/32 trust`), the container it edits (if any), and
    that `48-db-local-auth.sh revert` undoes it. It changes PostgreSQL config, so it
-   is **never** silent: wait for **CONFIRM #5**, then run `48 apply --series <X.Y>
-   [--profile <name>]`. Forward its output verbatim. On a refusal (a `tcp-only`,
+   is **never** silent: it is a CONSENT LINE under the plan - "To let Odoo reach PostgreSQL I
+   will add one line to its access rules (host all <role> <addr>/32 trust) <in container X>; undo
+   with 48-db-local-auth.sh revert. Go ahead?" - **CONFIRM #5**; then run `48 apply --series
+   <X.Y> [--profile <name>]`. Forward its output verbatim. On a refusal (a `tcp-only`,
    managed or remote cluster) report it to the user as-is and continue; builds on that cluster
    stay refused with `DB_AUTH_DENIED`.
 
@@ -316,11 +349,13 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `lease_release` the lease afterwards, whatever the result - this command provisioned it,
       so this command releases it (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
       T3).
-   4. **CONFIRM #6.** Present the proposal with each module's evidence (self-check, Odoo
-      Semantic, probe warning, already declared) and the core default (applied automatically,
-      not recorded). Ask the operator to confirm, remove entries, and ADD any module detection
-      cannot see - one that needs `--load` but leaves no trace in its code or in the log, or any
-      module when Odoo Semantic lacks the profile. Wait for the answer, then run
+   4. **CONFIRM #6.** An EMPTY proposal with nothing currently declared is recorded as a
+      confirmed "none" without a question (the plan says "server-wide modules: none found").
+      Otherwise the proposal is a block of the plan: each module with its evidence (self-check,
+      Odoo Semantic, probe warning, already declared) and the core default (applied
+      automatically, not recorded); the operator removes or adds entries by a `refine` - a module
+      detection cannot see (one that needs `--load` but leaves no trace in its code or in the
+      log, or any module when Odoo Semantic lacks the profile) is theirs to name. Then run
       `"$STEPS_DIR/46-server-wide.sh" record --series <X.Y> [--profile <name>] --modules
       <confirmed,comma,list>` (`--modules ""` records a confirmed "none"). It upserts that one
       key and keeps every other line of the catalog. Never record an unconfirmed list.
@@ -328,11 +363,11 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    A lease keeps the set it was acquired with: a lease or served instance acquired before the
    record keeps the old set until it is released and acquired again.
 
-   **CONFIRM #7 - choose the series and profile to spin up**
+   **CONFIRM #7 - which instance starts now**
 
-   Present the list of series (and profiles, if any were selected in AI-1) in
-   the confirmed spec and ask the user which one to launch now. Do not silently
-   pick the highest - always ask. When the chosen series has a profile, pass
+   One row in the confirmed spec: it starts, the plan says so. Several: the one whose checkout
+   is the current working directory when that is one of them; otherwise ask which one starts
+   now (never the highest by default). When the chosen series has a profile, pass
    `--profile <name>` to both `45 apply` (if building a venv) and `50 apply`
    so the correct (series, profile) instance block is selected. The OSM profile
    chosen in AI-1 is the `--profile` value.
@@ -344,13 +379,16 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       - Exit `0` → the step is already satisfied. Report
         `✓ <name>: already configured - skipping` and move on.
       - Exit non-zero → the step needs to run. Continue to (b).
-   b. **Present what `apply` will do** (use the `describe` line + the
-      step-specific notes below) and ask the user for confirmation, e.g.
-      `Run <name> now? [Y/n]`. (Step `30-permissions` asks its own [Y/n] inside
-      `apply`; you may still surface a heads-up first.)
-   c. On `Y`: run `"$s" apply` and stream its output to the user.
-      - For `35-skill-listing-budget`, the question in (b) is its `propose` output's
-        `QUESTION`, and the run on `Y` is `apply --yes` (see its step-specific note).
+   b. The plan the operator approved already says what each step writes (its `describe` line
+      and the step-specific notes below, in the operator's words). No per-step `Run <name> now?`.
+      Steps `30`, `32` and `34` change the permission or auto-mode rules of the user settings:
+      each gets ONE consent line ("I will add these allow rules to your user settings - see them
+      above. Go ahead?") before its `apply`; the scripts' own `[Y/n]` runs non-interactively.
+   c. Run `"$s" apply` and stream its output to the user.
+      - For `35-skill-listing-budget`, the plan carries its `propose` output's `QUESTION`
+        rephrased for the operator ("Your skill list is longer than the AI is shown by default, so
+        it rarely picks a plugin skill on its own; I can raise that limit in your user settings, at
+        about <N> words more per message. Do it?"), and the run is `apply --yes`.
       - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
         one at CONFIRM #7 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
@@ -359,10 +397,13 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       - If `apply` exits `1` → report the failure, continue to the next step
         only if the steps are independent (browser-deps failing does not block
         instance-profile).
-   d. On `n`: skip the step and note it can be re-run via the matching filter.
+   d. A consent line declined: skip that step and note the filter that re-runs it.
 
-4. **Final summary.** Print a table: each step → `configured` / `skipped
-   (already done)` / `skipped (declined)` / `failed`. Then remind the user:
+4. **Final summary**, in the operator's words first: what works now (an instance URL, the
+   browsers ready, auto mode on), what was declined and how to come back to it, what failed
+   with its one-line cause; then the engine table: each step → `configured` / `skipped (already
+   done)` / `skipped (declined)` / `failed`. List any served lease older than 7 days that another
+   session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Then remind the user:
    > MCP servers do NOT hot-reload - restart your Claude Code / Codex / Gemini
    > session for the newly wired browser servers and permissions to take effect.
 
