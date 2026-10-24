@@ -358,6 +358,8 @@ the first ready node in topological order.
 
 ## Rejection flow
 
-A `refine` at the plan gate loops back to the planner, never to execution: adjust the nodes
-(objective, acceptance, scope, files, assignment, effort) and re-present in Plan Mode. `cancel`
-stops. Never launch a writes-files node off a rejected plan.
+A `refine` at the plan gate loops back to the plan, never to execution: Plan Mode is still open
+after the rejected `ExitPlanMode`, so the gate owner adjusts the nodes (objective, acceptance,
+scope, files, assignment, effort) in the harness plan file itself and presents again; the planner
+rewrites the state-root plan once, after `approve`, before Phase P. `cancel` stops. Never launch a
+writes-files node, nor the planner, off a rejected plan while Plan Mode is open.

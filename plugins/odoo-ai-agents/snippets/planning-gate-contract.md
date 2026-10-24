@@ -5,24 +5,22 @@
 
 ## Gate reply keywords (two sets, no others)
 
-- PLAN gate (a whole plan or design is on the table and the user may iterate on it):
+- PLAN gate (a whole plan or design is on the table; the user may iterate on it):
   `approve / refine: [feedback] / cancel`
-- STEP gate (one node, phase or dispatch is on the table; the only choices are do-it or skip-it):
+- STEP gate (one node, phase or dispatch is on the table; the choices are do or skip):
   `approve / skip / cancel`
 
-Never invent a third set. `yes` is not a gate keyword. Every gate prompt (a text question before a
-plan, the plan gate, a confirmation before an outward or irreversible action) uses one of these two
-sets verbatim.
+Never invent a third set; `yes` is not a gate keyword. Every gate prompt (a text question before a
+plan, the plan gate, a confirmation before an outward action) uses one of these two sets verbatim.
 
 ## Mandatory-planning rule
 
 Planning is enforced at ADMISSION: the FRONT DOOR (`odoo-intake`, `odoo-brl`, or the
 `odoo-implement-feature` workflow) MUST establish an **approved plan artifact in scope** before it
-dispatches any executor (`odoo-coding`, its `odoo-coder` node owner and the leaves that coder
-launches) for any code-writing work, trivial included. Only DESIGN, via `odoo-solution-design`, may
-be skipped: it is RECOMMENDED for non-trivial work, never required. Checked ONCE, at the door; executors trust the admission decision
-and do not re-check it. "Approved plan artifact in scope" is TRUE when ANY of the three signals in
-§ Approved-plan-artifact detection is present.
+dispatches any executor (`odoo-coding`, its `odoo-coder` and the leaves it launches) for any
+code-writing work, trivial included. Only DESIGN, via `odoo-solution-design`, may
+be skipped: it is RECOMMENDED for non-trivial work, never required. Checked ONCE, at the door; executors never re-check it. It is TRUE
+when any signal of § Approved-plan-artifact detection is present.
 
 - **Front door routes non-trivial work through `odoo-planning` first** - it does not dispatch a raw
   coder. Non-trivial work SHOULD go `odoo-solution-design` -> `odoo-planning` - a front-door
@@ -88,8 +86,10 @@ of another skill's run, or invoked with `return_to` (the caller owns the gate).
 2. The owner authors its plan first: a plan written only under the `$ODOO_AI_HOME` state root needs
    no open Plan Mode, and no state-root-writing subagent is launched while Plan Mode is open. Then
    it calls `EnterPlanMode`, presents the plan, and calls `ExitPlanMode` when the user approves -
-   before any branch, worktree, git-tracked write or deletion. The plan names the documentation
-   target when the run documents, and every outward or irreversible action it will take.
+   before any branch, worktree, git-tracked write or deletion. A rejected `ExitPlanMode` leaves
+   Plan Mode open: fold a `refine` into the harness plan file yourself and present again; no
+   writing subagent until the approval. The plan names the documentation target when the run
+   documents, and every outward or irreversible action it will take.
 3. Under an approved plan nothing enters Plan Mode again and no node or phase stops for approval.
    A skill that owns a plan gate when standalone writes its plan into its report instead.
 4. A confirmation before an outward or irreversible action - send, publish, merge, push, delete - is
@@ -97,13 +97,12 @@ of another skill's run, or invoked with `return_to` (the caller owns the gate).
 5. `EnterPlanMode`/`ExitPlanMode` are main-context tools; a subagent never calls them.
 6. No approved plan yet and the work turns out to need a multi-step plan: stop the work and invoke
    `odoo-planning`; its gate is the request's one Plan-Mode approval.
-7. Under an approved plan, decide everything inside the approved scope yourself and never ask
-   (the rule 4 confirmations excepted).
-   Work outside the approved scope: re-plan through `odoo-planning`; that approval covers only the
-   added scope.
+7. Under an approved plan, decide everything inside its scope yourself and never ask (rule 4
+   confirmations excepted). Work outside it: re-plan through `odoo-planning`; that approval
+   covers only the added scope.
 
-The self-planning skills author their plan content in-skill; they do not route it through
-`odoo-planning` and are not plan nodes of it.
+The self-planning skills author their plan in-skill; they neither route it through
+`odoo-planning` nor are plan nodes of it.
 
 **Design before planning.** When a design exists, run `odoo-planning` after
 `odoo-solution-design` and consume its approved output. A design is an input to a plan, never a
