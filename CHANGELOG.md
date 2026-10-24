@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   added to it and installs the requirements, the row records `build_tool = uv+pip` so the next
   rebuild does the same without the detour, and the failure message names the real error line
   and the log instead of "check system build deps".
+- `odoo-ai-agents` - **the setup command reviews the whole registry before it plans.** A new
+  `catalog_review.py review` names every anomaly of `instances.toml` with its fix - two rows
+  sharing one venv, a duplicate row, an addons path that is gone, a dead or missing Python, a
+  stale comment - and the plan shows each one in the operator's words; `catalog_review.py
+  dedupe` drops a later duplicate row (the first is the one every writer already selects), with
+  a backup. `45-venv.sh check` prints the same findings.
+- `odoo-ai-agents` - **one venv per profile.** A rebuild of a row whose venv another row also
+  uses no longer stops at "pass --force": the row gets its own venv at the per-profile path
+  (`SPLIT_FROM=`), the shared venv stays for the other rows until each is rebuilt too, and is
+  removed when no row references it and nothing runs on it (`REMOVED_SHARED_VENV=`). The
+  server another session runs on the shared venv is never touched.
 - `odoo-ai-agents` / `odoo-semantic-mcp` - **reload wording matches what Claude Code does**:
   `/reload-plugins` restarts the plugin's servers with their configured values (verified live);
   only the browser families registered in the user configuration and the permission rules need a

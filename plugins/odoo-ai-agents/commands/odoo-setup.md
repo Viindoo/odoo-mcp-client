@@ -86,6 +86,14 @@ goals ticked, run them in the table's order.
   those rows name, the PostgreSQL that answers, the browser packages, the user settings. A fact
   the machine states is a DECISION the plan shows with its source ("Odoo <X.Y> - from the branch
   of <checkout>"), never a question.
+- **Review the whole registry, then tell.** Run
+  `python3 "$STEPS_DIR/../lib/catalog_review.py" review "$ODOO_AI_HOME/instances.toml"` before
+  the plan (every goal that touches instances: `instance`, `venv`, `refresh`, `all`). Each
+  `FINDING=` line - two rows sharing one venv, a duplicate row, an addons path that is gone, a
+  dead or missing Python, a stale comment - is a line of the plan in the operator's words with
+  the fix this run applies (a shared venv is split by the rebuild; a duplicate is dropped by
+  `catalog_review.py dedupe`, the first row kept) or the one choice left to them. Never work
+  around a finding in silence, never fix one the plan did not show.
 - **Ask only what the machine cannot know**, in the operator's words, one closed question per
   fact, with the outcome in the question ("Which Odoo versions do you work on? I found <X.Y> and
   <X.Z> checkouts") and the vocabulary explained at first use ("a profile is the set of
@@ -558,9 +566,12 @@ Resolve:
   venv, never a new location), refuses while a lease or process uses the venv (it prints them;
   the operator releases or stops them, or says `--force`), keeps the old venv aside until the
   new one runs `odoo-bin --version`, records the extras and the override on the row so the next
-  rebuild re-applies them (`--no-recorded` / `--no-override` drop them), and refuses a venv that
-  another row also uses unless `--force`. A `SUGGESTED_EXTRA=` line names a lint package an
-  addon's tests import; offer it as `--extra`, never add it yourself.
+  rebuild re-applies them (`--no-recorded` / `--no-override` drop them). One venv per profile:
+  a venv that another row also uses is never rebuilt under them - this row gets its own
+  (`SPLIT_FROM=` names the shared one, which stays for the other rows until each is rebuilt
+  too, then it is removed: `REMOVED_SHARED_VENV=`); the plan says so per row. A
+  `SUGGESTED_EXTRA=` line names a lint package an addon's tests import; offer it as `--extra`,
+  never add it yourself.
 - **45-venv** *(optional, source instances only - offered between 40 and 50)* -
   After `40` declares the profile, offer this flow for the series the user wants to spin up:
   1. Show the supported range and recommended Python:

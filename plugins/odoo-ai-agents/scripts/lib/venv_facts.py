@@ -6,6 +6,9 @@ Subcommands (stdlib only, Python 3.8+):
       JSON: python (the row's), venv_dir (the venv that python lives in, when
       <python>/../../pyvenv.cfg exists - a bare interpreter is never a rebuild target),
       shared_by (other rows whose python lives in the same venv), extra_requirements (list),
+  rows-using <instances.toml> <venv_dir>
+      The instance keys whose python lives in that venv (empty = nobody; a split row's old
+      shared venv is removed then).
       uv_override (path or null), uv_override_basis (string or null), row_found (bool).
   aside <venv_dir>
       Journal `<venv_dir>.rebuild` (JSON: old path, epoch) then os.rename the directory to
@@ -65,6 +68,18 @@ def venv_dir_of(python):
         return None
     cand = os.path.dirname(os.path.dirname(os.path.abspath(python)))
     return cand if os.path.isfile(os.path.join(cand, "pyvenv.cfg")) else None
+
+
+def rows_using(path, venv_dir):
+    """The instance keys of every row whose python lives in `venv_dir` (the shared venv a split
+    row left: removed once this is empty)."""
+    try:
+        items = instances_io.load_instances(path)
+    except FileNotFoundError:
+        return []
+    target = os.path.abspath(venv_dir)
+    return [instances_io.instance_key_of(row) for row in items
+            if venv_dir_of(str(row.get("python") or "")) == target]
 
 
 def row_plan(path, series, profile):
@@ -234,6 +249,16 @@ def cmd_with_lock(venv_dir, command):
         os.close(fd)
 
 
+def stale_comments(path):
+    """The lines cmd_stale_comments prints, as a list (the registry review reads them)."""
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        cmd_stale_comments(path)
+    return [line for line in buf.getvalue().splitlines() if line.strip()]
+
+
 def cmd_stale_comments(path):
     found = 0
     try:
@@ -282,6 +307,9 @@ def main(argv=None):
     cmd, rest = argv[0], argv[1:]
     if cmd == "row-plan" and len(rest) == 3:
         print(json.dumps(row_plan(rest[0], rest[1], rest[2])))
+        return 0
+    if cmd == "rows-using" and len(rest) == 2:
+        print(" ".join(rows_using(rest[0], rest[1])))
         return 0
     if cmd == "aside" and len(rest) == 1:
         return cmd_aside(rest[0])

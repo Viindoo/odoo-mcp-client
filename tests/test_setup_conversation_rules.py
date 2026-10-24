@@ -75,3 +75,11 @@ def test_every_plugin_option_tells_the_install_dialog_to_leave_it_empty_and_name
         assert spec.get("required") is False, name
         assert spec["description"].startswith("Leave empty when Claude Code asks at install"), name
         assert ("consent" in spec["description"]) or ("Configure" in spec["description"]), name
+
+
+def test_the_setup_command_reviews_the_whole_registry_before_the_plan_and_the_venv_check_prints_the_findings():
+    rules = " ".join(SETUP.split())
+    assert "catalog_review.py" in rules and "Review the whole registry" in rules
+    assert "Never work around a finding in silence" in rules
+    step45 = (PLUGIN / "scripts" / "setup-steps" / "45-venv.sh").read_text(encoding="utf-8")
+    assert "catalog_review.py" in step45
