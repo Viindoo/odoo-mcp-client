@@ -320,7 +320,9 @@ drop-in. What it does:
    Odoo checkout itself (`45-venv`); a series whose checkout declares Python 2 gets a Python 2.7 venv
    built with `virtualenv`, since neither `uv` nor `python -m venv` can target Python 2.
    `/odoo-ai-agents:odoo-setup refresh [--version X.Y] [--profile P]` re-derives both for rows you
-   already declared.
+   already declared; `/odoo-ai-agents:odoo-setup venv [--version X.Y] [--profile P] [--extra SPEC]
+   [--override FILE]` rebuilds a declared row's venv in place after a requirements change (the old
+   venv is kept until the new one runs Odoo; a venv in use by a lease or a process is refused).
    Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":[]}`, empty - no locale is assumed on
    your behalf) - the machine-global language registry for the odoo-i18n cluster; edit to add your
    own target languages, e.g. `["vi_VN","en_US"]`.
