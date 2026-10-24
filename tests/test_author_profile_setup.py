@@ -66,13 +66,33 @@ def test_propose_reads_the_manifests_and_derives_no_page(home, tmp_path):
     (addons / "__manifest__.py").write_text(
         "{'name': 'A', 'author': 'Acme ERP', 'website': 'https://acme-erp.com', "
         "'support': 'support@acme-erp.com'}\n", encoding="utf-8")
+    for name, page in (("mod_b", "https://acme-erp.com/apps/modules/18.0/mod_b"),
+                       ("mod_c", "https://acme-erp.com/apps/modules/18.0/mod_c"),
+                       ("mod_d", "https://acme-erp.com/apps/app/17.0/mod_x")):   # mod_d's page names another module
+        d = tmp_path / "addons" / name; d.mkdir()
+        (d / "__manifest__.py").write_text("{'name': '%s', 'author': 'Acme ERP', 'website': '%s'}\n" % (name, page), encoding="utf-8")
     proc = _step(home, "propose", "--addons", str(tmp_path / "addons"))
     assert proc.returncode == 0, proc.stderr
     facts = _facts(proc.stdout)
     assert facts["VENDOR"] == "Acme ERP" and facts["WEBSITE"] == "https://acme-erp.com"
+    assert facts["MODULE_PAGE_URL_1"] == "https://acme-erp.com/apps/modules/{series}/{module} 2"
+    assert facts["MODULE_PAGE_URL_2"] == "https://acme-erp.com/apps/app/{series}/{module} 1"
+    assert facts["MANIFEST_WEBSITE_DRIFT"] == "1"
     assert facts["SUPPORT_EMAIL"] == "support@acme-erp.com" and facts["DECLARED"] == "0"
     assert "PRESALES_URL" not in facts and "SUPPORT_URL" not in facts
     assert not (home / "author-profile.toml").exists()
+
+
+def test_the_module_page_pattern_is_recorded_apart_from_the_organization_site(home):
+    good = dict(GOOD, module_page_url="https://acme-erp.com/apps/modules/{series}/{module}")
+    assert _record(home, good).returncode == 0
+    shown = json.loads(_step(home, "show").stdout)
+    assert shown["module_page_url"].endswith("{series}/{module}") and shown["website"] == "https://acme-erp.com"
+    for bad, word in ((dict(GOOD, website="https://acme-erp.com/apps/modules/{series}/{module}"), "module_page_url"),
+                      (dict(GOOD, website="https://acme-erp.com/contact"), "organization"),
+                      (dict(GOOD, module_page_url="https://acme-erp.com/apps/modules/{series}"), "{module}")):
+        proc = _record(home, bad)
+        assert proc.returncode == 1 and word in proc.stderr, (bad, proc.stderr)
 
 
 def test_record_then_show_and_check_round_trip(home):

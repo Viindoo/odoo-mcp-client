@@ -47,6 +47,7 @@ first reserved port, the port 50-instance-spinup.sh binds for it).
 """
 
 import contextlib
+import datetime
 import errno
 import fcntl
 import hashlib
@@ -857,8 +858,27 @@ def _list_entry(row, mine):
         "server_pid": owner.get("pid") if isinstance(owner.get("pid"), int) else None,
         "parked_at": row.get("parked_at"),
         "drop_on_release": bool(row.get("drop_on_release")),
+        # how long the lease has existed (owner.started_at is the acquire time): a served lease of
+        # another session that is days old is worth a look before a venv rebuild or a reclaim
+        "started_at": _text(owner.get("started_at")) or None,
+        "age_s": _age_s(owner.get("started_at")),
     })
     return lease
+
+
+def _age_s(started_at):
+    """Seconds since an ISO-8601 or epoch `started_at`; None when it cannot be read."""
+    if started_at is None:
+        return None
+    try:
+        if isinstance(started_at, (int, float)):
+            then = float(started_at)
+        else:
+            s = str(started_at).strip().replace("Z", "+00:00")
+            then = datetime.datetime.fromisoformat(s).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return max(0, int(time.time() - then))
 
 
 def _list(args, ctx):
@@ -1066,6 +1086,8 @@ LIST_ENTRY_SCHEMA = {
         "server_pid": _NULLABLE_INT,
         "parked_at": {"type": ["number", "null"]},
         "drop_on_release": {"type": "boolean"},
+        "started_at": _NULLABLE_STR,
+        "age_s": _NULLABLE_INT,
     }),
 }
 

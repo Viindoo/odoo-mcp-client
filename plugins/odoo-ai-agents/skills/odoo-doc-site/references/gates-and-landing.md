@@ -28,7 +28,7 @@ re-runs the gates its change touches. A finding goes to the writer as `FINDINGS`
 ## Land
 
 - Commit through `git-toolkit:git-ops`. `commit` = `one-per-pr`: one commit for the PR;
-  `per-area`: one per area. The subject follows the style of the `commit_subject_samples` that `repo_facts.py --page <first planned page>` returns.
+  `per-area`: one per area. The subject follows the style of the `commit_subject_samples` that the docs-site tooling's `scripts/lib/docs_site/repo_facts.py --worktree <SITE WORKTREE> --page <first planned page>` returns (not the plugin's `scripts/lib/repo_facts.py`, which answers only the repository facts).
 - Push to `fork_remote` with a lease; open the PR against the series branch of `remote`.
 - `LAND: caller`: no commit, no push, no PR; the file list goes back to the caller, which lands
   it (`odoo-forward-port` lands one merge commit, never a squash: `commit` governs the pages a run

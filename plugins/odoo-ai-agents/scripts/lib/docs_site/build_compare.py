@@ -135,15 +135,28 @@ def diff_problems(base, cand):
 
 
 class _Imgs(html.parser.HTMLParser):
+    """Every image a page shows, whichever attribute the theme puts the file in: a lazy-loading
+    theme writes `<img class="lazy" data-src="...">` with no `src` at all (the common_ext of the
+    reference docs repo), `srcset` names candidates; a placeholder `src` (a data: URI) is not a
+    file of the build."""
+
     def __init__(self):
         html.parser.HTMLParser.__init__(self)
         self.srcs = []
 
     def handle_starttag(self, tag, attrs):
-        if tag == "img":
-            src = dict(attrs).get("src")
-            if src:
-                self.srcs.append(src)
+        if tag not in ("img", "source"):
+            return
+        a = dict(attrs)
+        for key in ("data-src", "src", "data-srcset", "srcset"):
+            value = a.get(key)
+            if not value or value.startswith("data:"):
+                continue
+            if key.endswith("srcset"):
+                value = value.split(",")[0].strip().split(" ")[0]
+            if value:
+                self.srcs.append(value)
+                break
 
 
 def img_basenames(html_text):

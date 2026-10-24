@@ -49,3 +49,10 @@ def test_every_docs_agent_states_the_no_git_rule_up_front():
 def test_the_writer_brief_states_where_guide_images_live_and_setup_checks_docutils():
     assert "static/description/assets/" in _read("skills/odoo-doc-illustration/references/writer-brief.md")
     assert "_have_docutils" in _read("scripts/setup-steps/05-prereq-check.sh")
+
+
+def test_the_docs_site_check_shot_measures_a_page_of_the_same_kind_and_the_writer_checks_width_first():
+    assert "SAME KIND" in _read("skills/odoo-doc-site/references/check-shot.md")
+    assert "First page only" in _read("agents/odoo-doc-site-writer.md")
+    acceptance = _read("skills/odoo-doc-site/references/acceptance.md")
+    assert "LOCAL build" in acceptance and "UNVERIFIED" in acceptance.split("| 11 |", 1)[1].split("|", 3)[1]
