@@ -98,7 +98,15 @@ read these pointers:
   (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`).
 
 Each node names the agent, the `MODE` and the `model` it launches (or the skill or workflow it
-invokes). The node is the unit, never the module; a node MAY span several modules and a module MAY be
+invokes). A workflow node also fills `workflow_inputs` from the YAML's `inputs:` block
+(`plan-mode-schema.md` § Block 1): for `video-produce`, `destination` is derived from
+`${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md` and the odoo-media
+`youtube_check` result the brief carries (or you call), `languages` is the union of the languages
+of every surface that embeds the video (a docs-site row's `languages`, a module guide's and store
+page's languages) - a single-language video planned for a multi-language surface is a conflict
+you flag in the plan, never a quiet decision - and `targets` names those surfaces. A `VIDEO
+DESTINATION` input in the brief wins when present; absent, derive and cite, never default to
+"none" or "the owner uploads it". The node is the unit, never the module; a node MAY span several modules and a module MAY be
 covered by several nodes. Author `files_in_scope` on every source-writing node: two nodes with no
 path between them must have DISJOINT sets (`plan-mode-schema.md` Block 1).
 

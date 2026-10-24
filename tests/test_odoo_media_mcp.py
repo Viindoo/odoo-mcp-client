@@ -198,7 +198,7 @@ def test_synthesize_sends_the_bearer_value_and_the_respelled_text_and_writes_48k
     method, path, auth, body = _Fake.calls[-1]
     assert path == "/v1/audio/speech" and auth == "Bearer speech-value-0001"
     sent = json.loads(body.decode("utf-8"))
-    assert sent["input"] == "Vinn đu ây ai giúp bạn." and sent["voice"] == "mai" and sent["response_format"] == "wav"
+    assert sent["input"] == "Vinn đu, ây ai giúp bạn." and sent["voice"] == "mai" and sent["response_format"] == "wav"
     assert "speech-value-0001" not in json.dumps(res)
 
 

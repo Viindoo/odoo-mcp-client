@@ -143,8 +143,10 @@ def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phone
     voice = table["voices"].get(lang)
     if not voice:
         raise SpeechError("no voice recorded for %s - run /odoo-ai-agents:odoo-setup voice" % lang, 1)
-    if pron_map:
-        text = pronunciation.apply_map(text, pron_map.get(lang) or [], phonemes=phonemes)
+    # the registry always applies (brands, vendors, acronyms confirmed once); the map adds terms
+    entries = pronunciation.merge(pron_map or {}).get(lang) or []
+    if entries:
+        text = pronunciation.apply_map(text, entries, phonemes=phonemes)
     fmt = table.get("response_format", "wav")
     body = json.dumps({"model": table["model"], "input": text, "voice": voice,
                        "response_format": fmt}).encode("utf-8")

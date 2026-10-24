@@ -20,6 +20,7 @@ POLICY: <abs path of <RUN_DIR>policy.json>
 REPO FACTS: <abs path of <RUN_DIR>repo-facts.json>
 CONTENT WIDTH: <content_width of the content-width record | none>   SERVED URLS: <language: base URL | none>
 FROM CHANGE: <abs path of the change file | none>
+VIDEOS: <page: lang=embed id, lang=embed id | none>   (one id per language; a page embeds only its own language)
 USER LANGUAGE: <lang | omit>
 ```
 

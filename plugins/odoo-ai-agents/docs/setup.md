@@ -356,7 +356,7 @@ drop-in. What it does:
     operator runs in their own terminal (`75-youtube.sh consent --channel <purpose> --client-json
     <file>`). A purpose without a channel keeps the video local; a video that illustrates a code
     change goes to its pull request instead, and no video is committed into a repository
-    (`snippets/docs-after-change.md` § Where a video goes).
+    (`snippets/video-destination.md`).
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-ai-agents:odoo-setup` whenever a dependency is missing. The same hint prints `browser MCP flags outdated` when a registered browser server differs from the current spec (see the re-run note above).

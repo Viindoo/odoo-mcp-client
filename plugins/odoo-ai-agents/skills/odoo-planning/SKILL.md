@@ -194,7 +194,9 @@ Approve plan? (approve / refine: [feedback] / cancel)
 
 Per node: WHO runs it (the agent with its `MODE` and `model`, or the skill or workflow), WHEN
 (`depends_on` and `when:`) and WHAT business result it delivers (`objective` and business-observable
-acceptance - `plan-mode-schema.md` § Block 1 / § Block 3). HOW the result is built stays with the
+acceptance - `plan-mode-schema.md` § Block 1 / § Block 3). A workflow node also binds its
+`workflow_inputs` (a video's destination, languages and embed targets, derived and cited - never the
+YAML default by silence); the brief's optional `VIDEO DESTINATION` input, when present, is that value. HOW the result is built stays with the
 design doc and the coder. A build node's `model` is the design's `build_tier_hint` with its
 checklist; a tail node's is the default tail's. `effort` and `est_agents` are ADVISORY.
 

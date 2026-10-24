@@ -35,15 +35,5 @@ T1); a docs step releases only a lease it took itself.
 
 ## Where a video goes
 
-A demo video a run produced (`video-produce`, `odoo-demo-recording`) lives under
-`<ISOLATE_DIR>/video/<label>/` for the run and is deleted when the run ends; what survives is
-the URL in the artifact it illustrates.
-
-| The video illustrates | Published to | When | Embedded as |
-|---|---|---|---|
-| a code change (a feature, a fix, an upgrade, a forward-port that changes behaviour at the target) | the pull request body, through `git-toolkit:git-ops` with the request to attach the `preview` rendition (`video_publish.py preview`, under the repository plan's size cap) | with the PR, or as a comment on it once acceptance passed | the attachment alone in its own paragraph of the body |
-| documentation (the module guide, the App Store page, a docs-site page) | the `docs` channel of `youtube.toml` (`/odoo-ai-agents:odoo-setup youtube`) through the odoo-media `youtube_check` then `youtube_upload` tools, privacy per the channel (`unlisted` until the docs are published); a marketing video goes to the `marketing` channel | LAST: after acceptance passed and the i18n reconcile is done, before the docs commit that embeds it | App Store page: the DEMO tab's canonical `youtube.com/embed/<id>` iframe; docs-site page: the site's own video convention from its sibling pages, with the embed URL; module guide RST: a link to the watch URL |
-
-No channel for the purpose: the docs ship without the video, the file stays under the run directory
-for the owner to publish, and the report names its path and `/odoo-ai-agents:odoo-setup youtube`;
-a video is never committed into a repository, never published to another purpose's channel.
+The publication and embedding rules of a video a run produced (PR attachment, the YouTube channel
+of a purpose, local; one video per language) are `${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md`.

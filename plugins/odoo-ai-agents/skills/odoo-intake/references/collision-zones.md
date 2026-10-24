@@ -37,7 +37,11 @@ No slash prefix and a single-step intent -> the SKILL. An explicit slash command
 - `odoo-capability-proof`: written proof or RFP evidence the rep can paste.
 - `odoo-demo-recording`: a real recorded video/GIF ("record", "video", "screencast", "GIF").
 
-"demo" alone: ask "written evidence package, or a recorded video of the flow?"
+"demo" alone: ask "written evidence package, or a recorded video of the flow?" A video: then ask
+where it goes - "the YouTube channel (docs or marketing), the pull request, or a file you publish
+yourself?" - offering YouTube only after the odoo-media `youtube_check` for that purpose passed
+(else name `/odoo-ai-agents:odoo-setup youtube`), and which languages, from the surfaces that will
+embed it.
 
 ## Collision 7 - Coding vs Debug
 
@@ -59,7 +63,7 @@ No slash prefix and a single-step intent -> the SKILL. An explicit slash command
 
 ## Collision 10 - Doc Illustration / Doc Site vs Demo Recording
 
-Deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration` (module) or `odoo-doc-site` (site), per § Documentation routing. Deliverable is a playable recording ("video", "quay", "GIF") -> `odoo-demo-recording`. "demo" with no qualifier: ask "static screenshot doc, or recorded video?"
+Deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration` (module) or `odoo-doc-site` (site), per § Documentation routing. Deliverable is a playable recording ("video", "quay", "GIF") of ONE flow -> `odoo-demo-recording`; a narrated or multi-scene tutorial, or one to publish -> `video-produce` (Collision 6's destination and language questions apply). "demo" with no qualifier: ask "static screenshot doc, or recorded video?"
 
 ## Collision 11 - Rebase vs Forward-Port vs Parallel multi-change delivery
 
