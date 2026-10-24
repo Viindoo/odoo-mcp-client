@@ -246,8 +246,10 @@ eager server starts and at session end.
 > find is named there and goes in the plugin dialog (`/plugin` > odoo-ai-agents > Configure). The
 > `media_info` tool shows the same under `upgrade`.
 
-> **After every plugin update, re-run `/odoo-ai-agents:odoo-setup browser`, then restart the
-> session** (MCP does not hot-reload). Setup compares each registered family with the spec it would
+> **After every plugin update, re-run `/odoo-ai-agents:odoo-setup browser`, then start a new
+> session** (the browser families are registered in your user configuration, not by the plugin,
+> so they load at the next session; the plugin's own servers reload with `/reload-plugins`).
+> Setup compares each registered family with the spec it would
 > write now (pin, flags, environment, state root) and **replaces** a drifted entry rather than
 > merging into it. This applies to all three runtimes:
 > - **Claude Code** - the SessionStart hint prints `browser MCP flags outdated (...)` when a

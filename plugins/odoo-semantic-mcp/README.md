@@ -84,10 +84,10 @@ The CLI does not prompt for `userConfig` values at install time, so the MCP serv
 fails until you run `/odoo-semantic-mcp:connect` (`claude mcp list` will not show
 `odoo-semantic`). This is why the connect step is **mandatory**.
 
-**Bug 2 - MCP servers not hot-reloaded within a session**
-([#46426](https://github.com/anthropics/claude-code/issues/46426) - "not planned")
-After running `/odoo-semantic-mcp:connect`, **restart Claude Code** for the MCP tools to load.
-The connect command verifies the server via `curl` and tells you when to restart.
+**Reloading.** `/reload-plugins` restarts this plugin's server with the values you configured, in
+the same session (verified on Claude Code 2.1.x). Only a server registered by hand with
+`claude mcp add` loads at the next session - which is why the connect command moves such a
+registration into the plugin's options instead of keeping it.
 
 </details>
 

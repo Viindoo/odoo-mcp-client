@@ -696,6 +696,18 @@ _find_python3_in_range() {
     return 1
 }
 
+# _build_wants_pip LOG - a build script asked for pip inside uv's isolated build (no pip there)
+# _build_fail_reason LOG - the one line that says what failed, for the message and the report
+_build_wants_pip() {
+    grep -E -q "No module named '?pip'?|pip: (command )?not found" "$1" 2>/dev/null
+}
+
+_build_fail_reason() {
+    local line
+    line="$(grep -E "No module named '?pip'?|pip: (command )?not found|Failed to build|error:|Error:" "$1" 2>/dev/null | grep -v '^[[:space:]]*$' | tail -1)"
+    printf '%s' "${line:-see the log}" | tr -d '\r' | cut -c1-200
+}
+
 cmd_create_venv() {
     local series="" pyver="" tool="" path="" profile=""
     local -a reqs_list=() extras=()
@@ -728,7 +740,8 @@ cmd_create_venv() {
         echo "  Warning: Python $pyver is outside the range Odoo $series supports" >&2
         echo "  ($_py_lo-${_py_hi:-open}, source: $(_py_fact PY_SOURCE "$_py_facts"))." >&2
     fi
-    [[ -n "$tool" ]]  || tool="uv"
+    local tool_source="flag"
+    [[ -n "$tool" ]] || tool_source=""   # decided below, after the row's recorded build tool is read
 
     # A Python 2.7 target (the checkout declares Python 2, or --python 2.x):
     # uv and `python -m venv` cannot build it, and a Python 3 venv would be the
@@ -776,6 +789,15 @@ cmd_create_venv() {
         while IFS= read -r _e; do [[ -n "$_e" ]] && rec_extras+=("$_e"); done < <(
             printf '%s' "$plan_json" | python3 -c 'import json,sys; [print(e) for e in json.load(sys.stdin).get("extra_requirements") or []]')
     fi
+    # The build tool: the flag, else what the row recorded (a build that had to fall back to pip
+    # stays on pip), else uv. `uv+pip` = uv creates the venv, pip installs (see the uv branch).
+    local rec_tool=""
+    rec_tool="$(printf '%s' "$plan_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("build_tool") or "")' 2>/dev/null || true)"
+    if [[ -z "$tool" ]]; then
+        if [[ -n "$rec_tool" && "$rec_tool" != "virtualenv" ]]; then tool="$rec_tool"; tool_source="row"; else tool="uv"; tool_source="default"; fi
+    fi
+    echo "BUILD_TOOL=$tool"
+    echo "TOOL_SOURCE=$tool_source"
     local path_source="flag"
     if [[ -z "$path" ]]; then
         if [[ -n "$row_venv" ]]; then
@@ -965,7 +987,7 @@ cmd_create_venv() {
                 echo "  (no requirements.txt found - venv created empty; install deps manually)"
             fi
             ;;
-        uv)
+        uv|uv+pip)
             command -v uv >/dev/null 2>&1 || { echo "x 'uv' not found. Install uv or use --tool pip." >&2; return 1; }
             if [[ -n "$pyver" ]]; then uv venv "$path" --python "$pyver" || { _restore_on_failure 1; return 1; }
             else uv venv "$path" || { _restore_on_failure 1; return 1; }; fi
@@ -979,15 +1001,41 @@ cmd_create_venv() {
                 echo "  Installing requirements: ${present_reqs[*]}${override:+ (override: $override)}"
                 local -a req_flags=()
                 for r in "${present_reqs[@]}"; do req_flags+=(-r "$r"); done
-                uv pip install --python "$path/bin/python" "${uv_args[@]+"${uv_args[@]}"}" "${req_flags[@]}" \
-                    || { echo "x dependency install failed (check system build deps)." >&2; _restore_on_failure 1; return 1; }
+                local build_log="$path.build.log" uv_rc=0
+                if [[ "$tool" == "uv" ]]; then
+                    uv pip install --python "$path/bin/python" "${uv_args[@]+"${uv_args[@]}"}" "${req_flags[@]}" 2>&1 \
+                        | tee "$build_log" >&2 || uv_rc=$?
+                fi
+                if [[ "$tool" == "uv+pip" ]] || { [[ "$uv_rc" -ne 0 ]] && _build_wants_pip "$build_log"; }; then
+                    # A package's build script calls pip itself (fasttext does), and uv's isolated
+                    # build environment has no pip: install the same requirements with pip inside
+                    # the venv uv created. Recorded on the row as build_tool=uv+pip.
+                    if [[ -n "$override" ]]; then
+                        echo "x a build script in the requirements needs pip, which cannot apply --override: drop the override or pin the package (details: $build_log)." >&2
+                        _restore_on_failure 1; return 1
+                    fi
+                    [[ "$tool" == "uv" ]] && echo "BUILD_FALLBACK=pip reason=$(_build_fail_reason "$build_log")"
+                    tool="uv+pip"
+                    uv pip install --python "$path/bin/python" pip >&2 \
+                        || { echo "x could not add pip to the venv (details above)." >&2; _restore_on_failure 1; return 1; }
+                    "$path/bin/python" -m pip install "${req_flags[@]}" 2>&1 | tee "$build_log" >&2 \
+                        || { echo "x dependency install failed: $(_build_fail_reason "$build_log") (full log: $build_log)" >&2; _restore_on_failure 1; return 1; }
+                elif [[ "$uv_rc" -ne 0 ]]; then
+                    echo "x dependency install failed: $(_build_fail_reason "$build_log") (full log: $build_log)" >&2
+                    _restore_on_failure 1; return 1
+                fi
             else
                 echo "  (no requirements.txt found - venv created empty; install deps manually)"
             fi
             if [[ ${#extras[@]} -gt 0 ]]; then
                 echo "  Installing extras: ${extras[*]}"
-                uv pip install --python "$path/bin/python" "${uv_args[@]+"${uv_args[@]}"}" "${extras[@]}" \
-                    || { echo "x extra install failed: ${extras[*]}" >&2; _restore_on_failure 1; return 1; }
+                if [[ "$tool" == "uv+pip" ]]; then
+                    "$path/bin/python" -m pip install "${extras[@]}" \
+                        || { echo "x extra install failed: ${extras[*]}" >&2; _restore_on_failure 1; return 1; }
+                else
+                    uv pip install --python "$path/bin/python" "${uv_args[@]+"${uv_args[@]}"}" "${extras[@]}" \
+                        || { echo "x extra install failed: ${extras[*]}" >&2; _restore_on_failure 1; return 1; }
+                fi
             fi
             ;;
         pip)
@@ -1097,6 +1145,7 @@ cmd_create_venv() {
     elif [[ "$no_override" -eq 1 ]]; then
         venv_keys+=("uv_override=" "uv_override_basis=")
     fi
+    venv_keys+=("build_tool=$tool")
     if [[ "$extras_given" -eq 1 || "$no_recorded" -eq 1 ]]; then
         venv_keys+=("extra_requirements[]+=")
         local _x; for _x in "${extras[@]+"${extras[@]}"}"; do venv_keys+=("extra_requirements[]+=$_x"); done

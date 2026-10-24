@@ -74,7 +74,7 @@ def row_plan(path, series, profile):
         items = []
     row = instances_io.select_row(items, series, profile)[0] if items else None
     out = {"row_found": row is not None, "python": "", "venv_dir": None, "shared_by": [],
-           "extra_requirements": [], "uv_override": None, "uv_override_basis": None}
+           "extra_requirements": [], "uv_override": None, "uv_override_basis": None, "build_tool": None}
     if row is None:
         return out
     python = str(row.get("python") or "")
@@ -86,6 +86,7 @@ def row_plan(path, series, profile):
     elif isinstance(extras, str) and extras.strip():
         out["extra_requirements"] = [extras.strip()]
     out["uv_override"] = str(row["uv_override"]) if row.get("uv_override") else None
+    out["build_tool"] = str(row["build_tool"]).strip() if row.get("build_tool") else None
     out["uv_override_basis"] = str(row["uv_override_basis"]) if row.get("uv_override_basis") else None
     if out["venv_dir"]:
         for other in items:

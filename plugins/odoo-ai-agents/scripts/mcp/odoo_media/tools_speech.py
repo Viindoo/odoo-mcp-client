@@ -53,7 +53,14 @@ TRANSCRIBE_OUT = {
                    "words": {"type": "array", "items": {"type": "object", "properties": {
                        "word": {"type": "string"}, "start": {"type": "number"}, "end": {"type": "number"}}}}},
 }
-VOICES_OUT = {"type": "object", "required": ["voices"], "properties": {"voices": {"type": ["array", "object", "string", "null"]}}}
+VOICES_IN = {"type": "object", "properties": {
+    "base_url": {"type": "string", "minLength": 1,
+                 "description": "Audio API root to ask instead of the configured one (the setup conversation, before speech.toml exists)."}},
+    "additionalProperties": False}
+VOICES_OUT = {"type": "object", "required": ["voices", "models"],
+              "properties": {"voices": {"type": ["array", "object", "string", "null"]},
+                             "models": {"type": "array", "items": {"type": "string"}},
+                             "tts_model_guess": {"type": "string"}, "stt_model_guess": {"type": "string"}}}
 PROBE_IN = {"type": "object", "properties": {"lang": _LANG, "out_dir": _ABS,
                                              "speed": {"type": "number", "minimum": 0.5, "maximum": 2.0,
                                                        "description": "Also render the sentence at this rate and report whether the engine honoured it."}},
@@ -133,11 +140,20 @@ def register(registry, ctx):
 
     def voices(args, ctx):
         sc = _speech_client()
-        cfg = _config(sc)
+        base_url = args.get("base_url")
+        if base_url:
+            cfg, value = None, (os.environ.get(values.SPEECH, "") if values.present(values.SPEECH) else None)
+        else:
+            cfg = _config(sc)
+            value = _value(cfg, sc)
         try:
-            return {"voices": sc.voices(cfg=cfg, value=_value(cfg, sc))}
+            listing = sc.voices(cfg=cfg, value=value, base_url=base_url)
+            ids = sc.models(cfg=cfg, value=value, base_url=base_url)
         except sc.SpeechError as exc:
             raise _translate(exc)
+        return {"voices": listing, "models": ids,
+                "tts_model_guess": sc._guess(ids, ("tts", "speech")),
+                "stt_model_guess": sc._guess(ids, ("stt", "whisper", "transcri"))}
 
     def probe(args, ctx):
         sc = _speech_client()
@@ -162,9 +178,11 @@ def register(registry, ctx):
         TRANSCRIBE_IN, TRANSCRIBE_OUT, transcribe, title="Transcribe a clip", read_only=True, long_running=True)
     registry.add(
         "speech_voices",
-        "List the voices the configured speech endpoint publishes (as the endpoint returns them; a gateway "
-        "that publishes none answers an error). Read-only.",
-        {"type": "object", "properties": {}, "additionalProperties": False}, VOICES_OUT, voices,
+        "List the voices and the model ids the speech endpoint publishes (voices as the endpoint returns them; "
+        "a gateway that publishes none answers an error), with a guess of the TTS and STT model ids. "
+        "`base_url` asks another endpoint than the configured one - the setup conversation, after the "
+        "operator configured the value and reloaded. Read-only.",
+        VOICES_IN, VOICES_OUT, voices,
         title="List voices", read_only=True, long_running=True)
     registry.add(
         "speech_probe",

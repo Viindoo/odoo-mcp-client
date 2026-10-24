@@ -1,9 +1,28 @@
 {
   "name": "odoo-ai-agents",
   "displayName": "Odoo AI Agent Team",
-  "version": "8.2.0",
+  "version": "8.2.1",
   "description": "Odoo AI workforce toolkit - 50 skills + 22 specialist agents + 8 workflow commands across engineering, sales, marketing, strategy, setup, visual UI testing, and automated multi-module git integration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
-  "keywords": ["odoo", "erp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "code-generation", "code-review", "upgrade", "visual-testing", "browser-automation", "ui-review", "setup", "ai-agents", "agent-team"],
+  "keywords": [
+    "odoo",
+    "erp",
+    "ai-workforce",
+    "odoo-semantic",
+    "semantic-search",
+    "workflow",
+    "sales",
+    "marketing",
+    "strategy",
+    "code-generation",
+    "code-review",
+    "upgrade",
+    "visual-testing",
+    "browser-automation",
+    "ui-review",
+    "setup",
+    "ai-agents",
+    "agent-team"
+  ],
   "author": {
     "name": "Viindoo",
     "url": "https://github.com/Viindoo"
@@ -46,49 +65,52 @@
     "./commands/odoo-produce-video.md"
   ],
   "mcpServers": "./.mcp.json",
-  "dependencies": ["odoo-semantic-mcp", "git-toolkit"],
+  "dependencies": [
+    "odoo-semantic-mcp",
+    "git-toolkit"
+  ],
   "userConfig": {
     "speech_api_key": {
       "type": "string",
       "title": "Speech endpoint key",
       "sensitive": true,
       "required": false,
-      "description": "Sent as the bearer value to the narration speech endpoint declared by /odoo-ai-agents:odoo-setup voice (speech.toml auth = bearer). Leave empty for an endpoint that needs none."
+      "description": "Leave empty when Claude Code asks at install. Fill it later, after /odoo-ai-agents:odoo-setup voice declared the endpoint, through /plugin > odoo-ai-agents > Configure: the value sent as bearer to that endpoint (speech.toml auth = bearer; an open endpoint needs none)."
     },
     "youtube_client_id": {
       "type": "string",
       "title": "YouTube OAuth client id",
       "sensitive": true,
       "required": false,
-      "description": "The Desktop OAuth client of your Google Cloud project with the YouTube Data API enabled; 75-youtube.sh consent stores it for you from the downloaded client JSON."
+      "description": "Leave empty when Claude Code asks at install: 75-youtube.sh consent (run by you, once per channel) reads it from the downloaded client JSON of your Google Cloud project's Desktop OAuth client and stores it here."
     },
     "youtube_client_secret": {
       "type": "string",
       "title": "YouTube OAuth client secret",
       "sensitive": true,
       "required": false,
-      "description": "The same client's secret; stored by 75-youtube.sh consent."
+      "description": "Leave empty when Claude Code asks at install: stored by 75-youtube.sh consent from the same client JSON."
     },
     "youtube_refresh_token_docs": {
       "type": "string",
       "title": "YouTube refresh token - docs channel",
       "sensitive": true,
       "required": false,
-      "description": "Refresh token (scope youtube.force-ssl) of the account owning the channel in youtube.toml slot docs; obtained once by 75-youtube.sh consent --channel <purpose>."
+      "description": "Leave empty when Claude Code asks at install: obtained and stored by 75-youtube.sh consent --channel <purpose> for the channel in youtube.toml slot docs (the account that owns it approves in the browser)."
     },
     "youtube_refresh_token_marketing": {
       "type": "string",
       "title": "YouTube refresh token - marketing channel",
       "sensitive": true,
       "required": false,
-      "description": "Same, for the channel in slot marketing (optional)."
+      "description": "Leave empty when Claude Code asks at install: obtained and stored by 75-youtube.sh consent --channel <purpose> for the channel in youtube.toml slot marketing (optional)."
     },
     "youtube_refresh_token_third": {
       "type": "string",
       "title": "YouTube refresh token - third channel",
       "sensitive": true,
       "required": false,
-      "description": "Same, for a third channel in slot third (optional)."
+      "description": "Leave empty when Claude Code asks at install: obtained and stored by 75-youtube.sh consent --channel <purpose> for a third channel in youtube.toml slot third (optional)."
     }
   }
 }

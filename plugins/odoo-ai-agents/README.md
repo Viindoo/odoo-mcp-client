@@ -820,8 +820,9 @@ plugin MCP server, `/reload-plugins` may ask for `--force` or a new session. The
 command you can run yourself: `python3 <plugin>/scripts/lib/upgrade_values.py apply` and
 `python3 <odoo-semantic-mcp plugin>/scripts/migrate_connection.py apply`.
 
-**After updating the plugin, re-run `/odoo-ai-agents:odoo-setup browser` and restart the session**
-(MCP does not hot-reload). Setup replaces any registration that differs from what it would write
+**After updating the plugin, re-run `/odoo-ai-agents:odoo-setup browser` and start a new session**
+(the browser families are registered in your user configuration, not by the plugin, so they load
+at the next session; the plugin's own servers reload with `/reload-plugins`). Setup replaces any registration that differs from what it would write
 today (older pin, missing flag, moved `$ODOO_AI_HOME`). On Claude Code a SessionStart hint
 (`browser MCP flags outdated`) tells you when this is due; Codex and Gemini get no such hint, so
 re-run it by hand after every update.

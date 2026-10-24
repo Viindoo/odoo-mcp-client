@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.2.1] - 2026-10-24
+
+### Fixed
+
+- `odoo-ai-agents` - **the voice step is a conversation, not a form.** `odoo-setup voice` asks
+  one closed question (where the narration voice comes from, with what the machine found as the
+  first choices), takes a URL at most, and derives the rest from the endpoint: a new
+  `70-speech.sh probe-endpoint` says whether it is open or expects a value and lists its models
+  and voices, and the odoo-media `speech_voices` tool takes a `base_url` and returns the models
+  too. The command's rules now ban a fill-in template in the chat.
+- `odoo-ai-agents` - **`odoo-setup youtube` no longer asks for a playlist id or a default
+  language**: one question (which channels), a label per channel; privacy is a stated decision;
+  the two optional keys are added later with the same command.
+- `odoo-ai-agents` - **a venv build falls back to pip by itself** when a package's own build
+  script calls pip inside uv's isolated build (fasttext does): the venv uv created is kept, pip is
+  added to it and installs the requirements, the row records `build_tool = uv+pip` so the next
+  rebuild does the same without the detour, and the failure message names the real error line
+  and the log instead of "check system build deps".
+- `odoo-ai-agents` / `odoo-semantic-mcp` - **reload wording matches what Claude Code does**:
+  `/reload-plugins` restarts the plugin's servers with their configured values (verified live);
+  only the browser families registered in the user configuration and the permission rules need a
+  new session. The consent and migration commands may be typed in the chat with a leading `!`.
+- `odoo-ai-agents` - the six plugin options say "leave empty when Claude Code asks at install"
+  and which command fills them, so the install dialog no longer looks like a form to complete.
+
 ## [8.2.0] - 2026-10-24
 
 ### Fixed
