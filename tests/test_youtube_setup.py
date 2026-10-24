@@ -95,6 +95,7 @@ def test_a_purpose_defaults_its_slot_and_a_free_purpose_must_name_one(home):
 @pytest.mark.parametrize("purpose, table, word", [
     ("docs", {"slot": "docs", "channel": "1//0g-a-real-looking-value-abcdef0123456789abcdef0123456789"}, "credential value"),
     ("docs", {"slot": "docs", "channel": "Acme", "privacy": "hidden"}, "privacy"),
+    ("docs", {"slot": "docs", "channel": "Acme", "privacy": "public"}, "never a default"),
     ("docs", {"slot": "docs", "channel": ""}, "channel"),
     ("docs", {"slot": "docs", "channel": "Acme", "refresh_token_env": "X"}, "unknown key"),
     ("Docs Channel", {"slot": "docs", "channel": "Acme"}, "purpose"),

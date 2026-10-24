@@ -102,6 +102,7 @@ CLI:
 
 import re
 import shlex
+import json
 import sys
 
 # SSOT for the "no declared http_port" fallback (Odoo's own stock default).
@@ -627,8 +628,10 @@ def _cmd_read(argv):
 
 
 def _cmd_read_row(argv):
+    as_json = "--json" in argv
+    argv = [a for a in argv if a != "--json"]
     if len(argv) != 3:
-        sys.stderr.write("Usage: instances_io.py read-row <instances.toml> <series> <profile>\n")
+        sys.stderr.write("Usage: instances_io.py read-row <instances.toml> <series> <profile> [--json]\n")
         return 2
     path, series, profile = argv
     try:
@@ -646,6 +649,14 @@ def _cmd_read_row(argv):
     if tbl is None:
         sys.stderr.write(f"x {reason}.\n")
         return 1
+    if as_json:
+        # the row as declared (lists stay lists - a value may hold a comma), plus the normalized keys
+        row = dict(tbl)
+        row.update({"series": series_of(tbl), "profile": profile_of(tbl), "instance_key": instance_key_of(tbl),
+                    "addons_path": list(addons_path_list(tbl)),
+                    "server_wide_modules": list(server_wide_modules_of(tbl))})
+        print(json.dumps(row, ensure_ascii=False))
+        return 0
     _emit_row(tbl)
     return 0
 

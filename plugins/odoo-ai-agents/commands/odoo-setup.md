@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|refresh|docs-site|author|voice|youtube] [--version X.Y] [--profile P]"
+argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|venv|refresh|docs-site|author|voice|youtube] [--version X.Y] [--profile P] [--extra SPEC] [--override FILE]"
 description: >-
   Sets up browser MCP, permissions and local Odoo instances
 ---
@@ -26,6 +26,7 @@ interactive checkbox menu (see "Interactive menu" below).
 | `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`), then `35-skill-listing-budget` (installed skills change with updates). Declares nothing new. |
 | `docs-site`    | `60-docs-site` only (no preflight): `propose`, ask the policy questions, `record` on confirmation - see its step-specific note |
 | `author`       | `65-author-profile` only (no preflight): `propose` from the module descriptors, ask for the contact pages, `record` on confirmation - see its step-specific note |
+| `venv`         | `45-venv` only, for the declared rows matching `--version` / `--profile` (all rows with a `python` when neither is given): `create-venv --rebuild` in the venv the row already uses, with `--extra SPEC` / `--override FILE` when given and the extras and override the row recorded otherwise, then `record-env`; builds nothing else, asks nothing but the row list - the filter for "requirements changed" or "pin a package" |
 | `voice`        | `70-speech` only (no preflight): `propose` the speech providers reachable from this machine, ask for the endpoint, model, key variable NAME and a voice per language, `record` on confirmation - see its step-specific note |
 | `youtube`      | `75-youtube` only (no preflight): `propose` what to prepare, ask for the channel label, the OAuth variable NAMES, the default privacy and an optional playlist, `record` on confirmation - see its step-specific note |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
@@ -496,6 +497,16 @@ Resolve:
   `$ODOO_AI_HOME/.gitignore`. Backup + idempotent.
   Also seeds `$ODOO_AI_HOME/i18n.json` (no-clobber) with `{"default_languages":[]}`, the
   default translation-language registry for `odoo-i18n`; languages are added by editing this file.
+- **45-venv, `venv` filter (rebuild)** - For each declared row with a `python` that matches
+  `--version` / `--profile`, show the row list once and confirm it, then run
+  `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> [--profile <name>] --rebuild [--extra
+  <spec>]... [--override <file>]` followed by `record-env`. The step rebuilds IN PLACE (the row's
+  venv, never a new location), refuses while a lease or process uses the venv (it prints them;
+  the operator releases or stops them, or says `--force`), keeps the old venv aside until the
+  new one runs `odoo-bin --version`, records the extras and the override on the row so the next
+  rebuild re-applies them (`--no-recorded` / `--no-override` drop them), and refuses a venv that
+  another row also uses unless `--force`. A `SUGGESTED_EXTRA=` line names a lint package an
+  addon's tests import; offer it as `--extra`, never add it yourself.
 - **45-venv** *(optional, source instances only - offered between 40 and 50)* -
   After `40` declares the profile, offer this flow for the series the user wants to spin up:
   1. Show the supported range and recommended Python:

@@ -55,7 +55,8 @@ second caller) and stops at the call's cancel event. Calls are meant to run one 
 
 `hooks/auto-approve-local.sh` auto-allows every odoo-media tool except `youtube_upload` with
 `privacy: public` (and not `dry_run`), which falls through to the human prompt - the one outward
-publication this server makes.
+publication this server makes. A channel's DEFAULT privacy is never `public` (`youtube_config`
+refuses it), so a public upload is always the explicit argument the hook sees.
 
 ## Configuration files (state root, never committed)
 

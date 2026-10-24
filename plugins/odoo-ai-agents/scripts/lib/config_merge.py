@@ -717,6 +717,9 @@ def cmd_toml_upsert_instance_keys(args: list[str]) -> int:
       KEY=VALUE     -> KEY = "VALUE"              (a TOML string)
       KEY[]=A,B,C   -> KEY = ["A", "B", "C"]      (a TOML array of strings;
                        `KEY[]=` records the EMPTY array - a declared "none")
+      KEY[]+=item   -> the same array built one item per argument, so an item
+                       may hold a comma (`werkzeug>=2.0,<2.1`); `KEY[]+=` alone
+                       records the empty array
     An existing assignment of KEY is replaced whole, a multi-line array
     included; when KEY is ABSENT it is inserted after the block's last
     assignment, so a catalog written before a key existed GAINS it. Every other
@@ -740,11 +743,24 @@ def cmd_toml_upsert_instance_keys(args: list[str]) -> int:
     path, series, profile = args[0], args[1], args[2]
 
     pairs = []
+    appended = {}   # KEY[]+=item: one array built from repeated items (an item may hold commas)
+    order = []
     for raw in args[3:]:
         if "=" not in raw:
-            print("x internal: expected KEY=VALUE or KEY[]=A,B, got %r" % raw, file=sys.stderr)
+            print("x internal: expected KEY=VALUE, KEY[]=A,B or KEY[]+=item, got %r" % raw, file=sys.stderr)
             return 2
         key, _, value = raw.partition("=")
+        if key.endswith("[]+"):
+            key = key[:-3]
+            if not _TOML_BARE_KEY.match(key):
+                print("x internal: %r is not a bare TOML key" % key, file=sys.stderr)
+                return 2
+            if key not in appended:
+                appended[key] = []
+                order.append(key)
+            if value.strip():
+                appended[key].append(value.strip())
+            continue
         if key.endswith("[]"):
             key = key[:-2]
             items = [v.strip() for v in value.split(",") if v.strip()]
@@ -757,6 +773,9 @@ def cmd_toml_upsert_instance_keys(args: list[str]) -> int:
             print("x internal: %r is not a bare TOML key" % key, file=sys.stderr)
             return 2
         pairs.append((key, rendered, shown))
+    for key in order:
+        items = appended[key]
+        pairs.append((key, "[%s]" % ", ".join(_toml_basic_string(v) for v in items), "[%s]" % ", ".join(items)))
     if not pairs:
         return 0
 
@@ -1365,6 +1384,7 @@ LOCKED_TARGET_ARG = {
     "json-ensure-allow": 0,
     "json-prune-allow": 0,
     "mcp-server-set": 1,
+    "toml-upsert-instance-keys": 0,
 }
 
 SUBCOMMANDS = {
