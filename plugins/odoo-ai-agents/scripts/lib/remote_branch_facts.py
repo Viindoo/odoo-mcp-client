@@ -32,9 +32,14 @@ def strip_credentials(url):
 
 def remote_heads(url, timeout=20):
     """{branch: sha} of the remote, or None when the remote could not be asked."""
+    # the url comes from an index or a manifest: never let it be read as a git option, and never let
+    # it name a transport that runs a command (ext::)
+    if not url or url.startswith("-") or url.startswith("ext::"):
+        return None
     try:
-        proc = subprocess.run(["git", "ls-remote", "--heads", url], capture_output=True, text=True,
-                              timeout=timeout, check=False, env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+        proc = subprocess.run(["git", "-c", "protocol.ext.allow=never", "ls-remote", "--heads", "--", url],
+                              capture_output=True, text=True, timeout=timeout, check=False,
+                              env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
     except (OSError, subprocess.TimeoutExpired):
         return None
     if proc.returncode != 0:
