@@ -22,7 +22,8 @@
 #                                    for a declared instance (source-derived)
 #   apply                            advise-only: explain venv options
 #   create-venv --series X.Y [--python VER] [--tool uv|pip]
-#               [--path DIR] [--requirements FILE]
+#               [--path DIR] [--requirements FILE]... [--rebuild] [--extra SPEC]...
+#               [--override FILE | --no-override] [--no-recorded] [--force]
 #                                    create a venv and record it on the instance.
 #                                    Once the venv runs the launcher, it also
 #                                    installs the packages the checkout's test
@@ -178,9 +179,30 @@ cmd_suggest() {
     fi
 }
 
-# check is always satisfied: venv provisioning is opt-in, not part of the
-# automatic step run.
-cmd_check() { return 0; }
+# check: venv provisioning stays opt-in, but a row that DECLARES a venv must hold: its python
+# executable, the override file it recorded present. Also warns about a comment in the catalog
+# naming a path that no longer exists (a stale note is a trap for the next operator).
+cmd_check() {
+    [[ -f "$INSTANCES_TOML" ]] || return 0
+    local facts="$SCRIPT_DIR/../lib/venv_facts.py" rc=0
+    local rows
+    rows="$(python3 "$SCRIPT_DIR/../lib/instances_io.py" read "$INSTANCES_TOML" 2>/dev/null | sed -n 's/^INST_KEY=//p' | tr -d "'")" || rows=""
+    local key series profile plan py ovr
+    for key in $rows; do
+        series="${key%%:*}"; profile=""; [[ "$key" == *:* ]] && profile="${key#*:}"
+        plan="$(python3 "$facts" row-plan "$INSTANCES_TOML" "$series" "$profile" 2>/dev/null || echo '{}')"
+        py="$(printf '%s' "$plan" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("python") or "")')"
+        ovr="$(printf '%s' "$plan" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("uv_override") or "")')"
+        if [[ -n "$py" && ! -x "$py" ]]; then
+            echo "x $key: python $py is not executable - rebuild: $(basename "$0") create-venv --series $series${profile:+ --profile $profile} --rebuild" >&2; rc=1
+        fi
+        if [[ -n "$ovr" && ! -f "$ovr" ]]; then
+            echo "x $key: the recorded override file is missing: $ovr - pass --override <file> or --no-override on the next rebuild" >&2; rc=1
+        fi
+    done
+    python3 "$facts" stale-comments "$INSTANCES_TOML" 2>/dev/null | sed 's/^/  Warning: /' >&2 || true
+    return "$rc"
+}
 
 cmd_apply() {
     echo "Python venv is optional and opt-in. For an Odoo source instance you can:"
@@ -285,7 +307,8 @@ _report_db_preflight() {
 # ---------------------------------------------------------------------------
 _record_env_facts() {
     local series="$1" profile="${2:-}" venv_py="${3:-}" odoo_root="${4:-}"
-    local -a facts=()
+    shift 4 2>/dev/null || shift $#
+    local -a facts=("$@")   # extra KEY=VALUE / KEY[]+=item pairs the caller records in the same write
     local rc=0 line
     [[ -n "$venv_py" ]] && facts+=("python=$venv_py")
     [[ -n "$odoo_root" ]] && facts+=("odoo_root=$odoo_root")
@@ -675,8 +698,8 @@ _find_python3_in_range() {
 
 cmd_create_venv() {
     local series="" pyver="" tool="" path="" profile=""
-    local -a reqs_list=()
-    local explicit_reqs=0
+    local -a reqs_list=() extras=()
+    local explicit_reqs=0 rebuild=0 force=0 no_recorded=0 no_override=0 override="" extras_given=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --series) series="$2"; shift 2 ;;
@@ -685,10 +708,17 @@ cmd_create_venv() {
             --path)   path="$2"; shift 2 ;;
             --profile) profile="$2"; shift 2 ;;
             --requirements) reqs_list+=("$2"); explicit_reqs=1; shift 2 ;;
+            --extra) extras+=("$2"); extras_given=1; shift 2 ;;
+            --override) override="$2"; shift 2 ;;
+            --no-override) no_override=1; shift ;;
+            --no-recorded) no_recorded=1; shift ;;
+            --rebuild) rebuild=1; shift ;;
+            --force) force=1; shift ;;
             *) echo "Unknown arg: $1" >&2; return 2 ;;
         esac
     done
     [[ -n "$series" ]] || { echo "x --series is required (e.g. --series 17.0)" >&2; return 2; }
+    local facts="$SCRIPT_DIR/../lib/venv_facts.py" holders="$SCRIPT_DIR/../lib/venv_holders.py"
     local _py_facts _py_lo _py_hi
     _py_facts="$(_python_recommendation "$series" "$profile")"
     _py_lo="$(_py_fact PY_MIN "$_py_facts")"; _py_hi="$(_py_fact PY_MAX "$_py_facts")"
@@ -733,20 +763,114 @@ cmd_create_venv() {
     # share) - converges across a repo's linked worktrees instead of the old
     # $ODOO_AI_DIR-relative (cwd/worktree-scoped) path.
     # follow-up: reclassify venvs/ to host-global by requirements-hash (deferred).
+    # The row's own facts: the venv its `python` lives in (a rebuild never relocates it), the rows
+    # that share that venv, and the extras / override recorded by an earlier build.
+    local plan_json="{}" row_venv="" shared_by="" rec_override="" rec_basis=""
+    local -a rec_extras=()
+    if [[ -f "$INSTANCES_TOML" ]]; then
+        plan_json="$(python3 "$facts" row-plan "$INSTANCES_TOML" "$series" "${profile:-}" 2>/dev/null || echo '{}')"
+        row_venv="$(printf '%s' "$plan_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("venv_dir") or "")')"
+        shared_by="$(printf '%s' "$plan_json" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin).get("shared_by") or []))')"
+        rec_override="$(printf '%s' "$plan_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("uv_override") or "")')"
+        rec_basis="$(printf '%s' "$plan_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("uv_override_basis") or "")')"
+        while IFS= read -r _e; do [[ -n "$_e" ]] && rec_extras+=("$_e"); done < <(
+            printf '%s' "$plan_json" | python3 -c 'import json,sys; [print(e) for e in json.load(sys.stdin).get("extra_requirements") or []]')
+    fi
+    local path_source="flag"
     if [[ -z "$path" ]]; then
-        local share_dir
-        share_dir="$(resolve_project_dir_share)" || {
-            echo "x could not resolve the project SHARE dir for venvs/ (see resolve_project_dir.sh)." >&2
-            return 1
-        }
-        if [[ -n "$profile" ]]; then
-            local prof_slug
-            prof_slug="$(printf '%s' "$profile" | tr -c '[:alnum:]._-' '_')"
-            path="$share_dir/venvs/${series}-${prof_slug}"
+        if [[ -n "$row_venv" ]]; then
+            path="$row_venv"; path_source="row"
         else
-            path="$share_dir/venvs/$series"
+            local share_dir
+            share_dir="$(resolve_project_dir_share)" || {
+                echo "x could not resolve the project SHARE dir for venvs/ (see resolve_project_dir.sh)." >&2
+                return 1
+            }
+            if [[ -n "$profile" ]]; then
+                local prof_slug
+                prof_slug="$(printf '%s' "$profile" | tr -c '[:alnum:]._-' '_')"
+                path="$share_dir/venvs/${series}-${prof_slug}"
+            else
+                path="$share_dir/venvs/$series"
+            fi
+            path_source="share"
         fi
     fi
+    echo "VENV_PATH=$path"
+    echo "PATH_SOURCE=$path_source"
+    if [[ -n "$shared_by" && "$force" -eq 0 && "$path" == "$row_venv" ]]; then
+        echo "x the venv at $path is also the python of: $shared_by" >&2
+        echo "  A rebuild with this row's requirements would change theirs too. Give this row its own" >&2
+        echo "  venv (--path <dir>), or pass --force to rebuild the shared one knowingly." >&2
+        return 1
+    fi
+    # Recorded extras / override apply again unless the call says otherwise.
+    if [[ "$extras_given" -eq 0 && "$no_recorded" -eq 0 && "${#rec_extras[@]}" -gt 0 ]]; then
+        extras=("${rec_extras[@]}"); echo "EXTRA_FROM_ROW=${rec_extras[*]}"
+    fi
+    if [[ -z "$override" && "$no_override" -eq 0 && "$no_recorded" -eq 0 && -n "$rec_override" ]]; then
+        if [[ ! -f "$rec_override" ]]; then
+            echo "x the override file this row recorded is missing: $rec_override" >&2
+            echo "  Pass --override <file> to record a new one, or --no-override to drop it." >&2
+            return 1
+        fi
+        override="$rec_override"; echo "OVERRIDE_FROM_ROW=$override"
+    fi
+    if [[ -n "$override" ]]; then
+        [[ -f "$override" ]] || { echo "x --override $override: no such file" >&2; return 2; }
+        if [[ "$tool" == "pip" ]]; then
+            echo "x --override is a uv feature (pip constraints cannot replace a transitive pin): use --tool uv." >&2
+            return 2
+        fi
+        # The override is applied FROM the copy that is recorded (next to the venv - a worktree or
+        # scratch path would rot), so what the row says was applied is what was applied.
+        local kept="$path.override.txt"
+        if [[ ! "$override" -ef "$kept" ]]; then
+            mkdir -p "$(dirname "$kept")" && cp "$override" "$kept"
+        fi
+        override="$kept"
+    fi
+    # An existing venv is rebuilt only on request: the tool's behaviour on an existing directory
+    # is its own (uv replaces or prompts by version; virtualenv writes over it in place).
+    local old_dir=""
+    if [[ -d "$path" ]]; then
+        if [[ "$rebuild" -eq 0 ]]; then
+            echo "x a venv already exists at $path." >&2
+            echo "  Pass --rebuild to rebuild it in place (the old one is kept aside until the new one is" >&2
+            echo "  proven), or --path <dir> to build elsewhere." >&2
+            return 1
+        fi
+        # Who is using it right now.
+        local hold_rc=0 hold_out
+        hold_out="$(python3 "$holders" check "$path" --exclude-pid $$ 2>/dev/null)" || hold_rc=$?
+        if [[ "$hold_rc" -eq 1 && "$force" -eq 0 ]]; then
+            echo "x the venv at $path is in use:" >&2
+            printf '%s\n' "$hold_out" | sed 's/^/  /' >&2
+            echo "  Release or stop them first (lease_release / stop the server), then run again;" >&2
+            echo "  --force proceeds anyway (their next import or release breaks)." >&2
+            return 1
+        elif [[ "$hold_rc" -eq 2 ]]; then
+            printf '%s\n' "$hold_out" | sed 's/^/  Warning: /' >&2
+        fi
+        python3 "$facts" free-space "$path" >/dev/null || {
+            echo "x not enough free space to keep the old venv while the new one builds; free some first." >&2
+            return 1
+        }
+        python3 "$facts" reconcile "$path" >/dev/null 2>&1 || true
+        old_dir="$(python3 "$facts" aside "$path" | sed -n 's/^OLD=//p')" || {
+            echo "x could not move the existing venv aside." >&2
+            return 1
+        }
+        echo "  Rebuilding $path (the previous venv is kept at $old_dir until the new one is proven)"
+    fi
+    # From here on a failure restores the old venv (when one was moved aside) and records nothing.
+    _restore_on_failure() {
+        local rc="$1"
+        if [[ -n "$old_dir" ]]; then
+            python3 "$facts" restore "$path" >/dev/null 2>&1 && echo "  The previous venv was restored at $path." >&2
+        fi
+        return "$rc"
+    }
 
     # Auto-collect requirements from profile's addons_path when not explicit.
     # When profile is given, read the specific (series, profile) instance so we
@@ -842,20 +966,27 @@ cmd_create_venv() {
             ;;
         uv)
             command -v uv >/dev/null 2>&1 || { echo "x 'uv' not found. Install uv or use --tool pip." >&2; return 1; }
-            if [[ -n "$pyver" ]]; then uv venv "$path" --python "$pyver"; else uv venv "$path"; fi
-            if [[ ${#reqs_list[@]} -gt 0 ]]; then
-                local r
-                for r in "${reqs_list[@]}"; do
-                    if [[ -f "$r" ]]; then
-                        echo "  Installing requirements: $r"
-                        uv pip install --python "$path/bin/python" -r "$r" \
-                            || { echo "x dependency install failed for $r (check system build deps)." >&2; return 1; }
-                    else
-                        echo "  Warning: requirements file not found, skipping: $r" >&2
-                    fi
-                done
+            if [[ -n "$pyver" ]]; then uv venv "$path" --python "$pyver" || { _restore_on_failure 1; return 1; }
+            else uv venv "$path" || { _restore_on_failure 1; return 1; }; fi
+            local -a uv_args=() present_reqs=()
+            [[ -n "$override" ]] && uv_args+=(--override "$override")
+            local r
+            for r in "${reqs_list[@]+"${reqs_list[@]}"}"; do
+                if [[ -f "$r" ]]; then present_reqs+=("$r"); else echo "  Warning: requirements file not found, skipping: $r" >&2; fi
+            done
+            if [[ ${#present_reqs[@]} -gt 0 ]]; then
+                echo "  Installing requirements: ${present_reqs[*]}${override:+ (override: $override)}"
+                local -a req_flags=()
+                for r in "${present_reqs[@]}"; do req_flags+=(-r "$r"); done
+                uv pip install --python "$path/bin/python" "${uv_args[@]+"${uv_args[@]}"}" "${req_flags[@]}" \
+                    || { echo "x dependency install failed (check system build deps)." >&2; _restore_on_failure 1; return 1; }
             else
                 echo "  (no requirements.txt found - venv created empty; install deps manually)"
+            fi
+            if [[ ${#extras[@]} -gt 0 ]]; then
+                echo "  Installing extras: ${extras[*]}"
+                uv pip install --python "$path/bin/python" "${uv_args[@]+"${uv_args[@]}"}" "${extras[@]}" \
+                    || { echo "x extra install failed: ${extras[*]}" >&2; _restore_on_failure 1; return 1; }
             fi
             ;;
         pip)
@@ -876,20 +1007,24 @@ cmd_create_venv() {
                     return 3
                 fi
             fi
-            "$py" -m venv "$path" || { echo "x venv creation failed." >&2; return 1; }
+            "$py" -m venv "$path" || { echo "x venv creation failed." >&2; _restore_on_failure 1; return 1; }
             if [[ ${#reqs_list[@]} -gt 0 ]]; then
                 local r
                 for r in "${reqs_list[@]}"; do
                     if [[ -f "$r" ]]; then
                         echo "  Installing requirements: $r"
                         "$path/bin/pip" install -r "$r" \
-                            || { echo "x dependency install failed for $r (check system build deps)." >&2; return 1; }
+                            || { echo "x dependency install failed for $r (check system build deps)." >&2; _restore_on_failure 1; return 1; }
                     else
                         echo "  Warning: requirements file not found, skipping: $r" >&2
                     fi
                 done
             else
                 echo "  (no requirements.txt found - venv created empty; install deps manually)"
+            fi
+            if [[ ${#extras[@]} -gt 0 ]]; then
+                echo "  Installing extras: ${extras[*]}"
+                "$path/bin/pip" install "${extras[@]}" || { echo "x extra install failed: ${extras[*]}" >&2; _restore_on_failure 1; return 1; }
             fi
             ;;
         *) echo "x Unknown --tool '$tool'. Use uv or pip." >&2; return 2 ;;
@@ -905,7 +1040,7 @@ cmd_create_venv() {
     local venv_py="$path/bin/python"
     if [[ ! -x "$venv_py" ]]; then
         echo "x venv python not found at $venv_py - creation failed." >&2
-        return 1
+        _restore_on_failure 1; return 1
     fi
     # Resolve core_bin: use the profile-specific INST_ADDONS_PATH when available
     # (set during the auto-collect requirements block above), else fall back to the
@@ -923,19 +1058,27 @@ cmd_create_venv() {
         echo "  locally. Add the core repo (the dir containing that launcher) to this" >&2
         echo "  series' addons_path and" >&2
         echo "  re-run. The 'python' field was NOT recorded." >&2
-        return 1
+        _restore_on_failure 1; return 1
     fi
     if ! "$venv_py" "$core_bin" --version >/dev/null 2>&1; then
         echo "x '$venv_py $core_bin --version' failed - the venv cannot run Odoo." >&2
         echo "  The venv is missing Odoo's deps (lxml/psycopg2/...). Pass --requirements" >&2
         echo "  <repo>/requirements.txt for every repo. 'python' was NOT recorded." >&2
-        return 1
+        _restore_on_failure 1; return 1
     fi
 
     # The packages the checkout's test framework imports only when present (no
     # requirements.txt lists them; without them every browser, tour and Hoot test
     # skips). Never fatal - the venv runs Odoo either way.
     _install_test_deps "$tool" "$path" "$(dirname "$core_bin")"
+    # Lint packages an addon's own tests import optionally (pylint-odoo, flake8): suggested,
+    # never installed silently - pass them as --extra when the row's tests need them.
+    if [[ -n "${INST_ADDONS_PATH:-}" ]]; then
+        _addons_path_to_array _lint_dirs "${INST_ADDONS_PATH}"
+        python3 "$facts" lint-extras "${_lint_dirs[@]+"${_lint_dirs[@]}"}" 2>/dev/null | while IFS= read -r _l; do
+            [[ -n "$_l" ]] && echo "  $_l (an addon's tests import it; add --extra ${_l#SUGGESTED_EXTRA=} to install it)"
+        done
+    fi
 
     # Record the VERIFIED environment facts on the instance so step 50 and the
     # allocator use them: `python` (the interpreter just proven able to run
@@ -943,8 +1086,26 @@ cmd_create_venv() {
     # resolve for a source checkout), and the Postgres client surface
     # (`db_run_mode`/`db_container`). Matches on (series, profile) and INSERTS a
     # key whose line is absent, so a catalog written before a key existed gains it.
+    # The override is copied next to the venv (a worktree or scratch path would rot) and recorded
+    # with the hash of the upstream lines it overrides, so a later rebuild sees the pin move.
+    local -a venv_keys=()
+    if [[ -n "$override" ]]; then
+        local basis_line
+        basis_line="$(python3 "$facts" basis "$override" "${reqs_list[@]+"${reqs_list[@]}"}" | sed -n 's/^BASIS=//p')"
+        venv_keys+=("uv_override=$override" "uv_override_basis=$basis_line")
+    elif [[ "$no_override" -eq 1 ]]; then
+        venv_keys+=("uv_override=" "uv_override_basis=")
+    fi
+    if [[ "$extras_given" -eq 1 || "$no_recorded" -eq 1 ]]; then
+        venv_keys+=("extra_requirements[]+=")
+        local _x; for _x in "${extras[@]+"${extras[@]}"}"; do venv_keys+=("extra_requirements[]+=$_x"); done
+    fi
     local _rec_rc=0
-    _record_env_facts "$series" "$profile" "$venv_py" "$(dirname "$core_bin")" || _rec_rc=$?
+    _record_env_facts "$series" "$profile" "$venv_py" "$(dirname "$core_bin")" "${venv_keys[@]+"${venv_keys[@]}"}" || _rec_rc=$?
+    if [[ -n "$old_dir" ]]; then
+        python3 "$facts" finish "$path" >/dev/null || true
+        echo "  The previous venv was removed."
+    fi
     _report_db_preflight "$series" "$profile"
     # A detector that could not decide is reported, not fatal: the venv IS ready
     # and every non-ephemeral mode works without the client-surface fact.

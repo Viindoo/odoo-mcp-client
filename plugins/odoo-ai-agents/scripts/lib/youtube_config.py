@@ -9,7 +9,8 @@ consumer in this plugin names):
   slot             = "docs"        # which configured value holds this channel's refresh token:
                                    # docs | marketing | third (one channel per slot)
   channel          = "Acme Docs"   # a label for reports
-  privacy          = "unlisted"    # default privacy of an upload: unlisted (default) | private | public
+  privacy          = "unlisted"    # default privacy of an upload: unlisted (default) | private
+                                   # (never public: public is an explicit per-upload choice)
   playlist_id      = "PL..."       # optional
   default_language = "vi"          # optional BCP-47 default for title/description
 
@@ -54,6 +55,7 @@ FILE_NAME = "youtube.toml"
 SLOTS = ("docs", "marketing", "third")
 CHANNEL_KEYS = ("slot", "channel", "privacy", "playlist_id", "default_language")
 PRIVACY = ("unlisted", "private", "public")
+DEFAULT_PRIVACY = ("unlisted", "private")   # a channel DEFAULT is never public: public is said per upload, explicitly
 PURPOSE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 LANG_RE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]+)*$")
 # the plugin options (plugin.json userConfig) the odoo-media server receives, per slot
@@ -122,8 +124,9 @@ def validate_channel(purpose, table):
                         "refresh token)" % (purpose, " | ".join(SLOTS)))
     if not isinstance(table.get("channel"), str) or not table["channel"].strip():
         problems.append("[channels.%s] channel: a non-empty label" % purpose)
-    if table.get("privacy", "unlisted") not in PRIVACY:
-        problems.append("[channels.%s] privacy: one of %s" % (purpose, " | ".join(PRIVACY)))
+    if table.get("privacy", "unlisted") not in DEFAULT_PRIVACY:
+        problems.append("[channels.%s] privacy: one of %s (public is never a default - it is passed "
+                        "explicitly per upload, where a human confirms it)" % (purpose, " | ".join(DEFAULT_PRIVACY)))
     if "playlist_id" in table and (not isinstance(table["playlist_id"], str) or not table["playlist_id"].strip()):
         problems.append("[channels.%s] playlist_id: a non-empty id" % purpose)
     if "default_language" in table and not LANG_RE.match(str(table["default_language"])):
