@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   session start prints the result once. Both halves are also commands the operator can run
   (`scripts/lib/upgrade_values.py apply`, `migrate_connection.py apply`), and `connect` plus the
   `voice` / `youtube` setup steps hand them over when they find an earlier form.
+- `odoo-ai-agents` - **the App Store page upsells the vendor's extensions.** A last, full-width
+  EXTENSIONS section (app-store-template § 2 row 13) lists the vendor's own modules that depend on
+  the documented one, each a card with the display name linked root-relative
+  (`/apps/modules/<series>/<module>`, valid on the vendor's marketplace and the Odoo Apps Store) and
+  the outcome of adding it; the list comes from the manifests on disk (`module_dependents.py`), never
+  from memory, and "Required modules" links the vendor's own dependencies the same way. The
+  reference gate gains `--addons-path` and `LINK_MODULE_UNKNOWN` for a store link to a module that
+  is not there.
 - `odoo-ai-agents` - **a second local MCP server, `odoo-media`, carries every value the operator
   configures through the plugin's own dialog.** The narration speech endpoint's value and the
   YouTube OAuth client and refresh tokens are `userConfig` options of `plugin.json` (Claude Code's
