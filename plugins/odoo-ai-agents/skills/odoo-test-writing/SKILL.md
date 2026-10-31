@@ -151,7 +151,8 @@ code.
   `depends` edge has no "last module", so host it in the primary module. A `KeyError` on a symbol
   you know exists there is this staging bug, not a code defect.
 - **Comments** follow `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`: the method name
-  already states the rule, so never repeat it; no attribution, no break narration. Test locals follow
+  already states the rule, so never repeat it; no attribution, no break narration; a docstring,
+  where one is needed, in the rst field form of its § 5. Test locals follow
   `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`.
 
 Static check before running: imports resolve, `@api.depends` paths used in `Form` interactions pass

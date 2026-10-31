@@ -22,31 +22,49 @@ respects, the reason that still holds. It never narrates steps the reader can se
 ## 3. Banned outright
 
 - **Attribution / self-defense** - "this bug pre-existed", "not introduced by this change", "kept
-  for safety", "as requested in review". You address a reviewer, not the next reader; it is noise
-  the moment the change merges.
+  for safety", "as requested in review": noise the moment the change merges.
 - **Process narration** - "first tried X, then Y", "after investigating", "refactored from".
 - **Provenance** - ticket/PR numbers, dates, author or agent names, "used by X", "added for the Y
   flow". Those belong in the commit message.
 - **Before/after** - "no longer", "previously", "the new behavior". (An EXTERNAL Odoo version fact
   such as an API removed in a given series is domain knowledge - keep it.)
-- **Unshippable references** - anything that does not exist in the repository the code ships in: a
-  design doc, survey, worklog, review, QA oracle, plan or evidence file under the run's state dir,
-  an absolute or worktree path, a run id, slug, or instance handle. Your brief hands you those as
-  inputs; they are YOUR working context, and they will not exist for whoever opens the file next.
-  State the reason itself, never where you read it.
+- **Unshippable references** - anything outside the repository the code ships in: a design doc,
+  worklog, review, oracle or plan under the run's state dir, an absolute or worktree path, a run
+  id, slug or instance handle. State the reason itself, never where you read it.
 - **Commented-out code**, and banner or separator comment blocks.
 
 ## 4. Volume ceiling
 
 One short line is the norm. Never a multi-paragraph docstring, nor a multi-line block where one
 line carries the point. A block over three lines needs a reason you can state; absent one, cut it.
+A docstring's field list (§ 5) is the contract, not a block in this sense.
 
 ## 5. Docstrings
 
-A docstring gives the caller the CONTRACT the signature cannot: what the method guarantees, what
-it assumes, what it raises, units and side effects. Never one restating the method name
-(`"""Compute the total."""` on `_compute_total`), never a parameter list the names and field types
-already tell you.
+A docstring gives the caller the CONTRACT the signature cannot: what the thing is for, what it
+guarantees and assumes, what it returns, what it raises and when, units and side effects (a
+database write, a bus message, a commit). It says WHAT, never HOW: changing the implementation
+must not require changing the docstring. Never one restating the name (`"""Compute the total."""`
+on `_compute_total`).
+
+A Python docstring - module, class, method, function - is written in reStructuredText field
+syntax on every series:
+
+```python
+def action_publish(self, when=None):
+    """Publish the page and notify its followers.
+
+    :param when: publication time; ``None`` publishes now
+    :return: the published pages
+    :raises UserError: when the page has no space
+    """
+```
+
+Markers: `:param name:`, `:type name:`, `:return:`, `:rtype:`, `:raises Exc:`; inline code in
+double backticks. A parameter whose name and type already say what it is gets no `:param:` line;
+one with a non-obvious meaning, a unit, a default sentinel or a type the signature does not show
+gets one. `Args:` / `Returns:` / `Raises:` sections (Google or NumPy style), and free prose where a
+field belongs, are not written. JavaScript keeps the JSDoc of core Odoo of the same series.
 
 Odoo: a `_compute_*` / `_inverse_*` / `_search_*` / `@api.constrains` / `@api.onchange` method
 needs a docstring only when the RULE it enforces is not derivable from the code. An override of a
@@ -61,10 +79,9 @@ core method states WHY it exists - the behavior it adds - never that it is an ov
 
 ## Precedence over the upstream lines
 
-The verbatim coding-guidelines extractions say to document your code with docstrings on methods
-and JSDoc on functions. Both are a PERMISSION, not a quota - neither requires a docstring on a
-method whose name already carries the contract. Where they and this file differ, THIS contract
-governs. (`@override` naming the parent it overrides survives: the code cannot show that.)
+The coding-guidelines line "document your code" is a PERMISSION, not a quota: it requires no
+docstring on a method whose name already carries the contract. Where it and this file differ,
+THIS contract governs. (`@override` naming the parent survives: the code cannot show that.)
 
 ## In review
 
@@ -72,4 +89,5 @@ governs. (`@override` naming the parent it overrides survives: the code cannot s
 |---|---|
 | Attribution, narration, provenance, before/after, or an unshippable reference | MED |
 | Comment or docstring that only restates what the code or identifier says | LOW |
+| Python docstring in Google or NumPy style (`Args:`, `Returns:`, `Raises:`), or prose where a field belongs | LOW - the fix is the rst field form of § 5 |
 | Missing comment where a non-obvious, load-bearing constraint is invisible | MED |
