@@ -6,6 +6,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - **the App Store page is a buyer's decision path, not a condensed manual.**
+  `app-store-template.md` is one column of eight sections in the order a developer, an owner or a
+  consultant decides (hero with the compatibility line, three "what changes for your team" blocks
+  each tied to one verified feature and one proof shot, the video, ready on day one, what is
+  included and the vendor's extensions, five FAQ, try-and-support, technical requirements) with
+  no tab block; the reference gate measures the targets (`PAGE_TOO_LONG` over 700 words,
+  `PAGE_TOO_MANY_IMAGES` over 8 images); `odoo-marketer` runs at opus for a landing page and
+  landing-page copy, writes no price figure and no heading that pushes, and reads editions,
+  series, license and languages from the manifest.
+- `odoo-ai-agents` - **Python docstrings follow one contract**: WHAT not HOW, in reStructuredText
+  field syntax on every series (`code-comment-contract.md` § 5); the R1 review pass flags a
+  Google- or NumPy-style docstring, the coder checks its own before running.
+
+### Fixed
+
+- `odoo-ai-agents` - **`speech_voices` answers on a gateway that publishes no voice listing**:
+  `voices` is `null` and the model ids still come back; a 401, a TLS error or a dead host still
+  fails loudly. The voice step of `odoo-setup` takes the voice ids from the endpoint's
+  documentation in that case and confirms them with `speech_probe`.
+- `odoo-ai-agents` - **a YouTube video shows on the Odoo Apps Store**: the page uses the Odoo
+  website video container (`media_iframe_video` with `data-oe-expression`), which the store's
+  frontend rebuilds after stripping a bare `<iframe>`; a YouTube anchor with no visible text
+  passes the reference gate.
+- `odoo-ai-agents` - **`odoo-version-pivots.md` names the right `hr` test per series**: the
+  `groups=` assertion `test_employee_fields_groups` lives in `TestSelfAccessProfile` at v18 and
+  `TestSelfAccessPreferences` from v19; v16 and v17 ship no core test for it.
+- `tests` - **the suite runs on macOS**: an unstattable PATH entry is skipped when the PATH farm is
+  built, and the session-end process sweep returns when `/proc` does not exist.
+
 ## [8.2.1] - 2026-10-24
 
 ### Fixed
