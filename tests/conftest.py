@@ -184,7 +184,10 @@ def _build_farm(tmp_path_factory: "pytest.TempPathFactory", drop: frozenset) -> 
             if link.is_symlink() or link.exists():
                 continue  # first hit wins - ambient PATH precedence is preserved
             src = Path(entry) / name
-            if src.is_dir() or not os.access(src, os.X_OK):
+            try:
+                if src.is_dir() or not os.access(src, os.X_OK):
+                    continue
+            except OSError:
                 continue
             try:
                 link.symlink_to(src)
@@ -319,6 +322,8 @@ def _reap_processes_left_under_basetemp(tmp_path_factory: "pytest.TempPathFactor
     try:
         base = str(tmp_path_factory.getbasetemp().resolve())
     except (OSError, AttributeError):
+        return
+    if not Path("/proc").is_dir():
         return
     # Our OWN process group is excluded, and that is not a nicety: pytest's command line carries
     # `--basetemp=<path>`, so the first version of this sweep matched the runner itself and killed
