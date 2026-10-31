@@ -74,7 +74,9 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    currency, company or timezone; `hasattr` or `getattr` default as a presence probe;
    `position="replace"` in an inherited view; a bare `inherit_id`; a hardcoded database id; a
    boolean `and` / `or` hand-wrapped across lines (`${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`
-   § Python wrapping).
+   § Python wrapping); `Args:`, `Returns:` or `Raises:` inside a triple-quoted string of a `.py`
+   file (a Google or NumPy docstring -> LOW, the fix is the rst field form of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 5).
    A `_name`, `_inherit` or `_inherits` value that is not a string literal (or a list or dict of
    literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
 7. **Conventions**: every section of every guideline file you read for the file types in
