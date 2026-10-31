@@ -8,9 +8,8 @@ over `LARGE_FILE_THRESHOLD` (20480B) that carries no `'§ <anchor>'` within `REF
 (150) chars - a whole-file citation for one clause. That half is shipped WARN-ONLY in the CLI
 (`check_orchestration.py --strict` never gates on it for one release, per its own docstring), by
 deliberate design: there is a real, already-documented backlog of pre-existing oversize files
-(dominated by `skills/_shared/odoo-frontend-fidelity.md` and
-`snippets/visual-evidence-lifecycle-contract.md` - named in `check_ref_scope_citation_anchor`'s
-own docstring as "neither named by the design as requiring an immediate sweep").
+(`snippets/visual-evidence-lifecycle-contract.md` - named in `check_ref_scope_citation_anchor`'s
+own docstring as not requiring an immediate sweep).
 
 Because the CLI check never gates, NOTHING enforced "a widely-cited snippet must not silently
 cross the threshold." `snippets/state-root-resolution.md` sat at 20403B on master - deliberately
@@ -74,10 +73,10 @@ from generator import check_orchestration as co  # noqa: E402
 REF_SCOPE_DOMINANCE_CITERS = 15
 
 # Already-documented pre-existing backlog (named in check_ref_scope_citation_anchor's own
-# docstring), given a wider - but still bounded, never infinite - ceiling. Comfortably above their
-# measured-today counts (22 and 19), nowhere near the 66-citer regression shape.
+# docstring), given a wider - but still bounded, never infinite - ceiling, comfortably above its
+# measured citer count and nowhere near the 66-citer regression shape. A file that drops under
+# LARGE_FILE_THRESHOLD leaves this map (the default covers it).
 REF_SCOPE_KNOWN_BACKLOG_CEILING = {
-    "skills/_shared/odoo-frontend-fidelity.md": 35,
     "snippets/visual-evidence-lifecycle-contract.md": 35,
 }
 

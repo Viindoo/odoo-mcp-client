@@ -34,8 +34,7 @@ scaffold (v17) emits lines such as:
 ```
 
 Keep those comment lines exactly as generated. Uncomment and fill a key only when the task
-explicitly needs it. Deleting scaffold comment lines loses the placeholder intent and makes
-future extension harder.
+explicitly needs it.
 
 The same principle applies to the full skeleton (`models/`, `views/`, `__init__.py`, etc.):
 fill only what is needed, preserve what is not yet needed.

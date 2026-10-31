@@ -1,23 +1,16 @@
 # Odoo Instance Lifecycle - install vs upgrade vs reinstall (method, not hardcoded facts)
 
-> **Read this as a decision *framework*, not a version fact-sheet.** Odoo CLI flags,
-> subcommands and module semantics differ across supported Odoo versions. The version-specific
-> details below are **illustrative snapshots** - before you act on any of them for a given
-> target version, **confirm against OSM**: `set_active_version(<target>)` then
-> `cli_help(command, flag, odoo_version='<version>')` for CLI facts, and `api_version_diff` / `find_deprecated_usage`
-> / `module_inspect` for API/era facts. OSM + the running instance are the ground truth.
+> A decision *framework*, not a version fact-sheet: CLI flags, subcommands and module semantics
+> differ across series. Before acting on any detail below for a target version, confirm it against
+> OSM - `set_active_version(<target>)`, then `cli_help(command, flag, odoo_version='<version>')`
+> for CLI facts and `api_version_diff` / `find_deprecated_usage` / `module_inspect` for API/era
+> facts. OSM + the running instance are the ground truth.
 >
-> Consumed by: `odoo-deploy-checklist`, `odoo-qa-suite`, the plan's verification nodes
-> (when building/refreshing an instance), the upgrade command chain, and the `setup` scripts.
->
-> **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
-> high-level interface for build/drop/init/update/test operations on a local instance; they drive
-> it through the `odoo-local` MCP tools (`lease_acquire`, `instance_build` + `job_wait`,
-> `instance_serve`, `lease_release`), with the allocator CLI as fallback
-> (`INSTANCE-ALLOCATION-API.md` §6). Persistent
-> operation logs live under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`. This
-> reference doc covers the underlying semantics those operations rely on - including, since the
-> lifecycle does not end at "server answers", the teardown half owned by
+> **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent drive
+> build/drop/init/update/test through the `odoo-local` MCP tools (`lease_acquire`,
+> `instance_build` + `job_wait`, `instance_serve`, `lease_release`), with the allocator CLI as
+> fallback (`INSTANCE-ALLOCATION-API.md` §6). Operation logs:
+> `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`. The teardown half is owned by
 > `INSTANCE-LIFECYCLE-TEARDOWN.md`.
 
 ## Decision tree - what did you change?
@@ -69,8 +62,8 @@
 
 ## Parts - what each file owns
 
-The decision tree, the `-i`/`-u` semantics and the traps above stay here. The two long halves
-live in part files; cite the PART that owns the fact you need.
+The decision tree, the `-i`/`-u` semantics and the traps stay here; cite the PART that owns the
+fact you need.
 
 | File | Owns |
 |------|------|

@@ -1,14 +1,10 @@
 # Odoo Failure Modes - by-layer symptom -> root-cause -> localize catalog (SSOT)
 
-> Shared grounding doc for the debug front-door (`odoo-debug`) and its specialist agents. It maps
-> recurring Odoo failure modes per layer to their usual root causes and the OSM tool that localizes
-> them, so a debug run starts from known territory. The rows are stable knowledge; any concrete
+> Grounding for `odoo-debug` and its specialist agents: recurring failure modes per layer, their
+> usual root causes and the OSM tool that localizes them. The rows are stable; any concrete
 > signature / token / field is version-specific - confirm it for the target version via OSM
-> (`set_active_version` first) before relying on it. Skills/agents cross-reference this doc; they do
-> not duplicate it.
->
-> Each row is: **symptom -> likely root cause -> how to localize**. Use it to pick a falsifiable
-> hypothesis (see `debug-method.md` step 3), not as a list of fixes to apply blindly.
+> (`set_active_version` first). Use a row to pick a falsifiable hypothesis (`debug-method.md`
+> step 3), never as a fix to apply blindly.
 
 ---
 
@@ -39,10 +35,9 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 
 ## Layer: JS / OWL / QWeb / SCSS (frontend runtime) - BROWSER
 
-> This layer needs live browser evidence (console/network/DOM) AND code grounding. It is the
-> exclusive-serial leg per MCP family: never run two browser-driving agents on the SAME family
-> at once (shared Chromium/session) - the shared-Chromium risk is per-family, not cross-family;
-> distinct families may run in parallel (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).
+> Needs live browser evidence (console/network/DOM) AND code grounding. Never run two
+> browser-driving agents on the SAME MCP family at once (shared Chromium/session); distinct families
+> may run in parallel (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).
 
 | Symptom | Likely root cause | Localize with |
 |---|---|---|
@@ -53,9 +48,9 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 | Flat / off-theme render | token resolves EMPTY or self-referential `--bs-*` cycle (Odoo sets `$variable-prefix:''`) | `getComputedStyle(:root)`; see `odoo-frontend-fidelity.md` token-reality check |
 | JS error after upgrade | core API symbol changed/removed | console stack; `lookup_core_api`, `api_version_diff` |
 
-> Known gap: OSM has `find_override_point` for Python but no dedicated JS/OWL override-point tool.
-> Infer JS/OWL location from `module_inspect(name='<module>', method='js', odoo_version='<version>')` (also try `method='owl'`) + `find_examples` +
-> `suggest_pattern`, and state the inference explicitly rather than over-claiming certainty.
+> OSM has no dedicated JS/OWL override-point tool: infer the location from
+> `module_inspect(name='<module>', method='js', odoo_version='<version>')` (also `method='owl'`) +
+> `find_examples` + `suggest_pattern`, and state the inference as such.
 
 ## Layer: Security / Access
 

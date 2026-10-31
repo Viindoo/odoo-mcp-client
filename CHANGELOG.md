@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `odoo-ai-agents` - **the modular-architecture and forward-port contracts carry instructions
+  only.** `modularity-contract.md`, `odoo-platform-design-principles.md`, `odoo-module-graph.md`,
+  `test-sensitivity-contract.md`, `test-scope-contract.md`, `odoo-frontend-fidelity.md`,
+  `odoo-failure-modes.md`, `INSTANCE-LIFECYCLE.md`, `fp-merge-absorption.md` and
+  `fp-installable-false.md` lose their rationale, history and restatements of other files; every
+  rule, path, condition, severity, citation and section heading stays, and each file's byte budget
+  is recorded at its new size.
+
 ### Fixed
 
 - `odoo-ai-agents` - **the forward-port manifest version follows the code a module carries.** C1
