@@ -5,25 +5,53 @@ Subcommands (stdlib + ffmpeg/ffprobe on PATH):
   verify-tools [--font F]  what this machine can do (ffmpeg, the filters, title card via drawtext or
             libass, the font and its Vietnamese coverage) - run BEFORE recording; exit 1 on a gap.
   speedup   --clip scene.mp4 --events scene.events.json --out scene-paced.mp4 [--typing 3] [--travel 2]
-            [--wait-keep 1]   the dead time the recorder logged (typing, cursor travel, page loads,
-            waits) plays faster or is cut to its first second; everything else stays 1x.
+            [--wait-keep 1] [--wait-squeeze 1.0] [--must-see "s,e;s,e"]   the dead time the recorder
+            logged (typing, cursor travel, page loads, waits) plays faster; a wait keeps its first
+            --wait-keep seconds at 1x and the rest is time-compressed into --wait-squeeze seconds so the
+            viewer sees the indicator move fast (0 = cut it). Kinds hold, voice_in and voice_out stay 1x
+            and are counted in SPANS. Any logged span overlapping a --must-see range plays at 1x in full
+            (MUST_SEE_KEPT=n). A key_visible span means the take must not ship: prints
+            KEY_VISIBLE=n, writes no output, exit 6. Everything else stays 1x.
   zoom      --clip scene.mp4 --focus x,y,w,h --from s --to s --out scene-zoomed.mp4 [--factor 1.6]
             a smooth punch-in on the area that matters (ease in, hold, ease out) at output resolution.
   audition  --narration a.wav [--narration b.wav ...] --out-dir D [--music bed.mp3]
             the same line per candidate voice, dry and with the music bed, for the owner to pick once.
-  fit       --clip scene.mp4 --narration scene.wav --out scene-fitted.mp4 [--lead-in 0.5] [--max-hold 3]
-            [--fade 0.3] [--max-silence 3.0]  The narration starts after the lead-in; when it outlasts the clip the
-            last frame is held; a short fade closes the scene. Prints DURATION_S.
+  fit       --clip scene.mp4 [--narration scene.wav] --out scene-fitted.mp4 [--lead-in 0.5] [--max-hold 3]
+            [--fade 0.3] [--max-silence 3.0] [--voice FILE@T ...]  The narration starts after the lead-in; when it
+            outlasts the clip the last frame is held; a short fade closes the scene. Each --voice (repeatable)
+            is another audio track (the page's spoken answer, the voice input) mixed in at T seconds on the
+            output timeline, loudness-matched to the narration. Prints DURATION_S and VOICES=n.
+            Without --narration (a silent clip) the video keeps its own length (no hold, no lead-in), the
+            --fade still closes it, the output carries a silent AAC 48 kHz stereo track so every fitted
+            clip has one audio layout, and NARRATION=none is printed.
+
+List file (concat --list, sidecar --list): one ABSOLUTE path per line, in play order, blank lines
+ignored. Not ffmpeg's own `file '...'` syntax - concat writes that itself. Both commands check the
+list before any ffmpeg call and refuse a line that is not an existing file: `ERROR=list: <line>: not
+a file` on stdout, exit 1.
+
+Exit codes: 0 ok, 1 failure, 2 tool missing, 4 silence over the limit, 5 held frame over the limit,
+6 a key field was shown on screen in the take (speedup).
   concat    --list clips.txt --out video.mp4  Concatenates fitted scenes (ffmpeg concat demuxer,
-            re-encoded once) and applies two-pass loudnorm to the profile target.
+            re-encoded once) and applies two-pass loudnorm to the profile target. An input without an
+            audio stream first gets a silent AAC 48 kHz stereo track of its length. When nothing is
+            audible (measured loudness -inf) the second pass is skipped, the output keeps a plain AAC
+            48 kHz stereo track and LOUDNESS=silent is printed.
   title     --text "..." --out card.mp4 --seconds 3 [--font ttf] [--size 1920x1080]
             A title card rendered from storyboard text (needs an ffmpeg with drawtext).
-  verify    --video video.mp4 --profile youtube-1080p  Reads ffprobe + ebur128 and prints one
-            KEY=OK|FAIL line per rule; exit 1 on any FAIL.
-  sidecar   --storyboard SB.json --lang xx_YY --durations D.json --out-dir DIR
-            Writes <lang>.srt (one cue per scene, timed by the measured durations), <lang>.txt
-            (title, description, chapters at the real offsets) and prints the paths.
-  thumbnail --video video.mp4 --at 2.0 --out thumb.jpg  A 1280x720 JPEG under 2 MB.
+  verify    --video video.mp4 --profile youtube-1080p [--silent]  Reads ffprobe + ebur128 and prints one
+            KEY=OK|FAIL line per rule; exit 1 on any FAIL. With --silent a deliverable with no signal at
+            all (loudness -inf) passes LOUDNESS and TRUE_PEAK and SILENT=1 is printed; the audio stream
+            rules (AAC, 48 kHz, stereo) still apply. Without it -inf fails.
+  sidecar   --storyboard SB.json --lang xx_YY --list clips.txt --out-dir DIR [--narration-dir DIR]
+            [--lead-in S]   --list is the file concat consumed; each chapter starts where the REAL
+            durations (ffprobe) of the preceding entries end. An entry whose basename starts with
+            `title` is the title card: not a chapter, but it counts in the offset. Writes <lang>.txt
+            (title, description, chapters) and, only with --narration-dir (<scene id>.wav per scene),
+            <lang>.srt (the scene's caption lines run from its chapter start plus --lead-in over the
+            narration duration); otherwise prints CAPTIONS=none. Prints the paths and TOTAL_S.
+  thumbnail --video video.mp4 --at 2.0 --out thumb.jpg  A 1280x720 JPEG under 2 MB. A missing or
+            unreadable --video prints `ERROR=<path>: not a file` (exit 1).
   preview   --video video.mp4 --out preview.mp4 [--max-mb 10]  Same picture, higher CRF, under the cap.
 
 Publish profile `youtube-1080p` (the only profile shipped): MP4 with faststart; H.264 High,
@@ -44,6 +72,7 @@ import sys
 
 NARRATION_LUFS = -16   # integrated loudness every narration clip is brought to before the mix
 NARRATION_TP = -1.5
+SILENCE_SRC = "anullsrc=r=48000:cl=stereo"   # lavfi source of a silent stereo track
 
 PROFILES = {
     "youtube-1080p": {
@@ -106,8 +135,10 @@ def audio_args(profile):
 def cmd_fit(args):
     _need("ffmpeg")
     clip_s = duration_of(args.clip)
-    narration_s = duration_of(args.narration)
     fps = frame_rate_of(args.clip) or 25.0
+    if not args.narration:
+        return _fit_silent(args, clip_s, fps)
+    narration_s = duration_of(args.narration)
     total = max(clip_s, args.lead_in + narration_s + args.fade)
     hold = max(0.0, total - clip_s)
     if hold > args.max_hold:
@@ -126,8 +157,32 @@ def cmd_fit(args):
     # in concat then only evens the whole file
     af = "loudnorm=I=%s:TP=%s:LRA=11,aresample=48000,adelay=%d|%d,apad=whole_dur=%.3f" % (
         NARRATION_LUFS, NARRATION_TP, int(args.lead_in * 1000), int(args.lead_in * 1000), total)
-    cmd = ["ffmpeg", "-v", "error", "-y", "-i", args.clip, "-i", args.narration,
-           "-filter_complex", "[0:v]%s[v];[1:a]%s[a]" % (vf, af), "-map", "[v]", "-map", "[a]",
+    voices = []
+    for spec in args.voice or []:
+        path, sep, at = spec.rpartition("@")
+        try:
+            voices.append((path, float(at)))
+            if not sep or not path:
+                raise ValueError(spec)
+        except ValueError:
+            print("x --voice wants FILE@SECONDS, got %r" % spec, file=sys.stderr)
+            return 1
+    inputs = ["-i", args.clip, "-i", args.narration]
+    fc = "[0:v]%s[v];" % vf
+    if voices:
+        fc += "[1:a]%s,aformat=channel_layouts=stereo[n]" % af
+        for i, (path, at) in enumerate(voices, 2):
+            ms = int(round(at * 1000))
+            inputs += ["-i", path]
+            # a voice track is levelled like the narration so neither drowns the other
+            fc += (";[%d:a]loudnorm=I=%s:TP=%s:LRA=11,aresample=48000,adelay=%d|%d,"
+                   "aformat=channel_layouts=stereo[x%d]" % (i, NARRATION_LUFS, NARRATION_TP, ms, ms, i))
+        fc += ";[n]%samix=inputs=%d:duration=longest:dropout_transition=0:normalize=0,asetpts=N/SR/TB[a]" % (
+            "".join("[x%d]" % i for i in range(2, 2 + len(voices))), len(voices) + 1)
+    else:
+        fc += "[1:a]%s[a]" % af
+    cmd = ["ffmpeg", "-v", "error", "-y"] + inputs + [
+           "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
            "-t", "%.3f" % total] + video_args(args.profile, fps) + audio_args(args.profile) + [args.out]
     proc = _run(cmd)
     if proc.returncode != 0:
@@ -136,6 +191,7 @@ def cmd_fit(args):
     print("OUT=%s" % args.out)
     print("DURATION_S=%.3f" % total)
     print("HOLD_S=%.3f" % hold)
+    print("VOICES=%d" % len(voices))
     print("SILENT_S=%.3f" % silent)
     if silent > args.max_silence:
         print("SILENCE=over")
@@ -144,6 +200,38 @@ def cmd_fit(args):
         return 4
     print("SILENCE=ok")
     return 0
+
+
+def _fit_silent(args, clip_s, fps):
+    """A clip with no narration: its own length, the closing fade, a silent AAC track."""
+    if args.voice:
+        print("x --voice needs --narration", file=sys.stderr)
+        return 1
+    vf = "fade=t=out:st=%.3f:d=%.3f" % (max(0.0, clip_s - args.fade), args.fade)
+    cmd = ["ffmpeg", "-v", "error", "-y", "-i", args.clip, "-f", "lavfi", "-i", SILENCE_SRC,
+           "-filter_complex", "[0:v]%s[v]" % vf, "-map", "[v]", "-map", "1:a",
+           "-t", "%.3f" % clip_s] + video_args(args.profile, fps) + audio_args(args.profile) + [args.out]
+    proc = _run(cmd)
+    if proc.returncode != 0:
+        print("x ffmpeg fit failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
+        return 1
+    print("OUT=%s" % args.out)
+    print("NARRATION=none")
+    print("DURATION_S=%.3f" % clip_s)
+    print("HOLD_S=0.000")
+    print("VOICES=0")
+    return 0
+
+
+def _has_audio(path):
+    return any(s.get("codec_type") == "audio" for s in ffprobe(path)["streams"])
+
+
+def _is_silent(measured):
+    try:
+        return float(measured["input_i"]) == float("-inf")
+    except (TypeError, ValueError, KeyError):
+        return False
 
 
 def loudnorm_measure(path, profile):
@@ -177,20 +265,49 @@ def add_music(src, music, out, gain_db=MUSIC_GAIN_DB):
     return proc
 
 
+def read_list(path):
+    """The paths of a list file (one absolute path per line, blank lines ignored), or None after
+    printing `ERROR=list: <line>: not a file` for the first line that is not an existing file."""
+    with open(path, encoding="utf-8") as fh:
+        lines = [line.strip() for line in fh if line.strip()]
+    for line in lines:
+        if not os.path.isabs(line) or not os.path.isfile(line):
+            print("ERROR=list: %s: not a file" % line)
+            return None
+    return lines
+
+
 def cmd_concat(args):
     _need("ffmpeg")
-    with open(args.list, encoding="utf-8") as fh:
-        clips = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+    clips = read_list(args.list)
+    if clips is None:
+        return 1
     if not clips:
         print("x no clips listed", file=sys.stderr)
         return 1
     fps = frame_rate_of(clips[0]) or 25.0
     listfile = args.out + ".concat.txt"
-    with open(listfile, "w", encoding="utf-8") as fh:
-        for c in clips:
-            fh.write("file '%s'\n" % os.path.abspath(c).replace("'", "'\\''"))
     raw = args.out + ".raw.mp4"
+    padded = []
     try:
+        inputs = []
+        for i, c in enumerate(clips):
+            if not _has_audio(c):
+                # a silent clip gets a silent track of its length so every input has one audio layout
+                tmp = "%s.pad%d%s" % (args.out, i, os.path.splitext(c)[1] or ".mp4")
+                padded.append(tmp)
+                pp = _run(["ffmpeg", "-v", "error", "-y", "-i", c, "-f", "lavfi", "-i", SILENCE_SRC,
+                           "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-ar", "48000",
+                           "-ac", "2", "-shortest", tmp])
+                if pp.returncode != 0:
+                    print("x adding a silent track to %s failed: %s" % (c, pp.stderr.strip()[-300:]),
+                          file=sys.stderr)
+                    return 1
+                c = tmp
+            inputs.append(c)
+        with open(listfile, "w", encoding="utf-8") as fh:
+            for c in inputs:
+                fh.write("file '%s'\n" % os.path.abspath(c).replace("'", "'\\''"))
         proc = _run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", listfile]
                     + video_args(args.profile, fps) + audio_args(args.profile) + [raw])
         if proc.returncode != 0:
@@ -208,18 +325,22 @@ def cmd_concat(args):
             print("MUSIC_LICENSE=%s" % (args.music_license or "UNSTATED - the report must state it"))
         measured = loudnorm_measure(raw, args.profile)
         p = PROFILES[args.profile]
-        af = "loudnorm=I=%s:TP=%s:LRA=11" % (p["lufs"], p["true_peak"])
-        if measured:
-            af += (":measured_I=%s:measured_TP=%s:measured_LRA=%s:measured_thresh=%s:offset=%s"
-                   ":linear=true" % (measured["input_i"], measured["input_tp"], measured["input_lra"],
-                                     measured["input_thresh"], measured["target_offset"]))
-        proc = _run(["ffmpeg", "-v", "error", "-y", "-i", raw, "-c:v", "copy", "-af", af]
+        silent = _is_silent(measured)
+        af = ["-af", "loudnorm=I=%s:TP=%s:LRA=11" % (p["lufs"], p["true_peak"])]
+        if measured and not silent:
+            af[1] += (":measured_I=%s:measured_TP=%s:measured_LRA=%s:measured_thresh=%s:offset=%s"
+                      ":linear=true" % (measured["input_i"], measured["input_tp"], measured["input_lra"],
+                                        measured["input_thresh"], measured["target_offset"]))
+        if silent:
+            af = []   # nothing to normalise: no second loudnorm pass
+            print("LOUDNESS=silent")
+        proc = _run(["ffmpeg", "-v", "error", "-y", "-i", raw, "-c:v", "copy"] + af
                     + audio_args(args.profile) + ["-movflags", "+faststart", args.out])
         if proc.returncode != 0:
             print("x loudnorm pass failed: %s" % proc.stderr.strip()[-400:], file=sys.stderr)
             return 1
     finally:
-        for f in (listfile, raw, args.out + ".raw.mp4", args.out + ".raw.mp4.mkv"):
+        for f in [listfile, raw, args.out + ".raw.mp4", args.out + ".raw.mp4.mkv"] + padded:
             if os.path.exists(f):
                 os.unlink(f)
     print("OUT=%s" % args.out)
@@ -273,34 +394,66 @@ def cmd_zoom(args):
     return 0
 
 
+def _ranges(text):
+    """`"s,e;s,e"` -> [(s, e), ...]."""
+    out = []
+    for part in (text or "").split(";"):
+        if part.strip():
+            lo, _, hi = part.partition(",")
+            out.append((float(lo), float(hi)))
+    return out
+
+
+KEPT_KINDS = ("hold", "voice_in", "voice_out")   # logged for the report, always played at 1x
+
+
 def cmd_speedup(args):
     """Compress the dead time the recorder logged: each event span of a kind named in --typing /
-    --wait / --travel plays faster (typing, cursor travel, scrolling, a page load) or keeps only its
-    first second (a wait with an indicator); everything else plays at 1x. The events file is the
-    recorder's `<scene>.events.json`: [{"kind": "typing|wait|travel|load", "start": s, "end": s}]."""
+    --travel plays faster (typing, cursor travel, scrolling, a page load); a wait keeps its first
+    --wait-keep seconds and squeezes the rest into --wait-squeeze seconds (0 = cut); everything else
+    plays at 1x. The events file is the recorder's `<scene>.events.json`:
+    [{"kind": "typing|wait|travel|load|hold|voice_in|voice_out|key_visible", "start": s, "end": s}].
+    A key_visible span stops the run (exit 6, no output)."""
     _need("ffmpeg")
     with open(args.events, encoding="utf-8") as fh:
         events = sorted((e for e in json.load(fh) if isinstance(e, dict)), key=lambda e: float(e.get("start", 0)))
+    shown = [e for e in events if e.get("kind") == "key_visible"]
+    if shown:
+        print("KEY_VISIBLE=%d" % len(shown))
+        print("x a key field was shown on screen in this take (%d span%s): re-record it with the value masked"
+              % (len(shown), "" if len(shown) == 1 else "s"), file=sys.stderr)
+        return 6
+    must_see = _ranges(args.must_see)
     total = duration_of(args.clip)
     factors = {"typing": args.typing, "travel": args.travel, "load": args.travel}
-    spans, cursor = [], 0.0
+    spans, cursor, counted, protected = [], 0.0, 0, 0
     for e in events:
         s, en, kind = float(e.get("start", 0)), float(e.get("end", 0)), e.get("kind", "")
         if en <= s or s < cursor or en > total + 0.01:
+            continue
+        if kind in KEPT_KINDS:
+            counted += 1
+            continue
+        if kind != "wait" and not (kind in factors and factors[kind] > 1.0):
+            continue
+        if any(s < hi and en > lo for lo, hi in must_see):
+            protected += 1
             continue
         if kind == "wait":
             keep = min(args.wait_keep, en - s)
             if s > cursor:
                 spans.append((cursor, s, 1.0))
             spans.append((s, s + keep, 1.0))
-            if en > s + keep:
+            rest = en - (s + keep)
+            if rest > 0 and args.wait_squeeze > 0:
+                target = min(args.wait_squeeze, rest)
+                spans.append((s + keep, en, rest / target))
+            elif rest > 0:
                 spans.append((s + keep, en, 0.0))   # 0 = cut
-        elif kind in factors and factors[kind] > 1.0:
+        else:
             if s > cursor:
                 spans.append((cursor, s, 1.0))
             spans.append((s, en, factors[kind]))
-        else:
-            continue
         cursor = en
     if cursor < total:
         spans.append((cursor, total, 1.0))
@@ -323,7 +476,8 @@ def cmd_speedup(args):
     print("OUT=%s" % args.out)
     print("DURATION_S=%.3f" % new_total)
     print("SAVED_S=%.3f" % (total - new_total))
-    print("SPANS=%d" % len([sp for sp in spans if sp[2] != 1.0]))
+    print("SPANS=%d" % (len([sp for sp in spans if sp[2] != 1.0]) + counted))
+    print("MUST_SEE_KEPT=%d" % protected)
     return 0
 
 
@@ -471,7 +625,7 @@ def cmd_verify_tools(args):
     return 0 if ok else 1
 
 
-def verify(video, profile):
+def verify(video, profile, silent=False):
     p = PROFILES[profile]
     info = ffprobe(video)
     v = next((s for s in info["streams"] if s.get("codec_type") == "video"), {})
@@ -488,7 +642,11 @@ def verify(video, profile):
     results.append(("SAMPLE_RATE", str(a.get("sample_rate")) == str(p["sample_rate"])))
     results.append(("CHANNELS", a.get("channels") == p["channels"]))
     measured = loudnorm_measure(video, profile) if shutil.which("ffmpeg") else None
-    if measured:
+    if measured and silent and _is_silent(measured):
+        results.append(("LOUDNESS", True))
+        results.append(("TRUE_PEAK", True))
+        results.append(("SILENT", True))
+    elif measured:
         lufs = float(measured["input_i"])
         tp = float(measured["input_tp"])
         results.append(("LOUDNESS", abs(lufs - p["lufs"]) <= p["lufs_tolerance"]))
@@ -507,9 +665,12 @@ def _faststart(path):
 
 
 def cmd_verify(args):
-    results = verify(args.video, args.profile)
+    results = verify(args.video, args.profile, getattr(args, "silent", False))
     bad = 0
     for name, ok in results:
+        if name == "SILENT":
+            print("SILENT=1")
+            continue
         print("%s=%s" % (name, "OK" if ok else "FAIL"))
         bad += 0 if ok else 1
     return 1 if bad else 0
@@ -526,35 +687,49 @@ def _yt_time(seconds):
 
 
 def cmd_sidecar(args):
+    _need("ffprobe")
     with open(args.storyboard, encoding="utf-8") as fh:
         sb = json.load(fh)
-    with open(args.durations, encoding="utf-8") as fh:
-        durations = json.load(fh)  # {"<scene id>": seconds}
+    paths = read_list(args.list)
+    if paths is None:
+        return 1
     os.makedirs(args.out_dir, exist_ok=True)
     lang = args.lang
-    srt, chapters, t = [], [], 0.0
-    for i, scene in enumerate(sb.get("scenes", []), 1):
-        sid = str(scene.get("id", i))
-        dur = float(durations.get(sid, 0.0))
+    lead = args.lead_in if args.lead_in is not None else float(sb.get("lead_in_s", 0.5))
+    scenes = sb.get("scenes", [])
+    srt, chapters, t, n = [], [], 0.0, 0
+    for path in paths:
+        dur = duration_of(path)
+        if os.path.basename(path).startswith("title") or n >= len(scenes):
+            t += dur   # the title card is no chapter but shifts every chapter after it
+            continue
+        scene = scenes[n]
+        sid = str(scene.get("id", n + 1))
+        n += 1
         text = (scene.get("narration") or {}).get(lang, "")
         title = (scene.get("title") or {}).get(lang) or scene.get("title") or sid
         if isinstance(title, dict):
             title = title.get(lang, sid)
-        lead = float(sb.get("lead_in_s", 0.5))
-        if text:
+        if text and args.narration_dir:
+            wav = os.path.join(args.narration_dir, "%s.wav" % sid)
+            spoken = duration_of(wav) if os.path.exists(wav) else max(0.0, dur - lead)
             srt.append("%d\n%s --> %s\n%s\n" % (len(srt) + 1, _srt_time(t + lead),
-                                                _srt_time(max(t + lead + 0.5, t + dur - 0.2)), text))
+                                                _srt_time(max(t + lead + 0.5, t + lead + spoken - 0.2)), text))
         chapters.append("%s %s" % (_yt_time(t), title))
         t += dur
-    srt_path = os.path.join(args.out_dir, "%s.srt" % lang)
-    with open(srt_path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(srt))
+    if args.narration_dir:
+        srt_path = os.path.join(args.out_dir, "%s.srt" % lang)
+        with open(srt_path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(srt))
     meta = sb.get("publish", {}).get(lang, {})
     txt_path = os.path.join(args.out_dir, "%s.txt" % lang)
     with open(txt_path, "w", encoding="utf-8") as fh:
         fh.write("TITLE: %s\n\n%s\n\nCHAPTERS:\n%s\n" % (meta.get("title", sb.get("title", "")),
                                                         meta.get("description", ""), "\n".join(chapters)))
-    print("SRT=%s" % srt_path)
+    if args.narration_dir:
+        print("SRT=%s" % srt_path)
+    else:
+        print("CAPTIONS=none")
     print("TXT=%s" % txt_path)
     print("TOTAL_S=%.3f" % t)
     return 0
@@ -562,14 +737,23 @@ def cmd_sidecar(args):
 
 def cmd_thumbnail(args):
     _need("ffmpeg")
+    if not os.path.isfile(args.video) or not os.access(args.video, os.R_OK):
+        print("ERROR=%s: not a file" % args.video)
+        return 1
+    extracted = False
     for q in (2, 4, 6, 8, 12):
         proc = _run(["ffmpeg", "-v", "error", "-y", "-ss", "%g" % args.at, "-i", args.video,
                      "-frames:v", "1", "-vf", "scale=1280:720", "-q:v", str(q), args.out])
-        if proc.returncode == 0 and os.path.getsize(args.out) <= 2 * 1024 * 1024:
-            print("OUT=%s" % args.out)
-            print("BYTES=%d" % os.path.getsize(args.out))
-            return 0
-    print("x thumbnail could not be kept under 2 MB", file=sys.stderr)
+        if proc.returncode == 0:
+            extracted = True
+            if os.path.getsize(args.out) <= 2 * 1024 * 1024:
+                print("OUT=%s" % args.out)
+                print("BYTES=%d" % os.path.getsize(args.out))
+                return 0
+    if extracted:
+        print("x thumbnail could not be kept under 2 MB", file=sys.stderr)
+    else:
+        print("x ffmpeg could not extract a frame from %s at %g s" % (args.video, args.at), file=sys.stderr)
     return 1
 
 
@@ -592,11 +776,12 @@ def cmd_preview(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("fit"); p.add_argument("--clip", required=True); p.add_argument("--narration", required=True)
+    p = sub.add_parser("fit"); p.add_argument("--clip", required=True); p.add_argument("--narration")
     p.add_argument("--out", required=True); p.add_argument("--lead-in", type=float, default=0.5, dest="lead_in")
     p.add_argument("--max-silence", type=float, default=3.0, dest="max_silence")
     p.add_argument("--max-hold", type=float, default=3.0, dest="max_hold")
     p.add_argument("--fade", type=float, default=0.3); p.add_argument("--profile", default="youtube-1080p")
+    p.add_argument("--voice", action="append", help="FILE@T: extra audio mixed in at T seconds of the output")
     p = sub.add_parser("concat"); p.add_argument("--list", required=True); p.add_argument("--out", required=True)
     p.add_argument("--profile", default="youtube-1080p")
     p.add_argument("--music", help="royalty-free bed, ducked under the narration"); p.add_argument("--music-gain", type=float, default=MUSIC_GAIN_DB, dest="music_gain")
@@ -608,15 +793,20 @@ def main(argv=None):
     p = sub.add_parser("speedup"); p.add_argument("--clip", required=True); p.add_argument("--events", required=True); p.add_argument("--out", required=True)
     p.add_argument("--typing", type=float, default=3.0); p.add_argument("--travel", type=float, default=2.0)
     p.add_argument("--wait-keep", type=float, default=1.0, dest="wait_keep"); p.add_argument("--profile", default="youtube-1080p")
+    p.add_argument("--wait-squeeze", type=float, default=1.0, dest="wait_squeeze")
+    p.add_argument("--must-see", dest="must_see", help='"s,e;s,e" ranges played at 1x in full')
     p = sub.add_parser("audition"); p.add_argument("--narration", action="append", required=True); p.add_argument("--out-dir", required=True, dest="out_dir")
     p.add_argument("--music"); p.add_argument("--music-gain", type=float, default=MUSIC_GAIN_DB, dest="music_gain")
     p = sub.add_parser("title"); p.add_argument("--text", required=True); p.add_argument("--out", required=True)
     p.add_argument("--seconds", type=float, default=3.0); p.add_argument("--font"); p.add_argument("--size", default="1920x1080")
     p.add_argument("--fps", type=float, default=25.0); p.add_argument("--profile", default="youtube-1080p")
     p = sub.add_parser("verify"); p.add_argument("--video", required=True); p.add_argument("--profile", default="youtube-1080p")
+    p.add_argument("--silent", action="store_true", help="a deliverable with no signal (-inf) passes loudness")
     p = sub.add_parser("verify-tools"); p.add_argument("--font")
     p = sub.add_parser("sidecar"); p.add_argument("--storyboard", required=True); p.add_argument("--lang", required=True)
-    p.add_argument("--durations", required=True); p.add_argument("--out-dir", required=True, dest="out_dir")
+    p.add_argument("--list", required=True, help="the concat list file"); p.add_argument("--out-dir", required=True, dest="out_dir")
+    p.add_argument("--narration-dir", dest="narration_dir", help="<scene id>.wav per scene; enables the .srt")
+    p.add_argument("--lead-in", type=float, dest="lead_in", help="default: the storyboard lead_in_s or 0.5")
     p = sub.add_parser("thumbnail"); p.add_argument("--video", required=True); p.add_argument("--at", type=float, default=2.0)
     p.add_argument("--out", required=True)
     p = sub.add_parser("preview"); p.add_argument("--video", required=True); p.add_argument("--out", required=True)
