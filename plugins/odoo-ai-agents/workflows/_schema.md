@@ -69,7 +69,7 @@ Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and
 | `id` | string | YES | Phase identifier; used in state file, gate messages, and resume logic |
 | `skill` | string | ONE OF | Specialist skill name fired by NL-dispatch (must exist in `skills/` or be `inline`/`agent`) |
 | `inline` | bool | ONE OF | `true` = runner handles this phase itself; no separate skill dispatched |
-| `agent` | string | ONE OF | Agent bundle name to launch for read-only passes (e.g. `odoo-code-reviewer`) |
+| `agent` | string | ONE OF | Agent bundle name the runner launches for this phase: a read-only pass (e.g. `odoo-code-reviewer`) or a leaf worker (e.g. `odoo-video-producer`) |
 | `nl_trigger` | string | YES (if skill/agent) | NL prompt written to fire the target skill via description-match dispatch |
 | `model_tier` | enum | YES | `haiku` / `sonnet` / `opus` / `inherit`; a `skill:`/`agent:` phase declares a concrete tier (§6). `inherit` is legal ONLY on an `inline: true` assembler phase (§6) |
 | `plan` | bool | NO | `true` on the ONE phase whose output is the workflow plan: the runner runs the phases up to and including it (they write only under the state root, and carry no `gate`), then decides the plan once |

@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - **narrated, multi-language, publish-ready demo videos, the rest of the method**
+  (#279). A recorder the plugin ships (`scripts/recorder/record.mjs` behind
+  `scripts/lib/video_record.py`, the pinned Playwright library installed under the state root by
+  `odoo-setup browser`): one Chromium drives and records a scene from a structured scene script
+  at 1920x1080, draws the cursor and the click ripple, reaches the instance as the handle's `ui_user` and
+  switches the UI language before the first frame, feeds a voice input through the fake
+  microphone, saves the page's own spoken answer,
+  and writes the events sidecar itself (load, typing, travel, wait, hold, voice in and out) - a
+  key field on screen refuses the take. The storyboard has a schema and a validator
+  (`storyboard_check.py`: check, render for the gate, scene scripts, prompt write-back, demo-data
+  script) with structured actions, `voice_input`, `prompts` and `prompt_chosen`, `demo_data`,
+  `wait_selectors`, `must_see`, `focus` and an `ai` block. The AI spend is estimated from the
+  storyboard, logged per trial and take and capped at a margin (`video_budget.py`); a shared or
+  unset key is refused by name only. Every kept file is scanned for key shapes and the key's own
+  value (`video_keyscan.py`). The assembler honours `must_see`, squeezes the rest of a wait instead
+  of cutting it, keeps voice spans and mixes the page's voice tracks into the narration
+  (`video_publish.py speedup --must-see --wait-squeeze`, `fit --voice`). A new leaf agent,
+  `odoo-video-producer`, runs record, narrate and assemble out of the caller's context; the
+  `video-produce` workflow launches it per phase and resumes it, shows the storyboard rendering
+  and the cost estimate at the gate, and scans for key shapes before any upload. Preflight:
+  `odoo-setup browser` installs the recorder library and runs its self-test; the prerequisite
+  checklist reports the recorder.
+
+### Changed
+
+- `odoo-ai-agents` - `odoo-demo-recording` records single clips and before/after evidence through
+  the browser MCP families and hands narrated multi-scene videos to `odoo-produce-video`; its
+  storyboard schema lives in `references/storyboard.md`.
+
+### Fixed
+
+- `odoo-ai-agents` - the produce-video command and the workflow name one output layout,
+  `<ISOLATE_DIR>/video/<label>/deliverables/<lang>/`.
+
 ## [8.2.3] - 2026-10-31
 
 ### Added

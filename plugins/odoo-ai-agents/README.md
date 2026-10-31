@@ -343,7 +343,7 @@ sequence, and single-step wrappers that run one skill and offer a save step.
 | `/odoo-run-brl` | Classify + cost -> dependency DAG -> RTM + report | `<SHARE_DIR>/brl/` |
 | `/odoo-draft-followup` | odoo-deal-followup (single step) | `<ISOLATE_DIR>/followups/` |
 | `/odoo-summarize-discovery` | odoo-discovery-summary (single step) | `<ISOLATE_DIR>/discovery/` |
-| `/odoo-produce-video` | odoo-demo-recording per scene | `<ISOLATE_DIR>/video/` |
+| `/odoo-produce-video` | odoo-video-producer (record, narrate, assemble) | `<ISOLATE_DIR>/video/<label>/deliverables/` |
 
 The visual UI testing stack is a sibling cluster, not a linear chain: one `setup` step
 provisions the browser environment, then four skills run independently and converge on
@@ -647,7 +647,7 @@ flowchart TD
 | `/odoo-position-feature` | Positioning copy for marketing and sales use, saves to `<ISOLATE_DIR>/positioning/` | `odoo-feature-check` -> `odoo-addon-diff` -> `odoo-competitive-brief` -> positioning copy |
 | `/odoo-plan-upgrade` | Comprehensive upgrade plan, saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
 | `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `<SHARE_DIR>/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
-| `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> narrate -> assemble; one publish-ready MP4 per language with captions, thumbnail and chapters), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
+| `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> narrate -> assemble -> publish; one publish-ready MP4 per language with captions, thumbnail, chapters and preview; AI spend estimated and capped), saves to `<ISOLATE_DIR>/video/<label>/deliverables/` | `odoo-video-producer` (the plugin's Playwright recorder, the speech endpoint, the ffmpeg assembler) |
 | `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup, asked in outcomes (run Odoo locally, rebuild a venv, capture and record, let the AI work without prompts, publish docs and videos) with one plan confirmed once - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance, and - when your skill list is too long for Claude Code to show every description (the default budget on a 200k-token window) - offers to raise the listing budget, showing first how many tokens per turn that adds | - |
 
 ## Use cases - day in the life
@@ -1034,6 +1034,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-diff-comparator` | Sonnet | Read-only: reads a git-diff range and emits a structured business-intent / expected-outcome / acceptance-criteria comparison (rebase: branch vs base; upgrade: custom vs core). |
 | `odoo-gap-analyzer` | Sonnet | Gap-analysis leaf dispatched by `odoo-gap-analysis` (one per requirement cluster) - classifies each requirement against standard Odoo (coverage full/partial/none, classification standard/config/extension/custom, effort tier S/M/L/XL) grounded in OSM first and the local checkout as fallback, then writes a machine-readable findings file; read-only on source, does not design or write code |
 | `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author - only when the SRS criteria are not concrete scenarios (role, precondition, steps, comparable value) |
+| `odoo-video-producer` | Sonnet | Launched by the `video-produce` workflow: seeds the demo state, trials the prompts, records every scene per language with the plugin's Playwright recorder (one browser drives and records; waits, typing, travel, voice and key-field events land in a sidecar), synthesises and checks the narration, assembles and verifies one deliverable per language, scans every kept file for a key shape; never publishes |
 | `odoo-qa-tester` | Haiku *(sonnet when a Given needs a fixture built; A4 and DOCS at sonnet)* | A1A2: builds the stand-alone and with-dependents databases, drives every SRS scenario as its role, rules PASS/FAIL/UNVERIFIED by comparing observed and expected values with evidence; A4: uses the new screens as each audience role and reports what the role cannot understand; DOCS: tests a locally served documentation build page by page in every language at a desktop and a mobile viewport |
 
 ## Requirements

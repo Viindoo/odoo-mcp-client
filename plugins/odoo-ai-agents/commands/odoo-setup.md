@@ -504,8 +504,12 @@ Resolve:
 - **20-browser-deps** - INSTALL-only, never registers or runs anything. Pre-installs the 3 pinned
   browser MCP packages (`scripts/lib/browser_mcp_servers.py` SSOT) on disk via a throwaway
   `npm install --ignore-scripts` (never `npx`/`npm exec`); idempotent. Also runs
-  `npx -y playwright install chromium`. For ffmpeg it ONLY prints install guidance - it never
-  runs sudo/apt. It never calls `claude mcp add`; registering is exclusively step 10/12's job.
+  `npx -y playwright install chromium`, installs the pinned Playwright library for the narrated-
+  video recorder under the state root (`<state root>/recorder`, never global) and runs
+  `video_record.py self-test` (Chromium accepts the fake-microphone flags and records video); a
+  failed self-test is reported with its lines, never fixed by guessing. For ffmpeg it ONLY prints
+  install guidance - it never runs sudo/apt. It never calls `claude mcp add`; registering is
+  exclusively step 10/12's job.
 - **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
 - **32-permissions-state-root** - appends the 5 narrow state-root

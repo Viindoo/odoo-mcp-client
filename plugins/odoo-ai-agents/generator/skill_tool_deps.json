@@ -1103,6 +1103,32 @@
         ]
       }
     },
+    "odoo-video-producer": {
+      "role": "leaf",
+      "mcp_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Narrated demo-video producer launched by the video-produce workflow in three caller-set modes: record (seeds the demo state, trials the prompts, records every scene per language with the plugin's Playwright recorder script - video_record.py - which emits the wait, typing, travel, voice and secret events sidecar; the AI spend is estimated and capped by video_budget.py), narrate (speech_synthesize / speech_transcribe through the odoo-media server, narration_check.py, pronunciation.py), assemble (video_publish.py speedup, zoom, fit, title, concat, verify, sidecar, thumbnail, preview; video_secrets.py scan). No OSM calls; never publishes, never edits the storyboard beyond prompt_chosen, never releases a forwarded INSTANCE_HANDLE; launches nothing.",
+      "brief": {
+        "required": [
+          "MODE",
+          "STORYBOARD",
+          "LANGUAGES",
+          "ISOLATE_DIR"
+        ],
+        "optional": [
+          "INSTANCE_HANDLE",
+          "WORKTREE_PATH",
+          "ODOO VERSION",
+          "PROFILE",
+          "SHARE_DIR",
+          "RUN_ID",
+          "AUTHOR PROFILE",
+          "BUDGET_MARGIN",
+          "USER LANGUAGE"
+        ]
+      }
+    },
     "odoo-icon-designer": {
       "role": "leaf",
       "mcp_tools": [
