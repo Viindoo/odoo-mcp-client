@@ -204,6 +204,40 @@ _ffmpeg_ok() {
     command -v ffmpeg >/dev/null 2>&1
 }
 
+LIB_DIR="$SCRIPT_DIR/../lib"
+
+# The narrated-video recorder's own copy of the pinned playwright library, under the state root
+# (scripts/lib/video_record.py reads it from the same place).
+_recorder_home() {
+    printf '%s/recorder' "$(python3 "$LIB_DIR/paths.py" root)"
+}
+
+_recorder_lib_ok() {
+    local pkg
+    pkg="$(_recorder_home)/node_modules/playwright/package.json"
+    [[ -f "$pkg" ]] || return 1
+    grep -q "\"version\": \"${PW_PIN}\"" "$pkg"
+}
+
+_install_recorder_lib() {
+    if _recorder_lib_ok; then
+        echo "  ok recorder playwright@${PW_PIN} already installed - skip"
+        return 0
+    fi
+    local home
+    home="$(_recorder_home)"
+    echo "  Installing the recorder library playwright@${PW_PIN} under the state root..."
+    mkdir -p "$home"
+    [[ -f "$home/package.json" ]] || printf '{"name":"odoo-ai-recorder","private":true}\n' > "$home/package.json"
+    # The Chromium download is the separate step above, so install scripts are not needed.
+    if npm install --prefix "$home" --no-save=false --ignore-scripts "playwright@${PW_PIN}"; then
+        echo "  ok recorder library installed"
+        return 0
+    fi
+    echo "  x failed to install the recorder library (check network/registry access)" >&2
+    return 1
+}
+
 # Google Chrome stable, where chrome-devtools-mcp and @playwright/mcp look for it (fixed install
 # locations, never PATH): the SSOT's chrome-path.
 _chrome_ok() {
@@ -396,6 +430,9 @@ cmd_apply() {
 
     _install_mcp_packages || return 1
     _install_chromium_binary
+    _install_recorder_lib || return 1
+    echo "  Recorder self-test (fake microphone, video recording)..."
+    python3 "$LIB_DIR/video_record.py" self-test || echo "  ! recorder self-test did not pass - narrated-video recording stays unavailable" >&2
     _ensure_system_deps || return 1
     _ensure_chrome || return 1
 

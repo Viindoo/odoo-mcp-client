@@ -90,6 +90,8 @@ MCP_PKG_PINS = [
     _mcp_pin("BROWSER_MCP_PLAYWRIGHT_PIN"),
     _mcp_pin("BROWSER_MCP_PAGECAST_PIN"),
 ]
+# The narrated-video recorder's own copy of the playwright library, at the Chromium pin.
+RECORDER_LIB_PIN = "playwright@" + _mcp_pin("BROWSER_MCP_BROWSER_PLAYWRIGHT_VERSION")
 
 
 @pytest.fixture(scope="module")
@@ -367,6 +369,15 @@ def _apt_stub_bin(
     _write_npm_stub(
         bind, cached=(MCP_PKG_PINS if mcp_cached else ()), log=npm_log,
     )
+    # The recorder library under the state root: installed at the pin when everything is cached
+    # (a re-run installs nothing), absent otherwise (apply installs it once).
+    if mcp_cached:
+        marker = tmp_path / "state" / "recorder" / "node_modules" / "playwright" / "package.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(
+            json.dumps({"name": "playwright", "version": RECORDER_LIB_PIN.split("@")[-1]}),
+            encoding="utf-8",
+        )
     # ldconfig -p: either the real-format library listing, or nothing (missing).
     if libs_present:
         _write_stub(bind / "ldconfig", f"cat <<'EOF'\n{_LDCONFIG_PRESENT}\nEOF\n")
@@ -559,6 +570,11 @@ def test_apply_preinstalls_all_three_pinned_packages_without_registering(tmp_pat
         assert len(real_installs) == 1, (
             f"expected exactly one real `npm install` for {pin}, got {real_installs}"
         )
+    # The recorder library is installed once, under the state root, never globally.
+    assert f"Installing the recorder library {RECORDER_LIB_PIN}" in out, out
+    recorder_installs = [ln for ln in calls if ln.rstrip().endswith(RECORDER_LIB_PIN) and "--offline" not in ln]
+    assert len(recorder_installs) == 1, recorder_installs
+    assert f"--prefix {tmp_path / 'state' / 'recorder'}" in recorder_installs[0], recorder_installs
     assert "claude" not in out.lower(), (
         "apply must never mention/invoke claude - registration is step 12's job"
     )
@@ -580,6 +596,7 @@ def test_apply_skips_mcp_preinstall_when_already_cached(tmp_path):
     for pin in MCP_PKG_PINS:
         assert f"ok {pin} already cached on disk - skip" in out, out
         assert f"Pre-installing {pin}" not in out, out
+    assert f"ok recorder {RECORDER_LIB_PIN} already installed - skip" in out, out
     logged = npm_log.read_text(encoding="utf-8") if npm_log.exists() else ""
     real_installs = [
         ln for ln in logged.splitlines() if ln and "--offline" not in ln

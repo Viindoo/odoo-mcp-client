@@ -377,6 +377,8 @@ cmd_apply() {
         echo " Node.js >= 20 (browser MCP servers)  found: ${nm:-none}"
         echo "         fix: nvm install 20   or   https://nodejs.org"
         printf '  %s' "$(_mark _have npx)";  echo " npx (launches MCP servers)"
+        printf '  %s' "$(_mark python3 "$LIB_DIR/video_record.py" install-check)"
+        echo " narrated-video recorder (optional - node >= 20, the pinned playwright library under the state root, Chromium with fake-media flags; fix: /odoo-ai-agents:odoo-setup browser)"
     fi
     if _needs_instance; then
         printf '  %s' "$(_mark _have python3)"; echo " python3 (runs odoo-bin in source mode)"
