@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.2.2] - 2026-10-31
+
 ### Added
 
 - `odoo-ai-agents` - **the rules survive a context compaction.** The ETHOS says what the compaction
