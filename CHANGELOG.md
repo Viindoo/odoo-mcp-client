@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.3.0] - 2026-11-01
+
 ### Added
 
 - `odoo-ai-agents` - **narrated, multi-language, publish-ready demo videos, the rest of the method**
