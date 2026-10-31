@@ -122,7 +122,7 @@ phases:
       with feature-catalog.md (human report), role-map.json (the business roles, what each can
       do, and the process stages across them) and walkthrough.jsonl with walkthrough.md (one
       happy-path scenario per role task, positive journeys only - not a QA oracle, NOT bound by
-      acceptance-oracle-contract.md). The catalog feeds the landing Key-Features grid; the role
+      acceptance-oracle-contract.md). The catalog feeds the landing's what-changes blocks; the role
       map drives the guide's Overview and per-role chapters and the buyer profile in later
       phases; the walkthrough feeds the scenario-driven capture. Standalone-first; no
       browser or live instance required. Fan out one worker per doc:true module (Mode B); each worker

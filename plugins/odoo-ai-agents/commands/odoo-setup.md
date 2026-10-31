@@ -681,7 +681,7 @@ Resolve:
   API enabled, a Desktop-type OAuth client and its downloaded client JSON, the consent screen
   External and In production with Branding filled in) and the slots. 2. Ask the operator ONE
   closed question: which channels they publish to - `docs` (user guides, the docs site, the App
-  Store DEMO tab; at least this one), `marketing` (sales and marketing videos), a third purpose
+  Store page's video block; at least this one), `marketing` (sales and marketing videos), a third purpose
   of theirs - then, per chosen channel, its label (the channel's handle or name, free text).
   Nothing else is asked: the default privacy is `unlisted` (a decision the plan states; public is
   said per upload); a playlist id and a default language are never asked at setup - a playlist

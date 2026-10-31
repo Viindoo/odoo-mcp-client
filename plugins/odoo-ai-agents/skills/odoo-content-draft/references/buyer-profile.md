@@ -14,7 +14,9 @@ module descriptor and have the user confirm it before use:
 - an `l10n_<cc>` module name, or an `l10n_<cc>` entry in `depends` -> the country `<cc>` names;
 - a `countries` key -> those countries;
 - `category` -> the vertical;
-- none of these -> `region-neutral` (the copy names no country).
+- none of these -> `region-neutral`: the global buyer - English first, universal examples, no
+  country, currency or locale named; a language the module ships is a fact for the technical
+  block, never the headline.
 
 A value the user has not confirmed and the brief does not carry is never used.
 

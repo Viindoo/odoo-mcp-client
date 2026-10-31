@@ -32,7 +32,7 @@ writer's scope; only `index*.html` there is the marketer's.
 ## The landing launch (`odoo-marketer`, after `full` returns)
 
 ```
-DISPATCH MODEL: <haiku | sonnet, per concurrency-guard.md § Model-tier selection>
+DISPATCH MODEL: <haiku | opus, per concurrency-guard.md § Model-tier selection>
 MODE: landing
 MODULE: <technical name>   MODULE_PATH: <abs path under WORKTREE_PATH>
 WORKTREE_PATH: <doc_root>

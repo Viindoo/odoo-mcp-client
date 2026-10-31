@@ -109,7 +109,8 @@ provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One
       with the catalog and role map from the brief or `odoo-doc-feature-map`), launch
       `odoo-marketer` with `MODE: landing` (`references/writer-brief.md` § The landing launch),
       passing the writer's catalog, role map, `facts.md` and staging directory so no screen is
-      captured twice; same model rule.
+      captured twice; `model` per the same section (a page composed for buyers is opus; a `change`
+      of relabels and recaptures is haiku).
    4. **Verify.** Every reported file exists. `DOC SCOPE: full-guide`: run
       `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_coverage_check.py <feature-catalog.jsonl>`;
       every `GAP=` line (a capability the guide neither documents nor excludes with a reason) goes

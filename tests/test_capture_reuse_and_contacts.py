@@ -132,11 +132,12 @@ def test_unlisted_uploads_go_public_after_the_embedding_pr_merged_without_pollin
     assert "produced.videos" in _read("workflows/video-produce.workflow.yaml")
 
 
-def test_the_store_page_upsells_the_vendors_extensions_at_the_end_from_the_manifests_on_disk():
+def test_the_vendors_extensions_are_offered_in_the_included_section_from_the_manifests_on_disk():
     template = _read("skills/odoo-doc-illustration/references/app-store-template.md")
-    rows = [line for line in template.splitlines() if line.startswith("| 13 | EXTENSIONS |")]
-    assert rows and "#extensions_block" in rows[0] and "dependents" in rows[0]
-    assert template.index("<!-- EXTENSIONS") > template.index("</div><!-- /tab-content -->")   # last on the page
+    rows = [line for line in template.splitlines() if line.startswith("| 5 | INCLUDED |")]
+    assert rows and "#included_block" in rows[0] and "dependents" in rows[0]
+    day_one, included, faq = (template.index(f"<!-- {key} -->") for key in ("DAY-ONE", "INCLUDED", "FAQ"))
+    assert day_one < included < faq
     assert "{{EXT_STORE_LINK" in template and "{{EXT_DISPLAY_NAME}}" in template   # the form lives in the SSOT snippet
     assert "module_dependents.py" in template
     marketer = _squash(_read("agents/odoo-marketer.md"))
