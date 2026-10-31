@@ -657,12 +657,16 @@ Resolve:
   `base_url` and `auth` only - the value will only ever travel to this recorded endpoint), tell
   the operator to open `/plugin`, choose `odoo-ai-agents`, Configure, fill in "Speech endpoint
   key" (never through the chat), then `/reload-plugins`; then the odoo-media `speech_voices`
-  tool lists the models and voices. 4. Decide from the listing, show it in the plan: the TTS model (the one
-  id that names speech or tts; several -> one closed question from the list), the STT model
-  (the id that names transcription, stt or whisper; same rule), one voice per narration
-  language - the languages the docs-site and i18n registries declare, never asked again - from
-  the voices the endpoint tags for that language, else ONE closed question per language from
-  the list (a voice is native to one language; a mismatch is refused). 5. Write the confirmed
+  tool lists the models and, when the endpoint publishes a listing, the voices. 4. Decide from
+  the listing, show it in the plan: the TTS model (the one id that names speech or tts; several
+  -> one closed question from the list), the STT model (the id that names transcription, stt or
+  whisper; same rule), one voice per narration language - the languages the docs-site and i18n
+  registries declare, never asked again - from the voices the endpoint tags for that language,
+  else ONE closed question per language from the list (a voice is native to one language; a
+  mismatch is refused). `voices` null (the endpoint publishes no listing, as many gateways do):
+  the voice ids come from the endpoint's own documentation - ONE closed question per language
+  naming the ids the operator reads there - and `speech_probe` in step 5 is what confirms them.
+  5. Write the confirmed
   configuration as JSON under `<state root>/scratch/speech-setup/`, run
   `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file; then call the
   odoo-media `speech_probe` tool (one short sentence per language, synthesized and transcribed
