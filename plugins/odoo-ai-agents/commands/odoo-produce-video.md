@@ -38,7 +38,7 @@ the `narrate` and `assemble` phases do the rest. No language given = a silent vi
 
 Where the result goes is the workflow's `destination` input, asked when not given: `youtube` or
 `youtube:<purpose>` publishes to the channel of that purpose (`docs` for user guides, the docs
-site and the App Store DEMO tab; `marketing` for sales and marketing videos) through the
+site and the App Store page's video block; `marketing` for sales and marketing videos) through the
 odoo-media server, after the `youtube_check` for that purpose passed and the operator approved
 the "listen" lines; `pr` attaches the preview to a pull request; `none` keeps the file under the
 run directory for the owner to publish. The channels come from `/odoo-ai-agents:odoo-setup youtube`;

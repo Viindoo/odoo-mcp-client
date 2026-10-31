@@ -87,7 +87,13 @@ Rules
   LINK_TEXT_HIDES_URL  store page only: an external http(s) link whose visible text does not
                        contain its host - the store turns an external anchor into plain text, so a
                        reader keeps the URL only when the text shows it (`support.acme.com/tickets`,
-                       never `Open a ticket`)
+                       never `Open a ticket`); an anchor to a YouTube host is exempt, the store
+                       keeps those as links
+  PAGE_TOO_LONG        store page (index.html, index_<locale>.html) whose visible text exceeds
+                       700 words (tags, comments, script and style bodies not counted)
+  PAGE_TOO_MANY_IMAGES store page with more than 8 <img> tags
+                       (the two page-size rules exist because a buyer reads a store page in about
+                       30 seconds)
 Allowed: tel:, #anchors, https links to non-store pages whose text shows the host, the root-relative
 module and vendor-listing store paths above, public https:// images.
 
@@ -173,6 +179,10 @@ _DIR_BEFORE = re.compile(r"([^/\\\s\"'`(<>=]*)/$")
 _SKIP_DIRS = (".git", "__pycache__")
 _MANIFESTS = ("__manifest__.py", "__openerp__.py")
 _ENGLISH_PAGE = "static/description/index.html"
+_STORE_PAGE = re.compile(r"^static/description/index(?:_[A-Za-z0-9]+(?:[_-][A-Za-z0-9]+)*)?\.html$")
+PAGE_MAX_WORDS = 700
+PAGE_MAX_IMAGES = 8
+_YOUTUBE_HOSTS = ("youtube.com", "www.youtube.com", "youtu.be", "youtube-nocookie.com")
 
 
 class Finding(object):
@@ -466,6 +476,8 @@ class Checker(object):
         if not low.startswith(("http://", "https://")) or _is_local_host(href):
             return
         host = (urlsplit(href).hostname or "").lower()
+        if host in _YOUTUBE_HOSTS:
+            return
         if host.startswith("www."):
             host = host[4:]
         if host and host not in " ".join(text.split()).lower():
@@ -511,11 +523,18 @@ class Checker(object):
         checker = self
         images = []
         anchors = []  # open <a> elements: [line, href, text parts]
+        words = [0]
+        image_tags = [0]
+        hidden = []  # open <script> / <style> elements
 
         class Parser(HTMLParser):
             def handle_starttag(self, tag, attrs):
                 line = self.getpos()[0]
                 values = dict(attrs)
+                if tag in ("script", "style"):
+                    hidden.append(tag)
+                if tag == "img":
+                    image_tags[0] += 1
                 if tag in ("img", "source"):
                     if values.get("src"):
                         images.append((line, values["src"]))
@@ -538,11 +557,15 @@ class Checker(object):
                     self.handle_endtag(tag)
 
             def handle_endtag(self, tag):
+                if tag in ("script", "style") and tag in hidden:
+                    hidden.remove(tag)
                 if tag == "a" and anchors:
                     line, href, parts = anchors.pop()
                     checker.link_text(doc_file, line, href, "".join(parts))
 
             def handle_data(self, data):
+                if not hidden:
+                    words[0] += len(data.split())
                 checker.emails(doc_file, self.getpos()[0], data)
                 for anchor in anchors:
                     anchor[2].append(data)
@@ -553,6 +576,12 @@ class Checker(object):
             self.link_text(doc_file, line, href, "".join(parts))
         for line, ref in images:
             self.image(doc_file, line, ref, "page")
+        if _STORE_PAGE.match(self._rel(doc_file)):
+            if words[0] > PAGE_MAX_WORDS:
+                self._add(doc_file, 0, "PAGE_TOO_LONG", "%d words (limit %d)" % (words[0], PAGE_MAX_WORDS))
+            if image_tags[0] > PAGE_MAX_IMAGES:
+                self._add(doc_file, 0, "PAGE_TOO_MANY_IMAGES",
+                          "%d images (limit %d)" % (image_tags[0], PAGE_MAX_IMAGES))
         if self._rel(doc_file) == _ENGLISH_PAGE:
             self.cover_shown(doc_file, [ref.strip() for _line, ref in images])
 

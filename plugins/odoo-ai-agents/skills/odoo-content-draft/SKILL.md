@@ -55,7 +55,7 @@ writes.
    to adjust; a target market is never assumed.
 3. **Launch `odoo-marketer`** with `MODE: copy` and the brief of `references/marketer-brief.md`,
    `model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection
-   (composing is sonnet; re-cutting an existing draft to another channel is haiku). A revision the
+   (composing is sonnet, landing-page copy is opus; re-cutting an existing draft to another channel is haiku). A revision the
    user asks for goes to the same agent with `SendMessage`, never a new launch.
 4. **Return** the draft as the agent wrote it (channel-native format, the `## Buyer profile`
    block first when it built one, every `<TBD: ...>` kept visible), its saved path, and the

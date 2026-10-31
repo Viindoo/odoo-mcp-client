@@ -906,3 +906,70 @@ def test_a_store_link_to_a_module_that_is_not_in_the_addons_path_is_reported(tmp
         [l for l in (with_path.stdout + with_path.stderr).splitlines() if "LINK_MODULE_UNKNOWN" in l][0])
     without = subprocess.run(base + [str(page / "index.html")], capture_output=True, text=True)
     assert "LINK_MODULE_UNKNOWN" not in without.stdout + without.stderr   # the check needs the directories
+
+
+# --------------------------------------------------------------------------- #
+# store page size and YouTube links
+# --------------------------------------------------------------------------- #
+def _words(count):
+    return " ".join(["word"] * count)
+
+
+def _page(words=0, images=1, extra=""):
+    shots = '<img src="./main_screenshot.png">' + '<img src="./assets/form.png">' * (images - 1)
+    return '<section>%s<p>%s</p>%s</section>' % (shots, _words(words), extra)
+
+
+def test_a_store_page_over_700_visible_words_is_too_long(module):
+    _only(_html(module, _page(words=701)), "PAGE_TOO_LONG")
+
+
+def test_a_store_page_of_exactly_700_visible_words_is_clean(module):
+    _clean(_html(module, _page(words=700)))
+
+
+def test_words_in_a_comment_a_script_or_a_style_do_not_count(module):
+    hidden = ("<!-- %s --><script>var s = '%s';</script><style>/* %s */</style>"
+              % (_words(400), _words(400), _words(400)))
+    _clean(_html(module, _page(words=700, extra=hidden)))
+
+
+def test_a_translated_store_page_is_held_to_the_word_limit_too(module):
+    page = module / "static" / "description" / "index_vi_VN.html"
+    page.write_text(_page(words=701), encoding="utf-8")
+    _only(_run(module, "static/description/index_vi_VN.html"), "PAGE_TOO_LONG")
+
+
+def test_a_store_page_with_more_than_8_images_has_too_many(module):
+    _only(_html(module, _page(images=9)), "PAGE_TOO_MANY_IMAGES")
+
+
+def test_a_store_page_with_exactly_8_images_is_clean(module):
+    _clean(_html(module, _page(images=8)))
+
+
+def test_a_guide_and_the_readme_are_not_held_to_the_page_size_limits(module):
+    body = "Title\n=====\n\n%s\n\n" % _words(900) + "".join(
+        _img("assets/form.png") + "\n" for _ in range(9))
+    _clean(_rst(module, body))
+    (module / "README.rst").write_text("Title\n=====\n\n%s\n\n" % _words(900) + "".join(
+        _img("static/description/assets/form.png") + "\n" for _ in range(9)))
+    _clean(_run(module, "README.rst"))
+
+
+@pytest.mark.parametrize("markup", [
+    '<a href="https://www.youtube.com/watch?v=abc"><img src="./assets/x.png" alt="y"></a>',
+    '<a href="https://youtu.be/abc"></a>',
+    '<a href="https://youtube-nocookie.com/embed/abc"></a>',
+])
+def test_a_youtube_link_needs_no_visible_text(module, markup):
+    shot = module / "static" / "description" / "assets" / "x.png"
+    shot.write_bytes(_png(FILE_PX))
+    (module / "static" / "description" / "assets" / "form.png").write_bytes(_png(FILE_PX))
+    _clean(_html(module, '<section><img src="./main_screenshot.png"><img src="./assets/form.png">%s</section>'
+                 % markup))
+
+
+def test_a_non_youtube_link_with_no_visible_text_is_still_flagged(module):
+    _only(_html(module, '<section><img src="./main_screenshot.png">'
+                        '<a href="https://vendor.example.com/x"></a></section>'), "LINK_TEXT_HIDES_URL")
