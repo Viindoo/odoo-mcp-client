@@ -68,21 +68,23 @@ across every module's adapt work, and closes once. All work happens here - in th
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
    see [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
    against the range's combined result - re-resolving it per commit is the banned shape above.
-2a. **Manifest version (C1) - set by formula, only when the source bumped and the module is
-    installable at the target.** The true merge already carries whatever the source commit did to the
-    module descriptor - which filename applies on which series is owned by
-    `odoo-era-boundaries.md` row 6, never restated here. For a module that already exists on the
-    target with `installable_false=no` on its `merge-log.md` row (an absent `installable` key counts
-    as installable - `[[fp-installable-false]]` § Discriminator) and whose `version` the range
-    changes on the source, set the target descriptor's `version` to `max(M + 1, S)`, whether or not
-    the merge conflicted on that field. A module with `installable_false=yes` keeps the target's
-    `M`: restore it when the merge carried the source's value.
-    `M` = the target module's version BEFORE this forward-port, `S` = the module's version in the
-    source tip, both read on the module part after the series prefix and compared as dotted integer
-    tuples; `+ 1` adds one to the last component. Write the result in the form the target
-    descriptor already uses. A range that does not change the module's `version` on the source
-    leaves the target's value as it is, and a module new on the target keeps the version the merge
-    carries. Never merge-pick one side's value and never bump for any other reason.
+2a. **Manifest version (C1) - set by rule, only when the range changed the module's `version` on
+    the source.** The true merge already carries whatever the source commit did to the module
+    descriptor (the filename per series: `odoo-era-boundaries.md` row 6). `M` = the target module's
+    version BEFORE this forward-port, `S` = its version at the source tip, both read on the module
+    part after the series prefix and compared as dotted integer tuples; `+ 1` adds one to the last
+    component. For a module that exists on the target, whether or not the merge conflicted on
+    that field:
+    - installable on both series (`installable_false=no` on its `merge-log.md` row; an absent
+      `installable` key counts as installable - `[[fp-installable-false]]` § Discriminator):
+      `version` = `max(M + 1, S)`;
+    - `installable: False` at the target (`installable_false=yes`): `version` = `S`, the source
+      version - the module is a dormant copy of the source code and its version matches the code
+      it carries.
+    A range that does not change the module's `version` on the source leaves the target's value
+    as it is, in both cases; a module new on the target keeps the version the merge carries. Write
+    the result in the form the target descriptor already uses. Never merge-pick one side's value
+    and never bump for any other reason.
 3. Adapt per module, code first: ONE `odoo-coding` node adapts the code, then its test leg forwards
    and adapts the tests and proves each
    (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
@@ -116,8 +118,8 @@ after P9 is green and before P10 concludes the merge - never inside P8's adapt l
    source-series name still fires for source-to-target jumpers below `a.b.c` and never fires on a
    native-target database, which is correct for a problem only the source had.
 3. **Retarget.** Name the dir FULL `<tgt-series>.V`, where `V` is the version C1 sets for the
-   module (`max(M + 1, S)`, which is always above `M`, so the dir fires on a deployed target
-   database sitting at `M`). When the range carries no other `version` change for the module, a
+   module - step 1 admits only modules installable at the target, so `V = max(M + 1, S)`, always
+   above `M`, and the dir fires on a deployed target database sitting at `M`. When the range carries no other `version` change for the module, a
    retarget still sets the manifest to that `V`. Invariant: the dir version is `<=` the final
    manifest version.
 

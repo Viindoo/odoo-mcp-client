@@ -100,7 +100,8 @@ When a module is `installable:False` at target, apply ONLY the following:
 - Do NOT deep-OSM-ground symbol usage (e.g. no `find_override_point`,
   `impact_analysis`, `suggest_pattern`).
 - Do NOT rate or report business-logic findings (HIGH/MED/LOW).
-- The manifest `version` is decided by C1 of `[[fp-merge-absorption]]`, not by this lane.
+- The manifest `version` follows C1 of `[[fp-merge-absorption]]` (the dormant branch: the source
+  version when the range changed it), not this lane.
 - SOLE exception: fix a syntax or lint error that flake8/eslint/prettier/ruff
   flags and that blocks CI outright - that is the only code touch permitted.
 
@@ -152,8 +153,10 @@ ESLint / Prettier / ruff rules:
 
 ## A2 - Manifest version (forward-port)
 
-The manifest `version` follows `[[fp-merge-absorption]]` C1 alone, gate included. A new module lands
-with the version the merge carries. Migration dirs follow C2 of the same file. There is no "bump when the diff touches `.js/.scss/.xml/migrations/`" rule.
+The manifest `version` follows `[[fp-merge-absorption]]` C1 alone, gate included: a module dormant
+at the target takes the source version when the range changed it; a new module lands with the
+version the merge carries. Migration dirs follow C2 of the same file. There is no "bump when the
+diff touches `.js/.scss/.xml/migrations/`" rule.
 
 ---
 
@@ -184,7 +187,8 @@ CARRY is the default.
 - [ ] For new modules: `'auto_install': True` is commented with TODO note
 - [ ] For new modules: `'application': True` is commented with TODO note
 - [ ] Lint is green; no refactoring beyond lint fix
-- [ ] Manifest version set per C1; migration dirs handled per C2 (P9.6) - [[fp-merge-absorption]]
+- [ ] Manifest version set per C1 (dormant at target: the source version when the range changed
+      it); migration dirs handled per C2 (P9.6) - [[fp-merge-absorption]]
 - [ ] For pre-existing dormant / category-3: if merge carried `installable:True`, re-set to False
       + re-comment `auto_install`/`application` with TODO breadcrumb (same as new-module landing)
 - [ ] Breadcrumb note: `# TODO: Uncomment when upgrading module to production-ready status` is the

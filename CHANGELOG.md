@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **the forward-port manifest version follows the code a module carries.** C1
+  applies `max(M + 1, S)` only to a module installable on both series; a module `installable:
+  False` at the target takes the source version when the range changed it (a dormant copy of the
+  source code), and a range that does not change the version leaves the target alone in both
+  cases. Every restatement of C1 (the installable-false lane, the version pivots, the manifest
+  reference, the forward-port orchestration entry) says the same.
+
 ## [8.2.2] - 2026-10-31
 
 ### Added
