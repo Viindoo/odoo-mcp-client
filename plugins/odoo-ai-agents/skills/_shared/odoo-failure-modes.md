@@ -72,5 +72,6 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 | Symptom | Likely root cause | Localize with |
 |---|---|---|
 | Module won't install/load | unmet/wrong `depends`; failing data file; Python import error | `module_inspect` (manifest + depends); traceback bottom line |
+| Bridge module absent after `-u` | `auto_install` fires on install only, never on update | `-i <bridge>` on the existing database; a fresh `-i` of the base modules shows the bridge joining |
 | Migration script errors | wrong version path; pre/post hook assumptions; renamed model/field | grep `migrations/`; `api_version_diff` |
 | Deprecated-API-at-runtime after upgrade | symbol removed/changed across versions | `lookup_core_api`, `api_version_diff`; for a full pre-upgrade scan hand to `odoo-deprecation-audit` |

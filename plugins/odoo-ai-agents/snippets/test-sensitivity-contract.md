@@ -31,6 +31,11 @@ why in one line (report and worklog).
 An empty diff never means "no test needed" when the brief carries adapt work (`SOURCE TESTS`, a
 bucket-(a) commit, a deferred test leg): those tests are still owed.
 
+A test never depends on the absence of a module outside its closure: before it arranges data
+through a core action steered by context or defaults, grep the repositories for overrides of
+that method and place the test in the module that owns the flow
+(`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Tests).
+
 ## The break-check
 
 A test earns its place only if it FAILS when the business rule it guards is deliberately broken.

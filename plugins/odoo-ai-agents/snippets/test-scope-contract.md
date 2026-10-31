@@ -28,7 +28,8 @@ too-narrow `M` is a coverage defect no tagging fixes - this contract only guaran
 
 **Two runs, not one.** Before the blast-radius run above, each changed module runs once on a
 fresh database that installs ONLY that module (its upstream closure and the `auto_install`
-modules that closure satisfies come with `-i`): that run proves the module stands alone. Its tests
+modules that closure satisfies come with `-i`; the set it loaded is read from the build log,
+never inferred): that run proves the module stands alone. Its tests
 create or read records only from the module and its closure
 (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Tests); a fixture from a module
 outside the closure is a CRITICAL finding, not a scoping choice.

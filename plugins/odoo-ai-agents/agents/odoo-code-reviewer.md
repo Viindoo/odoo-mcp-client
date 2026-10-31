@@ -76,7 +76,10 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    boolean `and` / `or` hand-wrapped across lines (`${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`
    § Python wrapping); `Args:`, `Returns:` or `Raises:` inside a triple-quoted string of a `.py`
    file (a Google or NumPy docstring -> LOW, the fix is the rst field form of
-   `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 5).
+   `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 5); a rate, ceiling, threshold,
+   effective date or regulation-assigned account code written as a Python constant or inside a
+   formula string (`code`, `amount_python_compute`) instead of a data record -> MED
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 2).
    A `_name`, `_inherit` or `_inherits` value that is not a string literal (or a list or dict of
    literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
 7. **Conventions**: every section of every guideline file you read for the file types in

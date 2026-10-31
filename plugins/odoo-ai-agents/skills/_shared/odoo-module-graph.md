@@ -59,6 +59,14 @@ at the front door (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` §
 rule), so this algorithm never self-blocks for "no plan". A new module with no design edge
 surfaces via the coder's dependency pre-flight as a graceful BLOCKED.
 
+## Reverse closure
+
+The reverse closure of a module is every module whose `depends` names it, directly or through
+other modules, computed to its fixed point (a grep of every manifest, `impact_analysis` as a
+lower bound). It is the unit that moves with a module between repositories, the set a retired
+module must no longer be used by, and the set whose tests run once more after the module changes
+(`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Tests).
+
 ## How `odoo-coding` uses it
 
 A node's `depends_on` edges derive from this graph: if a node's modules depend, directly or

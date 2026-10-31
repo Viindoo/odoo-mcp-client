@@ -111,6 +111,9 @@ Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Use `ev
 - **self-referential** custom properties (a CSS variable referencing itself - cycle resolves to empty, the classic "flat" theme cause);
 - **`--bs-*` references** that resolve EMPTY - Odoo sets `$variable-prefix:''`, so Bootstrap `--bs-*` runtime properties are absent across v16+ (confirmed through v19); reference `--primary`/`--o-color-*`;
 - **hardcoded** hex/rgba where a runtime design token should be reused;
+- a module-owned custom property (`--<vendor>-*`), a module class that holds a color, or a
+  theme-fixed Bootstrap class (`bg-white`, `text-dark`, `border-light`) on a business-module
+  surface (rule A6: the module must follow a theme's token change with no edit);
 - divergence from the project mockup.
 
 **Brand fidelity (optional, only when declared).** If `<SHARE_DIR>/brand-tokens.json` exists (JSON map `token -> expected color`), ΔE-diff each resolved `getComputedStyle(:root)` value against its expected color with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py" [--threshold T] <expected> <actual>` (CIEDE2000; prints the ΔE; with `--threshold` exit 0 = within, 1 = over; exit 2 = unparseable, skip that token) - the runtime half of `odoo-frontend-fidelity.md` Section G. Flag diverging tokens as **brand-fidelity WARN** (e.g. "primary CTA resolves to `#1a73e8`, expected `#1E88E5` (ΔE 38)"). Absent → skip silently. Keep it WARN-tier - never block on ΔE rounding.
