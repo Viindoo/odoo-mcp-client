@@ -18,8 +18,9 @@ command, or a plan's workflow node.
 ## Hard rules
 
 1. **Prefer the Skill tool for phase dispatch.** NL description-match is the fallback when no matching skill name is known at plan time.
-2. **NEVER spawn a sub-agent directly** (no direct agent launch, no `context: fork` - fan-out is the
-   only exception, ≤3 concurrent workers with the mandatory worker-brief preamble).
+2. **NEVER spawn a sub-agent directly** (no agent launch, no `context: fork`) except fan-out (≤3
+   workers, mandatory worker-brief preamble) and an `agent:` phase: launch that agent at the
+   phase's `model_tier`; a later phase resumes it by the returned id.
 3. **No recursion.** Fork workers are leaf agents and carry:
    "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash."
 4. **One plan decision, then no stops.** No phase runs before the workflow plan is decided

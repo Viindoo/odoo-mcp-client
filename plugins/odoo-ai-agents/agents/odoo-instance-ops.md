@@ -355,7 +355,8 @@ fallback above for it, never raw `dropdb`.
 
 1. Do NOT re-issue it, and do NOT reword, re-encode or re-route it to get past the refusal.
 2. Do NOT end on a bare `BLOCKED` while the lease is live and unforwarded.
-3. Forward `INSTANCE_HANDLE` (`lease_token`, `run_id`, db, ports) in your continuation
+3. Forward `INSTANCE_HANDLE` (every field of the latest `instance_handle` a tool returned,
+   `ui_user` included) in your continuation
    `next.inputs`, naming your **dispatching caller** as the catcher, quote the refusal verbatim,
    and keep the honest terminal status. See `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
    T4.

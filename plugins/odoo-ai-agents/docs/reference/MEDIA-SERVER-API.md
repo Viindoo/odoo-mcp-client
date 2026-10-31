@@ -89,6 +89,9 @@ configure call leaves no stamp, so the next start retries; two servers are seria
 
 ## Human-run commands
 
+The video pipeline's own scripts (storyboard validator, recorder, budget, key scan, assembler):
+`VIDEO-PIPELINE.md`.
+
 - `75-youtube.sh consent --channel <purpose> --client-json <file>` (`scripts/lib/youtube_oauth.py`):
   loopback OAuth with PKCE for the Desktop client, scope `youtube.force-ssl`, `prompt=consent`;
   stores the client values and the channel's slot value through `claude plugin configure

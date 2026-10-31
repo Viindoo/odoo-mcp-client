@@ -2,17 +2,17 @@ name: video-produce
 domain: marketing
 team_pattern: Pipeline
 description: |
-  Produce a multi-scene Odoo demo video: author a storyboard (scene list with click
-  paths, timing and, when narrated, a narration per scene and language), record each
-  scene via the odoo-demo-recording primitive - one recording per narration language, with
-  the UI in that language - synthesise the narration through the configured speech endpoint,
-  assemble one publish-ready MP4 per language (or a silent MP4 / GIF), then PUBLISH it where
-  the caller says: the YouTube channel of a purpose (docs | marketing) through the odoo-media
-  server, the pull request as an attachment, or nowhere (the file stays local). Trigger:
-  "multi-scene Odoo demo video", "storyboard and record", "assemble scenes into one video",
-  "narrated demo video", "tutorial video", "upload the demo to YouTube", "publish the video",
-  "record storyboard", "multi-take product demo", "quay nhiều scene ghép thành một video demo",
-  "đăng video lên YouTube", "make a 3-scene walkthrough", "record and stitch demo clips"
+  Produce a multi-scene Odoo demo video from one approved storyboard: scenes with structured
+  click paths, timing and a narration per scene and language; one recording per narration
+  language with the UI in that language, driven and recorded by the plugin's recorder script;
+  narration through the configured speech endpoint; one publish-ready MP4 per language (or a
+  silent MP4 / GIF) with captions, thumbnail, chapters and preview; then PUBLISH where the caller
+  says: the YouTube channel of a purpose (docs | marketing) through the odoo-media server, the
+  pull request as an attachment, or nowhere. Trigger: "multi-scene Odoo demo video", "storyboard
+  and record", "assemble scenes into one video", "narrated demo video", "tutorial video",
+  "upload the demo to YouTube", "publish the video", "record storyboard", "multi-take product
+  demo", "quay nhiều scene ghép thành một video demo", "đăng video lên YouTube", "make a 3-scene
+  walkthrough", "record and stitch demo clips"
 output_dir: .odoo-ai/video
 inputs:
   - project_label
@@ -27,232 +27,122 @@ inputs:
 resume: true
 fallback: standalone
 
+# Layout, every artifact under <ISOLATE_DIR>/video/<project_label>/: storyboard.json (the
+# plan), storyboard.md (its rendering for the gate), scripts/ (scene scripts), takes/<lang>/,
+# narration/<lang>/, assembly/<lang>/, deliverables/<lang>/, ledger.jsonl (AI spend),
+# findings.md (product defects seen on screen). Nothing in a temporary directory. Scripts:
+# ${CLAUDE_PLUGIN_ROOT}/scripts/lib/{storyboard_check,video_record,video_budget,video_keyscan,
+# video_publish,narration_check,pronunciation}.py; every one prints KEY=VALUE lines.
+
 phases:
   - id: storyboard
     inline: true
     plan: true
     model_tier: sonnet
-    # Runner collects:
-    #   - project_label  (default "Demo-Project")
-    #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
-    #   - output_format  (mp4 or gif; default mp4)
-    #   - languages      (narration languages as locales, e.g. vi_VN,en_US; empty = silent video).
-    #                    EACH language is its own recording with the UI in that language: a
-    #                    tutorial's screen must speak the narration's language. When `targets`
-    #                    names docs or an App Store page, languages = the union of the targets'
-    #                    languages (the docs-site row's `languages`, the module's i18n); a
-    #                    narrower set is a decision the plan gate shows with its reason.
-    #   - destination    (none | pr | youtube | youtube:<purpose>; where the publish phase sends the
-    #                    result; an unset destination is asked, never assumed - a default is only
-    #                    offered after the odoo-media youtube_check for the purpose was run)
-    #   - targets        (optional: what embeds the video - a docs-site row key, a module's guide
-    #                    or App Store page - decides languages and purpose)
-    #   - video_type     (tutorial | marketing: decides the script rules, the voice ranking, the
-    #                    speaking rate, the music bed default and the shot length below)
-    # Resolves the series per snippets/project-facts-resolution.md and the instance target
-    # per snippets/instance-resolution.md.
-    # Narrated run (languages given): read the speech configuration FIRST -
-    #   bash ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/70-speech.sh check
-    # exit 1 = stop with NEEDS_CONTEXT naming `/odoo-ai-agents:odoo-setup voice` (a voice per
-    # requested language must be recorded there); never ask for a key or an endpoint in chat.
-    # Then `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_publish.py verify-tools` (ffmpeg, the
-    # filters, the title-card renderer, the font and its Vietnamese coverage): VERDICT=fail stops
-    # here with the REMEDY lines, before anything is recorded. The odoo-media `media_info` tool
-    # says whether the speech option is set; `speech_probe` proves the round trip per language.
-    # Produces the storyboard as Markdown AND as storyboard.json
-    # (<ISOLATE_DIR>/video/<project_label>/storyboard.json), the plan approved once:
-    #   { "title", "video_type", "languages": [...], "lead_in_s": 0.5, "fade_s": 0.3, "max_silence_s": 3.0,
-    #     "max_hold_s": 3.0, "shot_seconds": [2, 4] (marketing) | [3, 8] (tutorial), "publish_profile":
-    #     "youtube-1080p", "pronunciation": {"<lang>": [{"written","spoken","kind"}]},
-    #     "voice": {"<lang>": "<the audition's pick>"}, "speed": <tts.rate of the video type>,
-    #     "music": {"on": true|false (marketing: on; tutorial: off unless asked), "file", "license",
-    #               "gain_db": -18},
-    #     "scenes": [{ "id", "title": {"<lang>": ...}, "click_path": [...],
-    #                  "target_seconds", "narration": {"<lang>": "..."},
-    #                  "focus": [{"box": [x, y, w, h], "from_s", "to_s"}]  (the area that matters: the
-    #                           answer, the key number, the button just clicked - zoomed 1.2-2x),
-    #                  "must_see": [[start_s, end_s]] }],
-    #     "publish": {"<lang>": {"title", "description"}} }
-    # Pacing rules the storyboard encodes: a shot opens when the result appears and cuts at the
-    # click (no "clicked, now waiting" footage); no still frame longer than max_hold_s without
-    # narration - shorten the narration, or fill the gap with a meaningful shot (a zoom on the
-    # result), never a freeze; marketing shots 2-4 s, a tutorial's longer but under the same cap.
-    # Voice and music, decided ONCE per project (the audition): list the voices
-    # (`speech_voices`); when the listing carries descriptions or style tags, rank them for the
-    # video type - conversational / natural first, a news or story-reading style last for
-    # marketing - and take the top one; when no listing is reachable, or on request, render the
-    # hook line with every candidate of speech.toml `tts.candidates` (`speech_synthesize` with
-    # `voice`), run `speech_transcribe` + narration_check on each, then
-    # `video_publish.py audition --narration <wavs> --music <author profile music_file>` and
-    # give the operator the sample paths: ONE AskUserQuestion per language (the voice; music on or
-    # off) whose answer goes into the storyboard - no voice name is ever written in plugin prose.
-    # The speaking rate is speech.toml `tts.rate` for the video type, verified by
-    # `speech_probe` with `speed` (`speed_honoured` false = the engine ignores it: say so, keep 1.0).
-    # Narration per scene and language is SPOKEN text, never prose: sentences of 8-15 words with
-    # one idea each (`narration_check.py --script` refuses a longer one); the first 5 seconds are a
-    # hook - a question or the viewer's pain - never a description; second person ("you"); the
-    # benefit before the feature, a before/after contrast where there is one; punctuation at every
-    # idea boundary so the engine pauses there; marketing: result first (show the outcome, then
-    # the how); the written form of every brand and acronym (the pronunciation map respells them
-    # for the engine only), no term the embedding docs site bans (`docs_site_config.py show --key <row>`
-    # policy.banned_terms, when a target is a docs-site row) and URLs said the way the author
-    # profile states them (the page by its name, never spelled out), and it talks the viewer
-    # through the scene - what is on the screen, why the
-    # user does this, what to look at next - so the screen never moves for longer than
-    # max_silence_s with nobody speaking; a scene whose click path outlasts what there is to say
-    # is cut or merged, never left as silent recording. One sentence never spans two lines: the
-    # speech engine pauses at every line break as at a full stop, so the text holds one sentence
-    # (or several) per line and breaks only after sentence-final punctuation. Hard rules enforced
-    # inline:
-    #   - No writes before the storyboard is decided
-    #   - Abstract labels only (no real customer names in saved files)
-    #   - Each scene maps to one odoo-demo-recording invocation
-    #   - A narration language with no recorded voice is a NEEDS_CONTEXT, never a guess
-    #   - The storyboard holds every tunable (lead-in, fade, profile); nothing is hardcoded later
-    #   - Pronunciation: the machine registry (`pronunciation.py registry list`, recorded by
-    #     odoo-setup voice: the vendor brand, the AI vendors and models the product shows,
-    #     acronyms, each pronounced the English way per language) ALWAYS applies and is never
-    #     overridden; the storyboard map only ADDS terms for this video. Run
-    #     `pronunciation.py registry missing --lang <lang> --text <narration> --map <map>` per
-    #     language: every MISSING term is asked of the operator once (a respelling, confirmed by
-    #     ear from a `speech_synthesize` clip) and recorded with `registry add --confirmed`, or
-    #     added to this video's map - never guessed silently.
+    # Inputs the runner collects: project_label (default "Demo-Project"); scenes (ordered
+    # descriptions); output_format (mp4 | gif, default mp4); languages (locales; empty = silent;
+    # each language is its own recording with the UI in that language; when `targets` names
+    # docs or an App Store page, languages = the union of the targets' languages, a narrower set
+    # is a decision the gate shows with its reason); destination (asked when unset, never
+    # assumed; a default is offered only after the odoo-media youtube_check for the purpose
+    # ran); targets; video_type (decides the script rules, the voice ranking, the speaking rate,
+    # the music default and the shot length).
+    # Series per snippets/project-facts-resolution.md; instance per snippets/instance-resolution.md.
+    # Preflight, before anything is written: narrated run ->
+    #   bash ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/70-speech.sh check  (exit 1 = NEEDS_CONTEXT
+    #   naming `/odoo-ai-agents:odoo-setup voice`; never ask for a key or an endpoint in chat) and
+    #   the odoo-media `media_info` tool (`speech.value_present` false = NEEDS_CONTEXT naming the
+    #   option);
+    #   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_publish.py verify-tools  (VERDICT=fail stops
+    #   with its REMEDY lines); python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_record.py self-test
+    #   (exit 1 stops with its lines and `/odoo-ai-agents:odoo-setup browser`).
+    # Write storyboard.json per ${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/storyboard.md
+    # (the schema), then `storyboard_check.py check` until exit 0, `storyboard_check.py render` to
+    # storyboard.md, `video_budget.py estimate`. The plan the gate shows = storyboard.md + the
+    # estimate + the instance to build. Rules the storyboard encodes:
+    #   - Every scene's click_path is structured actions (`do` objects); a human string beside
+    #     them is allowed, a scene with no action is not recordable.
+    #   - A shot opens when the result appears and cuts at the click; no still frame longer than
+    #     max_hold_s without narration; marketing shots 2-4 s, a tutorial's longer, under the cap.
+    #   - Narration is SPOKEN text: sentences of 8-15 words with one idea each
+    #     (narration_check.py refuses a longer one), a hook in the first 5 seconds, second
+    #     person, the benefit before the feature, marketing shows the result first; written brands
+    #     and acronyms (the pronunciation map respells them for the engine only).
+    #     One sentence never spans two lines: the engine pauses at every line break as at a full
+    #     stop. No term a target docs-site row bans (`docs_site_config.py show --key
+    #     <row>` policy.banned_terms); URLs said as the author profile states them; the viewer is
+    #     talked through what is on screen so the screen never moves longer than max_silence_s
+    #     with nobody speaking.
+    #   - Voice and music, once per project: `speech_voices` listing ranked for the video type
+    #     (conversational first; a news or story style last for marketing); no listing ->
+    #     audition every speech.toml `tts.candidates` voice on the hook line
+    #     (`speech_synthesize` with `voice`, `speech_transcribe` + narration_check,
+    #     `video_publish.py audition --music <author profile music_file>`), ONE AskUserQuestion
+    #     per language (the voice; music on or off); no voice name is written in plugin prose.
+    #     Speaking rate = speech.toml `tts.rate` for the video type, verified by `speech_probe`
+    #     with `speed` (`speed_honoured` false -> keep 1.0 and say so).
+    #   - Pronunciation: the machine registry (`pronunciation.py registry list`) always applies;
+    #     the storyboard map only adds terms; `registry missing --lang --text --map` per
+    #     language, every MISSING term asked once and recorded with `registry add --confirmed`.
+    #   - AI feature in a scene: the `ai` block carries requests_per_scene, tokens_per_request,
+    #     takes, trials_k, key_env (the NAME of the variable, dedicated to demos), quota_note
+    #     (what the app's settings page says about per-database limits); `key_scope` is asked
+    #     once as a closed question (dedicated | shared); shared is refused. The estimate is
+    #     shown at the gate.
+    #   - Abstract labels only (no real customer name in a saved file); demo_data actions seed
+    #     the scratch database through the UI, fictitious names, archived noise, stable rankings.
+    #   - A narration language with no recorded voice is NEEDS_CONTEXT, never a guess.
 
   - id: record-scenes
-    skill: odoo-demo-recording
+    agent: odoo-video-producer
     nl_trigger: >
-      Record all scenes from the storyboard produced in the storyboard phase, ONCE PER
-      NARRATION LANGUAGE (a silent video: once), and beside each clip write
-      <clip>.events.json - [{"kind": "typing|wait|travel|load", "start": s, "end": s}] for every
-      span you drove (each typed input, each wait for an indicator or a page load, each cursor
-      travel or scroll to find a target), timed from the recording's start; the assembler
-      compresses those spans (typing plays 3x, a wait keeps its first second, travel 2x): before a language's scenes, switch the demo
-      user's interface language to that language the way the plugin's documentation captures do
-      (through the UI, never a database write), and name each clip {project_label}-{lang}-scene-N.
-      For each scene in order: plan the click path using the storyboard description,
-      then set up deterministic demo state and drive the planned path in the SAME
-      browser the recorder records - with pagecast, inside the pagecast session
-      (interact_page actions: navigate / type / press / click / hover / select / scroll /
-      wait); with playwright, the playwright tools around
-      browser_start_video / browser_stop_video - never drive with chrome-devtools while a
-      recording runs. Stop the recorder (stop_recording or browser_stop_video), then CLOSE
-      every page you DROVE this scene before starting the next scene. Use {project_label}-{lang}-scene-N as the scene's feature name, so its clip
-      lands at odoo-demo-recording's own absolute path
-      <ISOLATE_DIR>/visual/videos/{project_label}-{lang}-scene-N-<YYYYMMDD>-<4 random chars>.{mp4,gif}.
-      Never pass a relative path to a capture tool. Both the stop and the close are mandatory per
-      scene, including a retake - see
-      ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md T0 and T2 - Browser: close
-      what you drove.
-      After all scenes are recorded, report each clip path and duration.
-      If a scene's storyboard description says "narrated", "before/after evidence", or carries a
-      --label before|after, dispatch that scene's odoo-demo-recording invocation in Narrated
-      evidence mode instead of the default flow - same clip-path convention, no change to this phase otherwise.
-      Retake: when the user asks to retake a scene, re-record that scene only (stop + close it
-      too) and assemble again.
+      Launch odoo-video-producer with MODE: record, the storyboard path, LANGUAGES, the
+      INSTANCE_HANDLE of the demo build (built or forwarded per the storyboard phase's plan;
+      the language packs loaded; the producer never releases it), WORKTREE_PATH, ODOO VERSION,
+      PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, AUTHOR PROFILE, BUDGET_MARGIN. Keep the id the
+      launch returns as WORKER_AGENT_ID; the next two phases resume that agent. A NEEDS_CONTEXT
+      on a scene, a budget or a key field on screen goes to the storyboard owner before any retake.
     model_tier: sonnet
 
   - id: narrate
-    inline: true
-    model_tier: haiku
-    # Narrated run only (skip when `languages` is empty). For each scene and each language:
-    #   1. Write the narration text to <ISOLATE_DIR>/video/<project_label>/narration/<lang>/<scene>.txt,
-    #      check its shape (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/narration_check.py --script <txt>`:
-    #      exit 1 = a sentence runs on to the next line; rejoin it before any synthesis), and run
-    #      the pronunciation self-check once per run:
-    #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/pronunciation.py selfcheck --map <storyboard pronunciation as JSON>
-    #   2. Synthesise with the odoo-media tool `speech_synthesize` (text_file <txt>, lang, out
-    #      .../narration/<lang>/<scene>.wav, pronunciation = the storyboard map, voice = the
-    #      storyboard's pick for the language, speed = the storyboard's rate when the probe said
-    #      the engine honours it): the endpoint's
-    #      value is the plugin's configured option, which only that server holds; a
-    #      VALUE_NOT_CONFIGURED result is a NEEDS_CONTEXT naming the option, never a question for
-    #      a value in chat. One clip at a time (the endpoint is a shared service).
-    #   3. Check it: the odoo-media tool `speech_transcribe` (audio <wav>, lang) -> <scene>.stt.txt, then
-    #        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/narration_check.py --script <txt> --transcript <stt.txt>
-    #          --slots "<brands and acronyms of the scene>" --map <map.json> --lang <lang>
-    #      exit 1 = generate another take (at most 3 per line) and keep the lowest WER;
-    #      exit 3 = keep the take and list the line under "listen" (STT cannot tell an acronym
-    #      read letter by letter from the word, nor judge a brand or a URL - a human listens):
-    #      every line holding a registered term or a URL is a "listen" line.
-    #   4. Record durations per scene and language in .../narration/<lang>/durations.json
-    #      ({"<scene id>": seconds}) for the assembler.
-    # A narration-only fix re-runs this phase and assemble; never record-scenes.
+    agent: odoo-video-producer
+    nl_trigger: >
+      Narrated run only (skip when `languages` is empty). Resume WORKER_AGENT_ID with MODE:
+      narrate and the same brief; a `listen` line is kept for the publish gate, a NEEDS_CONTEXT
+      line goes back to the storyboard owner. A narration-only fix re-runs this phase and
+      assemble; never record-scenes.
+    model_tier: sonnet
 
   - id: assemble
-    inline: true
+    agent: odoo-video-producer
+    nl_trigger: >
+      Resume WORKER_AGENT_ID with MODE: assemble and the same brief. Its report carries, per
+      language, the deliverable path under deliverables/<lang>/, the verify lines, the listen
+      lines, the budget figures and findings.md; a BLOCKED (a key field on screen, a failed verify) stops
+      the workflow with those lines. Silent run: the scene clips paced and concatenated with a
+      silent track, no narration, verified with `--silent`. Recorder unavailable for a scene: the producer says so and the scene is
+      recorded by odoo-demo-recording's MCP path, assembled from its clip.
     model_tier: sonnet
-    # Runner assembles one deliverable per language (or one silent deliverable):
-    #   0. Tools: `command -v ffmpeg ffprobe`; without them deliver the per-scene clips in
-    #      storyboard order and say why the single file was not produced. pagecast
-    #      convert_to_mp4 / convert_to_gif convert ONE clip each and never join clips.
-    #      Every ffmpeg step below goes through ${CLAUDE_PLUGIN_ROOT}/scripts/lib/video_publish.py
-    #      so the publish profile is applied once, from data.
-    #   0b. Pace each scene clip first: `video_publish.py speedup --clip <clip> --events
-    #      <clip>.events.json --out .../assembly/<lang>/<scene>.paced.mp4` (no events file = the
-    #      clip as recorded, and `SPEEDUP=none` in the report), then per storyboard focus
-    #      `video_publish.py zoom --clip <paced> --focus x,y,w,h --from s --to s --factor <1.2-2>
-    #      --out ...` (never a caption or a title card).
-    #   1. Narrated: per scene and language, with THAT language's clip, `video_publish.py fit --clip <paced or zoomed clip> --narration <wav>
-    #      --out .../assembly/<lang>/<scene>.mp4 --lead-in <storyboard lead_in_s> --fade <fade_s>
-    #      --max-silence <storyboard max_silence_s> --max-hold <max_hold_s>` (narration after the
-    #      lead-in; the last frame held when it outlasts the clip, within the cap). Exit 4 = the
-    #      screen moves longer than max_silence_s with nobody speaking: extend that scene's
-    #      narration with what the screen shows (back to narrate for the scene) or shorten its click
-    #      path (back to record-scenes); exit 5 = the frame would freeze longer than max_hold_s to
-    #      fit the narration: shorten the narration or add a meaningful shot (a zoom on the result);
-    #      never ship either. Silent: the scene clips as recorded.
-    #   2. Optional title card: `video_publish.py title --text "<storyboard title for the language>"
-    #      --out .../assembly/<lang>/00-title.mp4 --font <author profile font_file>` (drawtext, or
-    #      libass on a build without it - verify-tools said which; neither = skip the card and say so).
-    #   3. `video_publish.py concat --list <ordered clip list> --out
-    #      <ISOLATE_DIR>/video/<project_label>-<lang>-<YYYY-MM-DD>.mp4 [--music <storyboard
-    #      music.file> --music-gain <gain_db> --music-license "<license>"]` (re-encode to the
-    #      profile; the bed ducked under the narration, faded in and out; then the two-pass
-    #      loudnorm). The licence line goes into the report and the description sidecar. A gif
-    #      deliverable: pagecast convert_to_gif on the concatenated mp4.
-    #   4. `video_publish.py verify --video <final> --profile <storyboard publish_profile>`: any FAIL
-    #      line fails the run - report the lines, never ship the file as publish-ready.
-    #   5. Side files per language: `video_publish.py sidecar --storyboard storyboard.json --lang
-    #      <lang> --durations <durations.json> --out-dir .../deliverables/<lang>/` (captions .srt,
-    #      title + description + chapters .txt), `video_publish.py thumbnail --video <final> --at
-    #      <a storyboard key frame> --out .../deliverables/<lang>/thumbnail.jpg`, and
-    #      `video_publish.py preview --video <final> --out .../deliverables/<lang>/preview.mp4
-    #      --max-mb 10`.
-    #   6. Frame spot check per scene (open 2 frames per scene with the plugin browser or ffmpeg
-    #      -frames:v 1 and look): the right UI language, no settings form and no long opaque
-    #      string (a pasted key) on screen; then grep every kept text file for the shapes of a
-    #      pasted key (`sk-`, `Bearer `). A hit fails the run.
-    #   7. Print per language: the artifact paths, total duration, scene count, the verify lines,
-    #      the "listen" lines of narrate, product defects seen on screen (for the product team,
-    #      never edited out), and the re-runnable storyboard.
-    # Fallback: if only screenshot capture was available for any scene, the assembler
-    # stitches frame sequences and prefixes the output with:
-    #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.
-    # All artifacts stay under <ISOLATE_DIR>/video/<project_label>/ (storyboard.json, takes/,
-    # narration/, assembly/, deliverables/); nothing in a temporary directory.
 
   - id: publish
     inline: true
     model_tier: haiku
-    # Runs LAST and only when the caller's `destination` says so (the rule and the destinations:
-    # ${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md). BEFORE any upload:
-    # the "listen" lines of narrate are the human gate - give the operator each clip path and its
-    # line (AskUserQuestion, one answer per language: approve / refine: [the line to re-voice] /
-    # cancel); a refine goes back to narrate for that line, never to publishing.
-    #   - `pr`: hand the `preview` rendition and the PR to git-toolkit:git-ops with the request to
-    #     attach it to the PR body or a comment; the caller's size cap applies.
-    #   - `youtube` or `youtube:<purpose>` (purpose defaults to `docs`; `marketing` for a sales or
-    #     marketing video): the odoo-media tool `youtube_check` (channel = purpose, live = true)
-    #     first - YOUTUBE_CHANNEL_UNKNOWN / YOUTUBE_NOT_CONFIGURED = the video stays local, the
-    #     return names its path and `/odoo-ai-agents:odoo-setup youtube`; VALUE_NOT_CONFIGURED =
-    #     NEEDS_CONTEXT naming the option - then per language the odoo-media tool `youtube_upload`
-    #     (channel, video <final>, title "<publish title>", description_file
-    #     <deliverables/<lang>.txt>, language <lang>, captions {<lang>: <deliverables/<lang>.srt>},
-    #     thumbnail <thumbnail.jpg>); record per language {video_id, lang, purpose, watch_url,
-    #     embed_url} as `videos` in the return - the run file's produced.videos, which the plan's
-    #     publish-videos node reads to make them public once the PR that embeds them merged.
-    #     Privacy is the channel's default (unlisted) unless the caller states `public`, which is
-    #     confirmed with the user first; the caller is who embeds the URL.
-    #   - `none` (default): no publishing; the deliverables stay under the run directory.
-    # Then delete <ISOLATE_DIR>/video/<project_label>/takes/, narration/ and assembly/ (the
-    # deliverables stay until the run that owns them ends and removes the whole label directory).
+    # Runs LAST and only when `destination` says so (${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md).
+    # Before any upload: the `listen` lines are the human gate (AskUserQuestion, one answer per
+    # language: approve / refine: [the line to re-voice] / cancel; a refine goes back to narrate),
+    # and `video_keyscan.py scan --dir <ISOLATE_DIR>/video/<project_label>` must exit 0.
+    #   - `pr`: hand the `preview` rendition and the PR to git-toolkit:git-ops to attach it to the
+    #     PR body or a comment; the caller's size cap applies.
+    #   - `youtube` or `youtube:<purpose>` (default purpose `docs`; `marketing` for a sales or
+    #     marketing video): odoo-media `youtube_check` (channel = purpose, live = true) first -
+    #     YOUTUBE_CHANNEL_UNKNOWN / YOUTUBE_NOT_CONFIGURED = the video stays local and the return
+    #     names its path and `/odoo-ai-agents:odoo-setup youtube`; VALUE_NOT_CONFIGURED =
+    #     NEEDS_CONTEXT naming the option. Then per language `youtube_upload` (channel, video,
+    #     title from publish.<lang>.title, description_file deliverables/<lang>/<lang>.txt, language,
+    #     captions {<lang>: deliverables/<lang>/<lang>.srt}, thumbnail); record per language {video_id,
+    #     lang, purpose, watch_url, embed_url} as `videos` in the return (the run file's
+    #     produced.videos, read by the plan's publish-videos node). Privacy is the channel's
+    #     default (unlisted) unless the caller states `public`, confirmed with the user first.
+    #   - `none` (default): the deliverables stay under the run directory.
+    # Then delete takes/, narration/ and assembly/ (deliverables, storyboard, ledger and
+    # findings stay until the run that owns them ends).

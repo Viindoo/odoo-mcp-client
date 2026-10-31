@@ -103,7 +103,7 @@ def test_the_video_workflow_gates_narration_on_the_speech_configuration():
 
 def test_a_video_is_recorded_per_language_checked_before_recording_and_gated_before_upload():
     wf = _read("workflows/video-produce.workflow.yaml")
-    assert "verify-tools" in wf and "registry missing" in wf and "{lang}-scene-N" in wf
+    assert "verify-tools" in wf and "registry missing" in wf and "takes/<lang>/" in wf
     assert "listen" in wf and "youtube:<purpose>" in wf and "targets" in wf
 
 
