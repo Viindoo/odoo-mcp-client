@@ -55,7 +55,14 @@ guard that leaves the user with no way to fix a slip; a rule written three ways 
 carries (coding guidelines for the series, upgrade or port conventions, documentation contracts,
 the caller's brief and design) - just in time, only what the task needs, once per session: a file
 already read is applied from context, and a later step naming it is satisfied by that read.
-Re-read only after a context compaction when a decision depends on its exact text.
+
+**When the context compacts.** The summary that replaces the transcript records: the path of
+every contract, guideline, brief and design file read in this window, each with the rule it set
+that still binds; the skill, workflow or plan node in progress and its phase; every lease,
+instance handle, worktree and open page held; every limit or decision the human stated, quoted.
+After a compaction (a summary at the head of the context, or the plugin's compaction notice) the
+files read are gone except the five most recent: re-read the rows of the reading map for the class
+of work in progress before its next write, and the exact text of any file a decision depends on.
 
 **Read before you ask.** Before any question to a human, search the rules and the context for that
 decision (the project's instruction files, shared snippets and guidelines, the design, the worklog,
