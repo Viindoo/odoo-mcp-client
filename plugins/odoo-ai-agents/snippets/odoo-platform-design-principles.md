@@ -3,10 +3,10 @@
 
 # Odoo Platform Design Principles (binding checklist)
 
-Any design, code, review or diagnosis touching business structure MUST respect the
-principles below. Verify each against OSM / live source - never assume
-(see `osm-first-contract.md`). When a change *cannot* satisfy a principle, that is a deliberate deviation: state it and the justification in the worklog
-(`worklog-contract.md`), do not let it pass silently.
+Any design, code, review or diagnosis touching business structure MUST respect the principles
+below. Verify each against OSM / live source - never assume (`osm-first-contract.md`). A change
+that cannot satisfy a principle is a deliberate deviation: state it and the justification in the
+worklog (`worklog-contract.md`), never let it pass silently.
 
 ## 1. Multi-company (and multi-branch from v17+)
 
@@ -24,15 +24,14 @@ principles below. Verify each against OSM / live source - never assume
 
 ## 2. Generic and international before localization
 
-The generic, country-neutral behavior lives in a **shared** module; a
-localization (`l10n_*`) module only **seeds** the rules/data/COA/taxes that differ per country.
+The generic, country-neutral behavior lives in a **shared** module; a localization (`l10n_*`)
+module only **seeds** the rules/data/COA/taxes that differ per country.
 
 - When a change touches a localized feature, FIRST evaluate reuse across countries: would >= 2
   countries share this behavior? If yes, the behavior belongs in the **generic/shared** module and
   each `l10n_*` only adds country-specific records (rules, data, sequences, tax/account templates).
-- Do NOT build a parallel architecture inside one country's `l10n` module for something other
-  countries will also need Lift it to the shared layer and
-  seed per country.
+  Never build a parallel architecture inside one country's `l10n_*` module for something other
+  countries will also need.
 - Keep user-facing strings translatable (`_()`, no hardcoded language/currency/locale) so the
   generic layer serves every locale.
 
@@ -42,12 +41,11 @@ Any module marked `application=True` must present the standard Odoo app shape - 
 manifest flag and the menu tree (`module_inspect` / source) before signing off:
 
 - **One root (top-level) menu** for the app; feature menus organized logically beneath it.
-- **A Reports menu is mandatory**: the app has its own reporting system - one top/overview report
-  plus the child reports the business needs (depth scaled to complexity). Do not ship an app with
-  no Reports menu.
-- **A Configuration menu when the app has settings**: it contains `Settings` (the
-  `res.config.settings` extension for this app) plus the admin-only configuration models of the
-  app. Operational data does not live under Configuration; admin setup does.
+- **A Reports menu is mandatory**: one top/overview report plus the child reports the business
+  needs (depth scaled to complexity).
+- **A Configuration menu when the app has settings**: `Settings` (the `res.config.settings`
+  extension for this app) plus the admin-only configuration models of the app. Operational data
+  does not live under Configuration; admin setup does.
 
 A non-application module (a pure extension/bridge) is exempt from #3 but still bound by #1 and #2.
 
@@ -66,8 +64,8 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
   that works. `sudo()` without a reason is a review finding.
 - **No hardcoded locale, currency, company, timezone, date format or language** in a shared
   module: read them from the record, the company, the user or the context.
-- **A defect in Odoo core is reported, not patched in a downstream module.** The module works
-  around nothing; the fix goes where the defect lives.
+- **A defect in Odoo core is reported, not patched in a downstream module.** The fix goes where
+  the defect lives.
 - **Reversibility over blocking.** The default for a user action is confirm-and-allow-correction,
   not a constraint. A blocking guard (a constraint, a refused transition, a cascade cancel) is
   added only on evidence - an accounting or legal rule, a data corruption that happened, or a

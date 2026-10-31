@@ -1,73 +1,56 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by odoo-forward-port (orchestrator),
-     the future fp-intent-4outcome, fp-symbol-survival-check, and any agent that runs
-     a merge step or a verify step during continuous forward-port.
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md. -->
+<!-- SSOT snippet. Referenced by odoo-forward-port and every agent that runs a merge or verify
+     step of a forward-port. Edit here only; consumers point at
+     ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md. -->
 
 # FP Merge Absorption (merge protocol + per-batch verify)
 
 ## Git operation - ONE merge for the whole range, ONE merge commit
 
 **The unit of the git operation is the RANGE, never the commit.** A forward-port run absorbs
-every commit after the merge base of the target and `<source-ref>` with a SINGLE merge of the range's TIP commit, and
-closes it with a SINGLE merge commit - exactly the shape an ordinary branch-level merge has.
-Every commit in the range becomes an ancestor of that merge commit, so every source SHA is
-preserved and the merge-base advances to the tip in one step.
+every commit after the merge base of the target and `<source-ref>` with a SINGLE merge of the
+range's TIP commit, and closes it with a SINGLE merge commit - the shape an ordinary branch-level
+merge has. Every commit in the range becomes an ancestor of that merge commit, so every source
+SHA is preserved and the merge-base advances to the tip in one step.
 
-**Continuous forward-port** (recurring, source repo keeps evolving):
+Invoke the **`git-toolkit:git-ops`** skill (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+- `op: merge the range ending at <src-tip-SHA> as ONE true merge and stop before committing it`
+  (request worktree isolation), where `<src-tip-SHA>` is the LAST (newest) commit of the range
+  this run forwards - after any `--since` filter.
 
-Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
-- `op: merge the range ending at <src-tip-SHA> as ONE true merge and stop before committing it` (request worktree isolation), where `<src-tip-SHA>`
-  is the LAST (newest) commit of the range this run forwards - after any `--since` filter.
-
-On return from git-ops, the working tree is the absorption zone for the WHOLE range. All adapt
-work (steps 1-4 in "Absorption window" below) happens there, driven by the per-commit intent
-records, inside this one open merge window. When adapt is complete, invoke
-**`git-toolkit:git-ops`** again, ONCE:
+On return, the working tree is the absorption zone for the WHOLE range; all adapt work (§
+Absorption window) happens there, inside this one open merge window. When adapt is complete,
+invoke `git-toolkit:git-ops` again, ONCE:
 - `op: conclude the merge with one commit`, `message: "fp: absorb <src-first-SHA>..<src-tip-SHA> - <one-line summary>"`
 
-The merge is a true merge commit (never a fast-forward) so the source history enters the DAG of the target branch.
-The merge base advances to `<src-tip-SHA>` after the commit. Next run, the range listing
-will no longer see ANY commit in the range - no re-resolution ever.
+A true merge commit, never a fast-forward: the source history enters the DAG of the target
+branch and the next run's range listing no longer sees any commit of the range.
 
-### Two banned shapes (both produce the defects this protocol exists to prevent)
+### Two banned shapes
 
-1. **BANNED - one merge per commit.** Never loop merge-one-commit / commit / merge-the-next-commit /
-   commit over the range. It mints N merge commits for ONE logical forward-port (the target
-   history reads as N unrelated integrations), and every hunk touched by more than one source
-   commit is conflict-resolved once per commit instead of once per run. An ordinary branch-level
-   merge never behaves this way, and neither does this pipeline.
-2. **BANNED - cherry-pick, at ANY granularity.** Per commit or staged over a whole range, each
-   cherry-pick mints a FRESH SHA on the target: the merge-base does not move, so tomorrow's run
-   re-encounters every commit and re-resolves every conflict, permanently. This is the single most
-   expensive mistake available in a forward-port, and there is no mode, flag, or special case that
-   licenses it.
+1. **One merge per commit.** It mints N merge commits for ONE logical forward-port and resolves
+   every hunk touched by several source commits once per commit instead of once per run.
+2. **Cherry-pick, at ANY granularity.** Each cherry-pick mints a FRESH SHA on the target: the
+   merge-base does not move, so every later run re-encounters every commit and re-resolves every
+   conflict. No mode, flag or special case licenses it.
 
-**Batching does NOT reinstate either shape.** A batch is a VERIFY unit, not a git unit.
-If the human splits the run at the plan gate, each batch boundary is a source SHA, and batch *k*
-merges the LAST SHA of batch *k* - absorbing every commit up to it in one merge. So `N` batches
-produce at most `N` merge commits, never one per commit; the default (a single batch) produces
-exactly ONE. A batch is never allowed to be "one commit each" as a way to reach a per-commit merge.
-
-**Landing only PART of a source branch is a `<src-tip-SHA>` choice, not a different shape.** Merge
-the SUB-RANGE'S TIP: a merge absorbs that commit and its ancestors and nothing else, so the commits
-after it stay out of the target, every SHA that DOES land is preserved, and the merge-base advances
-to exactly that point - the next run picks up from there instead of re-resolving what just landed.
-A frozen source needs nothing special either; it merges like any other. These were the two
-justifications for the removed `--one-shot` cherry-pick mode, and the merge shape serves both
-without giving up SHA preservation - which is why that mode is gone rather than renamed.
+**Batching does NOT reinstate either shape.** A batch is a VERIFY unit, not a git unit: when the
+human splits the run at the plan gate, each batch boundary is a source SHA, and batch *k* merges
+the LAST SHA of batch *k* - `N` batches produce at most `N` merge commits; the default (one batch)
+produces exactly ONE; a batch is never "one commit each". **Landing only PART of a source branch is a `<src-tip-SHA>` choice:** merge
+the sub-range's TIP; the commits after it stay out, every SHA that lands is preserved, and the
+merge-base advances to exactly that point. A frozen source merges like any other.
 
 ## Absorption window (inside the ONE uncommitted merge)
 
-Between the uncommitted merge opened by git-ops and the subsequent commit step, the
-working tree is the absorption zone **for the whole range**. There is exactly ONE such window per
-run (or per batch, when the human split the run at the plan gate) - it opens once, stays open
-across every module's adapt work, and closes once. All work happens here - in this order:
+Between the uncommitted merge git-ops opened and the commit step, the working tree is the
+absorption zone for the whole range: ONE window per run (or per batch), opened once, open across
+every module's adapt work, closed once. In this order:
 
-1. Symbol-survival check - see [[fp-symbol-survival-check]] BEFORE touching any file. It runs
-   ONCE over the merged result of the whole range, not once per source commit.
+1. Symbol-survival check - [[fp-symbol-survival-check]] BEFORE touching any file, ONCE over the
+   merged result of the whole range.
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
-   see [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
-   against the range's combined result - re-resolving it per commit is the banned shape above.
+   [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
+   against the range's combined result.
 2a. **Manifest version (C1) - set by rule, only when the range changed the module's `version` on
     the source.** The true merge already carries whatever the source commit did to the module
     descriptor (the filename per series: `odoo-era-boundaries.md` row 6). `M` = the target module's
@@ -92,7 +75,7 @@ across every module's adapt work, and closes once. All work happens here - in th
 5. Invoke `git-toolkit:git-ops` to commit - the merge commit encapsulates the entire
    translation cost.
 
-Do NOT ask git-ops to commit until verify is green (P9, below). Do NOT open a second
+Do NOT ask git-ops to commit until verify is green (§ Verify protocol). Do NOT open a second
 uncommitted merge while one is in progress (the index is shared; git-toolkit enforces this).
 
 ## Migration dir retarget (C2) - distinct from C1
@@ -103,122 +86,95 @@ after P9 is green and before P10 concludes the merge - never inside P8's adapt l
 
 1. **Precondition - installability.** Every module the script acts on (the owner of the dir and
    each module whose tables, fields or records the script reads or writes) is `installable` at the
-   target tip (the clean-tip read of `[[fp-installable-false]]`, where an absent `installable` key
-   counts as installable). Otherwise FORWARD the dir
-   unchanged under its source-series name and record why on the commit's `merge-log.md` row
-   (`<sha> | C2 forwarded | <module> not installable at target tip`): a script run where the
-   modules it acts on are not upgraded meets a schema that is not there. A module
-   `installable:False` at the target is the lint-only lane, so its own migrations are always
-   forwarded unchanged.
+   target tip (the clean-tip read of `[[fp-installable-false]]`; an absent `installable` key counts
+   as installable). Otherwise FORWARD the dir unchanged under its source-series name and record
+   why on the commit's `merge-log.md` row (`<sha> | C2 forwarded | <module> not installable at
+   target tip`). A module `installable:False` at the target is the lint-only lane, so its own
+   migrations are always forwarded unchanged.
 2. **Decision - does the TARGET have the problem the script solves?** Read the script and the
    target's code and data model for that module: the field, model or data shape the script repairs
-   exists on the target and is affected the way the source was. YES -> RETARGET. NO -> do not
-   retarget: FORWARD the dir unchanged under `<src-series>.a.b.c` and record why on the `merge-log.md`
-   row (`<sha> | C2 forwarded | target has no <problem the script solves>`). A dir forwarded under its
-   source-series name still fires for source-to-target jumpers below `a.b.c` and never fires on a
-   native-target database, which is correct for a problem only the source had.
+   exists on the target and is affected the way the source was. YES -> RETARGET. NO -> FORWARD the
+   dir unchanged under `<src-series>.a.b.c` and record why on the `merge-log.md` row
+   (`<sha> | C2 forwarded | target has no <problem the script solves>`). A dir forwarded under its
+   source-series name still fires for source-to-target jumpers below `a.b.c` and never on a
+   native-target database.
 3. **Retarget.** Name the dir FULL `<tgt-series>.V`, where `V` is the version C1 sets for the
    module - step 1 admits only modules installable at the target, so `V = max(M + 1, S)`, always
-   above `M`, and the dir fires on a deployed target database sitting at `M`. When the range carries no other `version` change for the module, a
-   retarget still sets the manifest to that `V`. Invariant: the dir version is `<=` the final
-   manifest version.
+   above `M`, and the dir fires on a deployed target database sitting at `M`. When the range
+   carries no other `version` change for the module, a retarget still sets the manifest to that
+   `V`. Invariant: the dir version is `<=` the final manifest version.
 
-A retargeted dir name is always FULL `<tgt-series>.x.y.z` (FULL compare lets a target-series dir
-exceed a native-target DB's installed version). Migrations must be idempotent: a fully-updated
-source DB jumping the major re-runs a retargeted tip migration.
+A retargeted dir name is always FULL `<tgt-series>.x.y.z`. Migrations must be idempotent: a
+fully-updated source DB jumping the major re-runs a retargeted tip migration. After the rename,
+sweep the body for source-series literals (log strings, version constants).
 
-### WHY (Odoo source - module.py + migration.py)
+Why (Odoo source): `adapt_version()` in `odoo/modules/module.py` prefixes a short manifest
+`a.b.c` to `<series>.a.b.c` and stores it as `installed_version` (from a later series it also
+validates the version string - [[odoo-version-pivots]]); `MigrationManager.migrate_module`
+(`odoo/modules/migration.py`) runs a dir only when `installed_version < dir <= <series>.<manifest>`.
+A dir left at `<src-series>.a.b.c` therefore silently skips every DB already at the source-series
+state when it upgrades to the target series.
 
-`adapt_version()` at `odoo/modules/module.py` - the series-prefixing role of `adapt_version` (from a
-later series the same function also validates the version string - see [[odoo-version-pivots]]) prefixes a short
-manifest `a.b.c` to `<series>.a.b.c` and stores it as the module's `installed_version`.
-`MigrationManager.migrate_module` (`odoo/modules/migration.py`) runs a dir only when
-`installed_version < dir <= <series>.<manifest>`. So a dir left at `<src-series>.a.b.c` SILENTLY SKIPS
-every DB already at the source-series state when it upgrades to the target series. Migrations run on
-UPGRADE only (never fresh install).
-
-Worked (`<tgt>` = the target series; `V = max(M + 1, S)`): M=0.1.2, S=0.1.2 -> V=0.1.3, manifest
-0.1.3, dir `<tgt>.0.1.3` (naming it `<tgt>.0.1.2` never runs: `<tgt>.0.1.2 < <tgt>.0.1.2` is false).
-M=0.1.1, S=0.1.2 -> V=0.1.2, dir `<tgt>.0.1.2`. M=0.1.1, S=0.1.5 -> V=0.1.5, dir `<tgt>.0.1.5`.
-M=0.1.4, S=0.1.2 -> V=0.1.5, manifest 0.1.5, dir `<tgt>.0.1.5` (naming it `<tgt>.0.1.2` never runs:
-0.1.4 < 0.1.2 is false). A source migration repairing a shape the target never had -> no retarget,
-dir stays `<src-series>.a.b.c`, reason on the `merge-log.md` row; the manifest still follows C1.
-
-After the rename, sweep the body for source-series literals (log strings, version constants) - they
-survive the rename and mislead operators.
+Worked (`V = max(M + 1, S)`): M=0.1.2, S=0.1.2 -> V=0.1.3, dir `<tgt>.0.1.3` (`<tgt>.0.1.2` never
+runs: `<tgt>.0.1.2 < <tgt>.0.1.2` is false). M=0.1.1, S=0.1.5 -> V=0.1.5. M=0.1.4, S=0.1.2 ->
+V=0.1.5. A source migration repairing a shape the target never had -> no retarget, dir stays
+`<src-series>.a.b.c`, reason on the `merge-log.md` row; the manifest still follows C1.
 
 ## Skip-code-but-still-absorb rule
 
-Outcome buckets (a) and (d) from [[fp-intent-4outcome]] require NO adapt diff:
+Outcome buckets (a) and (d) of [[fp-intent-4outcome]] require NO adapt diff: **(a) already
+satisfied** - the target platform already provides the behavior; forward its tests only, the
+node's absorption probe confirms or re-buckets it. **(d) no longer relevant** - the source commit
+worked around a platform limitation the target has removed.
 
-- **(a) already satisfied** - target platform already provides the behavior; write no adapt
-  code for it. Forward its tests only; the node's absorption probe confirms or re-buckets it.
-- **(d) no longer relevant** - the source commit worked around a platform limitation that
-  the target has removed.
+A CONFLICTED hunk of an (a)/(d) commit resolves to the TARGET side. A CLEANLY-merged hunk stays as
+the merge left it, so an (a)/(d) commit's source code can be in the tree - which is why the
+absorption probe takes that code out of play first
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe).
 
-**How the merge leaves their hunks.** A CONFLICTED hunk of an (a)/(d) commit resolves to the
-TARGET side - no adapt content is written for it. A CLEANLY-merged hunk stays as the merge left it,
-so an (a)/(d) commit's source code can be in the tree - which is why the absorption probe takes that
-code out of play first (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption
-probe).
-
-**In both cases the commit is still ABSORBED - never excluded from the merge range.** The single
-range merge is what advances the merge-base past them; a bucket is a statement about ADAPT WORK,
-never about git topology. Narrowing the merged range to skip an (a)/(d) commit - or splitting it
-out so the range becomes non-contiguous - leaves the merge-base behind it, and tomorrow's
-forward-port encounters it again. Record each (a)/(d) bucket and its reason on that commit's
-`merge-log.md` row (and name them in the single merge commit's message body) so reviewers see why
-those SHAs carry no diff.
+**In both cases the commit is still ABSORBED - never excluded from the merge range.** A bucket is
+a statement about ADAPT WORK, never about git topology: narrowing or splitting the merged range
+leaves the merge-base behind the commit and the next forward-port encounters it again. Record each
+(a)/(d) bucket and its reason on that commit's `merge-log.md` row and name them in the merge
+commit's message body.
 
 ## Verify protocol - per-batch, not per-commit
 
-Running a full install + test-enable pass for every absorbed commit is prohibitive. Batch
-verification instead: collect every commit of one merge window into a batch, then verify the
-WHOLE batch on ONE ephemeral instance. The DEFAULT batch is the whole run - one merge, one verify
-pass, one merge commit; splitting into several batches is a human decision taken at the
-plan gate, and each batch still merges its own range TIP once (§ Git operation above), never one
-commit at a time.
+Verify the WHOLE batch on ONE ephemeral instance. The DEFAULT batch is the whole run; splitting
+into batches is a human decision at the plan gate, and each batch still merges its own range TIP
+once.
 
 **Delegate the instance - never a bare lease tool or `odoo-bin` invocation.** Provisioning,
-install, and test-run all go through the `odoo-instance` skill via the Skill tool. A bare
-`lease_acquire` / `instance_build` / `odoo-bin` call from this orchestration layer bypasses the
-instance HARD RULES `odoo-instance` enforces (demo by build purpose, lint-module install,
-per-version `cli_help` grounding) and, for forward-port specifically, the
-`WORKTREE_PATH` re-root that keeps verification pointed at the adapted worktree instead of the
-principal checkout.
+install and test-run go through the `odoo-instance` skill via the Skill tool, which enforces the
+instance HARD RULES (demo by build purpose, lint-module install, per-version `cli_help`
+grounding) and the forward-port `WORKTREE_PATH` re-root that keeps verification pointed at the
+adapted worktree.
 
 1. Collect the batch (module set = every module touched by the batch's commits).
-2. Dispatch `odoo-instance` ONCE for the batch: `operation: run-tests`, `GATE_ROLE: node-verify`
-   (a per-batch verify, never the pre-PR lint gate), `persist: ephemeral`,
-   `modules: <the batch's affected modules>`, `test_tags: <`/<m>` per module in that list - the
-   install closure and the tag set are two sides of one scope;
-   `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`>`, `mode: fresh` (install + test in one pass - Odoo
-   create-on-init builds the DB; the lease only reserves the DB name/ports, it never runs
-   `createdb` directly). Memory-cap is applied automatically inside `odoo-instance-ops` - no
-   separate field to pass (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). For the
-   forward-port-specific `WORKTREE_PATH` re-root, see
-   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-detail.md` P9 for the
-   concrete dispatch brief.
-3. For a re-verify after a fix inside the SAME batch, or for a SUBSEQUENT batch touching only a
+2. Dispatch `odoo-instance` ONCE for the batch: `operation: run-tests`, `GATE_ROLE: node-verify`,
+   `persist: ephemeral`, `modules: <the batch's affected modules>`, `test_tags: <`/<m>` per module
+   in that list - `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`>`, `mode: fresh`
+   (install + test in one pass; the lease only reserves the DB name/ports). Memory-cap is applied
+   inside `odoo-instance-ops` (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). The
+   concrete dispatch brief with the `WORKTREE_PATH` re-root:
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-detail.md` P9.
+3. For a re-verify after a fix inside the SAME batch, or a SUBSEQUENT batch touching only a
    subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE`, `mode: reuse`
-   (`-u` semantics) and `GATE_ROLE: node-verify` on the changed modules only - skip the full reinstall.
+   (`-u` semantics) and `GATE_ROLE: node-verify` on the changed modules only.
 4. Release the instance once no later step of this run needs it - after P10 has concluded the LAST
-   batch's merge, never between batches. P11 acceptance never reuses this handle: its database carries the series'
-   test-build demo shape (none where demo is opt-in), and acceptance provisions its own
-   demo-carrying cluster on a fresh lease. Call `lease_release` with the cached `lease_token`/`run_id`. The lease was provisioned for YOUR run and handed back to you, so you
-   are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). It
-   stops the bound process group first, then drops the DB - never a raw `dropdb` or a `pkill`.
+   batch's merge, never between batches. P11 acceptance never reuses this handle (its database
+   carries the series' test-build demo shape; acceptance provisions its own demo-carrying cluster).
+   Call `lease_release` with the cached `lease_token`/`run_id` - you are its run-level owner
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1); it stops the bound process
+   group first, then drops the DB - never a raw `dropdb` or a `pkill`.
 
-Cache the returned `lease_token`/`run_id` in the batch's worklog entry (see [[worklog-contract]])
-so a crash during the batch can release the DB (step 4) rather than leaving it orphaned.
+Cache the returned `lease_token`/`run_id` in the batch's worklog entry ([[worklog-contract]]) so a
+crash during the batch can release the DB.
 
 ## Green suite + break-check records
 
-After install:
-
-- **Green suite (all tests):** the full suite for the target module must be green.
-  A pre-existing red test is a pre-existing failure - triage it (see Triage below), do not
-  fix it as part of this forward-port.
+- **Green suite (all tests):** the full suite for the target module must be green. A pre-existing
+  red test is triaged (below), never fixed as part of this forward-port.
 - **Break-checks (FP-delta tests only):** every test NEWLY forwarded or adapted in this batch was
   break-checked - or, for a bucket-(a) commit, absorption-probed - by the node's test leg at P8
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record). A test the
@@ -227,39 +183,37 @@ After install:
 
 ## Triage: FP-delta vs pre-existing failure
 
-A `--test-enable` build runs a Python suite AND one or more browser (Hoot/QUnit) suites, and the
-`instance-ops` block reports them in separate fields for a reason: `failed`/`errors` cover the
-Python suite only, while `js_failed_reported`/`js_failed_tests` cover the browser suites. **Triage
-each JS RUN separately** - a run is one browser-suite logger scope (desktop, mobile, and any module
-shipping its own JS suite), the findings file lists the failing tests under the run they failed in,
-and one run can be a clean pre-existing failure while another is an FP-delta. Never fold the runs
-together, and never treat one run's green result as the build's: they are independent verdicts.
-A `js_failed_reported` that outruns `failed` by orders of magnitude is the normal shape of a broken
-browser suite, not a parsing artifact.
+A `--test-enable` build runs a Python suite AND one or more browser (Hoot/QUnit) suites; the
+`instance-ops` block reports them in separate fields (`failed`/`errors` for Python,
+`js_failed_reported`/`js_failed_tests` for the browser suites). **Triage each JS RUN separately** -
+a run is one browser-suite logger scope (desktop, mobile, a module's own JS suite); one run can be
+a pre-existing failure while another is an FP-delta. Never fold the runs together, and never treat
+one run's green as the build's. A `js_failed_reported` that outruns `failed` by orders of
+magnitude is the normal shape of a broken browser suite.
 
 When a test is red after the batch install:
 
-1. Run the same test against the target branch WITHOUT any absorption commits applied
-   (a clean checkout of the target tip). If it is ALSO red there, it is a **pre-existing
-   failure** - record it in the worklog, do not touch it, do not block the batch on it.
-2. If it is green on the clean target but red after absorption, it is an **FP-delta
-   failure** - root-cause and fix before committing the batch.
+1. Run the same test against the target branch WITHOUT any absorption commits applied (a clean
+   checkout of the target tip). ALSO red there -> **pre-existing failure**: record it in the
+   worklog, do not touch it, do not block the batch on it.
+2. Green on the clean target but red after absorption -> **FP-delta failure**: root-cause and fix
+   before committing the batch.
 
-Never widen or relax an assertion to make a pre-existing failure green - that violates
-[[test-behavior-contract]].
+Never widen or relax an assertion to make a pre-existing failure green ([[test-behavior-contract]]).
 
 ### C3 - fix old version first (provenance)
 
-The same FP-delta / pre-existing discriminator above governs WHERE a bug is fixed - reactively at P9
-(a red test) AND proactively at P8 (a coder who SPOTS a defect while adapting, before tests run):
+The same discriminator governs WHERE a bug is fixed - reactively at P9 (a red test) AND
+proactively at P8 (a coder who SPOTS a defect while adapting):
 
-- **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY forward -
-  do NOT inline-fix on the destination. Surface it to the SOURCE series so the source is fixed too and the
-  fix forward-ports up naturally. The orchestrator invokes **`git-toolkit:git-ops`** to open a source-series
-  issue, **conditional on a resolvable source remote** (mirror P12: the `origin_url` of `repo_facts`); if none,
-  record the deferred bug in `merge-log.md` and the Continuation Contract instead of opening an issue.
-- **FP-delta** (green on source, red after adapt): fix it here, now (already the rule above).
-- **Security/safety EXCEPTION:** fix on the destination IMMEDIATELY, then still open a source-series issue.
+- **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY
+  forward - do NOT inline-fix on the destination. Surface it to the SOURCE series so the fix
+  forward-ports up naturally: the orchestrator invokes `git-toolkit:git-ops` to open a
+  source-series issue, conditional on a resolvable source remote (the `origin_url` of
+  `repo_facts`); if none, record the deferred bug in `merge-log.md` and the Continuation Contract.
+- **FP-delta** (green on source, red after adapt): fix it here, now.
+- **Security/safety EXCEPTION:** fix on the destination IMMEDIATELY, then still open a
+  source-series issue.
 
 Canonical merge-log record: `<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`.
 Reviewer backstop (P12): flag any FP-delta diff that inline-fixes a pre-existing source bug (not
@@ -268,26 +222,23 @@ security/safety); an inherited bug carried faithfully + routed upstream is corre
 ## Ephemeral isolation - CREATEDB required
 
 An `ephemeral` acquire either returns an ISOLATED throwaway DB or FAILS - it never silently shares
-the declared database, so two parallel batches can never collide on one DB unnoticed.
-On any `lease_acquire` refusal, STOP and act on the named error code's remedy (`db_preflight`
-diagnoses it). When the role cannot create databases, either have a human grant `CREATEDB`, or
-re-dispatch with mode `exclusive` and run the remaining batches ONE AT A TIME, stating in your
-report that isolation was not provided. When Odoo cannot authenticate or the cluster does not
-answer, every mode is refused - fix the cluster first.
-Allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate.
+the declared database. On any `lease_acquire` refusal, STOP and act on the named error code's
+remedy (`db_preflight` diagnoses it). When the role cannot create databases, either have a human
+grant `CREATEDB`, or re-dispatch with mode `exclusive` and run the remaining batches ONE AT A
+TIME, stating in your report that isolation was not provided. When Odoo cannot authenticate or
+the cluster does not answer, every mode is refused - fix the cluster first. Allocation protocol:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate.
 
 ## Git topology - two-tier worktrees (summary)
 
-The integration worktree branches from the TARGET branch (never the target branch directly -
-no direct commits land there during forward-port). Adapt work happens DIRECTLY in that integration
-worktree - the single open merge window spans the whole range, so no per-module child worktree can
-ever converge back into it (full derivation: `odoo-forward-port` § Git topology).
-Only after P10 concludes the merge and P11 acceptance and P12 PR review clear does the human
-merge the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
-The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
-the target branch stays consistent even if one WI worktree is abandoned mid-flight.
+The integration worktree branches from the TARGET branch; no direct commit lands on the target
+branch during forward-port and integration never fast-forwards into it (target-branch-lock,
+`odoo-forward-port` Hard rule 1). Adapt work happens DIRECTLY in that integration worktree - the single
+open merge window spans the whole range, so no per-module child worktree exists (derivation:
+`odoo-forward-port` § Git topology). Only after P10 concludes the merge and P11 acceptance and
+P12 PR review clear does the human merge the PR; the only thing that lands on the target branch
+is that human-confirmed PR merge.
 
-**git-toolkit owns the worktree lifecycle** (S9 invariant - SSOT in git-toolkit
-`snippets/git-safety-contract.md`). All worktree creation, removal, and
-topology changes must be delegated to git-toolkit via the `git-ops` skill. This skill may read topology state (ask git-ops
-for the worktree list) but never mutates it directly.
+**git-toolkit owns the worktree lifecycle** (S9 invariant - git-toolkit
+`snippets/git-safety-contract.md`): every worktree creation, removal and topology change goes
+through the `git-ops` skill; this skill may ask git-ops for the worktree list but never mutates it.

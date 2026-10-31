@@ -1,5 +1,4 @@
-<!-- SSOT snippet. The modularity invariant every code, test, review and acceptance step checks
-     by machine. Edit here only; consumers point at
+<!-- SSOT snippet. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md. -->
 
 # Modularity Contract
@@ -33,8 +32,9 @@ diff; the test writer on every record a test creates or reads.
 
 - A module's tests create or read data only from the module and its upstream closure. Demo data
   of a module outside the closure is never a fixture.
-- The module's tests pass on a database that contains ONLY the module and its upstream closure
-  (`odoo-bin -i <module>` on a fresh database). That run is the proof the module stands alone.
+- The module's tests pass on a database built by `odoo-bin -i <module>` on a fresh database: the
+  module, its upstream closure and every `auto_install` module that closure satisfies - the set
+  every real install has. That run is the proof the module stands alone.
 - A module with dependents in the repo (a grep of every manifest for `depends` naming it, plus
   `impact_analysis` as a lower bound) also runs its dependents' tests once, on a database with
   those dependents installed. That run is the proof nothing downstream broke.

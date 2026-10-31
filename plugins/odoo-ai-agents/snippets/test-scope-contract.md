@@ -1,17 +1,14 @@
-<!-- SSOT snippet. How a `--test-enable` run's scope is decided: the two-sided rule, the derivation
-     default, the full-run exemptions, and the SCOPING-vs-SUPPRESSION test. WHICH modules enter the
-     set is a different question, owned by ${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md.
-     Flag syntax + per-version availability: ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md.
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md. -->
+<!-- SSOT snippet. How a `--test-enable` run's scope is decided. WHICH modules enter the set is
+     owned by ${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md; flag syntax per version by
+     ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md. Edit here only; consumers point at
+     ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md. -->
 
 # Test-Scope Contract (`--test-enable` runs a scope, never "everything installed")
 
-`--test-enable` does not run "the modules you named". It runs every test the registry loaded, and
-dependency resolution plus `auto_install` fan-out loads far more than `-i`/`-u` names: `-i sale`
-builds a registry reaching down to `base`, and untagged every one of those modules runs its suite.
-The runtime is then set by the closure, not by the change - and so is the verdict.
-
-**The bug this removes:** `-i sale --test-enable` where `--test-tags /sale` was meant.
+`--test-enable` runs every test the registry loaded, and dependency resolution plus `auto_install`
+fan-out loads far more than `-i`/`-u` names: `-i sale` builds a registry reaching down to `base`,
+and untagged every one of those modules runs its suite. The runtime is then set by the closure,
+not by the change - and so is the verdict.
 
 ## Two sides, one module set (HARD RULE)
 
@@ -25,30 +22,30 @@ Both sides are derived from ONE resolved module set `M`:
 -u sale,account --test-enable --test-tags /sale,/account --stop-after-init
 ```
 
-`M` is the change plus its in-repo blast radius; resolving it belongs to `regression-scope.md`, not
-here. A too-narrow `M` is a coverage defect no tagging fixes - this contract only guarantees that
-whatever `M` was resolved is what actually gets tested.
+`M` is the change plus its in-repo blast radius; resolving it belongs to `regression-scope.md`. A
+too-narrow `M` is a coverage defect no tagging fixes - this contract only guarantees that whatever
+`M` was resolved is what actually gets tested.
 
 **Two runs, not one.** Before the blast-radius run above, each changed module runs once on a
-fresh database that installs ONLY that module (its upstream closure comes with `-i`): that run
-proves the module stands alone. Its tests create or read records only from the module and its
-closure (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Tests); a fixture from a
-module outside the closure is a CRITICAL finding, not a scoping choice.
+fresh database that installs ONLY that module (its upstream closure and the `auto_install`
+modules that closure satisfies come with `-i`): that run proves the module stands alone. Its tests
+create or read records only from the module and its closure
+(`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Tests); a fixture from a module
+outside the closure is a CRITICAL finding, not a scoping choice.
 
 ## Deriving `T` when the caller supplied none
 
 A caller that resolved a blast radius SHOULD pass its tags. Given none, the executor DERIVES `T =
-/<m>` per module in `M` rather than running untagged, and reports that it derived them. That is not
-inventing a scope: it is exactly what the caller declared by naming `M`, minus the fan-out they
-never asked to verify. Untagged is the option that silently substitutes a far larger scope.
+/<m>` per module in `M` rather than running untagged, and reports that it derived them: that is
+what the caller declared by naming `M`, minus the fan-out they never asked to verify.
 
 Version-gated: confirm the `/module` selector via `cli_help("server", "--test-tags",
 odoo_version='<series>')` - never from memory or a hardcoded series range.
 
 ## `TEST_TAGS: full` and the exemptions
 
-`full` is the ONE value meaning "run untagged, on purpose" - a positive declaration, so a reader can
-tell a deliberate full run from a forgotten tag. `none` / empty / omitted mean NOT SUPPLIED: derive.
+`full` is the ONE value meaning "run untagged, on purpose". `none` / empty / omitted mean NOT
+SUPPLIED: derive.
 
 Run untagged only under one of these, and NAME which one in the report:
 
@@ -56,18 +53,18 @@ Run untagged only under one of these, and NAME which one in the report:
 2. **No code change under test** - an environment / upgrade / migration smoke run.
 3. **The series has no tag filter** - confirmed absent via `cli_help`. State the consequence (the
    core closure is tested too, and the run is slow); never imply a scoped run happened.
-4. **Reproducing a CI/Runbot gate that itself runs untagged** - parity is the point, so the scope
-   matches that gate, not the blast radius.
+4. **Reproducing a CI/Runbot gate that itself runs untagged** - the scope matches that gate, not
+   the blast radius.
 
 ## Widenings that stay inside the rule
 
 - **Framework `post_install` classes.** `--test-tags` only FILTERS, never ADDS, so a `/<m>` run
   skips framework classes not tagged with your module. NAME them beside the module tags
-  (`'/sale,/base:TestInvisibleField'`); dropping the filter to reach them is not the remedy. Method +
-  how to resolve the class names: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
-- **Lint modules** (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) are selected by tag but run only if INSTALLED, so a
-  build that tags them unions them into `-i`/`-u` from the SAME probe - gated on `GATE_ROLE:
-  pre-pr-lint-gate`, owned by `odoo-instance-ops` § Lint modules.
+  (`'/sale,/base:TestInvisibleField'`); dropping the filter to reach them is not the remedy. How
+  to resolve the class names: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+- **Lint modules** (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) are selected by tag but
+  run only if INSTALLED, so a build that tags them unions them into `-i`/`-u` from the SAME probe -
+  gated on `GATE_ROLE: pre-pr-lint-gate`, owned by `odoo-instance-ops` § Lint modules.
 - **JS unit tests:** tag every suite class the series guideline
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` names, desktop and mobile.
 
@@ -78,16 +75,15 @@ None is an exception to the two-sided rule.
 - **SCOPING (correct):** `T` covers every module in `M`. Fan-out outside `M` was never in scope, so
   not running it hides nothing.
 - **SUPPRESSION (defect):** `T` covers FEWER modules than `M`, or an unrequested `skip-auto-install`
-  stops a module the caller DID declare from being exercised. That manufactures a false green -
-  worse than a noisy run.
+  stops a module the caller DID declare from being exercised. That manufactures a false green.
 
 Deriving `T` from `M` is always allowed. Narrowing below `M` never is - not to quiet a failing
 dependency, not to fit a timeout. The ONE carve-out is a break-check run
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check): `-u` the node's
 modules and select only the targeted test methods (`/<module>:<Class>.<method>`). It is a
-measurement, never a verdict - the integrated run still covers all of `M`.
-Any run whose green lets work PROCEED is a verdict run and never narrows. A failure inside `M` is in
-scope and BLOCKING even in a module the change did not touch.
+measurement, never a verdict - the integrated run still covers all of `M`. Any run whose green
+lets work PROCEED is a verdict run and never narrows. A failure inside `M` is in scope and
+BLOCKING even in a module the change did not touch.
 
 ## Reporting
 
@@ -98,6 +94,3 @@ is outside `M`, named as out of scope so a pre-existing failure routes separatel
 softens: out-of-scope still fails, still blocks. A lint FINDING about code outside the PR's modules
 is handled by `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Scope the gate to the PR's
 modules.
-
-Those figures expose a scope that did not hold - tags meant to bound the run to two modules beside a
-log reporting thousands of tests.

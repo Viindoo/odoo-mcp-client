@@ -64,7 +64,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | Manifest version - code upgrade | Keep short form `x.y.z`; series-prefixed value CONVERTED, never bumped | CORE | `upg-conventions.md` Convention 1 |
 | Forward-port version | C1: `max(M + 1, S)` when installable on both series; the source version when dormant at the target | CORE | `[[fp-merge-absorption]]` C1 |
 
-> `adapt_version` above refers to the install-gate version-string validation (v17+ regex enforcement). The same function also series-prefixes the manifest for migration-runner comparison (its second role) - see C2 in `[[fp-merge-absorption]]`.
+> `adapt_version` above is the install-gate version-string validation; the same function also series-prefixes the manifest for the migration runner (C2 in `[[fp-merge-absorption]]`).
 
 ## Build facts the odoo-local tools apply
 
