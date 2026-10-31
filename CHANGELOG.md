@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.2.3] - 2026-10-31
+
 ### Added
 
 - `odoo-ai-agents` - **eight modular-architecture rules the contracts did not state.** Behaviour
