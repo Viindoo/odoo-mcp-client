@@ -768,6 +768,16 @@ Installing `odoo-ai-agents` **automatically pulls in `odoo-semantic-mcp`** via t
 
 - **Dev checkouts:** a `--plugin-dir` dev checkout never repoints an existing import whose target file still exists; only the installed (marketplace) plugin heals the path.
 - **Opt out:** set `ODOO_AI_NO_ETHOS_IMPORT=1` before starting Claude Code (dedicated var - independent of `ODOO_AI_NO_AUTO_PERMS`).
+
+**After a context compaction**, Claude Code keeps the system prompt, `CLAUDE.md` (so the ETHOS),
+memory, the skills already invoked and the five files read most recently; every other contract,
+guideline or design file read earlier is summarized away. Two things keep the rules alive: the
+ETHOS tells the compaction summary what to record (the files read and the rule each set, the run
+in progress, the leases held, the human's stated limits), and a SessionStart hook on the `compact`
+source (`hooks/recover-after-compaction.sh`) tells the agent, once per compaction, to re-read the
+reading map of `snippets/read-before-act.md` for the class of work in progress before its next
+write. A subagent compacts in its own context; whether the harness runs the hook there is not
+documented, so a long-running subagent relies on the ETHOS rule alone.
 - **Uninstall cleanup:** removing the plugin leaves an orphan `@import` block in `~/.claude/CLAUDE.md`. To fully remove it, delete the sentinel-marked block between `<!-- BEGIN odoo-ai-agents ETHOS import ... -->` and `<!-- END odoo-ai-agents ETHOS import -->` from `~/.claude/CLAUDE.md` manually.
 
 You will need an **API key** (format `osm_...`) from the [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL** (default `https://odoo-semantic.viindoo.com/mcp`). For MCP-only setup and the `connect` command details, see the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin.

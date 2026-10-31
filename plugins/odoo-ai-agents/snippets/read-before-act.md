@@ -10,8 +10,10 @@ Snippet path prefix below: `${CLAUDE_PLUGIN_ROOT}/snippets/`.
 
 Before the first action of a class, read its row. Read only the rows of the classes the request
 holds (a docs request reads no coding guideline). A file already read this session is applied from
-context; a later step that names it is satisfied by that read. Re-read a file only after a context
-compaction when a decision depends on its exact text.
+context; a later step that names it is satisfied by that read. After a context compaction - a
+summary at the head of the context, or the plugin's compaction notice - the files read are gone
+except the five most recent: re-read the rows of the class in progress before its next write, and
+the exact text of any file a decision depends on.
 
 | Class of work | Read first |
 |---|---|

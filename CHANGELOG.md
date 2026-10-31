@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `odoo-ai-agents` - **the rules survive a context compaction.** The ETHOS says what the compaction
+  summary records (the contract and guideline files read with the rule each set, the run in
+  progress, the leases held, the human's stated limits), and a SessionStart hook on the `compact`
+  source (`recover-after-compaction.sh`) tells the agent once per compaction to re-read the
+  reading map of `read-before-act.md` for the class of work in progress before its next write;
+  `read-before-act.md` states the observable condition for a re-read instead of "after a
+  compaction" the agent could not see.
 - `odoo-ai-agents` - **the App Store page is a buyer's decision path, not a condensed manual.**
   `app-store-template.md` is one column of eight sections in the order a developer, an owner or a
   consultant decides (hero with the compatibility line, three "what changes for your team" blocks
