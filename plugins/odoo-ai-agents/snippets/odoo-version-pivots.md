@@ -183,12 +183,12 @@ class HrEmployee(models.Model):
 
 - Place `groups=` on the `hr.employee` override, NOT on a shared mixin - the mixin is used by
   both models and would wrongly gate the field on the public model too.
-- ACL requirement from v16+. Enforced by `hr.TestSelfAccessProfile.test_employee_fields_groups`
-  (exact test name present from v18; sibling test `TestSelfAccessRights.testReadOtherEmployee`
-  covers v16/v17). Those are METHOD bounds inside the class, narrower than the CLASS bound in
-  § Framework-validation test classes - read that section for what to TAG, and this line only for
-  which assertion actually fires. The class itself is gone at v19, so the convention stands on its
-  own there with no test left to catch a violation.
+- ACL requirement from v16+. The core assertion is `test_employee_fields_groups`, in
+  `hr.TestSelfAccessProfile` at v18 and in `hr.TestSelfAccessPreferences` from v19 (the class was
+  renamed; the method keeps its name). v16 and v17 ship no core test for it, so the convention
+  stands on its own there. The method is a bound inside the class, narrower than the CLASS bound
+  in § Framework-validation test classes - that section says what to TAG; this line only says
+  which assertion fires.
 
 ---
 
