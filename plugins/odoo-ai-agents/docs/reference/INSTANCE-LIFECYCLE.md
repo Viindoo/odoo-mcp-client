@@ -39,6 +39,9 @@
   RE-RUN tests on a DB that already has the module installed, use
   `-u <module> --test-enable --test-tags /<module>` on every series - `-i` there runs none of its
   tests on recent series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database; invocation: `ODOO-TESTING.md` § Core test invocation).
+- **`auto_install` fires on install only.** `-u` never pulls a bridge module into a running
+  database; on an existing database install the bridge explicitly with `-i <bridge>`, and verify
+  `auto_install` itself on a fresh database with `-i`.
 - **`-i`/`-u` names modules; it does NOT bound the test run.** Odoo installs the whole dependency
   closure plus every `auto_install` match, and `--test-enable` runs the suite of everything the
   registry loaded. Pair the module list with `--test-tags` derived from it, or the run tests `base`

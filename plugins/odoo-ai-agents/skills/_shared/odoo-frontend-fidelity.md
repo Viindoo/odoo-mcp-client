@@ -108,6 +108,12 @@ gate**, which selects the `web.Widget` / `AbstractField` / `odoo.define()` path.
    components look wrong, suspect the token layer first; one foundation fix usually resolves
    every downstream surface/border/text/badge token.
 5. **Scope overrides appropriately** and respect the mockup's spec dimensions.
+6. **A business module paints only with core levers**: the core SCSS variables, the runtime
+   custom properties core and Bootstrap emit, and core classes that carry a theme meaning. No
+   custom property of its own (`--<vendor>-*`), no class of its own that holds a color, no
+   Bootstrap class that fixes a color regardless of theme (`bg-white`, `text-dark`,
+   `border-light`). The test: a theme that changes a core token changes the module with it, with
+   no edit in the module.
 
 ### B. Token reality - OSM-grounded, never hardcoded
 

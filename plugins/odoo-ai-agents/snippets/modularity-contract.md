@@ -13,6 +13,14 @@ that owns it is the module itself or a member of the module's upstream `depends`
 transitive closure of `depends` in its manifest). A reference to anything else is a CRITICAL
 finding: the module cannot install alone, and it works only by accident of what else is installed.
 
+## Where cross-module behaviour lives
+
+Behaviour that needs module X and module Y together lives in a bridge module that depends on
+both (`auto_install: True` when it must be present wherever both are). X never uses anything of
+Y, nor of a module that depends on Y, to "make it work". A cross-module scenario is proven only
+by the bridge's own tests or at acceptance on an instance that installs every module involved -
+never inside X's tests.
+
 ## The check, per reference
 
 1. Resolve the owner of the referenced symbol: a symbol defined in a module of the worktree set
@@ -34,7 +42,14 @@ diff; the test writer on every record a test creates or reads.
   of a module outside the closure is never a fixture.
 - The module's tests pass on a database built by `odoo-bin -i <module>` on a fresh database: the
   module, its upstream closure and every `auto_install` module that closure satisfies - the set
-  every real install has. That run is the proof the module stands alone.
+  every real install has. That run is the proof the module stands alone. Which modules a build
+  loaded is read from the build log, never inferred from a manifest: `depends` reads forward,
+  `auto_install` reads backward.
+- A test never depends on the ABSENCE of a module outside its closure. Before a test arranges
+  data through a core action steered by context or defaults, grep the repositories for
+  overrides of that method: a module that changes the behaviour owns the flow, so the test moves
+  to it (or goes, when no module owns both sides); a CI that installs every module runs the test
+  with that override present.
 - A module with dependents in the repo (a grep of every manifest for `depends` naming it, plus
   `impact_analysis` as a lower bound) also runs its dependents' tests once, on a database with
   those dependents installed. That run is the proof nothing downstream broke.
@@ -50,4 +65,5 @@ reported as "module does not stand alone", never softened by a PASS on the secon
 
 An SRS states, per module, the purpose the module serves on its own. A design that makes a
 module need a sibling's data without declaring the dependency is rejected at the design gate,
-not discovered at review.
+not discovered at review; behaviour that needs two modules is designed as a bridge module
+(§ Where cross-module behaviour lives).

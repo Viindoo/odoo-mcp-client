@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - **eight modular-architecture rules the contracts did not state.** Behaviour
+  that needs two modules lives in a bridge module that depends on both and is proven by the
+  bridge's tests or at acceptance; the stand-alone install set is read from the build log, never
+  inferred (`auto_install` reads backward); a test never depends on the absence of a module
+  outside its closure (grep the repositories for overrides of the core action it drives);
+  `auto_install` fires on install only, `-u` never pulls a bridge in; a value set by law or
+  regulation is a data record, never a constant or a number in a formula (R1 greps for it); a
+  generic accounting module runs and is tested on the generic chart of `account`; a business
+  module paints only with core levers (no module-owned custom property, no theme-fixed Bootstrap
+  class; the UI reviewer flags both); a module's reverse closure moves, retires and re-tests
+  with it, and a retired module keeps its TODO under the manifest `name` key.
+
 ### Changed
 
 - `odoo-ai-agents` - **the modular-architecture and forward-port contracts carry instructions

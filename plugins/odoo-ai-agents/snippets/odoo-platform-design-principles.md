@@ -34,6 +34,13 @@ module only **seeds** the rules/data/COA/taxes that differ per country.
   countries will also need.
 - Keep user-facing strings translatable (`_()`, no hardcoded language/currency/locale) so the
   generic layer serves every locale.
+- **A value set by law or regulation is a data record, never code**: a rate, a ceiling, a
+  threshold, an effective date, an account code a regulation assigns - shipped as XML data,
+  editable in the UI, read by the code as the record in force on the business date for the
+  company and country. Never a Python constant, never a number inside a formula string.
+- **A generic accounting module runs on the generic chart of `account`** and is tested with it:
+  accounts come from configuration, from the account type or from a partner or company property,
+  never from a code a localization assigns (`331`, `3388`); the `l10n_*` module fills the hook.
 
 ## 3. Standard app menu architecture (modules with `application=True`)
 
@@ -91,8 +98,10 @@ Within a series; a cross-series code upgrade follows
   stage (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never files named after
   business topics. A module `installable: False` before the PR or within it takes neither.
 - **Retire, do not delete.** A module, model or field that customer databases hold data in stays
-  in place with a TODO naming the next major that removes it. Only a pre-migration script removes
-  data that carries an XML ID.
+  in place with a TODO naming the next major that removes it - in `__manifest__.py` right under
+  the `name` key for a module, a short comment on the definition for a model or field. Only a
+  pre-migration script removes data that carries an XML ID; no remaining module uses anything of
+  a retired one.
 - **Data files declare only part of a module's XML IDs.** Odoo mints more for `_inherits`
   records and for the records a cron or a user creates; a migration never lists XML IDs from the
   data files - it reads them from the database.
