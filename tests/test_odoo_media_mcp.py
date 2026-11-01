@@ -472,3 +472,18 @@ def test_speech_voices_lists_models_too_and_works_on_an_endpoint_only_file_but_n
     refused = client.call("speech_voices", {"base_url": "http://127.0.0.1:1/v1"})
     assert refused.get("error") or structured(refused).get("error")     # no caller-chosen destination
     assert len(_Fake.calls) == before
+
+
+def test_media_info_survives_the_start_directory_being_deleted(tmp_path):
+    started_in = tmp_path / "session-worktree"
+    started_in.mkdir()
+    home = tmp_path / "home"
+    with McpClient(hermetic_env(home), started_in, server=MEDIA_SERVER) as client:
+        client.initialize()
+        proc_cwd = Path("/proc/%d/cwd" % client.proc.pid)
+        if proc_cwd.exists():
+            assert Path(os.readlink(str(proc_cwd))) == home.resolve()
+        shutil.rmtree(started_in)
+        result = client.call("media_info")
+        assert result["isError"] is False, result["structuredContent"]
+        assert "FileNotFoundError" not in client.stderr

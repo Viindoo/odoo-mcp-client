@@ -6,8 +6,10 @@ Subcommands (stdlib only; results are KEY=VALUE lines on stdout):
             ESTIMATE_REQUESTS, ESTIMATE_TOKENS from the storyboard `ai` block; `AI=none` and zeros
             when the block is absent.
   log       --ledger L.jsonl --kind trial|take --scene ID --lang LOCALE --requests N --tokens N
+            --ledger names the JSONL ledger file (created on first use).
             Appends one ledger line; prints LOGGED=1, TOTAL_REQUESTS, TOTAL_TOKENS.
   check     --ledger L.jsonl --storyboard SB.json [--margin 0.25]
+            --ledger names the same ledger `log` writes.
             SPENT_REQUESTS, SPENT_TOKENS, ESTIMATE_TOKENS, MARGIN; exit 4 with OVER=tokens|requests
             when a total exceeds the estimate by more than the margin.
   keys      --storyboard SB.json
@@ -110,7 +112,8 @@ def cmd_keys(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("estimate")
     p.add_argument("--storyboard", required=True)

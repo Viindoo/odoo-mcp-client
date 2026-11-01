@@ -97,6 +97,34 @@ def claim_stdout():
     return wire_out
 
 
+def stabilize_cwd(state_root=None):
+    """Move this process to a directory that outlives any session worktree: the state root
+    (created when missing), else the plugin root. The directory the client started the server in
+    may be deleted mid-session; every cwd-relative default then still resolves. Returns the
+    directory entered, or None when none could be entered."""
+    candidates = []
+    if state_root:
+        candidates.append(state_root)
+    candidates.append(os.path.dirname(os.path.dirname(_HERE)))
+    for path in candidates:
+        try:
+            if not os.path.isdir(path):
+                os.makedirs(path)
+            os.chdir(path)
+            return path
+        except OSError:
+            continue
+    return None
+
+
+def _state_root_or_none():
+    try:
+        from odoo_local import cli
+        return cli.load_lib("paths").state_root()
+    except Exception:
+        return None
+
+
 def main():
     wire_out = claim_stdout()
     in_stream = sys.stdin.buffer
@@ -104,8 +132,10 @@ def main():
     if sys.version_info[:2] < MIN_PYTHON:
         _log("Python %d.%d is below %d.%d; running in PYTHON_TOO_OLD degraded mode" % (
             sys.version_info[0], sys.version_info[1], MIN_PYTHON[0], MIN_PYTHON[1]))
+        stabilize_cwd()
         degraded_main(in_stream, wire_out)
         return 0
+    stabilize_cwd(_state_root_or_none())
 
     import logging
 

@@ -81,7 +81,8 @@ def _row(io, item):
 
 
 def _resolve_catalog_path(cwd):
-    workdir = cwd or os.getcwd()
+    # No caller cwd: the start directory of the session while it exists, else the state root.
+    workdir = cwd or cli.default_cwd()
     if not os.path.isdir(workdir):
         raise ToolError("PATH_NOT_DIRECTORY", "cwd is not a directory: %s" % workdir, {"cwd": workdir})
     try:

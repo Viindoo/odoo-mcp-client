@@ -218,6 +218,16 @@ no format choice. Its brief is worktree-and-instance shaped:
 - The "provision-once / forward-everywhere" rule (`instance-handle-contract.md`).
 - No git fields - this family runs zero git.
 
+### Video producer
+
+`odoo-video-producer`:
+
+- `MODE` (`record`, `narrate`, `assemble`); one agent, resumed per phase.
+- `STORYBOARD` (absolute, validated by the caller), `LANGUAGES`, `ISOLATE_DIR`, `RUN_ID`.
+- `INSTANCE_HANDLE` for `record` (demo data and every language loaded; never released by it).
+- `AUTHOR PROFILE` JSON or `none`; `BUDGET_MARGIN`.
+- No git fields, no destination: publishing is the workflow's phase.
+
 ### Survey / analyst
 
 `odoo-backend-debugger`, `odoo-ui-debugger`, `odoo-impact-recon`, `odoo-intent-extractor`,

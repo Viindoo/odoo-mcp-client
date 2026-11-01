@@ -23,6 +23,25 @@ log = logging.getLogger("odoo-local")
 # odoo_local/cli.py -> parents: [0] odoo_local, [1] mcp, [2] scripts, [3] <plugin root>
 PACKAGE_DIR = Path(__file__).resolve().parent
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+
+try:
+    START_DIR = os.getcwd()   # the session's directory, read before the server moves to a stable one
+except OSError:
+    START_DIR = None
+
+
+def default_cwd():
+    """The working directory a tool uses when the caller gives none: the directory the server was
+    started in while it still exists, else the state root, else the plugin root. Never raises."""
+    if START_DIR and os.path.isdir(START_DIR):
+        return START_DIR
+    try:
+        root = load_lib("paths").state_root()
+        if os.path.isdir(root):
+            return root
+    except Exception:
+        pass
+    return str(PLUGIN_ROOT)
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 LIB_DIR = SCRIPTS_DIR / "lib"
 SETUP_STEPS_DIR = SCRIPTS_DIR / "setup-steps"

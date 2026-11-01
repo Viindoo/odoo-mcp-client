@@ -78,7 +78,12 @@ phases:
     #     audition every speech.toml `tts.candidates` voice on the hook line
     #     (`speech_synthesize` with `voice`, `speech_transcribe` + narration_check,
     #     `video_publish.py audition --music <author profile music_file>`), ONE AskUserQuestion
-    #     per language (the voice; music on or off); no voice name is written in plugin prose.
+    #     per language (the voice; music on or off); no listing and no candidates -> the
+    #     `tts.voices` voice of the locale, no audition, no question. No voice name is written in
+    #     plugin prose.
+    #   - A scene whose actions compute a figure (a total, a count, a state) ends with
+    #     `expect_text` on it: the recorder prints it and the producer compares it across
+    #     languages; a typed record name is a `{locale: string}` map when the UI translates it.
     #     Speaking rate = speech.toml `tts.rate` for the video type, verified by `speech_probe`
     #     with `speed` (`speed_honoured` false -> keep 1.0 and say so).
     #   - Pronunciation: the machine registry (`pronunciation.py registry list`) always applies;

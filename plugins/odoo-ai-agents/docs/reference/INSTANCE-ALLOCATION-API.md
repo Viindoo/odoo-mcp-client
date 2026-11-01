@@ -14,6 +14,13 @@ definitions in `scripts/mcp/odoo_local/tools_*.py` and the docstring + `ERROR_CO
 scripts as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`; Claude Code only (Codex and Gemini use the
 CLI). Schemas: `tools/list`.
 
+Both bundled servers (`odoo-local`, `odoo-media`) remember the directory the client session started
+them in and move to the state root at start-up (created when missing; the plugin root when it
+cannot be created). A tool called without `cwd` resolves against that start directory while it
+exists (so the project catalog of the session is still found) and against the state root once it is
+gone, so a worktree removed mid-session never breaks a tool; a tool that needs another project
+takes an explicit `cwd`.
+
 | Tool | Wraps | Notes |
 |------|-------|-------|
 | `lease_acquire` | `allocator.py acquire --format json`, then `list` to read the row back | `series` required; `ports` > 0 refused for `shared` / `readonly`; returns `lease` + `instance_handle` (`snippets/instance-handle-contract.md`) + `venv_missing` / `warnings` (no venv python: builds and serves raise `VENV_MISSING`) |

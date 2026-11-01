@@ -44,6 +44,9 @@ the 30 s default wait of a selector; ai_wait keeps 120 s); hold {seconds}; voice
 take from `language_switch`. How the recorder reaches the instance is not part of the plan;
 scene-script and demo-data-script take an optional --ui-user NAME, written as `ui_user`.
 A scene sets `allow_key_fields: true` to let a take show a key field.
+Optional top-level pacing key `wait_squeeze_s` (number >= 0, default 1.0 when absent): the seconds
+the assembler squeezes the rest of every wait into. `render` lists it with the other tunables and
+`scene-script` carries it into the scene script as `wait_squeeze_s`.
 """
 from __future__ import annotations
 
@@ -177,7 +180,7 @@ class Checker:
         for i, lang in enumerate(langs):
             if not LOCALE_RE.match(lang):
                 self.err("languages[%d]" % i, "`%s` is not a locale like xx_YY" % lang)
-        for key in ("lead_in_s", "fade_s", "max_silence_s", "max_hold_s", "speed"):
+        for key in ("lead_in_s", "fade_s", "max_silence_s", "max_hold_s", "wait_squeeze_s", "speed"):
             if key in sb and not (_is_num(sb[key]) and sb[key] >= 0):
                 self.err(key, "must be a number >= 0")
         if "shot_seconds" in sb:
@@ -405,12 +408,18 @@ def _cell(text):
     return str(text).replace("|", "\\|").replace("\n", " ")
 
 
+def _squeeze(sb):
+    """The seconds the assembler squeezes the rest of every wait into (default 1.0)."""
+    return sb["wait_squeeze_s"] if "wait_squeeze_s" in sb else 1.0
+
+
 def cmd_render(args):
     sb = _load(args.storyboard)
     langs = sb.get("languages") or []
     out = ["# %s" % sb.get("title", ""), "",
            "- Type: %s" % sb.get("video_type", ""),
            "- Languages: %s" % (", ".join(langs) if langs else "Silent video (no narration)"),
+           "- wait_squeeze_s: %s" % _squeeze(sb),
            "", "## Scenes", "",
            "| Scene | Target (s) | Click path |", "|---|---|---|"]
     scenes = [s for s in sb.get("scenes") or [] if isinstance(s, dict)]
@@ -526,6 +535,7 @@ def cmd_scene_script(args):
             actions.append(_resolve(item, args.lang))
     script.update({
         "scene_id": sc["id"],
+        "wait_squeeze_s": _squeeze(sb),
         "wait_selectors": list(sb.get("wait_selectors") or []) + list(sc.get("wait_selectors") or []),
         "actions": actions,
         "voice_wav": args.voice_wav or None,
@@ -575,7 +585,8 @@ def cmd_demo_data(args):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def add(name, fn, *opts):

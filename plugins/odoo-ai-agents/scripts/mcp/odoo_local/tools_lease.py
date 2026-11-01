@@ -230,7 +230,7 @@ def read_database(row, cwd=None, modules=None):
     if root:
         argv += ["--odoo-root", root]
     try:
-        rc, out, _err = cli.run(argv, cwd or os.getcwd(), DB_FACTS_TIMEOUT_S)
+        rc, out, _err = cli.run(argv, cwd or cli.default_cwd(), DB_FACTS_TIMEOUT_S)
     except (cli.SubprocessTimeout, OSError):
         return None
     lines = (out or "").splitlines()
@@ -559,7 +559,7 @@ PROFILE_PROP = {"type": "string",
 # helpers
 # --------------------------------------------------------------------------- #
 def _cwd(args, key="cwd"):
-    cwd = args.get(key) or os.getcwd()
+    cwd = args.get(key) or cli.default_cwd()
     if not os.path.isabs(cwd):
         raise ToolError("INVALID_ARGUMENTS", "arguments.%s: must be an absolute path, got %r" % (key, cwd))
     if not os.path.isdir(cwd):
@@ -570,7 +570,7 @@ def _cwd(args, key="cwd"):
 def list_rows(extra_args, cwd=None):
     """Registry rows from `allocator.py list --show-tokens --with-verdict <extra>`."""
     env = cli.run_allocator("list", ["--show-tokens", "--with-verdict"] + list(extra_args),
-                            cwd or os.getcwd(), READ_TIMEOUT_S)
+                            cwd or cli.default_cwd(), READ_TIMEOUT_S)
     return env["fields"].get("leases") or []
 
 
@@ -822,7 +822,7 @@ def _release_locked(token, run_id, cwd):
 
 def _park(args, ctx):
     token, run_id = args["lease_token"], args["run_id"]
-    cwd = os.getcwd()
+    cwd = cli.default_cwd()
     # Ownership (NOT_OWNER) and an unknown token (LEASE_NOT_FOUND) are decided by the allocator
     # itself, under its registry lock and before any signal - the ONE implementation release shares.
     # A pre-check here would only be a second copy with a race window between it and the stop.
@@ -1037,7 +1037,7 @@ _hb_stop = threading.Event()
 
 def heartbeat_once():
     """`allocator.py heartbeat --session mine`: refresh seen_at on every lease of this session."""
-    return cli.run_allocator("heartbeat", ["--session", "mine"], os.getcwd(), READ_TIMEOUT_S)
+    return cli.run_allocator("heartbeat", ["--session", "mine"], cli.default_cwd(), READ_TIMEOUT_S)
 
 
 def _heartbeat_loop(interval_s):

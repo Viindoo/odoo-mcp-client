@@ -33,7 +33,9 @@ guess a value a script did not print.
 
 ## MODE record
 
-Every script states its flags in its header docstring (`--help`); read it before the first call.
+`<script> --help` prints the script's whole header docstring (flags, exit codes, file formats);
+read it before the first call of each script. The ledger of every `video_budget.py log` and
+`check` is `<ISOLATE_DIR>/video/<label>/ledger.jsonl`, passed as `--ledger`.
 
 1. `storyboard_check.py check --storyboard <STORYBOARD>`: exit 1 -> `NEEDS_CONTEXT` with its
    `ERROR=` lines; a `TEXT_ONLY_SCENES` list -> `NEEDS_CONTEXT(scene <id>: click_path has no
@@ -52,9 +54,9 @@ Every script states its flags in its header docstring (`--help`); read it before
    `ai.tokens_per_request` when the app shows none); keep the candidate whose `ANSWER=` is the
    most complete and stable across the tries; `storyboard_check.py set-prompt`. The answer text
    is evidence in the report, never edited.
-6. `video_budget.py check --margin <BUDGET_MARGIN>` (the ledger of every `log` and `check` is
-   `<ISOLATE_DIR>/video/<label>/ledger.jsonl`) before the first take and after every language:
-   exit 4 -> stop, report `SPENT_*` and `ESTIMATE_*`, `NEEDS_CONTEXT(budget: <OVER>)`.
+6. `video_budget.py check --ledger <ledger> --storyboard <STORYBOARD> --margin <BUDGET_MARGIN>`
+   before the first take and after every language: exit 4 -> stop, report `SPENT_*` and
+   `ESTIMATE_*`, `NEEDS_CONTEXT(budget: <OVER>)`.
 7. Per language (a silent storyboard, `languages` empty: once, `--lang` the instance's locale),
    then per scene in storyboard order: `storyboard_check.py scene-script --base-url <url>
    --ui-user <the handle's ui_user> --lang <lang> --scene <id> --takes-dir
@@ -63,7 +65,10 @@ Every script states its flags in its header docstring (`--help`); read it before
    `speech_synthesize` tool, one clip at a time; every path the scripts receive is absolute),
    `video_record.py record --script <it>` (the recorder reaches the instance as `ui_user` and
    switches the language off camera, then records). Exit 0:
-   note `CLIP=`, `DURATION_S=`, `VOICE_OUT=`. Exit 3: one retake after re-reading the screen when
+   note `CLIP=`, `DURATION_S=`, `VOICE_OUT=` and every `TEXT_<name>=`; a `TEXT_` value that is
+   empty or zero where the scene computes a figure, or that is not the same figure in every
+   language (the locale's digits and separators aside), is a wrong take: `BLOCKED(scene <id>:
+   <name>=<value>)`, the storyboard owner decides. Exit 3: one retake after re-reading the screen when
    the steps before the failing one changed no record (a scene that already saved or confirmed
    something is not retaken: `BLOCKED` naming the step, the storyboard owner restores the demo
    state); twice -> `BLOCKED` naming the step. Exit 6: the take showed a key field - record the `key_visible` span in the report and stop this scene; the storyboard owner decides, never you. Log each
@@ -87,8 +92,9 @@ from the clips). A `VALUE_NOT_CONFIGURED` result is `NEEDS_CONTEXT(<option>)`.
 
 Per language, per scene in order, under `assembly/<lang>/`:
 1. `video_publish.py speedup --clip takes/<lang>/scene-<id>.webm --events <its .events.json>
-   --wait-keep 1 --wait-squeeze 1 --must-see "<the scene's must_see>" --out <id>.paced.mp4`:
-   exit 6 -> the clip never ships; `BLOCKED(scene <id>: key field visible)`.
+   --wait-keep 1 --wait-squeeze <the storyboard's wait_squeeze_s, 1.0 when absent> [--must-see
+   "<the scene's must_see>"] --out <id>.paced.mp4`: exit 6 -> the clip never ships;
+   `BLOCKED(scene <id>: key field visible)`.
 2. Per storyboard `focus`: `video_publish.py zoom`.
 3. `video_publish.py fit --clip <paced> --narration narration/<lang>/<id>.wav --lead-in
    <lead_in_s> --fade <fade_s> --max-silence <max_silence_s> --max-hold <max_hold_s>
@@ -100,10 +106,10 @@ Per language, per scene in order, under `assembly/<lang>/`:
    `deliverables/<lang>/<label>-<lang>.mp4`, `verify --profile <publish_profile>` (`--silent` on a
    silent run; any `FAIL` line = not a deliverable), `sidecar --list <the concat list>`
    (`--narration-dir narration/<lang>/` on a narrated run; it writes `deliverables/<lang>/<lang>.txt`
-   and `.srt`), `thumbnail --at <a second inside the first scene, past the title card>`,
+   and `.srt`), `thumbnail --at <the first CHAPTERS time of <lang>.txt plus 3 s>`,
    `preview --max-mb 10`.
-5. `video_keyscan.py scan --dir <ISOLATE_DIR>/video/<label> --key-env <ai.key_env>`: exit 1 ->
-   `BLOCKED` with its `HIT=` lines.
+5. `video_keyscan.py scan --dir <ISOLATE_DIR>/video/<label>` (`--key-env <ai.key_env>` only when
+   the storyboard has an `ai` block): exit 1 -> `BLOCKED` with its `HIT=` lines.
 
 ## Teardown, then return
 

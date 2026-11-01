@@ -214,7 +214,8 @@ def _registry_cmd(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("apply")
     p.add_argument("--map", required=True)

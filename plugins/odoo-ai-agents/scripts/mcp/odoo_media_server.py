@@ -26,8 +26,10 @@ def main():
     if sys.version_info[:2] < MIN_PYTHON:
         sys.stderr.write("%s: Python %d.%d is below %d.%d; running in PYTHON_TOO_OLD degraded mode\n" % (
             SERVER_NAME, sys.version_info[0], sys.version_info[1], MIN_PYTHON[0], MIN_PYTHON[1]))
+        odoo_local_server.stabilize_cwd()
         odoo_local_server.degraded_main(in_stream, wire_out, server_name=SERVER_NAME)
         return 0
+    odoo_local_server.stabilize_cwd(odoo_local_server._state_root_or_none())
 
     import logging
 

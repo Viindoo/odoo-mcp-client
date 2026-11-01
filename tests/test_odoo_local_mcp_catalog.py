@@ -508,3 +508,28 @@ def test_server_start_prunes_old_finished_jobs(home, work, monkeypatch):
         while time.monotonic() < deadline and jobs.read_record(old["job_id"]) is not None:
             time.sleep(0.1)
     assert jobs.read_record(old["job_id"]) is None, "server start must prune the job store"
+
+
+# --------------------------------------------------------------------------- #
+# the server does not depend on the directory it was started in
+# --------------------------------------------------------------------------- #
+def test_catalog_and_lease_tools_survive_the_start_directory_being_deleted(home, tmp_path):
+    import shutil
+    path = _write(home / "instances.toml", CATALOG)
+    started_in = tmp_path / "session-worktree"
+    started_in.mkdir()
+    with _server(home, started_in) as s:
+        shutil.rmtree(started_in)
+        out = _ok(s.call("catalog_read", {}))
+        assert out["catalog_path"] == str(path) and len(out["rows"]) == 3
+        found = _ok(s.call("lease_find", {"series": "17.0", "state": "shared"}))
+        assert found["found"] is False
+        assert "FileNotFoundError" not in s.stderr
+
+
+def test_no_cwd_still_reads_the_project_catalog_of_the_live_start_directory(home, work):
+    project = _write(work / ".odoo-ai" / "instances.toml", '[[instance]]\nseries = "15.0"\naddons_path = ["/p"]\n')
+    with _server(home, work) as s:
+        out = _ok(s.call("catalog_read", {}))
+    assert out["catalog_path"] == str(project)
+    assert [r["series"] for r in out["rows"]] == ["15.0"]
