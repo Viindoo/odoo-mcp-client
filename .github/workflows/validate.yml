@@ -142,17 +142,18 @@ jobs:
     # ubuntu-26.04 is in public preview (announced 2026-06-11) and is the OS that
     # first required the Playwright 1.61 pin; preview images may have longer queues.
     # macOS is verified on EVERY version GitHub still provides a hosted runner for:
-    # 14 Sonoma / 15 Sequoia / 26 Tahoe on arm64 (Apple Silicon), plus the Intel
-    # x86_64 path via macos-15-intel (the Playwright browser binary differs by CPU
-    # arch, not by OS minor, so one Intel job guards the x64 download). Do NOT add
-    # macos-13: GitHub retired that runner image on 2025-12-08, so a job pinned to
-    # it never gets a runner and queues forever. The script's macOS branch is
-    # binary-only and version-agnostic, so it still works on macOS 13+ for users -
-    # CI simply can't host a 13 runner anymore.
+    # 15 Sequoia / 26 Tahoe on arm64 (Apple Silicon), plus the Intel x86_64 path via
+    # macos-15-intel (the Playwright browser binary differs by CPU arch, not by OS
+    # minor, so one Intel job guards the x64 download). Do NOT add macos-13 or
+    # macos-14: GitHub retired those runner images (2025-12-08 and 2026-11-02; the
+    # retirement brownouts cancel a pinned job within seconds), so a job pinned to
+    # either never gets a runner. The script's macOS branch is binary-only and
+    # version-agnostic, so it still works on macOS 13+ for users - CI simply can't
+    # host those runners anymore.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04, macos-14, macos-15, macos-26, macos-15-intel]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04, macos-15, macos-26, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
