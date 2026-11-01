@@ -3,6 +3,8 @@
 
 Subcommands (stdlib only; results are KEY=VALUE lines on stdout):
   scan --dir D [--key-env NAME ...]
+            --key-env is optional and repeatable: without it only the built-in key and token shapes
+            are checked; with it the exact value of each named variable is checked too.
             Every text file under D is checked for API keys, tokens, bearer headers, long opaque
             runs and the exact value of each named environment variable. Prints
             HIT=<relative path>:<line> per finding (never the key itself), FILES=<n>, HITS=<n>;
@@ -34,7 +36,8 @@ def _is_text(path):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("scan")
     p.add_argument("--dir", required=True)

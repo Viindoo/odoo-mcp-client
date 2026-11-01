@@ -108,7 +108,8 @@ def slot_status(slots, transcript, pron_entries):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--script", required=True)
     parser.add_argument("--transcript")
     parser.add_argument("--slots", default="")

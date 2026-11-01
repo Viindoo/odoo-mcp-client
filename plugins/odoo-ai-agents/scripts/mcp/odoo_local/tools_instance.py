@@ -938,7 +938,7 @@ def _job_wait(args, ctx):
     meta = rec.get("meta") or {}
     log_path = meta.get("log_path") or rec.get("log_path")
     output_path = meta.get("output_path") or rec.get("log_path")
-    cwd = rec.get("cwd") if os.path.isdir(rec.get("cwd") or "") else os.getcwd()
+    cwd = rec.get("cwd") if os.path.isdir(rec.get("cwd") or "") else cli.default_cwd()
     output = _read_tail(output_path)
     summary = _kv_lines(output, _SUMMARY_KEYS)
     exporting = is_export_job(meta)

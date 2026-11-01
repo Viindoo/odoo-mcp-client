@@ -48,8 +48,9 @@ Exit codes: 0 ok, 1 failure, 2 tool missing, 4 silence over the limit, 5 held fr
             durations (ffprobe) of the preceding entries end. An entry whose basename starts with
             `title` is the title card: not a chapter, but it counts in the offset. Writes <lang>.txt
             (title, description, chapters) and, only with --narration-dir (<scene id>.wav per scene),
-            <lang>.srt (the scene's caption lines run from its chapter start plus --lead-in over the
-            narration duration); otherwise prints CAPTIONS=none. Prints the paths and TOTAL_S.
+            <lang>.srt (one cue per narration line: the scene's spoken span, the narration clip's duration,
+            starts at its chapter start plus --lead-in and is split between the lines in proportion to
+            their character counts; a cue lasts at least 0.5 s and cues never overlap); otherwise prints CAPTIONS=none. Prints the paths and TOTAL_S.
   thumbnail --video video.mp4 --at 2.0 --out thumb.jpg  A 1280x720 JPEG under 2 MB. A missing or
             unreadable --video prints `ERROR=<path>: not a file` (exit 1).
   preview   --video video.mp4 --out preview.mp4 [--max-mb 10]  Same picture, higher CRF, under the cap.
@@ -686,6 +687,28 @@ def _yt_time(seconds):
     return "%d:%02d" % (s // 60, s % 60)
 
 
+MIN_CUE_S = 0.5   # a caption cue never stays on screen shorter than this
+CUE_TAIL_S = 0.2  # the last cue of a scene lifts this early so it does not touch the next scene's
+
+
+def _caption_cues(text, start, spoken):
+    """One ``(start, end, line)`` per non-blank narration line.
+
+    The spoken span is split between the lines in proportion to their character counts; each cue
+    starts where the previous one ends, none is shorter than ``MIN_CUE_S`` and none overlaps.
+    """
+    lines = [ln.strip() for ln in str(text).splitlines() if ln.strip()]
+    total = sum(len(ln) for ln in lines)
+    cues, cursor = [], start
+    for i, ln in enumerate(lines):
+        end = cursor + max(MIN_CUE_S, spoken * len(ln) / total)
+        if i == len(lines) - 1:
+            end = max(cursor + MIN_CUE_S, end - CUE_TAIL_S)
+        cues.append((cursor, end, ln))
+        cursor = end
+    return cues
+
+
 def cmd_sidecar(args):
     _need("ffprobe")
     with open(args.storyboard, encoding="utf-8") as fh:
@@ -713,8 +736,8 @@ def cmd_sidecar(args):
         if text and args.narration_dir:
             wav = os.path.join(args.narration_dir, "%s.wav" % sid)
             spoken = duration_of(wav) if os.path.exists(wav) else max(0.0, dur - lead)
-            srt.append("%d\n%s --> %s\n%s\n" % (len(srt) + 1, _srt_time(t + lead),
-                                                _srt_time(max(t + lead + 0.5, t + lead + spoken - 0.2)), text))
+            for start, end, line in _caption_cues(text, t + lead, spoken):
+                srt.append("%d\n%s --> %s\n%s\n" % (len(srt) + 1, _srt_time(start), _srt_time(end), line))
         chapters.append("%s %s" % (_yt_time(t), title))
         t += dur
     if args.narration_dir:
@@ -774,7 +797,8 @@ def cmd_preview(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("fit"); p.add_argument("--clip", required=True); p.add_argument("--narration")
     p.add_argument("--out", required=True); p.add_argument("--lead-in", type=float, default=0.5, dest="lead_in")

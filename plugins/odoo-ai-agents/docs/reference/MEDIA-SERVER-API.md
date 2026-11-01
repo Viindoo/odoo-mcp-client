@@ -6,6 +6,9 @@ package `scripts/mcp/odoo_media/`), registered in `.mcp.json` next to `odoo-loca
 the operator configured through the plugin's options: narration speech and YouTube publishing.
 Agents call its tools as `mcp__plugin_odoo-ai-agents_odoo-media__<tool>`.
 
+At start-up the server moves its working directory to the state root (the plugin root when that
+cannot be created), so a client session directory removed mid-session never breaks a tool.
+
 ## Why a server
 
 Claude Code substitutes a plugin's `userConfig` options (`plugin.json`; `sensitive: true` = masked

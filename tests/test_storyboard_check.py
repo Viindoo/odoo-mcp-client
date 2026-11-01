@@ -332,3 +332,36 @@ def test_render_shows_the_language_switch_labels_and_wait_indicators(tmp_path):
     assert _tool("render", "--storyboard", _write(tmp_path, sb), "--out", str(out)).returncode == 0
     text = out.read_text(encoding="utf-8")
     assert "Wait indicators: the web client's own" in text and "Language switch: none" in text
+
+
+# --------------------------------------------------------------------------- wait_squeeze_s
+def _scene_script(tmp_path, sb):
+    out = tmp_path / "ws.json"
+    proc = _tool("scene-script", "--storyboard", _write(tmp_path, sb), "--lang", "en_US",
+                 "--scene", "quote", "--base-url", "http://x", "--out", str(out))
+    assert proc.returncode == 0, proc.stdout
+    return json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_wait_squeeze_s_must_be_a_number_of_seconds_not_below_zero(tmp_path):
+    for bad in (-1, "2", None):
+        proc, errors = _check(tmp_path, lambda sb, v=bad: sb.__setitem__("wait_squeeze_s", v))
+        assert proc.returncode == 1, bad
+        assert any(e.startswith("ERROR=wait_squeeze_s") for e in errors), (bad, errors)
+    for good in (0, 0.5, 3):
+        proc, _ = _check(tmp_path, lambda sb, v=good: sb.__setitem__("wait_squeeze_s", v))
+        assert proc.returncode == 0, good
+
+
+def test_wait_squeeze_s_is_shown_by_render_and_carried_into_the_scene_script(tmp_path):
+    sb = copy.deepcopy(STORYBOARD)
+    sb["wait_squeeze_s"] = 2.5
+    out = tmp_path / "plan.md"
+    assert _tool("render", "--storyboard", _write(tmp_path, sb), "--out", str(out)).returncode == 0
+    assert "wait_squeeze_s: 2.5" in out.read_text(encoding="utf-8")
+    assert _scene_script(tmp_path, sb)["wait_squeeze_s"] == 2.5
+
+
+def test_an_absent_wait_squeeze_s_is_one_second_in_the_scene_script(tmp_path):
+    assert "wait_squeeze_s" not in STORYBOARD
+    assert _scene_script(tmp_path, copy.deepcopy(STORYBOARD))["wait_squeeze_s"] == 1.0

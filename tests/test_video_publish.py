@@ -358,6 +358,67 @@ def test_sidecar_places_chapters_at_the_real_offsets_and_writes_captions_only_wi
     assert "00:00:01,500 --> 00:00:02,800" in srt and "00:00:04,500 --> 00:00:05,800" in srt
 
 
+def _cues(srt):
+    """``[(start_s, end_s, text)]`` of an srt file."""
+    def secs(stamp):
+        h, m, rest = stamp.split(":")
+        s, ms = rest.split(",")
+        return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
+
+    out = []
+    for block in srt.strip().split("\n\n"):
+        lines = block.splitlines()
+        start, end = lines[1].split(" --> ")
+        out.append((secs(start), secs(end), "\n".join(lines[2:])))
+    return out
+
+
+def _sidecar_cues(tmp_path, narration, spoken=4.0):
+    clip = _no_audio_clip(tmp_path / "s1.mp4", 6)
+    (tmp_path / "list.txt").write_text("%s\n" % clip, encoding="utf-8")
+    sb = {"title": "Demo", "languages": ["en_US"], "lead_in_s": 0.5,
+          "publish": {"en_US": {"title": "T", "description": "D"}},
+          "scenes": [{"id": "s1", "title": {"en_US": "One"}, "narration": {"en_US": narration}}]}
+    (tmp_path / "sb.json").write_text(json.dumps(sb), encoding="utf-8")
+    narr = tmp_path / "narr"
+    narr.mkdir()
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=%s" % spoken,
+                    "-ac", "1", str(narr / "s1.wav")], check=True, capture_output=True)
+    proc = _tool("sidecar", "--storyboard", str(tmp_path / "sb.json"), "--lang", "en_US",
+                 "--list", str(tmp_path / "list.txt"), "--out-dir", str(tmp_path / "out"),
+                 "--narration-dir", str(narr))
+    assert proc.returncode == 0, proc.stderr
+    return _cues((tmp_path / "out" / "en_US.srt").read_text(encoding="utf-8"))
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_a_two_line_narration_yields_two_cues_that_split_the_spoken_span_by_characters(tmp_path):
+    first, second = "Short line.", "A much longer second line of narration."
+    cues = _sidecar_cues(tmp_path, first + "\n" + second, spoken=4.0)
+    assert [c[2] for c in cues] == [first, second]
+    (s1, e1, _), (s2, e2, _) = cues
+    assert s1 == pytest.approx(0.5, abs=0.01)          # chapter start (0) plus the lead-in
+    assert s2 == pytest.approx(e1, abs=0.01) and e1 <= s2   # contiguous, never overlapping
+    share = len(first) / (len(first) + len(second))
+    assert (e1 - s1) == pytest.approx(4.0 * share, abs=0.05)
+    assert e2 == pytest.approx(0.5 + 4.0 - 0.2, abs=0.05)   # the last cue lifts 0.2 s early
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_a_one_line_narration_still_yields_one_cue_over_the_spoken_span(tmp_path):
+    cues = _sidecar_cues(tmp_path, "Only one line here.", spoken=3.0)
+    assert len(cues) == 1
+    assert cues[0][0] == pytest.approx(0.5, abs=0.01) and cues[0][1] == pytest.approx(3.3, abs=0.05)
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_a_very_short_line_keeps_half_a_second_and_cues_still_do_not_overlap(tmp_path):
+    cues = _sidecar_cues(tmp_path, "Hi.\nThis second line takes nearly all of the spoken time.", spoken=2.0)
+    assert len(cues) == 2
+    assert cues[0][1] - cues[0][0] >= 0.5 - 0.01
+    assert cues[1][0] >= cues[0][1] - 0.001
+
+
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
 def test_concat_and_sidecar_refuse_a_list_line_that_is_not_an_existing_file_with_one_message(tmp_path):
     clip = _no_audio_clip(tmp_path / "title.mp4", 1)
