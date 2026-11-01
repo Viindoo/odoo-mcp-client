@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.3.1] - 2026-11-01
+
+### Fixed
+
+- `odoo-local` and `odoo-media` remember the directory they were started in and run from the
+  state root: a start directory that disappears (a worktree removed mid-session) no longer
+  crashes `catalog_read`, `lease_find` or `instance_build`, and the project catalog of the start
+  directory is still found while it exists (#295).
+- `video_publish.py sidecar` writes one caption cue per narration line, timed by line length,
+  instead of one cue per scene (#295).
+- Every video script's `--help` prints its whole header docstring; the producer prose names the
+  ledger flag, the optional key variable, the thumbnail second and the per-language record names
+  (#295).
+- The storyboard declares `wait_squeeze_s` so its owner can keep more waiting time when the
+  narration outruns the footage; `speed` is one rate, `voice` one id per locale; a scene that
+  computes a figure reads it back with `expect_text` (#295).
+
 ## [8.3.0] - 2026-11-01
 
 ### Added
