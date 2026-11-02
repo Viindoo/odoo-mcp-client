@@ -82,7 +82,11 @@ of another skill's run, or invoked with `return_to` (the caller owns the gate).
 
 1. Before the plan exists, ask every human question - intent, scope, approach, the SRS review, the
    design review - as a text question with the reply words above. `odoo-intake` never enters Plan
-   Mode.
+   Mode. Before any gate the owner reads the artifact and its review in full, settles every
+   question a rule already answers, and asks only those with two materially different readings,
+   each with a recommendation and a default; an agent's questions are never forwarded unread. A
+   gate presents the current state with its evidence (file and symbol), each option's consequence
+   per role (who does, sees and pays what), and a reasoned recommendation.
 2. The owner authors its plan first: a plan written only under the `$ODOO_AI_HOME` state root needs
    no open Plan Mode, and no state-root-writing subagent is launched while Plan Mode is open. Then
    it calls `EnterPlanMode`, presents the plan, and calls `ExitPlanMode` when the user approves -

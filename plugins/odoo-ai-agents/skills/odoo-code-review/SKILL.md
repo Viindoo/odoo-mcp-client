@@ -10,7 +10,9 @@ description: >-
 Front door for reviewing Odoo code. It resolves the target, computes the changed set, launches
 `odoo-code-reviewer` in its three modes at three tiers, and returns the verdict. It launches and
 returns; it does not wait on a fix, and the findings go back to the coder that built the node
-through the caller's fix round.
+through the caller's fix round. Every review mode judges the change against
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a block on a policy
+limit, a guard without a way out, or a surface that behaves unlike core's is a finding.
 
 ## Out of Scope
 

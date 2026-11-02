@@ -219,11 +219,11 @@ place; the rest keep their order.
   approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo; a demo video of the change rides as the PR attachment (video-destination.md)
   approach_kind: integrate
   depends_on: [docs-module, migration]
-- id: monitor   # OPTIONAL: polling costs tokens on every tick; off unless the plan has a coding node or the user asked to be watched
+- id: monitor   # OPTIONAL and OFF by default: polling costs tokens on every tick; on only when the user asked for the PR to be watched
   approach: odoo-pr-monitoring
   approach_kind: skill
   depends_on: [integrate]
-  when: the plan has a coding node, or the user asked for the PR to be watched
+  when: the user asked for the PR to be watched
 - id: merge   # the human gate, always; without monitor it is ONE question ("merged on GitHub, or merge it now?") and one git-ops merge or READ
   approach: odoo-pr-monitoring   # with monitor; without it: inline, git-toolkit:git-ops
   approach_kind: skill

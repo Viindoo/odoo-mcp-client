@@ -154,6 +154,21 @@ ended its turn holding a wait nothing will ever satisfy. Treat that shape as STA
 the same work yourself, or roll it up as your own `BLOCKED` naming the stalled child. Never count it
 toward the barrier and never inherit it as your own `DONE`.
 
+**A completion is not proof of work.** Judge a returned `DONE` by the artifact it owes: the file,
+commit or tree state exists and has size; a return with unusually few tool calls or a short
+duration is read with suspicion. A child that reports "waiting on a build" and stops has nothing
+running unless a process on that database or a log still growing proves it; a build is done on the
+loaded-modules marker in its log with no error marker, never on an exit code. Before re-dispatching
+mutating work, measure the state the child was to change (HEAD, an in-progress git operation,
+running processes) and read its whole report, not the handback summary: a child that ended its
+turn without handing back may have finished - measure the tree, then resume THAT child with a
+message asking for its report (an honest partial report is valid). Never launch a second writer on
+a tree the first may still be writing; a replacement brief states the HEAD it expects and stops
+when it differs. Two empty returns from the same kind of child change the approach (measure the
+core yourself, or a brief that blocks the cause), never a third nudge. Before presenting or acting
+on a report, verify its pivotal claims against the code and against the decisions the owner already
+made; drop a suggestion that contradicts one.
+
 ## R2 - No early DONE
 
 Your own `status` is DONE only when (a) your own work is finished AND (b) every agent you launched

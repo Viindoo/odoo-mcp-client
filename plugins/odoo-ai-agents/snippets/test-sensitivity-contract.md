@@ -39,18 +39,27 @@ that method and place the test in the module that owns the flow
 ## The break-check
 
 A test earns its place only if it FAILS when the business rule it guards is deliberately broken.
-Prove it for real, e.g. for "a line discount above 20% is refused":
+Prove it for real, e.g. for "a customer reference already used by another order is refused":
 
 1. Run the test on the unbroken code: it passes. A test red on correct code is wrong - fix it first.
 2. Keep a copy of each production file before you edit it, under `<ISOLATE_DIR>`, never the system temp dir.
 3. Break exactly that rule while the code still loads (§ How to break each change kind) - here,
-   skip the cap check in the constraint.
+   skip the duplicate check in the constraint.
 4. Run only the affected tests, at method granularity (`test_tags` `/<module>:<Class>.<method>`),
    and watch them fail - on an assertion, or on the business exception the broken rule produces.
 5. Restore every file exactly as it was from your copy and confirm it is back (e.g. its
    `sha256sum` matches the copy).
 
 A test that stays green guards nothing: strengthen or replace it, then break-check it again.
+
+A break never runs on a tree another agent or gate is reading: run it on a private copy of the
+commit under test (an archive extract under `<ISOLATE_DIR>`), or serially once every other reader
+is done; a history rewrite (rebase, cherry-pick, reset, checkout) obeys the same rule. Several
+tests: apply every break on the copy at once and expect exactly that many reds in one targeted run.
+A long gate (a suite, an acceptance) runs on a clean child worktree cut from the commit under test,
+or on the integration worktree only while no agent writes to it; its brief records the SHA and a
+clean status. A test red only in a combined run and green alone, or a gate failing in a file being
+edited in parallel: look for the concurrent edit in that window before calling a debugger.
 
 **Restore is your own duty.** Never leave production code broken on any path, an early stop
 included. If you cannot restore a file, return `BLOCKED` naming it.
@@ -59,7 +68,7 @@ included. If you cannot restore a file, return `BLOCKED` naming it.
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle);
 never provision a new database. With no handle, write the tests, run nothing, and return
 `NEEDS_NEXT: odoo-instance` naming the break-checks still owed as method-level tags (e.g.
-`PENDING BREAK_CHECK: /sale_cap:TestDiscountCap.test_above_cap_refused`).
+`PENDING BREAK_CHECK: /sale_ref:TestClientRef.test_duplicate_client_ref_refused`).
 
 **Database state.** A verdict must come from a database that reflects the restored code. A data
 (XML/CSV) rule has one break: edit the file. An updatable record is reloaded by `-u` (`reuse`); a
@@ -83,15 +92,16 @@ Break the rule so the test's expected outcome becomes wrong. Examples, not a clo
 -> neutralise it; a changed rule -> put the old one back; a bug fix -> undo the fix (the regression
 test must fail); a removed behavior -> reintroduce it; an access rule -> restore the old rule or
 domain (the test acts `with_user()`); a forwarded / adapted test -> break the business rule it
-guards in the target code, never "disable the adapt code". An accept-path test ("a 20% discount is
-allowed") is proven by breaking the rule the other way: tighten it so 20% is refused.
+guards in the target code, never "disable the adapt code". An accept-path test ("a reference used
+once is accepted") is proven by breaking the rule the other way: make the check refuse every
+reference; a policy flag ("a 20% discount sets no flag") by setting the flag at 20%.
 
 ## Break-check record
 
 Report briefly, one free-form line per behavior test: the test, what you broke, how it failed, that
 you restored it. For example:
 
-    test_above_cap_refused - broke models/sale_order_line.py:42 (cap check skipped) - failed: ValidationError not raised - restored, hash matches
+    test_duplicate_client_ref_refused - broke models/sale_order.py:42 (duplicate check skipped) - failed: ValidationError not raised - restored, hash matches
 
 Also say which existing tests already cover a behavior (you broke its rule and they failed), and
 which existing tests you adjusted and why. Put the same lines in your worklog entry.
@@ -102,7 +112,10 @@ Search the existing tests first: a behavior they already cover needs nothing new
 and report them as covering); a partly covered one gets a new test method in the existing class.
 Adjust an existing test only where the REQUEST changed that behavior or renamed a symbol it uses.
 Never adjust a test to fit an unintended result, and never relax or delete an assertion to get green
-(removing a translated-text or name-freezing assertion is cleanup - say so).
+(removing a translated-text or name-freezing assertion is cleanup - say so). A change that turns a
+test red: ask whether its scenario happens for a real person in the product. If it does not, or
+the behaviour it protects cannot be stated in one business sentence, delete the test and say so; if
+it does and nothing else covers it, keep it running as a real user with that scenario's rights.
 
 ## The loop, bounded
 

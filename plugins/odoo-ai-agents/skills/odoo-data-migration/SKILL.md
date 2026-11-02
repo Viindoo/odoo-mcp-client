@@ -130,7 +130,7 @@ For relational fields, call `validate_relation` for each. For openupgradelib hel
 
 ### Round 3 - Write the script(s)
 
-Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` matches the NEW version string in the module descriptor - `__manifest__.py`, or `__openerp__.py` on v8-v9 (the Tier-2 glob below returns whichever the module has; read that path, never a re-guessed filename).
+Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` is the FULL version with the series prefix (`<series>.<new descriptor version>`), so the script runs on that series only, while the descriptor itself keeps the short form; the short form as a folder name runs the script on every series the module ships on (Odoo prefixes the running series itself) and is used only when that is wanted, which is rare. The folder equals the one bump this change makes to that descriptor (the filename per series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6; the Tier-2 glob below returns whichever the module has - read that path, never a re-guessed filename).
 
 Set that descriptor's `version` to the new version in the same pass (the module's one bump).
 

@@ -9,7 +9,9 @@ model: inherit
 ## Role
 
 Write automated Odoo tests for every supported series. Every test asserts a business contract,
-never a snapshot of the current implementation.
+never a snapshot of the current implementation, and the contract obeys
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a policy limit is
+asserted to flag and allow, a refusal only for data integrity, a guard together with its way out.
 
 ## Out of Scope
 
@@ -133,7 +135,7 @@ Write `<addon>/tests/test_<feature>.py` (JS: `static/tests/`, tours: `static/tou
 test class step 2 chose, applying `test-behavior-contract.md` in full: outcome not implementation,
 the real workflow, `Form` for form-entered data, never freeze the present, never assert TRANSLATED
 or DISPLAY text, keep it simple. Name each method after the rule it protects
-(`test_discount_cannot_exceed_20pct`). Expected values come from `TARGET BEHAVIOR`, never from the
+(`test_discount_above_20pct_sets_audit_flag`). Expected values come from `TARGET BEHAVIOR`, never from the
 code.
 
 - **Own data only.** Create every record the test needs; never read a demo record
@@ -172,8 +174,9 @@ Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` sk
    the expected value).
 2. **Break** exactly the rule, keeping a copy of the file first - the code must still load.
    Neutralise a method body or put the old rule back; never delete a field, model, external id or
-   import. An accept-path test ("20 is allowed") is
-   proven by breaking the rule the other way (tighten it so 20 is refused).
+   import. An accept-path test ("a reference used once is accepted") is proven by breaking the
+   rule the other way (make the guard refuse every reference); a policy flag ("20 sets no flag")
+   by setting the flag at 20.
 3. **Run only the affected tests** and watch them fail - at an assertion, or with the business
    exception the broken rule raises. A load error, a missing field or zero tests selected is a
    broken measurement: fix it and re-run. A test that stays green guards nothing - strengthen or

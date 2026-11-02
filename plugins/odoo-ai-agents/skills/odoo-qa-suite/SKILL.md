@@ -9,7 +9,9 @@ description: >-
 
 QA engineer / Odoo developer producing test plans, checklists, and structured bug reports for a
 module or feature change. Three jobs in one pass: (1) generate test cases, (2) run the
-pre-deploy checklist, (3) triage bugs with severity and root-cause hints.
+pre-deploy checklist, (3) triage bugs with severity and root-cause hints. Test cases and triage
+follow `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a policy limit
+flags and allows, a block has a way out, every surface behaves as core's does.
 
 **Composition orchestrator:** delegate phases via the Skill tool to leaf skills; handle work inline
 only when no leaf skill covers it.
@@ -95,8 +97,8 @@ For a behavioral acceptance oracle + live execution across the blast-radius clus
 Rules:
 - Test name must state a **business rule**, not an implementation detail. Good: "Sale order total updates when line quantity changes". Bad: "test_compute_amount_total".
 - Every test must have one scenario that would make it **fail** - if no wrong answer exists, the test is useless and must not be included.
+- Cover at minimum: happy path, edge case (empty/zero/boundary), error path (integrity-breaking input is refused; a policy-limit breach succeeds and is flagged), permission check (an access breach is rejected).
 - **Steps must drive the real workflow, not seed a state.** Name the actual `action_*` / `button_*` method (e.g. "call `action_confirm`"), build via `Form()` where an onchange is involved, run access checks as the real user (`with_user(...)`), never `sudo()` on the action under test - never write a step that injects terminal `state` with `create({'state': ...})` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
-- Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
 - Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
 - **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table. For runnable tests, route to `odoo-test-writing`; this phase only records the base-class menu in the table.

@@ -277,7 +277,7 @@ the module icon is the only fixed size.
 
 | Asset | Size | Notes |
 |---|---|---|
-| Module icon (`static/description/icon.png`, PNG only) | 256x256 px | No manifest key needed - implicit path. Missing = ranking penalty. Language-neutral. |
+| Module icon (`static/description/icon.png`, PNG only) | the size and style of the series' core icons (`icon_gate.py facts`); the store resizes it | No manifest key needed - implicit path. Missing = ranking penalty. Language-neutral. |
 | Cover | from the hero slot | Shown in the HERO and, as the first `images` entry, in the store's browse and grid views. A GIF carries an animated walkthrough. |
 | Proof shots | from the WHAT-CHANGES slot | Inline in `index.html`; further `manifest['images']` entries feed the store carousel. |
 

@@ -62,7 +62,9 @@ sequencing decision no artifact encodes - never to ask a human to paste the desi
 ## Round 0 - Read the inputs BY POINTER (do not re-derive)
 
 First read the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first;
-absent dir = you are the first writer) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. Then
+absent dir = you are the first writer) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, and
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0 (a node that blocks a
+business action on a policy limit, or invents a surface core already has, is re-planned). Then
 read these pointers:
 
 1. **DESIGN_INDEX** - `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` = topo-ordered

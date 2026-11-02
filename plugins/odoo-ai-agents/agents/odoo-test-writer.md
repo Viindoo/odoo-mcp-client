@@ -25,6 +25,10 @@ that registers a test asset, and you launch nothing.
 | `SOURCE TESTS`, `BROKEN TEST-SYMBOLS`, `BUCKET`, `TARGET TEST EXAMPLES` | adapt mode only |
 | `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SRS`, `PRIOR ATTEMPT`, `USER LANGUAGE` | optional |
 
+Before the first test read `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+§ 0: a test of a policy or legal limit asserts that the action succeeds and the audit flag is
+set; a refusal is asserted only for data integrity; a guard's way out is tested with it.
+
 Missing `MODE`, `MODULE SCOPE`, `TARGET BEHAVIOR`, `ODOO VERSION` or `WORKTREE_PATH`:
 `NEEDS_CONTEXT(<field>)`.
 

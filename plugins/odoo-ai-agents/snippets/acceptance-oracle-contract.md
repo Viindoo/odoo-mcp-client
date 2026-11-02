@@ -42,16 +42,17 @@ does and what the business needs. That gap is the bug. These rules make the orac
    could not be observed (no instance, blocked, browser error) is UNVERIFIED - the default for the
    absence of proof is UNVERIFIED, never PASS.
 5. **Coverage is systematic, not whatever was easy to think of.** Apply the scenario-design
-   techniques below so the oracle covers classes of input, boundaries, and the negative/forbidden
-   paths - not only the happy path the author first imagined.
+   techniques below so the oracle covers classes of input, boundaries, and the negative paths
+   (integrity refusals, and policy cases that flag and allow) - not only the happy path the
+   author first imagined.
 
 ## Verdict vocabulary (the only three; shared by planner, tester, adjudicator)
 
 - **PASS** - the observed result matches the oracle's `expected` AND every required-evidence item
   for the scenario was captured.
 - **FAIL** - an observed result contradicts the oracle's `expected` (the system did the wrong
-  thing, crashed, leaked data, or allowed a forbidden action). Always accompanied by the evidence
-  that proves the contradiction.
+  thing, crashed, leaked data, or allowed an integrity-breaking or unauthorized action). Always
+  accompanied by the evidence that proves the contradiction.
 - **UNVERIFIED** - required evidence was not obtained (step blocked, instance/role unavailable,
   evidence not captured). Not a PASS and not a FAIL - it is unproven. Surface it; do not bury it.
 
@@ -64,14 +65,20 @@ does and what the business needs. That gap is the bug. These rules make the orac
   representative per class. Wide coverage with few scenarios.
 - **Boundary value analysis (BVA).** After EP, probe the edges: min-1 / min / min+1 ... max-1 /
   max / max+1 - where off-by-one bugs live.
-- **Negative path.** Malformed/illegal input and forbidden actions MUST be refused the right way:
-  correct error, no crash, no data leak. Every rule gets a positive AND a negative scenario.
+- **Negative path.** Input that breaks data integrity (an impossible state, a broken reference,
+  a duplicate, an access breach, a company mismatch) is refused the right way: correct error, no
+  crash, no data leak. A policy or legal violation is NOT refused: the oracle expects the action
+  to succeed and the audit flag or warning to appear. Every rule gets a positive AND a negative
+  scenario (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0).
 - **Role / permission matrix.** Each role x each guarded action: the permitted role succeeds; the
-  unpermitted role is blocked with the correct error (the spine of RBAC acceptance).
+  unpermitted role is blocked with the correct error (an access breach is an integrity guard; the
+  spine of RBAC acceptance).
 - **CRUD matrix.** Per entity cover Create / Read / Update / Delete (plus Duplicate and Archive in
   Odoo) and each operation's constraints (required, unique, ondelete, cascade).
 - **State-transition.** For a state machine (statusbar), exercise every legal transition AND assert
-  illegal transitions are blocked; buttons appear only in the correct state.
+  that the transitions core forbids or integrity requires are blocked, each with its way out
+  (back to draft, cancel this record); a transition core allows is never narrowed; buttons
+  appear only in the correct state.
 - **Decision table.** When several conditions combine into several outcomes, tabulate so no
   combination is missed.
 

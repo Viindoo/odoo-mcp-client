@@ -20,7 +20,8 @@ the exact text of any file a decision depends on.
 | Any Odoo code (write, review, debug, adapt) | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/INDEX.md` and every file its "By file type" row names for the file types touched; `odoo-platform-design-principles.md` |
 | Module or cluster upgrade to a higher series | `upg-conventions.md`; `odoo-platform-design-principles.md` § Migrations are decided last |
 | Forward-port (code or docs) | `fp-merge-absorption.md`, `fp-installable-false.md` |
-| Tests | `test-sensitivity-contract.md`, `test-scope-contract.md` |
+| A design, a plan, an acceptance oracle or a QA pass | `odoo-platform-design-principles.md` § 0 |
+| Tests | `test-sensitivity-contract.md`, `test-scope-contract.md`, `odoo-platform-design-principles.md` § 0 |
 | Docs that ship in a module | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/doc-artifacts.md`, `module-doc-references.md`, `rst-validity-contract.md` |
 | Docs-site pages | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-site/references/site-row.md` and `page-plan.md` |
 | Marketing copy, App Store page | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md`, `artifact-voice.md` |

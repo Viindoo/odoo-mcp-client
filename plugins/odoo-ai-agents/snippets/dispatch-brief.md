@@ -39,7 +39,11 @@ there answers.
 document is a hidden sub-task it pays before starting. Resolve at dispatch and pass the value: the
 actual `SHARE_DIR`, the actual `ISOLATE_DIR`, the actual profile name, the actual addons path, the
 actual interpreter path. Cite a document as the RATIONALE for a value you already supplied, never
-in place of one. A worker handed resolved paths MUST NOT re-run the resolver from its own cwd.
+in place of one. A worker handed resolved paths MUST NOT re-run the resolver from its own cwd. A
+line number, a signature, a SHA or a count is true only in the tree it was measured in: pass it as
+an outcome with where and at which commit it was measured; the receiver re-measures and reports a
+mismatch instead of inventing a replacement. After a rebase every copied SHA and count is a claim
+again.
 
 **One dispatch, one KIND of work.** Split by kind, not by size. A brief that bundles read prior
 art, edit a view, author a test, provision an instance, run a suite and commit is six kinds and
@@ -64,6 +68,11 @@ does internally to reach it - an assumption that turns out false leaves that gap
 
 **Exemption - anonymous workers.** Dispatching an UNNAMED worker (an anonymous fork or spawn, no
 agent of its own): paste the procedure into the brief. It arrives holding nothing.
+
+**A fork is not you.** A forked helper inherits your context, not your role: its brief states that
+it researches read-only, acquires no lease, launches no agent and writes no file. For Odoo or git
+work a plugin specialist comes before a general-purpose agent, which is used only when no
+specialist fits.
 
 ## Role-family deltas (additive on the skeleton)
 
@@ -125,6 +134,8 @@ part) and `odoo-frontend-coder` (a leaf):
 - `CHANGED_SET`/`SCOPE_FILES` for diff-scoping (the diff-scoped code reviewer).
 - `ACCEPTANCE` resolves to the SRS acceptance criteria (the `SRS` path, or the design header
   when no SRS was written) when a design exists for this change; otherwise `N/A`.
+- A diff handed as a patch is a plain diff with default options, its added and removed totals
+  reconciled with the numstat before dispatch; a hunk spanning thousands of lines is a broken patch.
 
 ### Diff comparator (rebase / upgrade absorption)
 
@@ -158,6 +169,9 @@ part) and `odoo-frontend-coder` (a leaf):
   from the code. Expected values come from the REQUEST/AC, never the code.
 - Roles/personas.
 - Adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence.
+- A reported red carries the test id and the first traceback line; "pre-existing" is measured by
+  the same test on the clean base, never inferred from unchanged files; red in the suite but green
+  alone is pollution.
 - Exception - `odoo-qa-planner`'s input is the raw `REQUIREMENT`/intent, NOT the implementation.
 
 ### Doc-writer
@@ -197,8 +211,12 @@ no format choice. Its brief is worktree-and-instance shaped:
 `odoo-icon-designer`:
 
 - `MODULE_PATH` - the absolute module path (never a bare module name).
-- `BRIEF` palette hex values (`BG`/`FG`) when a brand differs from the category-hue default.
-- `odoo_version` - drives the era-correct visual style and the manifest `icon` key.
+- `BRIEF` palette hex values (`BG`/`FG`, or `GLYPH`) when a brand differs from the category-hue
+  default.
+- `odoo_version` - names the series whose core icons the agent measures, and the manifest
+  `icon` key.
+- `INSTANCE_HANDLE` - optional; with the module installed, the agent views its icon among the
+  installed apps.
 - No locale/language list and no feature-catalog grounding (standalone: OSM + disk).
 
 ### Instance / ops
@@ -236,6 +254,8 @@ no format choice. Its brief is worktree-and-instance shaped:
 - The ask framed as an open QUESTION, not a scripted search-command sequence.
 - Structured findings FILE vs inline chat answer.
 - Explicit instruction to report uncertainty/confidence, never present a guess as fact.
+- A zero count or an unchanged total needs a positive control: the same command finds a sample
+  that must match. Compare per item, never totals.
 
 ### Git family - not here
 

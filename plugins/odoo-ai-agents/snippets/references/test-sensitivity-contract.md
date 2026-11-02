@@ -38,11 +38,11 @@ after the file is restored, so a later `-u` run reads the broken record back.
 
 ## Worked example - one rule, three change kinds
 
-Rule: "a sale order over 100M is locked."
+Rule: "a sale order over 100M is flagged for approval review."
 
-- New behavior: neutralise the `is_locked` compute so it always yields `False`; a test confirming a
-  150M order must fail on `assertTrue(order.is_locked)`.
+- New behavior: neutralise the `is_over_threshold` compute so it always yields `False`; a test
+  confirming a 150M order must fail on `assertTrue(order.is_over_threshold)`.
 - Altered behavior (threshold moved from 50M to 100M): put 50M back; a test asserting a 75M order
-  stays unlocked must fail.
-- Bug fix (orders exactly at 100M were not locked): turn `>=` back into `>`; the regression test at
-  exactly 100M must fail.
+  carries no flag must fail.
+- Bug fix (orders exactly at 100M were not flagged): turn `>=` back into `>`; the regression test
+  at exactly 100M must fail.

@@ -1,6 +1,6 @@
 # Website / Portal / eCommerce Design Guide - Context B
 
-Lower-constraint, public-facing, brand-led. A bold, distinctive aesthetic applies far more directly here because the audience is a prospect/customer, not an all-day operator. Still the Odoo theme system, not a blank canvas.
+Lower-constraint, public-facing, brand-led. A bold, distinctive aesthetic applies here, and only here (never the backend), because the audience is a prospect/customer, not an all-day operator. Still the Odoo theme system, not a blank canvas.
 
 ## Theme + Bootstrap, version-grounded
 

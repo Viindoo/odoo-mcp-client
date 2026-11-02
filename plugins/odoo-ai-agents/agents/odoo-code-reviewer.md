@@ -125,7 +125,9 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
 4. **Platform**: multi-company and multi-branch scoping, generic before localization, the app
    menu shape, and reversibility (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`):
    a new constraint, refused transition or cascade cancel whose evidence and way out for the
-   user neither the SRS nor the coder's return names -> HIGH; a stored compute over a many-record relation
+   user neither the SRS nor the coder's return names -> HIGH; a guard that blocks on a legal or
+   policy limit (a cap, a ratio, an approval window, a tax method) instead of flagging it for
+   audit -> HIGH; a stored compute over a many-record relation
    (`${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`).
 5. **Impact map**: `IMPACT_MAP` names every symbol the diff changed with its dependents and
    siblings checked; a symbol missing from it, or a dependent `RECON` lists that the map does
@@ -135,7 +137,8 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
    shortcut, a form bypass, a frozen snapshot, a re-implementation of the rule, or a duplicate
    is HIGH (`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`); a behaviour test with no
    proof it failed when its rule was broken is HIGH
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`).
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). Never ask for a test of what
+   core guarantees; a core fact the review relies on goes in the review notes, not in a test.
 7. **Audience gate** when `Audience` is not `n/a`: the three questions of the taxonomy for each
    role; a "no" is a finding naming the role and the screen.
 8. **Audits**: the diff touches access rules, a controller, `sudo(`, raw SQL or `auth='public'`

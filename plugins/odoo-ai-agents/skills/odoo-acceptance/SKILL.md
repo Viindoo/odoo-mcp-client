@@ -12,7 +12,9 @@ resolves the scope, launches `odoo-qa-tester` in its modes at their tiers, and r
 verdict with evidence. It launches and returns; the fix round belongs to the caller, who resumes
 the node's coder and the reviewer with the tester's report. The oracle author, the coder and the
 adjudicator stay three contexts
-(`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`).
+(`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`). The oracle and the verdicts
+obey `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a policy limit is
+expected to flag and allow, a block to have a way out, a surface to behave as core's does.
 
 ## Out of Scope
 

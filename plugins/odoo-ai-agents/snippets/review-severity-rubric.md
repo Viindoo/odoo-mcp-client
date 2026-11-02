@@ -39,7 +39,9 @@ same severity on every indexed series.
 - An audit finding **outside the diff** (pre-existing / blast-radius) never changes the diff
   verdict or score, at any severity. It surfaces as a `concerns:` sibling note carrying an
   opt-in `next:` (e.g. `next: odoo-deprecation-audit` for a full pre-existing sweep) - never
-  silently dropped, never silently blocking the diff.
+  silently dropped, never silently blocking the diff. A pre-existing defect the run PROVED in a
+  module the PR touches is expected fixed in the PR, in that module's own commit; left unfixed,
+  it is a HIGH concern naming the commit it belongs in.
 
 ## 4. Ownership-transfer / dedup rule (F2)
 

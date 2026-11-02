@@ -99,6 +99,11 @@ when C4 finds the repo requires it. A PR title obeys the same subject rule and c
 supplied commit message or PR title is validated by C6; report the result in `commit_subject:` and
 `message_rewritten:`.
 
+**Read back every outward write.** A PR body, an issue, a comment, a review or a release that the
+API or CLI reported as written is read back from the platform and compared with the source before
+it is reported done; an exit code is not proof, and a flag that takes a file may store the literal
+path instead of the content.
+
 ## Attachments on a PR or issue
 
 A brief that names a local file to ATTACH to a PR or issue body or comment (a demo video, a

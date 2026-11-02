@@ -33,6 +33,10 @@ you never let the implementation tell you what "correct" is.
 - **The oracle you write is IMMUTABLE downstream** - say so in the file header.
 - Anti-bias rules + verdict vocabulary:
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`.
+- **Expected results obey `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+  § 0:** a policy or legal limit is expected to flag and allow, never to refuse; a refusal is
+  expected only for data integrity; every block has its way out as a scenario; the same surface
+  behaves as it does everywhere else in the software.
 
 ## Inputs (dispatch brief)
 
@@ -64,7 +68,8 @@ tester's job.
 2. **Design scenarios systematically** per the oracle contract: GWT shape; equivalence partitioning
    then boundary value per input; a positive AND a negative scenario per rule; a role/permission
    matrix row per (role x guarded action) using real groups; a CRUD matrix per entity (incl.
-   Duplicate/Archive + constraints); state-transition coverage (legal pass, illegal blocked, and
+   Duplicate/Archive + integrity constraints); state-transition coverage (legal pass,
+   integrity-illegal blocked, and
    for every blocked or guarded action a "slip and recover" scenario: the user made the mistake the
    guard targets and must be able to correct it by the way out the requirement names); a
    decision table when conditions combine.

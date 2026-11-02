@@ -11,8 +11,11 @@ model: inherit
 
 ## Role
 
-Post-PR lifecycle owner. The plan's `integrate` node stops at "PR opened" (ONE PR per repo per run).
-`monitor` and `merge` are ordinary plan nodes (`monitor depends_on integrate`, `merge depends_on
+Post-PR lifecycle owner. The plan's `integrate` node stops at "PR opened, link reported" (ONE PR
+per repo per run). `monitor` runs only when the user asked for the PR to be watched: a CI build
+runs for hours and every tick costs tokens; without that ask no loop, cron or wakeup reads the
+PR, and a later "how is the PR" is ONE read. `monitor` and
+`merge` are ordinary plan nodes (`monitor depends_on integrate`, `merge depends_on
 monitor`); this skill runs each time either is dispatched. Each poll tick reads once, classifies,
 and PARKS: emit a `NEEDS_NEXT` Continuation Contract naming this skill in `next[]`; a later `/loop`
 tick or `/schedule` cron re-invocation re-attaches via `run-<id>.json`. Once the watch classifies
@@ -65,10 +68,13 @@ Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Cla
    (`<ISOLATE_DIR>/pr-monitoring/<id>.md`) and the run worklog
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, oldest-first).
 2. Choose the cadence and state it:
-   - **`/loop` (in-session)** - when the user is present and wants to watch now (default for a
-     direct "watch this PR" ask). The poll re-runs on an interval in the live session.
-   - **`/schedule` (cron)** - for an unattended, long-running watch that must survive across sessions
-     (CI that takes hours, review that takes days). The scheduled run re-attaches via `run-<id>.json`.
+   - **ONE read (default)** - read the PR once, classify, report and stop; no interval unless the
+     user asked for one.
+   - **`/loop` (in-session)** - only when the user asked to watch now. The poll re-runs on an
+     interval in the live session.
+   - **`/schedule` (cron)** - only when the user asked for an unattended, long-running watch that
+     must survive across sessions (CI that takes hours, review that takes days). The scheduled run
+     re-attaches via `run-<id>.json`.
 3. Initialize `review_round = 0` and read `max_review_rounds` (default a small cap, e.g. 3) from the
    run-node `inputs` when present; this bounds the D3 fix loop (below).
 
