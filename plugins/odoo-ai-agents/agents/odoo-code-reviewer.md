@@ -84,7 +84,8 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
 7. **Conventions**: every section of every guideline file you read for the file types in
    `CHANGED_SET` is one yes-or-no check over the diff - naming prefixes and suffixes, model
-   attribute order, xml_id names, import order, manifest version form, an always-invisible
+   attribute order, xml_id names, import order, manifest version form, a `version` edit or a
+   `migrations/` file in a node that is not the plan's `migration` node, an always-invisible
    field without its comment (`xml.md`), a new `hr.employee` field without `groups=`, and
    every other section - each finding citing the file and section; a section the diff does not
    reach is listed in `verified-clean` as not applicable.

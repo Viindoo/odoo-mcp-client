@@ -97,7 +97,7 @@ After install, 50 skills activate automatically:
 | `odoo-competitive-brief` | Strategist | Board-ready competitive brief on a named competitor: capability matrix, threat assessment, response strategy |
 | `odoo-override-finding` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
 | `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
-| `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
+| `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 7 domains (backup, downtime, smoke tests, rollback, ...) |
 | `odoo-forward-port` | Coder / Engineer | Odoo forward-port (per-commit intent extract + absorb-all git topology: ONE merge of the range tip closed by ONE merge commit, keeping every source SHA; code adapted first, then the node's source tests adapted and proven by a break-check); output under `<ISOLATE_DIR>/forward-port/`; invoke via `/odoo-forward-port` or plain-language intent |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
 | `odoo-coding` | Coder | The single coding front door - write production-ready backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS) code, from a single computed field to a multi-module full-stack feature; scopes the change and sequences the backend + frontend coder agents |

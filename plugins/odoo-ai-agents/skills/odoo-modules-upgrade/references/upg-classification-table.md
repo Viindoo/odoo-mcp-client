@@ -128,7 +128,7 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 - [ ] `installable: True` in every adapted module's manifest
 - [ ] Scanned each module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9) for the `# TODO: Uncomment when upgrading` breadcrumb and honored it (restored `auto_install`/`application` only when the breadcrumb directed)
 - [ ] Manifest `version` uses the short form, no series prefix, and is NOT bumped from the source value - a value that arrived series-prefixed was CONVERTED to `x.y.z`, not bumped (remedy: § Manifest breaks, the Rule A row)
-- [ ] No upgraded module carries a `migrations/` directory (each deleted one is recorded in `migration-notes.md`), and no migration script was written
+- [ ] No upgraded module carries a `migrations/` directory, no migration script was written and no `version` was bumped
 
 ### Test verification
 

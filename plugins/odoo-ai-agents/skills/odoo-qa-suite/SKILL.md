@@ -109,7 +109,7 @@ Rules:
 
 ## Phase 2 - QA checklist (Skill tool: odoo-deploy-checklist)
 
-Invoke `odoo-deploy-checklist` via the Skill tool: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
+Invoke `odoo-deploy-checklist` via the Skill tool: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 7 domains: pre-flight, backup, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
 
 Write the returned checklist to `<ISOLATE_DIR>/qa/<slug>-deploy-checklist.md`.
 

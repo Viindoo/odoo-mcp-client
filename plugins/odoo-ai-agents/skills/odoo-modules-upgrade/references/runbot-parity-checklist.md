@@ -42,7 +42,7 @@ lint-class gate, so it runs exactly once and never as a raw `odoo-bin` run:
   verdict here and dispatch nothing.
 - Otherwise (a standalone upgrade), invoke the `odoo-instance` skill (via the Skill tool) with
   `OPERATION: run-tests`, `GATE_ROLE: pre-pr-lint-gate`, `MODULES` and `TEST_TAGS` (`/<m>` per
-  module) for the cluster, `MODE: reuse` on the upgraded database, and `WORKTREE_PATH` set to the
+  module) for the cluster, `MODE: reuse` on the cluster's test database, and `WORKTREE_PATH` set to the
   upgrade worktree. That role makes `odoo-instance-ops` resolve, install and tag the lint modules
   itself and confirm each one loaded - never list them yourself.
 

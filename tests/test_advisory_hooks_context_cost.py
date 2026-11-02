@@ -191,12 +191,14 @@ def test_a_user_prompt_still_gets_its_hints_in_a_fresh_context(tmp_path):
     "write a data migration script for odoo",
     "chuyển dữ liệu database odoo sang phiên bản mới",
 ], ids=["migrate-db", "upgrade-db", "migration-script", "vi-data-move"])
-def test_a_database_migration_prompt_is_told_the_plugin_does_not_run_it(tmp_path, prompt):
-    """Moving an existing database to a higher series (MIG) is not a module code upgrade (UPG):
-    the hint says the plugin never executes it and names the skill that writes its scripts."""
+def test_a_database_migration_prompt_is_routed_out_of_the_plugin(tmp_path, prompt):
+    """A database upgrade between series is never plugin work: the hint routes it to a dedicated
+    upgrade tool and names only the in-scope jobs beside it (the in-series module migration
+    script, the module code upgrade)."""
     env = _env(tmp_path)
     ctx = _intent(prompt, _write(tmp_path / "t.jsonl", [_user(prompt)]), env)
-    assert "[Database migration]" in ctx and "odoo-data-migration" in ctx, ctx
+    assert "[Database migration]" in ctx and "dedicated upgrade tool" in ctx, ctx
+    assert "odoo-data-migration" in ctx and "within one series" in ctx, ctx
 
 
 @pytest.mark.parametrize("prompt", [

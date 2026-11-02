@@ -30,42 +30,35 @@
 - [✓/⚠/✗/N/A] Filestore / attachments backup included
 - [✓/⚠/✗/N/A] Backup age ≤ 24h before deploy window
 
-### 3. Data migration (database migration project only; N/A for a code upgrade)
-- [✓/⚠/✗/N/A] Migration scripts present for all upgrading modules (installable modules only)
-- [✓/⚠/✗/N/A] Migration tested on prod-size data
-- [✓/⚠/✗/N/A] Custom SQL constraints checked for data conflicts
-- [✓/⚠/✗/N/A] Post-migration data integrity assertions pass
-- [✓/⚠/✗/N/A] Record count spot-check before/after migration
-
-### 4. Downtime
+### 3. Downtime
 - [✓/⚠/✗/N/A] Downtime window scheduled and confirmed
 - [✓/⚠/✗/N/A] User communication sent
 - [✓/⚠/✗/N/A] Maintenance page ready
 - [✓/⚠/✗/N/A] Estimated duration communicated
 - [✓/⚠/✗/N/A] Escalation contact available during window
 
-### 5. Deploy mechanics
+### 4. Deploy mechanics
 - [✓/⚠/✗/N/A] CI pipeline green on deploy commit
 - [✓/⚠/✗/N/A] Branch pinned to specific SHA
 - [✓/⚠/✗/N/A] Assets compiled and verified
 - [✓/⚠/✗/N/A] Deploy runbook rehearsed on staging
 - [✓/⚠/✗/N/A] Feature flags configured if partial rollout
 
-### 6. Smoke tests
+### 5. Smoke tests
 - [✓/⚠/✗/N/A] Smoke test suite passes on staging
 - [✓/⚠/✗/N/A] Critical flows verified: login / sale order / invoice
 - [✓/⚠/✗/N/A] Custom module happy-path tests pass
 - [✓/⚠/✗/N/A] External integrations spot-checked
 - [✓/⚠/✗/N/A] No ERROR lines in server log during smoke test
 
-### 7. Monitoring
+### 6. Monitoring
 - [✓/⚠/✗/N/A] Log streaming active
 - [✓/⚠/✗/N/A] Metrics dashboard ready and reviewed
 - [✓/⚠/✗/N/A] Alerting rules active for new modules
-- [✓/⚠/✗/N/A] Scheduled actions verified post-migration
+- [✓/⚠/✗/N/A] Scheduled actions verified after the deploy
 - [✓/⚠/✗/N/A] Email / SMTP connectivity checked
 
-### 8. Rollback
+### 7. Rollback
 - [✓/⚠/✗/N/A] Rollback path documented
 - [✓/⚠/✗/N/A] Database restore tested and timed
 - [✓/⚠/✗/N/A] Previous version tagged and accessible

@@ -21,7 +21,7 @@
     "snippets/i18n-mandate-contract.md": 8433,
     "snippets/instance-resolution.md": 4673,
     "snippets/master-child-design-contract.md": 9555,
-    "snippets/new-module-manifest.md": 3983,
+    "snippets/new-module-manifest.md": 4111,
     "snippets/odoo-bin-resource-limits.md": 6963,
     "snippets/odoo-era-boundaries.md": 16751,
     "snippets/odoo-version-pivots.md": 15653,
@@ -51,7 +51,7 @@
     "snippets/test-scope-contract.md": 5685,
     "snippets/test-sensitivity-contract.md": 8995,
     "snippets/business-taxonomy.md": 4794,
-    "snippets/odoo-platform-design-principles.md": 9117,
+    "snippets/odoo-platform-design-principles.md": 10099,
     "skills/_shared/doc-capture-mechanics.md": 18527,
     "snippets/code-comment-contract.md": 5574
   }

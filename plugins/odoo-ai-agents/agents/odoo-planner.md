@@ -127,8 +127,9 @@ solution-level summary) is OWNED by the verification node whose `modules` cover 
 spans; name that ownership on the owning node's Block 3 line (Round 2).
 
 After the last verification node, copy the **default tail** of `plan-mode-schema.md` § Default tail
-(review R1 then R2, acceptance in parallel, one fix round, i18n, `migration`, `docs-module`, `docs-site`,
-integrate, monitor, merge, publish-videos - each with its `when:`), tagged with its repo, and adapt
+(review R1 then R2, acceptance in parallel, one fix round, i18n, `docs-module`, `migration`, `docs-site`,
+integrate, monitor, merge, publish-videos - each with its `when:`; `migration` is the only node that
+bumps a version or writes a migration script, and sits last before `integrate`), tagged with its repo, and adapt
 it only with a reason written in the plan. `monitor` and `monitor-site` are OPTIONAL and off for a
 plan with no coding node (a docs-only plan merges on the owner's word: one question, one git-ops
 call, no polling); `publish-videos` is kept whenever a node of the plan has a video with a YouTube

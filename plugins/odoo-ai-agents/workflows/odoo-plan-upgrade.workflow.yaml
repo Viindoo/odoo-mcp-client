@@ -55,9 +55,7 @@ phases:
     #        CRITICAL risk factors needing code changes before upgrade starts)
     #    (2) Test plan (smoke -> integration -> critical user flows, scoped to
     #        affected modules, run on a fresh database of the target series)
-    #    The plan covers the code upgrade only. Add one closing line verbatim:
-    #    "Database migration (MIG): separate project, not executed by the plugin; input =
-    #    the run's migration notes."
+    #    The plan covers the code upgrade only; it raises no database upgrade.
     #    For each action item record: description, severity (CRITICAL/HIGH/MEDIUM/LOW),
     #    owner role (developer/analyst/DevOps/business), effort placeholder.
     # 2. EFFORT ESTIMATION - assign S/M/L/XL per item:

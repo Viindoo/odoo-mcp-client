@@ -41,7 +41,7 @@ either contract in the other.
 ## What is exempt
 
 Artifacts whose PURPOSE is to record history keep it: changelogs, commit
-messages, migration notes, audit trails, session reports, and the evidence
+messages, audit trails, session reports, and the evidence
 sections of debug/review reports (a root-cause proof must show the
 reproduction). Chat conversation with the user may narrate freely - this
 contract governs the files and copy that ship.

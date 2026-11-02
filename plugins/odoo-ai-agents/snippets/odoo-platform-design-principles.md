@@ -111,13 +111,24 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
 Within a series; a cross-series code upgrade follows
 `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0.
 
-- **Migrations are decided last (SSOT).** Write no migration script and no version bump inside
-  the code, test, review, acceptance, debug or i18n loops. After the loops end and the modules
-  are proven on a FRESH install, a module that was `installable` True before the PR (an absent
-  key counts as True) and whose change alters data existing databases hold gets at most ONE
-  `__manifest__.py` version bump per PR, and its migration directory holds at most ONE file per
-  stage (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never files named after
-  business topics. A module `installable: False` before the PR or within it takes neither.
+- **Migrations are decided last (SSOT).** Within one PR, the plan's `migration` node is the ONLY
+  step that edits a module's `version` or creates a `migrations/` folder. It runs after every
+  code, test, review, acceptance, debug and i18n node and immediately before `integrate` (the
+  pre-PR lint gate); no other node bumps or writes a migration script, and several nodes touching
+  one module never bump it separately - they record what existing data needs in the worklog for
+  that node. A module that was `installable` True before the PR (an absent key counts as True),
+  is proven on a FRESH install, and whose change alters data existing databases hold gets ONE
+  bump of its short `version` by the smallest step (the last component +1) and ONE folder
+  `migrations/<series>.<new short version>/` holding at most one file per stage
+  (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never a file named after a business
+  topic and never an edit to a folder that already exists. A folder named in the short form runs
+  on every series the module ships on, and is written only when the SRS asks for that. A module
+  whose change moves no existing data, or that is `installable: False` before the PR or within
+  it, takes neither. `${CLAUDE_PLUGIN_ROOT}/scripts/lib/migration_gate.py check` proves the
+  result (`--help` states every rule).
+- **A database upgrade between series is never module work.** A module cannot move a database to
+  a higher series; that takes a dedicated upgrade tool and repository - never this plugin.
+  A module migration script only moves the data of the module's own change within one series.
 - **Retire, do not delete.** A module, model or field that customer databases hold data in stays
   in place with a TODO naming the next major that removes it - in `__manifest__.py` right under
   the `name` key for a module, a short comment on the definition for a model or field. Only a

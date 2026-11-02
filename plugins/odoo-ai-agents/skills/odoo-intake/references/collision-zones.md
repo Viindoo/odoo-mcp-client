@@ -78,7 +78,7 @@ Deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration` (modu
 - `odoo-forward-port`: commits moved UP a major.
 - `odoo-deprecation-audit`: detection report only.
 - `odoo-version-diff`: API delta between two versions only.
-- Code upgrade vs database migration: `odoo-modules-upgrade` upgrades the modules' code and never touches a database; moving a database to a higher series is never executed by the plugin, and only its custom-module scripts are written, by `odoo-data-migration`.
+- Code upgrade vs database upgrade: `odoo-modules-upgrade` upgrades the modules' code and never touches a database; a database upgrade between series needs a dedicated upgrade tool and repository; not this plugin.
 
 ## Collision 13 - feature-check vs doc-feature-map vs feature-highlights
 

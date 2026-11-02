@@ -7,8 +7,8 @@
 **Skill action:**
 - Round 1: `model_inspect(model='sale.order', method='fields', odoo_version='<version>')` to confirm `x_legacy_ref` is a stored
   field with column `x_legacy_ref`.
-- Round 2: `lookup_core_api(name='openupgradelib.rename_field', odoo_version='<version>')` to confirm helper signature.
-- Round 3: Write `pre-migrate.py` using `openupgrade.rename_field` with idempotent guard.
+- Round 2: `lookup_core_api` on the series' core column-rename helper to confirm its signature.
+- Round 3: Write `pre-migrate.py` renaming the column with that helper (or parameterized SQL) behind an idempotent guard.
 - Round 4: Emit verification checklist with the before/after SQL spot-checks.
 
 ## Example 2 - Data backfill for a new stored computed field

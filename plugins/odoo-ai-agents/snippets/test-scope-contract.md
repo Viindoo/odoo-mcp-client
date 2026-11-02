@@ -51,7 +51,7 @@ SUPPLIED: derive.
 Run untagged only under one of these, and NAME which one in the report:
 
 1. **`TEST_TAGS: full` requested** - a release sweep, or a cross-cutting break with no resolved `M`.
-2. **No code change under test** - an environment / upgrade / migration smoke run.
+2. **No code change under test** - an environment or install/update smoke run.
 3. **The series has no tag filter** - confirmed absent via `cli_help`. State the consequence (the
    core closure is tested too, and the run is slow); never imply a scoped run happened.
 4. **Reproducing a CI/Runbot gate that itself runs untagged** - the scope matches that gate, not

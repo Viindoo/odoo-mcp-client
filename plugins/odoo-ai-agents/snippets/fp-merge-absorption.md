@@ -82,6 +82,7 @@ uncommitted merge while one is in progress (the index is shared; git-toolkit enf
 
 ## Migration dir retarget (C2) - distinct from C1
 
+C2 moves a module's own migration script to the target series; it is not a database upgrade.
 A source-series commit adds `migrations/<src-series>.a.b.c/`. `M` and `S` are as in C1. A migration
 runs only on UPGRADE and only when `installed < dir_version <= manifest`. Decide each dir at P9.6,
 after P9 is green and before P10 concludes the merge - never inside P8's adapt loop - in this order:
@@ -106,8 +107,8 @@ after P9 is green and before P10 concludes the merge - never inside P8's adapt l
    carries no other `version` change for the module, a retarget still sets the manifest to that
    `V`. Invariant: the dir version is `<=` the final manifest version.
 
-A retargeted dir name is always FULL `<tgt-series>.x.y.z`. Migrations must be idempotent: a
-fully-updated source DB jumping the major re-runs a retargeted tip migration. After the rename,
+A retargeted dir name is always FULL `<tgt-series>.x.y.z`. A script may run more than once, so
+it is idempotent. After the rename,
 sweep the body for source-series literals (log strings, version constants).
 
 Why (Odoo source): `adapt_version()` in `odoo/modules/module.py` prefixes a short manifest

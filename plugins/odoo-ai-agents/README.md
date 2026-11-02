@@ -963,7 +963,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-competitive-brief` | Strategist | Competitor capability snapshot structured for board or sales response |
 | `odoo-override-finding` | Engineer | Find the correct override point and pattern for a method |
 | `odoo-deprecation-audit` | Engineer | Audit deprecated API usage for upgrade readiness |
-| `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist covering config, migration, and rollback |
+| `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist covering config, downtime, smoke tests and rollback |
 | `odoo-version-diff` | Engineer + Marketer | Categorized diff of API and feature changes between versions |
 | `odoo-test-writing` | Engineer | The SSOT test-authoring capability - writes executable `test_*.py` (TransactionCase/Form/HttpCase, tours), JS Hoot/QUnit, and lightweight performance/load tests that protect business behavior, not current code; also a direct user-triggerable front door. Every component that needs a test authored launches the `odoo-test-writer` AGENT, which invokes THIS skill inline for context isolation (tests written after the code in the `odoo-coding` loop and proven by a break-check, durable acceptance tours, and coverage backfill when review flags an unprotected behavior) |
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |

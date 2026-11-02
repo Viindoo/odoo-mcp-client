@@ -172,7 +172,7 @@ Dispatch via Skill tool. Brief:
 ```
 From version: <source_version>
 To version: <target_version>
-Focus: developer track (API breaking changes, removed symbols, migration notes).
+Focus: developer track (API breaking changes, removed symbols).
 Output to: <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/version-delta.md
 ```
 
@@ -335,7 +335,7 @@ Docs: <module | site | both | none> - <the facts that decided it>
 | <m1>   | upgraded | DELETE-absorbed | account/reconcile_model | All 2 overrides (create, write) proven equivalent in core - see absorption/m1.md | n/a | n/a |
 | <m4>   | upgraded | OBSOLETE | Workflow evaporated: <reason> | n/a (no absorption) | n/a | n/a |
 | <m2>   | upgraded | REWRITE(api) | n/a | n/a | sonnet | n/a |
-| <m5>   | already-installable (bump + migration when data moves, decided after P5) | KEEP + [FIX] | n/a | n/a | haiku | n/a |
+| <m5>   | already-installable | KEEP + [FIX] | n/a | n/a | haiku | n/a |
 | <m3>   | KEEP | n/a | n/a | haiku | n/a |
 
 **DELETE confirmations required (one per row, separate from plan approval):**
@@ -731,11 +731,6 @@ these passes before opening the PR, each cross-referencing its owning snippet:
   (references/upg-classification-table.md § Manifest breaks, the Rule A row) and always-invisible
   view fields carry an explanatory XML comment - per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md.
   No upgraded module carries a `migrations/` directory (Convention 0); none is retargeted here.
-- Migration notes: `migration-notes.md` is written in the run dir (SKILL.md § P7) from
-  `transitive-symbol-survey.md` `blockers[]`, `absorption/*.md`, `version-delta.md` and the
-  `migrations/` paths the P4 commits deleted; it lists renamed or removed models, fields, xmlids and
-  selection values, changed field types, modules deleted as absorbed, changed `noupdate` data and
-  each deleted `migrations/` directory. It is written without asking and never blocks the run.
 - Perf-lens: no per-record `mapped()` aggregate over a high-volume model (`hr.attendance`,
   `stock.move`, `account.move.line`, `account.analytic.line`) in a stored compute - use a grouped
   `_read_group`.
@@ -773,9 +768,6 @@ verdict data (never by grepping plan.md prose). PR body template:
 
 ### Test result
 See <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/install-test.md - all levels green.
-
-### Migration notes
-See <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/migration-notes.md.
 
 ### Review request
 Please review modules in dependency order (leaves first):
@@ -1031,19 +1023,12 @@ Pre-PR checklist: run the Runbot parity gates
 add a convention-compliance pass (manifest version-form - short, no series prefix, not bumped, per
 `references/upg-classification-table.md` § Manifest breaks - plus always-invisible XML comment;
 see `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), the two-class gate - the PR is not
-opened while any holds: (a) an `upgraded` module still carries a `migrations/` directory; (b) an
-`already-installable` module's diff touches data, fields or models and its manifest `version`
-is unchanged, or carries no migration file although existing data moves; (c) any file under a
-`migrations/<older series>.*/` directory is modified - the migration notes (below), a perf-lens
-pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
-an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape).
-Write `<run dir>/migration-notes.md` (`<run dir>` = `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/`)
-without asking and without blocking: dispatch one haiku subagent to compile it from
-`transitive-symbol-survey.md` `blockers[]`, `absorption/*.md`, `version-delta.md` and the
-`migrations/` paths the P4 commits deleted - renamed or
-removed models, fields, xmlids and selection values; changed field types; modules deleted as absorbed;
-changed `noupdate` data; every deleted `migrations/` directory (module, path). Point at it from a
-"Migration notes" section of the PR body.
+opened while any holds: (a) an `upgraded` module still carries a `migrations/` directory; (b) any
+module's manifest `version` changed other than by dropping a series prefix, or a migration script
+was added; (c) any file under a `migrations/<older series>.*/` directory is modified - then a
+perf-lens pass (no per-record `mapped()` aggregate on a high-volume model - use grouped
+`_read_group`), and an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED
+enumerated escape).
 Then delegate the final dep-order code review of the integration worktree - via the plugin's review
 capability, passing `worktree:<path>/upg-integration` and asking it to review modules in dependency
 order - and fix its CRITICAL/HIGH findings on that worktree, BEFORE the PR opens.

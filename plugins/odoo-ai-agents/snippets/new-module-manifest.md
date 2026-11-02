@@ -78,7 +78,7 @@ rule: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` Convention 1.
 | New module via `odoo-bin scaffold` | Scaffold default (short) | `0.1` |
 | New module hand-created | Match sibling manifest (short) | `1.0.0` |
 | Existing module - code upgrade to a new series | Short form - keep unchanged, or CONVERTED from long form | `0.1` (unchanged); `17.0.1.0.0` -> `1.0.0` (converted) - see `upg-conventions.md` Convention 1 |
-| Existing module - patch/feature in same series | Keep current value | unchanged |
+| Existing module - patch/feature in same series | Keep current value until the PR's one bump by the plan's `migration` node (`odoo-platform-design-principles.md` § 5) | unchanged, or +1 on the last component |
 | Forward-port, source bumped an existing target module's `version` | C1: `max(M + 1, S)` when installable on both series; the source version when dormant at the target | see `[[fp-merge-absorption]]` (C1) |
 
 ---

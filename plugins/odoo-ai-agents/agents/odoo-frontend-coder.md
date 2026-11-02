@@ -182,7 +182,7 @@ Confirm currency of every core registry/service/hook API you call at the target 
 
 1. **JS file** - `/** @odoo-module **/` first line per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests row "JS module header" (and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), then `import`s from verified paths, then the component class, then registry `.add()`.
 2. **XML template file** - separate file preferred for templates over ~10 lines.
-3. **Manifest assets block** - in the module descriptor (`__manifest__.py`, or `__openerp__.py` on the series that has it), list both `.js` and `.xml` under `web.assets_backend`. If this is a new module, the `version` field follows the short scaffold-default form - see `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`; `odoo-coder` owns the `version` key.
+3. **Manifest assets block** - in the module descriptor (`__manifest__.py`, or `__openerp__.py` on the series that has it), list both `.js` and `.xml` under `web.assets_backend`. Never edit the `version` key nor anything under `migrations/` (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 5).
 4. **OWL version notes** - briefly note any 1.x→2.x differences relevant to the generated code.
 
 **Your brief's `CONSTRAINTS` field is a hard boundary - read it before you write anything.** It

@@ -15,8 +15,9 @@ comparison to subagents. Decide per module what target core now ABSORBS: module 
 The upgrade is a CODE upgrade (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0):
 make each module install and work on a fresh database of the new series, modernised as if newly
 developed there; write NO migration script, DELETE the `migrations/` directory of every upgraded
-module, touch no existing database, and do NOT bump the manifest `version` (§ P4). What the upgrade
-renames, removes or deletes goes into `migration-notes.md` (§ P7).
+module, touch no existing database, and do NOT bump the manifest `version` (§ P4). A database
+upgrade between series needs a dedicated upgrade tool and repository; not this plugin - never
+raise, plan or offer it.
 No cluster-squash; per-module consolidation to ONE
 clean commit per module IS allowed (`references/upg-phase-detail.md` § Commit consolidation).
 Human sign-off before the PR merges.
@@ -35,7 +36,6 @@ PR, and stop for human confirm.
 | Scan deprecated symbols only | `odoo-deprecation-audit` | detection only; upgrade INVOKES it in recon then fixes |
 | Diff two versions' APIs only | `odoo-version-diff` | detection only; upgrade calls it in recon |
 | Write fresh upgrade-safe code, no module to carry | `odoo-coding` | nothing to upgrade |
-| Migration scripts for a database migration project | `odoo-data-migration` | the user's separate request; never a step of this upgrade |
 
 > An Odoo module/cluster major-version upgrade routes HERE, not to bare git-ops: drive this
 > pipeline and invoke `git-ops` (via the Skill tool) for each git step.
@@ -94,8 +94,8 @@ order BEFORE any code is written or module deleted. This is the request's one Pl
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request): call
 `EnterPlanMode`, then present the plan CONTENT (authored here, not routed through
 `odoo-planning`): per-module
-classification table (one `Class` column: `upgraded` | `already-installable`, Hard rule 5, with
-the bump and migration policy of that class; DELETE -> list the core feature that replaces each AND inline the
+classification table (one `Class` column: `upgraded` | `already-installable`, Hard rule 5;
+DELETE -> list the core feature that replaces each AND inline the
 behavioral-equivalence summary from `absorption/<module>.md` - the proof that every
 override is equivalent or no-op; REWRITE/MERGE/SPLIT -> adapt tier + design link);
 topo-sorted adapt order (leaves first); design-doc links for any P2b module. For every surviving module (KEEP/REWRITE/MERGE/SPLIT), inline its DUE
@@ -131,7 +131,7 @@ DELETED-absorbed modules + their reasons) + the P5.8 acceptance verdict (or its 
 narrow-escape) and ask, as a text question, `approve / skip / cancel`. Wait for
 `approve` before the PR; `skip` ends the run with the branch unpushed.
 
-**P7 - Final review + PR [human merge].** In the order of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail: the Runbot parity gates (`references/runbot-parity-checklist.md`); the convention pass (manifest version form, always-invisible XML comment, `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`); the two-class gate - the PR is not opened while (a) an `upgraded` module still carries a `migrations/` directory, (b) an `already-installable` module's diff touches data, fields or models with its manifest `version` unchanged or no migration file although existing data moves, or (c) any file under a `migrations/<older series>.*/` directory is modified; `migration-notes.md` compiled by one haiku subagent from the P1 survey, `absorption/*.md`, `version-delta.md` and the deleted `migrations/` paths, linked from the PR body; a perf-lens pass; the i18n pass (P5.7 ran or each skip is a recorded escape); then the final dep-order review of the integration worktree through the review capability, its CRITICAL/HIGH fixed; ONLY then push and open the PR through `git-toolkit:git-ops` (§ Git / PR conventions). Checklist detail: `references/upg-phase-detail.md` § P7 - Final review + PR.
+**P7 - Final review + PR [human merge].** In the order of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail: the Runbot parity gates (`references/runbot-parity-checklist.md`); the convention pass (manifest version form, always-invisible XML comment, `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`); the two-class gate - the PR is not opened while (a) an `upgraded` module still carries a `migrations/` directory, (b) any module's manifest `version` changed other than by dropping a series prefix, or a migration script was added, or (c) any file under a `migrations/<older series>.*/` directory is modified; a perf-lens pass; the i18n pass (P5.7 ran or each skip is a recorded escape); then the final dep-order review of the integration worktree through the review capability, its CRITICAL/HIGH fixed; ONLY then push and open the PR through `git-toolkit:git-ops` (§ Git / PR conventions). Checklist detail: `references/upg-phase-detail.md` § P7 - Final review + PR.
 
 After the PR exists, only PR-OBSERVING work (CI-failure triage, the human merge) and the closing docs below remain. Wait for human merge.
 
@@ -150,18 +150,14 @@ P5.7 is the capture instance, released after the last docs step; a module still
    § Commit consolidation, via `git-toolkit:git-ops`). Commit message formats: § Git / PR conventions.
 4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
 5. **Code upgrade only (Convention 0), two module classes.** This skill NEVER writes a migration
-   script for an upgrade, never touches an existing database and never stops to ask about
-   existing data. Every module the PR touches is classified at P0 and shown at P3:
-   - **upgraded** - `installable` False at `<work-base>`, True after the PR: no version bump; its
-     `migrations/` directory is deleted and recorded in `migration-notes.md` (§ P7), together
-     with what the upgrade changes for existing data;
+   script, never bumps a `version`, never touches an existing database and never raises existing
+   data. Every module the PR touches is classified at P0 and shown at P3:
+   - **upgraded** - `installable` False at `<work-base>`, True after the PR: its `migrations/`
+     directory is deleted;
    - **already installable** - `installable` True at `<work-base>` (an absent key counts as
-     True) and changed in the same PR: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
-     § Migrations are decided last applies - after P5 is green, when its change alters data
-     existing databases hold, ONE version bump and at most one migration file per stage, written
-     through `odoo-data-migration`; its older `migrations/` directories are never edited.
-   A human answer about existing data is recorded against the class it names and never widened
-   to the other (`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` § 2).
+     True) and changed in the same PR: its existing `migrations/` directories are never edited.
+   Convention 0 settles every question about existing data, so none is asked
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` § 2).
 6. **DELETE-absorbed = delegated directory removal + dep cleanup + commit message, with two mandatory gates.**
    A module wholly absorbed by core is removed entirely, not set to `installable: False`.
    The commit message carries the reason (which core feature replaces it). No directory removal is
@@ -248,7 +244,7 @@ P2 comparator falls back to disk reads of the source module + the target checkou
 When the run finishes (or pauses at a gate), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `intake.md`, `graph.md`, `deprecation.md`, `version-delta.md`,
-`transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`, `migration-notes.md`,
+`transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR URL.
 When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
 Contract payload and the run YIELDS. Fold P4b findings into the module rows of `install-test.md`.

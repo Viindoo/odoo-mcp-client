@@ -36,7 +36,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 - `check_module_exists` - Verify that each module in the deploy scope actually exists in the target Odoo version. Use in Round 2 to auto-fill module existence items.
 - `module_inspect` - Get module manifest summary, model list, view count, and OWL component presence for deploy notes. Use to confirm module health and spot unexpected dependencies.
 - `find_deprecated_usage` - Sanity scan for deprecated API usage in deploy scope. Supplements `odoo-deprecation-audit` when a full pre-flight audit was not run separately.
-- `cli_help` - Ground the deploy/test CLI flags (`--test-enable`, `--test-tags`, `-u`, `-i`, `--stop-after-init`) for the TARGET version in Domain 5, instead of assuming one version's flags apply to another.
+- `cli_help` - Ground the deploy/test CLI flags (`--test-enable`, `--test-tags`, `-u`, `-i`, `--stop-after-init`) for the TARGET version in Domain 4, instead of assuming one version's flags apply to another.
 
 **The module-scan calls are independent - fire in parallel to minimize round trips.**
 <!-- END MANUAL TOOLS - odoo-deploy-checklist -->
@@ -45,19 +45,18 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 
 ## Checklist domains
 
-Eight standard domains - every deploy checklist covers all eight. Items are auto-filled where context is available; remaining items flagged for manual verification.
+Seven standard domains - every deploy checklist covers all seven. Items are auto-filled where context is available; remaining items flagged for manual verification.
 
 Full item list and output template: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deploy-checklist/references/checklist-template.md`
 
 Domain purposes (for autofill logic):
 - **1 Pre-flight** - code-level readiness checks before touching production.
 - **2 Backup** - data safe and recovery tested (not just assumed).
-- **3 Data migration** - for a database migration (MIG) project only (N/A for a code upgrade): scripts present, correct, and tested at scale.
-- **4 Downtime** - business continuity planned and communicated.
-- **5 Deploy mechanics** - deploy is deterministic and repeatable. CLI flags grounded for TARGET version via OSM `cli_help` (`set_active_version` first); install/upgrade/reinstall classified per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree; tests per `ODOO-TESTING.md`. Never reuse one version's command line for another.
-- **6 Smoke tests** - system functional after deploy. Code-quality CI gate reproduced: the lint-class modules (${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md) included in the `--test-tags` run - per `docs/reference/ODOO-TESTING.md`.
-- **7 Monitoring** - observability ready before production traffic.
-- **8 Rollback** - can undo the deploy quickly.
+- **3 Downtime** - business continuity planned and communicated.
+- **4 Deploy mechanics** - deploy is deterministic and repeatable. CLI flags grounded for TARGET version via OSM `cli_help` (`set_active_version` first); install/upgrade/reinstall classified per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree; tests per `ODOO-TESTING.md`. Never reuse one version's command line for another.
+- **5 Smoke tests** - system functional after deploy. Code-quality CI gate reproduced: the lint-class modules (${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md) included in the `--test-tags` run - per `docs/reference/ODOO-TESTING.md`.
+- **6 Monitoring** - observability ready before production traffic.
+- **7 Rollback** - can undo the deploy quickly.
 
 ---
 
@@ -82,7 +81,7 @@ module_inspect(name=<each_module>, method='summary', odoo_version='<version>')  
 find_deprecated_usage(odoo_version='<version>')                   # one call per version
 ```
 
-Use results to fill: Domain 1 module existence (✓/✗ per module), Domain 3 migration script presence, Domain 1 deprecated usage. All other domains (2, 4, 5, 6, 7, 8) require user-supplied information - mark `⚠ Manual check` until confirmed.
+Use results to fill: Domain 1 module existence (✓/✗ per module), Domain 1 deprecated usage. All other domains (2-7) require user-supplied information - mark `⚠ Manual check` until confirmed.
 
 ### Round 3 - Rate every item
 
@@ -99,7 +98,7 @@ Default to `⚠ Manual check`, not ✓. Err on the side of caution.
 
 **Verdict logic:**
 - `READY ✓` - zero ✗ items, all critical domains have at least one ✓
-- `NEEDS WORK ⚠` - no ✗ items, but ≥3 `⚠ Manual check` in Domains 2/4/8
+- `NEEDS WORK ⚠` - no ✗ items, but ≥3 `⚠ Manual check` in Domains 2/3/7
 - `NOT READY ✗` - one or more ✗ items present
 
 Output template: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deploy-checklist/references/checklist-template.md`
@@ -114,7 +113,7 @@ When OSM is unreachable:
 3. Fill all other domains from user-supplied information.
 4. Add notice: `> Note: Module existence checks skipped (OSM unreachable). All OSM-dependent items marked ⚠ Manual check.`
 
-The checklist remains fully usable - 7 of 8 domains require no OSM access.
+The checklist remains fully usable - 6 of 7 domains require no OSM access.
 
 ---
 

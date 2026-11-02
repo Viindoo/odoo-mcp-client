@@ -33,18 +33,11 @@ These rules are non-negotiable in every generated script:
    _logger.info("sale_order: %d rows before, %d rows after migration", before, after)
    ```
 
-4. **openupgradelib helpers preferred.** When the helper exists and is confirmed via
-   `lookup_core_api`, use it:
-
-   ```python
-   from openupgradelib import openupgrade
-
-   @openupgrade.migrate()
-   def migrate(env, version):
-       openupgrade.rename_field(env, 'sale.order', 'old_field', 'new_field')
-   ```
-
-   Fall back to raw SQL only when no helper covers the case.
+4. **Core only.** The entry point is the series' own `migrate(cr, version)`; an ORM step
+   builds `env` from `cr` the way the series' core migration scripts do (read one). Use the
+   series' core SQL helpers (column and table checks, renames) when `lookup_core_api` confirms
+   them, else parameterized SQL. Never import a third-party upgrade library: the script ships in
+   the module and must run wherever the module is installed.
 
 5. **pre-migrate vs post-migrate discipline.**
    - `pre-migrate.py`: structural changes (column rename, drop, add) that must happen
