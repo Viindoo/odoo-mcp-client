@@ -101,9 +101,8 @@ fi
 # 9-domain keyword scan
 # NOTE: migration/upgrade are checked FIRST to avoid being shadowed by the
 # engineering bucket (which previously matched *upgrade* and *migration* before
-# the upgrade bucket could fire). A DATABASE/data migration (MIG: moving an existing database
-# to a higher series) is its own bucket, distinct from a module CODE upgrade (UPG): a
-# migrate/upgrade verb together with a database/data object. A migrate verb with no database
+# the upgrade bucket could fire). A database or data request is its own bucket, distinct from
+# a module CODE upgrade: a migrate/upgrade verb together with a database/data object. A migrate verb with no database
 # object ("migrate this module to the next major") stays a code upgrade.
 if { _wb 'migrate|migrates|migrating|migration|migrations' \
        && { _wb 'database|databases|db|dbs|data|script|scripts|csdl' full || _wb 'dữ[[:space:]]+liệu'; }; } \
@@ -314,10 +313,10 @@ case "${_domain}" in
     fi
     ;;
   migration)
-    # A database migration is never executed by the plugin; name the two skills that sit on either
-    # side of it. Gated on the Odoo anchor like every Odoo-specific hint.
+    # A database upgrade between series is never plugin work; name the two in-scope jobs beside
+    # it. Gated on the Odoo anchor like every Odoo-specific hint.
     if [ "${_odoo_anchor}" = "true" ]; then
-      _mig_hint="[Database migration] The plugin never executes a database migration. It writes code for one: module-level migration scripts -> odoo-data-migration (with the run's migration-notes.md when a code upgrade produced one). Upgrading a module's code to a higher series is a different job -> odoo-modules-upgrade."
+      _mig_hint="[Database migration] A database upgrade between series needs a dedicated upgrade tool and repository; not this plugin - never offer it. In scope: a module's own data change within one series -> odoo-data-migration (module migration script); a module's code upgrade to a higher series -> odoo-modules-upgrade."
       _blocks+=("${_mig_hint}")
     fi
     ;;

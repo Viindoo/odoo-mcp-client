@@ -4,7 +4,7 @@ team_pattern: Pipeline
 description: |
   Static release QA pipeline for an Odoo feature or module: generate a structured
   release TEST-PLAN (non-executing), run a pre-deploy safety checklist across
-  8 domains, and triage user-reported bugs with severity classification, reproduction
+  7 domains, and triage user-reported bugs with severity classification, reproduction
   steps, and suspected module assignment.
   Trigger: "full QA suite", "test cases and checklist", "generate tests and triage bugs",
   "write test plan and check deploy readiness", "release test plan and checklist"
@@ -27,7 +27,7 @@ phases:
     skill: odoo-deploy-checklist
     nl_trigger: >
       Generate a pre-deployment QA checklist for the module identified in the previous
-      phase, covering all 8 domains: pre-flight, backup, data migration, downtime,
+      phase, covering all 7 domains: pre-flight, backup, downtime,
       deploy mechanics, smoke tests, monitoring, and rollback. Target environment:
       staging. Use the Odoo version from context. Return a verdict (READY / NEEDS WORK
       / NOT READY) and write the checklist to .odoo-ai/qa/.

@@ -54,8 +54,7 @@ merely CONSUMES the signal it is handed. Any of the three means an approved plan
 A FRONT-DOOR routing decision, owned by `odoo-solution-design`. It is the ONLY case a lone
 `design_doc` (no `run-<id>`, no `WORKTREE_PATH`, no plan-provided `inputs`) satisfies the
 mandatory-planning rule. When choosing its Continuation-Contract `next`, `odoo-solution-design` MAY
-route directly to `next: odoo-data-migration` (or `next: odoo-coding` for the migration script),
-bypassing `odoo-planning`, IFF ALL THREE conditions hold:
+route directly to `next: odoo-data-migration`, bypassing `odoo-planning`, IFF ALL THREE conditions hold:
 
 1. the design is a data/schema **migration script** for a module that was `installable` before the change; AND
 2. it touches **exactly ONE module** (no new sibling module, no in-set `depends` edge added); AND

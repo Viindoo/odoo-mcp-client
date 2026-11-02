@@ -2,13 +2,13 @@
 name: odoo-data-migration
 argument-hint: "[source] [target] [model/data]"
 description: >-
-  Writes data migration scripts: field rename, type change, model split, backfill
+  Writes in-series module migration scripts: field rename, type change, backfill
 model: inherit
 ---
 
 ## Role
 
-Developer / Data Engineer - writes safe, idempotent Odoo migration scripts. Prioritizes
+Developer / Data Engineer - writes safe, idempotent module migration scripts for a change within one Odoo series. Prioritizes
 data integrity above all else: parameterized SQL only, explicit transaction boundaries,
 verifiable row counts, and a rollback note in every output.
 
@@ -28,8 +28,8 @@ verifiable row counts, and a rollback note in every output.
 
 **IMPORTANT - execution boundary.** This skill WRITES the migration script. It does NOT
 execute the migration against any live database. Running the migration is a separate,
-human-gated step that belongs in the deploy pipeline (see `odoo-deploy-checklist` Domain 3
-and `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics); when it is run via
+human-gated step that belongs in the deploy pipeline (see
+`docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics); when it is run via
 `odoo-bin -u <module>`, the
 interpreter is resolved per `snippets/venv-resolution.md` (the matching instance's `python`
 field), not system `python3`. Never claim or imply that invoking this skill migrates any real
@@ -63,18 +63,22 @@ data.
 
 ## When to use
 
-Scope: write module-level migration scripts - for a change within a series, or for the
-custom modules of a database migration (MIG) project the user asked for separately, using the
-`migration-notes.md` of the code upgrade when the user gives one. It is never a step of a code
-upgrade (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0) and never executes a
-migration.
+Scope: the module migration script of a change within ONE series - the data of the module's own
+change, nothing else. It is never a step of a code upgrade
+(`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0) and never executes a
+migration. A database upgrade between series needs a dedicated upgrade tool and repository; not
+this plugin - never offer it.
+
+**Under a plan** (an active `run-<id>`, a `WORKTREE_PATH` or plan-provided `inputs`) this skill
+runs only as the plan's `migration` node; invoked from any other node it writes nothing and
+returns `BLOCKED(only the migration node bumps or writes migrations)`.
 
 **Precondition (timing and gate: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
 § 5).** Write a script only when the module was `installable` True before the change and stays True,
 the development loops are done, and a fresh install is proven. Otherwise write nothing, and say
 which condition failed.
 
-A migration script is needed when the change alters data existing databases hold: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation. This step owns the module's one version bump.
+A migration script is needed when the change alters data existing databases hold: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation. This step owns the module's one version bump in the PR.
 
 ---
 
@@ -111,7 +115,13 @@ into every later state-root Read/Write/Edit - never the placeholder or a bare `.
 > only. Single mode (flat `<SHARE_DIR>/designs/<slug>-*.md`): unchanged. Full contract:
 > `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 
-Confirm: (1) migration type, (2) source/target field/model names, (3) module name and its new version, (4) timing (pre-migrate / post-migrate / both).
+Confirm: (1) migration type, (2) source/target field/model names, (3) module name, (4) timing (pre-migrate / post-migrate / both), (5) every data note the earlier nodes left in the worklog for this module - one script per stage covers them all.
+
+**The version, read and computed, never chosen.** Read the module's `version` at the PR base and in
+the worktree. Unchanged -> the new version is the smallest step (the last component +1). Already
+bumped in this PR by the smallest step -> reuse it and extend its existing
+`migrations/<series>.<version>/` folder instead of adding a second one. Bumped any other way ->
+`BLOCKED` naming the module and both versions.
 
 Simultaneously call (parallel):
 
@@ -126,13 +136,13 @@ Use results to confirm actual column name (stored fields only), real field types
 
 ### Round 2 - Validate relations and helpers (parallel)
 
-For relational fields, call `validate_relation` for each. For openupgradelib helpers, call `lookup_core_api` to confirm the helper signature. Fire all calls in parallel.
+For relational fields, call `validate_relation` for each; confirm every ORM or `tools.sql` helper you call with `lookup_core_api` on the series. Fire all calls in parallel.
 
 ### Round 3 - Write the script(s)
 
-Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` is the FULL version with the series prefix (`<series>.<new descriptor version>`), so the script runs on that series only, while the descriptor itself keeps the short form; the short form as a folder name runs the script on every series the module ships on (Odoo prefixes the running series itself) and is used only when that is wanted, which is rare. The folder equals the one bump this change makes to that descriptor (the filename per series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6; the Tier-2 glob below returns whichever the module has - read that path, never a re-guessed filename).
+Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` is the FULL version with the series prefix (`<series>.<new descriptor version>`), so the script runs on that series only, while the descriptor itself keeps the short form; the short form as a folder name runs the script on every series the module ships on and is written only when the SRS asks for that (`migration_gate.py check --allow-short <module>`). The folder equals the one bump this change makes to that descriptor (the filename per series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6; the Tier-2 glob below returns whichever the module has - read that path, never a re-guessed filename).
 
-Set that descriptor's `version` to the new version in the same pass (the module's one bump).
+Set that descriptor's `version` to the new version in the same pass (the module's one bump), then prove the whole PR with `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/migration_gate.py check` (base tree = the PR's merge base; `--help` states every rule): `MIGRATION_GATE=FAIL` is fixed before you return.
 
 Script rules and code templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/script-rules.md`
 
@@ -157,8 +167,7 @@ When OSM is unreachable, follow the three-tier grounding in
   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, never from a raw manifest read.
 - **Tier 2 - Column check fallback:** When OSM cannot confirm a column name, add a comment
   in the script: `# VERIFY: confirm column name against live schema with \`\d <table>\` before running`.
-- **Caveat:** Label output `grounded: local-source - not OSM-indexed`. Confirm openupgradelib
-  helper availability once OSM is back online.
+- **Caveat:** Label output `grounded: local-source - not OSM-indexed`.
 - Escalate to the caller (`NEEDS_CONTEXT`) only for business decisions (e.g. what the
   default backfill value should be) that no source file encodes.
 

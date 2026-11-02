@@ -43,7 +43,7 @@ series that ship it.
 
 ---
 
-## Convention 0 - A series upgrade is a CODE upgrade (UPG), never a database migration (MIG)
+## Convention 0 - A series upgrade is a CODE upgrade (UPG)
 
 Governs every P4 adapt of `odoo-modules-upgrade`.
 
@@ -51,18 +51,15 @@ Governs every P4 adapt of `odoo-modules-upgrade`.
 installs on a FRESH database of the target series, passes its tests and acceptance, keeps its
 business behaviour and is modernised as if newly developed there - newest mechanisms (API, views,
 frontend framework, manifest, tests), no compatibility layer for an older series, no deprecated
-API, a module absorbed by core deleted. It writes no migration script, deletes the `migrations/`
-directory of every upgraded module, never touches, restores or updates an existing database, keeps
-no old field or xmlid name for data compatibility and never asks how existing data will be
-migrated. What a later MIG project needs, including every deleted `migrations/` directory, goes
-into `migration-notes.md` (`odoo-modules-upgrade` § P7).
+API, a module absorbed by core deleted. It writes no migration script, bumps no `version`
+(Convention 1), deletes the `migrations/` directory of every upgraded module, never touches,
+restores or updates an existing database, keeps no old field or xmlid name for data
+compatibility and never asks about existing data. A database upgrade between series needs a
+dedicated upgrade tool and repository; not this plugin - never raise, plan or offer it.
 
-**MIG.** Moving an existing database's data to a higher series. The plugin only writes code for it
-(module-level migration scripts through `odoo-data-migration`, when the user asks separately) and
-never executes it. Never a step of UPG.
-
-**Wording.** "Migration script" = a module-level `migrations/` script; "database migration (MIG)" =
-the database move; moving code to a newer framework mechanism = "modernisation" (UPG).
+**Wording.** "Module migration script" = a module's own `migrations/<series>.<version>/` script
+for a change within one series; moving code to a newer framework mechanism = "modernisation"
+(UPG).
 
 **Commit tag.** A commit request for upgrade work proposes the commit convention's series-upgrade
 tag (`[UPG]`), never the migration tag.

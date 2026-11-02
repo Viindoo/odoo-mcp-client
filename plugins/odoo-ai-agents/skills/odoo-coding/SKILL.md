@@ -18,7 +18,7 @@ cross-run module-coordination ledger.
   criteria met goes there first; a small change without them is coded directly)
 - **Ordering several nodes** -> `odoo-planning`
 - **Reviewing the result** -> `odoo-code-review` (a plan node, or the caller's next step)
-- **Data-only migration scripts** -> `odoo-data-migration`
+- **Version bumps and migration scripts** -> the plan's `migration` node (`odoo-data-migration`); no coding node touches either
 - **Finding one hook location** -> `odoo-override-finding`
 
 ## MCP tools

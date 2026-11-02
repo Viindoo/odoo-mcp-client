@@ -42,7 +42,7 @@ CEO / CTO / Project Manager
 
 ## Context
 
-Executives need the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output in business language, not technical jargon.
+Executives need the scope of their Odoo investment before strategic decisions (upgrades, vendor changes, compliance audits). Output in business language, not technical jargon.
 
 Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (owned by the active OSM profile, usually under a shared name prefix), True custom (client IT / system integrator). A module whose descriptor is `__openerp__.py` rather than `__manifest__.py` is OpenERP-era - note that origin.
 

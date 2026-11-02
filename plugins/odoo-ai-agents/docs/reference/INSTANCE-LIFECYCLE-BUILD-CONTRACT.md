@@ -34,7 +34,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
    derivation default, the cases where an untagged run IS correct, and the line between legitimate
    scoping and false-green suppression: `snippets/test-scope-contract.md` (module-set selection
    itself: `skills/_shared/regression-scope.md`).
-8. **Version bump ≠ `-u`** - migrations go through the upgrade path.
+8. **Version bump ≠ `-u`** - a manifest version bump runs nothing by itself; a module migration script runs when `-u` updates the module.
 9. **Read-only verification** - confirm `-d` target and addons-path; never run Odoo just to
    "test a guess" - query OSM/source instead.
 10. **Build facts are applied by the tools, never composed.** `instance_build` loads the series'

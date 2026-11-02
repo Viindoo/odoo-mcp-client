@@ -148,9 +148,7 @@ Root-cause comes before any fix, and the fix is NEVER pushed autonomously.
    in the same brief.
 
    `<ISOLATE_DIR>/integration/<slug>/` (outside any git working tree) and this skill's own
-   `<ISOLATE_DIR>/pr-monitoring/<id>.md` are removed inline. Optionally surface a
-   version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for the runner to
-   gate - do not run it autonomously.
+   `<ISOLATE_DIR>/pr-monitoring/<id>.md` are removed inline.
 
 ## MCP tools
 

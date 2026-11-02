@@ -3,19 +3,20 @@
 ## Script file template (post-migrate data backfill example)
 
 ```python
-# <module>/migrations/<module_version>/post-migrate.py
+# <module>/migrations/<series>.<new short version>/post-migrate.py
 # Migration: <one-line description>
 # Author: odoo-data-migration skill
 # Odoo version: <target_version>
 import logging
-from openupgradelib import openupgrade  # remove if not available
+
+from odoo import SUPERUSER_ID, api
 
 _logger = logging.getLogger(__name__)
 
 
-@openupgrade.migrate()
-def migrate(env, version):
+def migrate(cr, version):
     """<one-line description matching the change>."""
+    env = api.Environment(cr, SUPERUSER_ID, {})  # as the series' core migration scripts build it
     # Row count before
     env.cr.execute("SELECT COUNT(*) FROM <table> WHERE <condition>")
     before = env.cr.fetchone()[0]
