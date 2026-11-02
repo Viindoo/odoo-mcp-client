@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   bump per module by the smallest step, one `migrations/<series>.<version>/` folder named after it,
   one file per stage, no script without a bump, no edit to an existing folder; run by the
   `migration` node, by the reviewer and before the pre-PR lint gate (#299).
+- Tests that keep every skill and command body within what survives a context compaction,
+  every reference within one read, every agent body within its working size, and every hook
+  message within what reaches the model whole.
 
 ### Changed
 
@@ -22,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and the test writer never touch `version` or `migrations/`; `odoo-data-migration` computes the
   smallest bump, extends an existing folder instead of adding one, and runs only as that node
   under a plan (#299).
+- Migration scripts are code: `odoo-data-migration` launches one `odoo-coder` with
+  `MODE: migration` to write and prove them (the gate plus a real upgrade within the series), then
+  an `odoo-code-reviewer` R1 pass; the coder, the frontend coder and the test writer touch a
+  `version` or `migrations/` only when their brief asks for it.
+- Long instruction files are split so the part an agent needs survives a context compaction and
+  every reference reads in one go: the setup command, the forward-port, upgrade, rebase, intake,
+  instance, translation, test-writing, visual-regression and planning skills, and the instance and
+  frontend agents. Each rule now lives in one place; duplicate copies were removed.
+- Hook messages listing leases, open pages, background shells or teammates are capped, and a long
+  ethos file is bridged as an outline with its path, so no hook message is replaced by a preview.
 - A database upgrade between series is never module or plugin work: every passage that offered,
   planned, checklisted or routed one now says in one sentence that it needs a dedicated upgrade
   tool and repository. The module code upgrade writes no migration script and bumps no version;
