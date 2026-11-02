@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.4.0] - 2026-11-02
+
+### Added
+
+- `icon_gate.py facts` measures the target series' own core app icons (size, mode, tile or flat
+  style, transparent corners, family statistics) and `check --facts` gates a new icon against
+  that family (consistency and contrast warnings, a contact sheet); `icon_gate.py observe`
+  views the icon among the installed apps of a live instance (drawn size, theme tile, override).
+  The icon designer measures, traces the series' icon mechanism by concept (OSM first, the
+  checkout second) and redraws an icon that stands out from the family; no series number decides
+  anything (#297).
+
+### Changed
+
+- `odoo-platform-design-principles.md` § 0 states the user-first rules every design, code,
+  review, test and acceptance pass reads: easy for a low-IT user, post-audit over blocking, a way
+  out for every block, predictable and core-consistent behaviour; the test and acceptance
+  contracts model policy limits as audit flags and reserve refusals for data integrity (#297).
+- The plugin prose carries the operator's working rules that lived only in session memory
+  (#297): a completion is not proof of work and a missing handback is resumed, never relaunched;
+  a fork is not the coordinator; measurements are tree-local claims; a gate presents evidence,
+  consequences per role and a recommendation; tests never pin core behaviour, private methods or
+  impossible scenarios, and a break-check or a long gate never runs on a tree another agent is
+  editing; comments carry no volatile numbers and documents no line numbers; buyer-facing text
+  sells nothing; a legal or policy limit traces for audit instead of blocking; a proven
+  pre-existing defect is fixed in the PR that found it, forward-port included; the migration
+  folder carries the full series version; PR monitoring is off unless asked; verification runs on
+  a fresh database; a parked instance is resumed by token; "fresh" and "waiting on a build" are
+  proven by the log and the process list; UI code paints only with core levers and mobile
+  measurements run headless. `git-toolkit` 0.9.2 -> 0.9.3: the GitHub operator reads back every
+  outward write, the surveyor hands over plain, numstat-reconciled patches.
+
 ## [8.3.1] - 2026-11-01
 
 ### Fixed
