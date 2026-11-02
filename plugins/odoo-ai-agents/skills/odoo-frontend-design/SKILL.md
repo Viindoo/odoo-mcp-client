@@ -10,7 +10,9 @@ description: >-
 Senior Odoo frontend designer. The **design-quality brain** - the body of taste and judgement
 that decides what "good" looks like inside Odoo, before a line of JS/QWeb/SCSS is written and
 while it is being reviewed. Carries expertise, not actions: never spawns subagents, never calls
-the Skill tool, never writes production code.
+the Skill tool, never writes production code. Its bar is
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a surface a low-IT user
+reads at once, behaving as the same surface behaves in every core app.
 
 ## Out of Scope
 
@@ -19,13 +21,16 @@ the Skill tool, never writes production code.
 - **Backend Python/XML / data model** → `odoo-coding`; whole-solution design → `odoo-solution-design`
 - **Token-reality verification mechanics** → `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (SSOT; this skill points there, does not restate them)
 
-## The core principle: distinctiveness WITHIN constraints
+## The core principle: native first
 
-Odoo UI fails in two opposite ways - good design is the ridge between them.
+In the backend, consistency with core IS the feature: a screen that looks and behaves like the
+same screen in every core app is predictable for a user with low IT skills. Distinctiveness lives
+only in hierarchy, density and clarity executed well, and a bolder look only on the website and
+portal side (Context B).
 
-| Cliff (left) | The ridge | Cliff (right) |
-|---|---|---|
-| Generic, characterless, "AI default" | **Distinctive WITHIN Odoo's design system** | Off-theme custom look that clashes with the web client |
+| The ridge | Cliff |
+|---|---|
+| **Native WITHIN Odoo's design system** | Off-theme custom look that clashes with the web client |
 
 Great Odoo UI feels like Odoo shipped it - and is still unmistakably well-made. Distinctiveness
 comes from **hierarchy, density, clarity, and restraint executed unusually well**, not from
@@ -110,8 +115,8 @@ Top-of-mind:
 - Custom CSS that fights the web client (high-specificity selectors)
 - Wholesale-replacing a QWeb template instead of `xpath` inherit
 - Building a bespoke widget when a standard one exists
-- Off-theme "designed" look in the backend (right cliff)
-- Generic characterless output (left cliff)
+- Off-theme "designed" look in the backend (the cliff)
+- A control, menu, search or permission shape of the module's own where core has one
 
 ---
 

@@ -30,8 +30,14 @@ respects, the reason that still holds. It never narrates steps the reader can se
   such as an API removed in a given series is domain knowledge - keep it.)
 - **Unshippable references** - anything outside the repository the code ships in: a design doc,
   worklog, review, oracle or plan under the run's state dir, an absolute or worktree path, a run
-  id, slug or instance handle. State the reason itself, never where you read it.
+  id, slug or instance handle - and any document inside it (a README, a guide, a docs page).
+  State the reason itself, never where you read it.
+- **Volatile measurements** - a duration, a query or test count, "currently": true today, stale
+  tomorrow.
 - **Commented-out code**, and banner or separator comment blocks.
+
+These bans bind the lines a change adds; an existing reference stays until its target is deleted,
+and a review reads only the added lines.
 
 ## 4. Volume ceiling
 
@@ -69,6 +75,11 @@ field belongs, are not written. JavaScript keeps the JSDoc of core Odoo of the s
 Odoo: a `_compute_*` / `_inverse_*` / `_search_*` / `@api.constrains` / `@api.onchange` method
 needs a docstring only when the RULE it enforces is not derivable from the code. An override of a
 core method states WHY it exists - the behavior it adds - never that it is an override.
+
+A constant used in one place is written where it is used; a string a user sees is wrapped for
+translation. A cleanup that strips a requirement label or narration from a comment deletes the
+line unless a reason still holds - never rewords it; docstring-heavy old code is shortened, and a
+deleted docstring is never restored.
 
 ## 6. Where a comment IS required
 

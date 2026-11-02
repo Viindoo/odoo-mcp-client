@@ -184,7 +184,7 @@ row whose `remote` or `clone` is this repository -> `docs-site`, whose content p
 `references/fp-docs-site-lane.md`; neither -> `NEEDS_CONTEXT` naming
 `/odoo-ai-agents:odoo-setup docs-site`.
 
-"one-shot" in a request means ONE RUN, never a cherry-pick (Hard rule 2). Read the worklog and `checkpoint.json` (§ Checkpoint, resume and the per-batch caveats), then invoke `git-toolkit:git-ops` (read-only, no worktree) to enumerate the non-merge commits after the merge base up to the source ref, oldest first, with the merge base, the files and the change statistics of each; apply `--scope` / `--since` on the returned list. Full request and the scope-to-path mapping: `references/fp-phase-detail.md` § P0 - range enumeration.
+"one-shot" in a request means ONE RUN, never a cherry-pick (Hard rule 2). Read the worklog and `checkpoint.json` (§ Checkpoint, resume and the per-batch caveats), then invoke `git-toolkit:git-ops` (read-only, no worktree) to enumerate the non-merge commits after the merge base up to the source ref, oldest first, with the merge base, the files and the change statistics of each; apply `--scope` / `--since` on the returned list. The merge of the source TIP lands every commit above the merge base, colleagues' commits included: record the merge base and the commits the request did not name, and show that real scope at P4 before anything merges. Full request and the scope-to-path mapping: `references/fp-phase-detail.md` § P0 - range enumeration.
 
 **Record the range ENDPOINTS.** From the filtered, chronologically ordered list, record
 `<src-first-SHA>` (oldest) and `<src-tip-SHA>` (newest) in the run's working state; P5 absorbs the

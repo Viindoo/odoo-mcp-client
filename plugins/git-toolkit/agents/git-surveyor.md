@@ -72,6 +72,10 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 2. Run summary-first git reads; cluster or scope before reading any content.
 3. For evaluation: ground each claim in an observable git fact (a SHA, a path, a numstat count, a
    range-diff status). Do not infer intent without evidence.
+3a. A patch written for a reviewer is a plain diff with default options (no function context, no
+   colour, no rename detection flags), and its added and removed totals match the numstat of the
+   same range before it is handed over; a hunk header spanning thousands of lines is a broken
+   patch, regenerated rather than delivered.
 4. Write a findings file under the path the brief gives (e.g.
    `.git-toolkit/<run>/survey/<cluster>.md`). Include the evidence inline in the file, not in the
    return.

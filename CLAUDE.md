@@ -224,7 +224,10 @@ independently. Prefer `make bump` (auto-classifies patch/minor/major from commit
 changed and cuts the CHANGELOG); `make bump-dry` previews. If a human names a specific
 version/level, run `scripts/bump-version.sh <that>` instead. Level policy: fix/refactor/docs ->
 **patch** (the default, do not skip); new feature/skill/agent/command or `feat:` -> **minor**;
-breaking change -> **major**.
+breaking change -> **major**. Every plugin a PR changes gets exactly one bump, in the PR's last
+(release) commit; a one-line change to `git-toolkit` or `odoo-semantic-mcp` bumps that plugin's own
+`plugin.json` the same way. Gather the per-plugin diff before opening the PR and bump only the
+plugins with changes.
 
 ## This repo is public - confidentiality
 

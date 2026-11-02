@@ -40,8 +40,8 @@ one of:
 
 **INTENT (keep, translate)**
 - Asserts an observable outcome: field value after action, state after transition, exception
-  raised by constraint, records created as side effect
-- Named after a business rule (`test_discount_cannot_exceed_20pct`)
+  raised by an integrity guard, an audit flag set, records created as side effect
+- Named after a business rule (`test_discount_above_20pct_sets_audit_flag`)
 - Uses `action_confirm()` / `action_post()` / Form helper to drive the real workflow
 - The business rule it guards exists in the target version (verify via OSM or intent doc)
 

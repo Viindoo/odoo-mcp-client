@@ -12,8 +12,9 @@ must fail when the business rule breaks and keep passing through every correct c
 
 Before writing, look for tests that already exercise the behavior (OSM `tests_covering` /
 `find_test_examples`, or the module's `tests/`). Fully covered -> write nothing new and report the
-covering tests. Partly covered -> add a test method to that class. Example: a new cap on
-`discount` whose save path `TestSaleOrderLine` already drives gets one new method there.
+covering tests. Partly covered -> add a test method to that class. Example: a new
+`discount_over_cap` audit flag whose save path `TestSaleOrderLine` already drives gets one new
+method there.
 
 ## Read the framework first
 
@@ -26,8 +27,11 @@ HttpCase.
 
 Assert observable business results: the return value, the resulting state, the records produced,
 the exception TYPE. Never assert the HOW - private calls, call counts, intermediate variables, SQL,
-the ORM cache. Example: assert `order.state == 'sale'` after confirming, not that `_check_cap` was
-called once.
+the ORM cache. Example: assert `order.state == 'sale'` after confirming, not that
+`_compute_over_cap` was called once. A test never asserts what core guarantees (the ORM, access rules, view rendering,
+cascades, widgets): it pins what the module's own code decides - its guards, rules, computes,
+messages and exits. Two sharp tests judge a suite before a rewrite: rename a private method, and
+refactor with the same result; a test that goes red pins the how and is deleted, not repaired.
 
 ## Drive the real workflow
 
@@ -38,15 +42,17 @@ it silently passes a broken access rule. Example: BAD vs GOOD below.
 
 ## Simulate the user with Form
 
-When the rule is triggered by data a user enters in a form view (a constraint on save, an onchange,
-a default, readonly/required), arrange AND act through `Form`:
+When the rule is triggered by data a user enters in a form view (an integrity guard on save, an
+onchange, a default, readonly/required, a policy flag), arrange AND act through `Form`:
 
 1. Read the form view first (OSM `model_inspect` views, or the view XML in the worktree) for the
    fields the acting user can set.
 2. Set only those fields, in the user's order, so onchanges fire as they would; pass `view=` when the
    behavior lives in a specific view. Never force a field the user cannot set.
-3. Refused value: `save()` inside `assertRaises(<BusinessError>)`, then assert the stored values are
-   unchanged. Accepted value: plain `save()`, then assert the stored outcome.
+3. A value that breaks data integrity (a duplicate, a broken reference, an impossible state):
+   `save()` inside `assertRaises(<BusinessError>)`, then assert the stored values are unchanged. A
+   value past a policy or legal limit: plain `save()`, then assert the audit flag is set and the
+   action went through. Accepted value: plain `save()`, then assert the stored outcome.
 4. A button = call that button's method on the saved record as the acting user.
 
 ORM `create` / `write` is only for arrange data the user does not enter in that flow; setting a
@@ -57,7 +63,12 @@ user-entered field through the ORM bypasses the rule under test.
 A test must keep passing when someone ADDS a field, view, method, module or record. Never assert a
 count of files / records / fields / views / menus (unless the count IS the business result), that
 something EXISTS or what it is NAMED, an arch string, or `__manifest__.py` contents. Example: not
-`assertIn('discount_cap', Model._fields)` - assert what the cap does.
+`assertIn('discount_over_cap', Model._fields)` - assert what the flag does. Nor a private method's name
+or call count, an absolute line number, or the removal or retirement of a thing; a count of
+repo-owned records is a floor with an emptiness guard, never an equality. A migration script is
+proven by a real upgrade (seed data on the old code, update on the new, read the state back),
+never by a test. A test of a scenario the product never produces for a real person is deleted;
+deleted tests are not converted into new ones to fill a gap - the gap is reported.
 
 ## Never assert TRANSLATED or DISPLAY text (HARD RULE)
 
@@ -105,23 +116,24 @@ BAD - seeds the end state, so a broken `action_confirm` is never caught:
     order = self.env['sale.order'].create({'partner_id': self.partner.id, 'state': 'sale'})
     self.assertEqual(order.state, 'sale')  # tests the assignment, not the workflow
 
-GOOD - the salesperson fills the form, then clicks the button; one rule per test (rule: a line
-discount above 20% is refused):
+GOOD - the salesperson fills the form, then clicks the button; one rule per test (rules: a line
+discount above 20% sets the audit flag and the order still confirms - a policy limit; a
+customer reference already used by another order is refused - an integrity guard):
 
-    def test_order_within_discount_cap_confirms(self):
+    def test_discount_above_cap_confirms_and_sets_audit_flag(self):
         f = Form(self.env['sale.order'].with_user(self.salesman))
         f.partner_id = self.partner
         with f.order_line.new() as line:
             line.product_id = self.product
-            line.discount = 15
+            line.discount = 25
         order = f.save()
         order.action_confirm()
         self.assertEqual(order.state, 'sale')
+        self.assertTrue(order.discount_over_cap)
 
-    def test_discount_above_cap_is_refused_on_save(self):
-        f = Form(self.draft_order.with_user(self.salesman))   # setUp: discount 10
-        with f.order_line.edit(0) as line:
-            line.discount = 25
+    def test_duplicate_client_ref_is_refused_on_save(self):
+        f = Form(self.draft_order.with_user(self.salesman))   # setUp: client_order_ref 'PO-1'
+        f.client_order_ref = self.other_order.client_order_ref
         with self.assertRaises(ValidationError):
             f.save()
-        self.assertEqual(self.draft_order.order_line.discount, 10)
+        self.assertEqual(self.draft_order.client_order_ref, 'PO-1')

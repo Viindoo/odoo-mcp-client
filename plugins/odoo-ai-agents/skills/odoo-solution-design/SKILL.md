@@ -20,7 +20,10 @@ never production source.
 
 ## Before dispatch
 
-1. Resolve `<SHARE_DIR>` and `<ISOLATE_DIR>` once. Read the worklog if one exists.
+1. Resolve `<SHARE_DIR>` and `<ISOLATE_DIR>` once. Read the worklog if one exists, and
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0 - the architect's
+   brief carries it as `ACCEPTANCE`'s ground: a policy limit flags, never blocks; every block has
+   its way out; every surface behaves as core's does.
 2. Read the gap artifact when one exists (`<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` or
    `<SHARE_DIR>/brl/<job-id>/`): it is the effort source; never paste a tier into the request.
 3. Decide `SRS_REQUIRED`. `yes` when the request has at least one of: a new module; a new model;

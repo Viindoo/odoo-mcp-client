@@ -102,7 +102,9 @@ snapshot node.
 ### Step 4 - Responsive sweep
 
 `resize_page` (or `emulate` a device) to mobile 375 / tablet 768 / desktop 1280 px, capturing a
-screenshot at each.
+screenshot at each. A headed browser clamps its window to a minimum width, so a phone-width
+measurement runs headless or through device emulation; after every resize read `innerWidth` from
+inside the page and judge by that value, never by the resize command's reply.
 
 ### Step 4b - Design-system / theme (token-reality check)
 
@@ -113,7 +115,12 @@ Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Use `ev
 - **hardcoded** hex/rgba where a runtime design token should be reused;
 - a module-owned custom property (`--<vendor>-*`), a module class that holds a color, or a
   theme-fixed Bootstrap class (`bg-white`, `text-dark`, `border-light`) on a business-module
-  surface (rule A6: the module must follow a theme's token change with no edit);
+  surface (rule A6: the module must follow a theme's token change with no edit; the fix lives in
+  the business module, never in a theme module; a dark-mode sheet, an inline style or a colour
+  baked into JS is the same defect);
+- a hardcoded px size, font or custom control class where core's own class and size exist: a
+  control takes the class of its neighbouring core control, enlarged variants included when a
+  mockup draws them - the mockup defines layout and behaviour, never palette or sizes;
 - divergence from the project mockup.
 
 **Brand fidelity (optional, only when declared).** If `<SHARE_DIR>/brand-tokens.json` exists (JSON map `token -> expected color`), ΔE-diff each resolved `getComputedStyle(:root)` value against its expected color with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py" [--threshold T] <expected> <actual>` (CIEDE2000; prints the ΔE; with `--threshold` exit 0 = within, 1 = over; exit 2 = unparseable, skip that token) - the runtime half of `odoo-frontend-fidelity.md` Section G. Flag diverging tokens as **brand-fidelity WARN** (e.g. "primary CTA resolves to `#1a73e8`, expected `#1E88E5` (ΔE 38)"). Absent → skip silently. Keep it WARN-tier - never block on ΔE rounding.

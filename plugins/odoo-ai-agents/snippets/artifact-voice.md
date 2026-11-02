@@ -25,6 +25,9 @@ present-tense, current-state voice:
    "used to", "the new behavior" describe a diff, not a state. Write what the
    system does now. (Facts about EXTERNAL version history - e.g. an Odoo API
    removed in a given version - are domain knowledge, not narration: keep them.)
+5. **Edit in place.** A text that changes is rewritten coherently to its new
+   state - never an appended "update", "exception" or "note" paragraph. This
+   binds a PR body, a decision note and a memory as it binds a deliverable.
 
 ## Comments and docstrings inside source
 

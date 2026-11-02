@@ -46,7 +46,7 @@ follows them.
 `<SHARE_DIR>/designs/<slug>-<date>-srs.md` with the SRS template below, then STOP. Every blocking
 guard the SRS introduces (a constraint, a refused transition, a cascade) names its evidence and
 its way out for the same role as an acceptance criterion (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
-§ Reversibility over blocking); a guard with no way out is dropped from the SRS, not deferred:
+§ 0: a policy or legal limit flags for audit and never blocks); a guard with no way out is dropped from the SRS, not deferred:
 
 ```
 status: NEEDS_CONTEXT

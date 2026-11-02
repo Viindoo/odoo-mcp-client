@@ -23,7 +23,10 @@ row whose `addons_path` covers a repo or worktree path); never parse the file yo
    build again. Always adopt first: a token you only found may not be released or parked, and the
    adopt makes the resumed server yours to tear down. `yours: false` (token withheld) is another
    run's, or held by another live session: never resume, release or park it. When a resume is refused,
-   follow the error code's remedy; never retry the same call blind.
+   follow the error code's remedy; never retry the same call blind. Several parked leases of one
+   run on a series: `lease_find` returns one of them with no way to tell which - resume by the
+   token recorded when it was parked, and a brief that hands a parked instance on carries its
+   token, database name and port for the receiver to check against the registry.
 2. **The catalog** - `catalog_read` with the series (and profile when several are declared). With
    no profile, several rows on one series are an ambiguity to resolve from the task, never a pick.
    To select by WORKING REPO instead - the direction a Round 0 needs - use `catalog_locate` per
@@ -45,7 +48,11 @@ by build purpose, lint-module install union, per-version `cli_help` grounding) t
 The resolution above is for a **read-only** need (a URL to open / query a running server - many
 agents may share it). For any MUTATION - tests, `init` / `update`, a migration, a throwaway server -
 the single declared database and port are unsafe under concurrency: hold an isolated lease
-(`lease_acquire` mode `ephemeral`) instead of using the catalog row.
+(`lease_acquire` mode `ephemeral`) instead of using the catalog row. Verification, acceptance,
+translation export and documentation capture always run on a fresh ephemeral database, never on
+the declared one, concurrency or not: the declared database carries stale code state and old
+fixtures. A lease handed back on a declared database that does not drop on release is released
+and an ephemeral one taken.
 
 - A refused `lease_acquire` writes no lease; follow the named error code's remedy (`db_preflight`
   diagnoses a Postgres refusal). Never fall back to mode `exclusive` silently: choosing it after a

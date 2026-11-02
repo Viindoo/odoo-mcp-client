@@ -50,7 +50,9 @@ every module's adapt work, closed once. In this order:
    merged result of the whole range.
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
    [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
-   against the range's combined result.
+   against the range's combined result. Module descriptors and `auto_install` modules come first:
+   a marker there breaks every instance build in the worktree, so no parallel coder starts
+   before they are clean.
 2a. **Manifest version (C1) - set by rule, only when the range changed the module's `version` on
     the source.** The true merge already carries whatever the source commit did to the module
     descriptor (the filename per series: `odoo-era-boundaries.md` row 6). `M` = the target module's
@@ -174,12 +176,14 @@ crash during the batch can release the DB.
 ## Green suite + break-check records
 
 - **Green suite (all tests):** the full suite for the target module must be green. A pre-existing
-  red test is triaged (below), never fixed as part of this forward-port.
+  red test is triaged (below) and, once its cause is proven, fixed in this PR (C3).
 - **Break-checks (FP-delta tests only):** every test NEWLY forwarded or adapted in this batch was
   break-checked - or, for a bucket-(a) commit, absorption-probed - by the node's test leg at P8
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record). A test the
-  report does not cover is unverified - send it back to the module's P8 adapt node; the verify run
-  never breaks code itself.
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record): all of a
+  batch's breaks in ONE pass on an exported copy of the merge result, never on the integration
+  worktree, one break per test and exactly that many reds expected; the run's log path lands in
+  the merge log before review. A test the report does not cover is unverified - send it back to
+  the module's P8 adapt node; the verify run never breaks code itself.
 
 ## Triage: FP-delta vs pre-existing failure
 
@@ -195,29 +199,28 @@ When a test is red after the batch install:
 
 1. Run the same test against the target branch WITHOUT any absorption commits applied (a clean
    checkout of the target tip). ALSO red there -> **pre-existing failure**: record it in the
-   worklog, do not touch it, do not block the batch on it.
+   worklog with the test id and the first traceback line; the batch is not blocked on it, and it
+   is fixed per C3 once its cause is proven.
 2. Green on the clean target but red after absorption -> **FP-delta failure**: root-cause and fix
    before committing the batch.
 
 Never widen or relax an assertion to make a pre-existing failure green ([[test-behavior-contract]]).
 
-### C3 - fix old version first (provenance)
+### C3 - a proven defect is fixed where the run found it
 
 The same discriminator governs WHERE a bug is fixed - reactively at P9 (a red test) AND
 proactively at P8 (a coder who SPOTS a defect while adapting):
 
-- **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY
-  forward - do NOT inline-fix on the destination. Surface it to the SOURCE series so the fix
-  forward-ports up naturally: the orchestrator invokes `git-toolkit:git-ops` to open a
-  source-series issue, conditional on a resolvable source remote (the `origin_url` of
-  `repo_facts`); if none, record the deferred bug in `merge-log.md` and the Continuation Contract.
+- **Pre-existing** (also red on the clean target tip / pre-dates the port), once the run proves
+  its cause: fixed in THIS PR, in the commit of the module that owns it, with a guarding test and
+  the evidence; it forward-ports later like any other change and is never carried forward
+  knowingly. Only a defect in a module outside the PR and outside the run's scope opens a
+  follow-up, and the owner is asked first.
 - **FP-delta** (green on source, red after adapt): fix it here, now.
-- **Security/safety EXCEPTION:** fix on the destination IMMEDIATELY, then still open a
-  source-series issue.
 
-Canonical merge-log record: `<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`.
-Reviewer backstop (P12): flag any FP-delta diff that inline-fixes a pre-existing source bug (not
-security/safety); an inherited bug carried faithfully + routed upstream is correct.
+Canonical merge-log record: `<sha> | C3 | fixed in <module commit> | <evidence one-liner>`.
+Reviewer backstop (P12): flag a proven pre-existing defect left unfixed, and a fix placed in
+another module's commit.
 
 ## Ephemeral isolation - CREATEDB required
 

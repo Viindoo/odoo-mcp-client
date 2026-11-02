@@ -9,7 +9,7 @@ grounded: osm | hybrid | local-source | ungrounded
 Framework: <Python base class> | <the JS mix js_test_inspect reports for this module - never a series-only guess>
 Baseline: <the targeted tests, all passing on the unbroken code>
 Per behavior test, one line - for example:
-  test_discount_above_cap_is_refused - disabled the cap check in models/sale_order.py:42 -> failed at its assertRaises; restored (hash matches)
+  test_duplicate_client_ref_is_refused - disabled the duplicate check in models/sale_order.py:42 -> failed at its assertRaises; restored (hash matches)
 Already covered: <existing tests you proved by a break, or none>
 Adjusted: <test - why the REQUEST changed that behavior, or none>
 No new test: <behavior - one-line reason, or none>

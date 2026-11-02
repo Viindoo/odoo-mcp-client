@@ -453,6 +453,14 @@ The final `job_wait` carries `test_result` and `summary` (`TEST_FAILED`, `TEST_E
 
 **Never grep the log for a JS success marker to decide anything.** Read `test_result` and the `JS_*` fields.
 
+**"Fresh" is a claim until the log shows it.** A fresh install's base-load line carries seconds
+and thousands of queries, its "Loading module" count equals the module count, and the
+loaded-modules marker appears once per pid; a base load in zero queries is a reused database or a
+second process. Before a build, no other process may be on that database; after a detached launch,
+confirm ONE pid and never relaunch because the launcher looks idle. A red with many install-layer
+errors at once is suspected as a measurement of two processes on one database before it is
+debugged.
+
 **Scope transparency (EVERY `run-tests` dispatch).** Two obligations:
 
 - **Bound the run to the declared scope.** The `test_tags` resolved in "Test scope" above keep the

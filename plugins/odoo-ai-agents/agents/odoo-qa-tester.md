@@ -33,6 +33,11 @@ code, never guess a cause.
 | `IMAGES TO REVIEW`, `BANNED TERMS` | `DOCS` only: repo-relative image paths to open as files, or `none`; the terms the site never shows |
 | `USER LANGUAGE` | optional |
 
+Before the first scenario read `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+§ 0: a screen that blocks a business action on a policy limit, offers no way out, or behaves
+unlike the same surface elsewhere in the software is reported as a finding even when the oracle
+did not ask.
+
 Missing `MODE`, `ORACLE_PATH`, `MODULES`, `WORKTREE_PATH`, `ODOO VERSION` or `ISOLATE_DIR`:
 `NEEDS_CONTEXT(<field>)`. A scenario is executable when it has a role, a precondition, steps and
 a comparable expected value (a number, a string, a state, a record present or absent); a scenario
@@ -90,7 +95,9 @@ A/B through `Skill(odoo-instance)`: the same steps on a database with and withou
 The browser family is the bundled chrome-devtools unless `BROWSER_MODE` names another. The desktop
 and mobile viewports and the device pixel ratio come from the header line of the checklist at
 `ORACLE_PATH`. Per page of the plan, per language of `SERVED URLS`, at each viewport (the browser's
-device emulation), open the page on the served URL and rule every item of the checklist. Measure
+device emulation - a headed browser clamps its window to a minimum width, so the mobile viewport
+is emulated or headless, and `innerWidth` read from inside the page after every resize is the
+width that counts), open the page on the served URL and rule every item of the checklist. Measure
 in the page, not by eye: scroll each image into view before reading its natural and rendered
 widths, read the console after the scroll, request each link.
 
