@@ -15,7 +15,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
    Do not hardcode one version's CLI for another.
    **Venv probe gate:** verify the venv by RUNNING Odoo (`odoo-bin --version`), never by a bare
    `import odoo`. The probe shapes and the checkout layouts on which a bare import misreports a
-   healthy venv are owned by `commands/odoo-setup.md` § AI-4 - read them there, never restate
+   healthy venv are owned by `commands/references/odoo-setup/instance-cluster.md` § AI-4 - read them there, never restate
    them here. Step 45 records `python` on `[[instance]]` only after this gate passes, alongside
    `odoo_root` (the checkout root that makes `import odoo` resolve) and the Postgres client
    surface `db_run_mode` (+ `db_container` in docker mode).
@@ -68,7 +68,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     here: `INSTANCE-ALLOCATION-MODES.md` §5 (+ `INSTANCE-ALLOCATION-GUARDS.md` §6.3 for the
     ownership guard). Owned by
     `skills/odoo-instance/SKILL.md` (the `persist:`/`run_id:` dispatch fields) and
-    `agents/odoo-instance-ops.md` (operation 1, create-instance). Whichever value you declare here
+    `snippets/instance-ops-operations.md` (operation 1, create-instance). Whichever value you declare here
     also decides who tears it down and when - see `INSTANCE-LIFECYCLE-TEARDOWN.md`, not a
     restatement of it.
     An ISOLATED listening instance is built in TWO LEGS, because no mechanism here installs modules
@@ -76,7 +76,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     job) followed by the listening launch leg (item 14's listening instance). The commands and the
     three invariants that must hold across that handoff - which lease mode the acquire requests,
     that both legs name the SAME database, and that the lease survives between them - are owned by
-    `agents/odoo-instance-ops.md` operation 1 and are NOT restated here. All three can fail while
+    `snippets/instance-ops-operations.md` operation 1 and are NOT restated here. All three can fail while
     the port still answers HTTP 200, so the readiness poll in item 14 proves none of them.
 14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Two DIFFERENT
     signals apply, one per job shape:

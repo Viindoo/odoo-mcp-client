@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.5.0] - 2026-11-02
+
+### Added
+
+- `scripts/lib/migration_gate.py check` proves a PR's module versions and migration scripts: one
+  bump per module by the smallest step, one `migrations/<series>.<version>/` folder named after it,
+  one file per stage, no script without a bump, no edit to an existing folder; run by the
+  `migration` node, by the reviewer and before the pre-PR lint gate (#299).
+
+### Changed
+
+- The plan's `migration` node is the only step that bumps a module version or writes a migration
+  script, and it runs last, after docs and right before `integrate`; coders, the frontend coder
+  and the test writer never touch `version` or `migrations/`; `odoo-data-migration` computes the
+  smallest bump, extends an existing folder instead of adding one, and runs only as that node
+  under a plan (#299).
+- A database upgrade between series is never module or plugin work: every passage that offered,
+  planned, checklisted or routed one now says in one sentence that it needs a dedicated upgrade
+  tool and repository. The module code upgrade writes no migration script and bumps no version;
+  the deploy checklist has seven domains; module migration scripts use core only (#299).
+
 ## [8.4.0] - 2026-11-02
 
 ### Added

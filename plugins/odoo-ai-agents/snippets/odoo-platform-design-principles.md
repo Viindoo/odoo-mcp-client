@@ -112,7 +112,8 @@ Within a series; a cross-series code upgrade follows
 `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0.
 
 - **Migrations are decided last (SSOT).** Within one PR, the plan's `migration` node is the ONLY
-  step that edits a module's `version` or creates a `migrations/` folder. It runs after every
+  step that edits a module's `version` or creates a `migrations/` folder; its `odoo-coder`
+  (`MODE: migration`) writes them. It runs after every
   code, test, review, acceptance, debug and i18n node and immediately before `integrate` (the
   pre-PR lint gate); no other node bumps or writes a migration script, and several nodes touching
   one module never bump it separately - they record what existing data needs in the worklog for

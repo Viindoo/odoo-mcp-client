@@ -43,5 +43,5 @@ resolves for the module's adapt unit. Size, file count, LOC and module count alo
 ## Cross-reference
 
 - ADAPT tier definitions and tier constraints (authoritative): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection - read it; do not restate here.
-- P4 dispatch briefs and child-worktree commands: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`
+- P4 dispatch briefs and child-worktree commands: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail-p4-p7.md`
 - Breaking-change catalog (what P4 coders apply): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`

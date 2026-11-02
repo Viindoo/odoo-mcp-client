@@ -23,13 +23,24 @@ def test_only_the_migration_node_bumps_and_writes_migration_scripts():
 
 
 @pytest.mark.parametrize("rel, phrase", [
-    ("agents/odoo-coder.md", "An existing module's `version` and anything under `migrations/` are never touched in a node"),
-    ("agents/odoo-frontend-coder.md", "Never edit the `version` key nor anything under `migrations/`"),
-    ("agents/odoo-test-writer.md", "never the `version`, never `migrations/`"),
-    ("skills/odoo-intake/references/plan-mode-schema.md", "A build node never edits a module's `version` nor creates or edits `migrations/`"),
+    ("agents/odoo-coder.md", "An existing module's `version` and anything under `migrations/` are touched only when your brief carries `MODE: migration`"),
+    ("agents/odoo-frontend-coder.md", "Edit the `version` key or anything under `migrations/` only when your brief asks for it"),
+    ("agents/odoo-test-writer.md", "the `version` or `migrations/` only when your brief asks for it"),
+    ("skills/odoo-intake/references/plan-mode-schema.md", "A build node edits a module's `version` or `migrations/` only when its brief asks for it"),
 ])
-def test_no_build_node_touches_a_version_or_a_migration_folder(rel, phrase):
+def test_no_build_node_touches_a_version_or_a_migration_folder_unless_asked(rel, phrase):
     assert phrase in _read(rel)
+
+
+def test_the_migration_script_is_coded_by_the_coder_and_reviewed():
+    skill = _read("skills/odoo-data-migration/SKILL.md")
+    assert "Launch** ONE `odoo-coder` (model `sonnet`) with `MODE: migration`" in skill
+    assert "`odoo-code-reviewer` `MODE: R1` (model `haiku`)" in skill
+    assert "It writes no code itself." in skill
+    coder = _read("agents/odoo-coder.md")
+    assert "| `MODE: migration` |" in coder and "references/writing-the-script.md" in coder
+    how = _read("skills/odoo-data-migration/references/writing-the-script.md")
+    assert "a real upgrade within the series" in how and "migration_gate.py check" in how
 
 
 def test_the_migration_node_sits_last_before_integrate():
@@ -43,8 +54,9 @@ def test_the_migration_node_sits_last_before_integrate():
 def test_the_migration_skill_runs_only_as_the_plan_node_and_computes_the_version():
     skill = _read("skills/odoo-data-migration/SKILL.md")
     assert "this skill runs only as the plan's `migration` node" in skill
-    assert "the new version is the smallest step" in skill
-    assert "extend its existing `migrations/<series>.<version>/` folder instead of adding a second one" in skill
+    how = _read("skills/odoo-data-migration/references/writing-the-script.md")
+    assert "the new version is the smallest step" in how
+    assert "extend its existing `migrations/<series>.<version>/` folder instead of adding a second one" in how
     carve_out = _read("snippets/planning-gate-contract.md").split("## Migration carve-out")[1]
     assert "next: odoo-coding" not in carve_out.split("## ")[0]
 

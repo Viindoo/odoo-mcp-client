@@ -75,16 +75,30 @@ _teardown_block_reason() {
 
   # NOTE on the TSV shape: every field is forced NON-EMPTY ("-" stands for empty). `read` with a
   # whitespace IFS (tab included) silently SQUASHES an empty middle field into its neighbour.
-  local lines="" n=0 token rid state prot rid_arg mcp_rid
+  local lines="" n=0 more=0 token rid state prot rid_arg mcp_rid
+  local _TD_FULL=2 _TD_SHORT=10
   while IFS=$'\t' read -r token rid state prot; do
     [[ -n "$token" && "$token" != "-" ]] || continue
     n=$(( n + 1 ))
+    # Output bound: the harness replaces a hook output over 10,000 characters by a file path and a
+    # 2,000-character preview, so only the first _TD_FULL leases get the full three-line entry; the
+    # next _TD_SHORT get one line (token + run id; the release forms above apply to them alike) and
+    # the rest are counted. Each release re-runs the gate and lists what is still held.
+    if (( n > _TD_FULL )); then
+      if (( n <= _TD_FULL + _TD_SHORT )); then
+        lines="$lines"$'\n'"  also held: lease token $token (owner run ${rid/#-/<none>}, $state) - same release or park call"
+      else
+        more=$(( more + 1 ))
+      fi
+      continue
+    fi
     if [[ "$rid" == "-" ]]; then rid_arg=""; mcp_rid=""; else rid_arg=" --run-id $rid"; mcp_rid=", run_id: \"$rid\""; fi
     lines="$lines"$'\n'"  lease token $token (owner run ${rid/#-/<none>}, $state, protected by $prot)"
     lines="$lines"$'\n'"    release: mcp__plugin_odoo-ai-agents_odoo-local__lease_release {lease_token: \"$token\"$mcp_rid}   |   park instead: mcp__plugin_odoo-ai-agents_odoo-local__lease_park {lease_token: \"$token\"$mcp_rid}"
     lines="$lines"$'\n'"    CLI fallback (only when the odoo-local tools are unavailable): python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token$rid_arg   |   python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" park $token$rid_arg"
   done <<< "$rows"
   [[ "$n" -gt 0 ]] || return 1
+  (( more > 0 )) && lines="$lines"$'\n'"  +$more more live lease(s) of this dispatch, listed once these are cleared"
 
   # THREE exits satisfy this gate, and all three are named here on purpose. The set is the one
   # declared in snippets/resource-teardown-contract.md T1 section "The three exits" (SSOT); this is a

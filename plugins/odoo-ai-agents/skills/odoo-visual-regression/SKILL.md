@@ -93,28 +93,18 @@ minutes). Run this BEFORE minting your own slug below so it never touches the di
 to create. Enforcer: whoever executes `odoo-visual-regression` next, unconditionally, every run -
 not a separate cleanup agent or cron.
 
-Now mint this run's `<slug>`: use the `SLUG:` value from your dispatch brief when
-present; on a standalone invocation derive `<intent-slug>-<YYYYMMDD>-<4 random chars>` from the
-comparison intent - the IDENTICAL suffix mechanism
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md:43` uses for its run id
-("so concurrent runs never collide") - minting the 4 random chars ONCE at Round 0 and reusing that
-SAME value for every path this run: never improvise a fresh one per screen, never re-mint the
-random suffix mid-run, and never leave the literal `<slug>` token in a path (same convention as
-`odoo-ui-debugger`'s own Round 1). The random suffix is the
-disambiguator: `<ISOLATE_DIR>` alone is worktree-keyed, not run-keyed, and this skill is exempt from
-worktree provisioning, so without it two concurrent standalone runs sharing the identical comparison
-intent (a retry, or two callers independently checking the same before/after) would mint the SAME
-slug and collide on `<ISOLATE_DIR>/visual/current/<slug>/` - the defect this section exists to
-close. Example: intent "compare before/after the upgrade" run twice concurrently ->
-`compare-v17-upgrade-20260731-a1b2` and `compare-v17-upgrade-20260731-9f3d` - same intent-slug and
-date, different random suffix, so the two runs write to different directories and neither overwrites
-the other's screenshots.
+Now mint this run's `<slug>`: use the `SLUG:` value from your dispatch brief when present; on a
+standalone invocation derive `<intent-slug>-<YYYYMMDD>-<4 random chars>` from the comparison intent
+(the suffix mechanism of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md:43`),
+minting the 4 random chars ONCE at Round 0 and reusing that SAME value for every path this run: never
+a fresh one per screen, never the literal `<slug>` token in a path. The random suffix keeps two
+concurrent runs with the same intent from colliding on `<ISOLATE_DIR>/visual/current/<slug>/`
+(`<ISOLATE_DIR>` is worktree-keyed, not run-keyed).
 
-This mint-then-sweep pattern (the derivation formula above plus the orphan sweep before it) is the
-shared home the other `visual/*/<slug>/` evidence consumers reuse instead of restating or inventing
-a second one: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` cites this
-section and is cited BY `odoo-acceptance` (`visual/qa/<slug>/`), `odoo-debug`
-(`visual/debug/<slug>/`), and `odoo-ui-review` (`visual/screenshots/<slug>/`).
+This mint-then-sweep pattern is the shared home the other `visual/*/<slug>/` evidence consumers
+reuse: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` cites this section and
+is cited BY `odoo-acceptance` (`visual/qa/<slug>/`), `odoo-debug` (`visual/debug/<slug>/`), and
+`odoo-ui-review` (`visual/screenshots/<slug>/`).
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
 and pass that concrete version on every Round 1 OSM call - the pin is session-scoped and racy
@@ -218,12 +208,9 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
   executing this skill, at its own terminal-status emission - same posture as
   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4 ("BLOCKED / NEEDS_CONTEXT do not
   waive teardown") (see that file's Verb glossary).
-- **TTL backstop for a run that never reaches its own terminal status** (crash, `-9`, a compaction
-  mid-round that is never resumed). The rule above is self-enforced prose, not hook-blocked - no
-  ledger like the allocator's tracks a filesystem directory - so a killed session still leaks one
-  `<slug>/` dir. Round 0's Orphan sweep (above) is the backstop: every future run reaps any sibling
-  `<slug>/` dir older than 24h (by mtime) before minting its own slug, so an abandoned run's
-  directory outlives at most one subsequent invocation of this skill, never forever.
+- **TTL backstop** for a run that never reaches its terminal status (crash, `-9`, an unresumed
+  compaction): Round 0's Orphan sweep reaps any sibling `<slug>/` dir older than 24h before the next
+  run mints its slug.
 
 ## Continuation Contract
 

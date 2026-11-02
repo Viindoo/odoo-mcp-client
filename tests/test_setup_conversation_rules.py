@@ -13,12 +13,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 SETUP = (PLUGIN / "commands" / "odoo-setup.md").read_text(encoding="utf-8")
+# The per-step notes live in the command's references; the rules of the command body stay in SETUP.
+NOTES = "\n".join(
+    (PLUGIN / "commands" / "references" / "odoo-setup" / name).read_text(encoding="utf-8")
+    for name in ("steps-core.md", "steps-publishing.md")
+)
 
 
 def _note(step):
-    start = SETUP.index("- **%s**" % step)
-    end = SETUP.find("\n- **", start + 1)
-    return " ".join(SETUP[start:end if end > 0 else None].split())
+    start = NOTES.index("- **%s**" % step)
+    end = NOTES.find("\n- **", start + 1)
+    return " ".join(NOTES[start:end if end > 0 else None].split())
 
 
 def test_the_command_bans_a_fill_in_template_and_limits_free_text_to_a_url_and_a_label():

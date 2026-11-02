@@ -92,7 +92,7 @@ Constraints:
   AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`
   in `plan.md`, in the SAME format as the human-declined downgrade above. The tier is decided HERE,
   at this skill's own P4 plan gate, never left for a later phase's runtime gate to improvise
-  (`SKILL.md` § Model triage: "a tier is part of the approved plan, not a runtime improvisation").
+  (a tier is part of the approved plan, not a runtime improvisation).
 - A full-stack adapt unit gets ONE tier applied to both legs by default; a lower frontend tier is
   allowed when the design splits effort, never a higher one.
 
@@ -164,7 +164,7 @@ inheritance may be pure indirection carried over from a source-series module spl
 exists at the target - the same result would be expressible directly in the base view. This check
 catches that shape. It runs at the SAME choke point the 8b bucket-(b)/(c) legs already pass
 through - once the commit's own adapt step lands or modifies the view record, directly in the
-integration worktree (P8 never uses a per-module child worktree - `SKILL.md` § Git topology) - and
+integration worktree (P8 never uses a per-module child worktree - `SKILL.md` Hard rule 1) - and
 is reconfirmed clean before P10 commits. It mirrors the P7
 pre-adapt drift scan's SHAPE exactly (a finding line, triaged into `merge-log.md`, checked before
 P10) rather than inventing a new kind of step; it is a DIFFERENT discriminator
@@ -241,10 +241,10 @@ both):**
 **On a HIT (all six hold) - the predicate PROPOSES `merge-into-base`; it never decides it.**
 Folding a shipped `ir.ui.view` record into its base and deleting the record is a structural design
 decision, and this pipeline already names one owner for that class: route it out through the P3
-design gate (`SKILL.md` § P3 - Design [conditional route-out]) to `odoo-solution-design`, which
+design gate (`references/fp-phase-p0-p4.md` § P3 - Design (conditional route-out)) to `odoo-solution-design`, which
 dispatches `odoo-solution-architect` and runs its own design-approval gate. Emit the finding line
 below as a PROPOSAL and carry it VERBATIM as an entry of the P3 payload's `design_proposals` list
-(schema SSOT: `references/fp-phase-detail.md` P3 - that field exists for exactly this, and it also
+(schema SSOT: `references/fp-phase-p0-p4.md` P3 - that field exists for exactly this, and it also
 states how to raise a P3 hop when no bucket-(c) commit supplies one). Apply the merge ONLY when the
 returned `design_doc` adopts it; on re-entry, read the architect's verdict for that proposal out of
 `design_doc`, and record `VIEW-TOPOLOGY ... | design: adopted|rejected` on the `merge-log.md` row

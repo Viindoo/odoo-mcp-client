@@ -20,26 +20,25 @@ asserted to flag and allow, a refusal only for data integrity, a guard together 
   until you restore it
 - **Debugging a test that fails at runtime** -> `odoo-debug`; **upgrade-safety audit** ->
   `odoo-deprecation-audit`
-- **Running the module suite or a tour/HttpCase suite** -> `odoo-instance` via `NEEDS_NEXT`; the
-  only runs this skill makes are its own targeted baseline and break runs. A full external
-  load/stress harness -> a dedicated perf harness / `odoo-perf-audit`.
+- **Running the module suite or a tour/HttpCase suite** -> `odoo-instance` via `NEEDS_NEXT`; this
+  skill runs only its own baseline and break runs. A full load/stress harness -> `odoo-perf-audit`.
 
 ## When to use
 
 `odoo-coder` invokes this skill INLINE for its own node - before the code when an acceptance
-criterion carries a comparable expected value, after the code for a behaviour discovered while coding (proven by the break in step 5). The
-`odoo-test-writer` agent invokes it for every other caller; standalone use works the same way.
+criterion carries a comparable expected value, after the code for a behaviour discovered while
+coding (proven by the break in step 5). The `odoo-test-writer` agent invokes it for every other
+caller.
 
 - **`change`** - new or adjusted tests for the behavior the REQUEST changed.
-- **`coverage`** - backfill behavior tests for existing code (the `odoo-code-review` coverage gate).
+- **`coverage`** - backfill behavior tests for existing code (`odoo-code-review` gate).
 - **`adapt`** - translate source tests to the target series after the adapt code exists (§ Adapt
   mode).
 - **`performance/load`** - a query-count guard (`assertQueryCount` / `assertQueries`) or a bounded
-  time over a seeded volume: a behavior contract ("stays O(1) queries under N records"), never a
-  benchmark.
+  time over a seeded volume: a behavior contract, never a benchmark.
 - **`tour/HttpCase`** - a JS tour driven by `HttpCase.start_tour(...)`, tagged post-install, for
-  flows that need a real browser and HTTP server; never for pure model logic (TransactionCase /
-  Form) or a mocked JS unit (Hoot).
+  flows needing a real browser; never for pure model logic (TransactionCase / Form) or a mocked JS
+  unit (Hoot).
 
 ## MCP tools
 
@@ -77,14 +76,13 @@ criterion carries a comparable expected value, after the code for a behaviour di
 
 Read `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` (whether a test is needed, the
 real break, the exact restore, the brief report) and `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`
-(what a good test looks like) before writing, every time. Use judgment where a step below does not fit.
+(what a good test looks like) before writing, every time. Use judgment where a step does not fit.
 
 Write test files in the brief's `WORKTREE_PATH`.
 Invoked standalone, you hold the caller's duties: with no worktree in scope, provision one through
-`git-toolkit:git-ops` before writing (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`);
-provision the break-check instance through `Skill(odoo-instance)` and release its lease when done;
-commit the test files through `git-toolkit:git-ops`. Run by `odoo-test-writer`, the agent's caller
-commits them.
+`git-toolkit:git-ops` before writing (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`); provision
+the break-check instance through `Skill(odoo-instance)` and release its lease when done; commit the
+test files through `git-toolkit:git-ops`. Run by `odoo-test-writer`, its caller commits them.
 
 ### 1. Pin the series, read the framework
 
@@ -93,30 +91,21 @@ test classes, the Form helper, tours, the JS runner, demo data in tests) and the
 the language the test is written in; name each file and heading in `VERSION RULES APPLIED`.
 Resolve series, profile and module scope per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `set_active_version` - never default
-a series. Then read how the TARGET series' framework works
-before writing a line: `test_base_classes` for the menu, `test_class_inspect` for every base class
-or helper you use (base chain, cursor contract - `cr.commit()` is forbidden; isolation is savepoint
-rollback). Where OSM lacks a detail (a `Form` method, a decorator argument), read `odoo/tests/` in
-the target checkout.
+a series. Before writing a line read the TARGET series' framework: `test_base_classes` for the menu,
+`test_class_inspect` for every base class or helper you use (`cr.commit()` is forbidden; isolation
+is savepoint rollback). Where OSM lacks a detail, read
+`odoo/tests/` in the target checkout.
 
 - **Python:** `TransactionCase`; `Form` for what a user enters in a form (its window per series:
   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3); `HttpCase` only for a tour or a
   `url_open` endpoint.
-- **JS:** `js_test_inspect(module='<module>', odoo_version='<version>')` first - Hoot and QUnit
-  both ship on some series and the mix varies by module (row 2) - then
-  `find_test_examples(query='<framework> describe test', kind='js', odoo_version='<version>')` for
-  that framework. Which suite classes run them (desktop and mobile) and how a test sets a touch or
-  non-touch device: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § JavaScript unit tests.
-- **Tour:** `js_test_inspect(module='web_tour', odoo_version='<version>')` for the registry path
-  and step shape, then `find_test_examples` for real steps - never write tour syntax from memory. Assert the business
-  outcome in the `HttpCase` body after `start_tour`; completing the tour is not evidence.
+- **JS and Tour:** run `js_test_inspect` first, then `find_test_examples` for real steps - never write tour syntax from memory; assert the business outcome in the `HttpCase` body after `start_tour`. Details: `references/js-and-tour.md`.
 
 ### 2. Search the existing tests first
 
-`tests_covering`, `find_test_examples` (test-only chunks - not `find_examples`, which mixes in
-production code), `test_coverage_audit`, and a `Grep` of the module's `tests/`, `static/tests/` and
+`tests_covering`, `find_test_examples` (test-only chunks, not `find_examples`), `test_coverage_audit`, and a `Grep` of the module's `tests/`, `static/tests/` and
 `static/tours/` in the worktree. Then per behavior: fully
-covered -> write nothing, but prove the existing test by a break; partly covered -> add a method
+covered -> write nothing, but prove it by a break; partly covered -> add a method
 to that test class; an expectation the REQUEST made obsolete (including `OBSOLETE CANDIDATES`) ->
 adjust it and say why; not covered -> write a new test. A duplicate test is a defect.
 
@@ -124,9 +113,7 @@ adjust it and say why; not covered -> write a new test. A duplicate test is a de
 
 `model_inspect` for real field names and method signatures; `validate_relation` /
 `resolve_orm_chain` for relational paths. For a rule the user triggers in a form, read the form view
-(`model_inspect(model='<model>', method='views', odoo_version='<version>')`, plus the view XML in the worktree for anything the change adds). Reuse an existing test helper's fixtures
-(`test_class_inspect`, then read its source) instead of copying setUp code. For core ORM/action
-symbols the test calls directly, apply `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`
+(`model_inspect(model='<model>', method='views', odoo_version='<version>')`, plus the view XML in the worktree for anything the change adds). Reuse an existing helper's fixtures (`test_class_inspect`, then its source) instead of copying setUp code. For core ORM/action symbols the test calls directly, apply `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`
 §Test.
 
 ### 4. Write or adjust
@@ -146,20 +133,15 @@ code.
 - **Expected log noise** - wrap with `assertLogs` / `mute_logger` only when the path really logs a
   WARNING or ERROR, and assert the logger and level, never the wording
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`).
-- **Cross-module assertions.** A test that asserts behavior contributed by ANOTHER module
-  must be staged into the post-install phase - the only moment the whole node is visible - with the
-  mechanism the target series ships (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 8).
-  Host it in the last module of the node's dependency order; a node whose modules share no
-  `depends` edge has no "last module", so host it in the primary module. A `KeyError` on a symbol
-  you know exists there is this staging bug, not a code defect.
+- **Cross-module assertions.** Stage a test asserting another module's behavior into post-install; see `references/cross-module.md`.
 - **Comments** follow `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`: the method name
   already states the rule, so never repeat it; no attribution, no break narration; a docstring,
   where one is needed, in the rst field form of its § 5. Test locals follow
   `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`.
 
-Static check before running: imports resolve, `@api.depends` paths used in `Form` interactions pass
-`validate_depends`, field names match `model_inspect`. The lint gate runs once at the plan's
-pre-PR lint gate, not here (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`).
+Static check first: imports resolve, `@api.depends` paths used in `Form` interactions pass
+`validate_depends`, field names match `model_inspect`. The lint gate runs at the plan's pre-PR lint
+gate, not here (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`).
 
 ### 5. Prove each behavior test, then restore
 
@@ -172,34 +154,34 @@ Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` sk
    here either misreads the rule (fix the test) or states `TARGET BEHAVIOR` faithfully (the code
    is wrong: stop `BLOCKED` with the test, the value it expects and the REQUEST item - never bend
    the expected value).
-2. **Break** exactly the rule, keeping a copy of the file first - the code must still load.
+2. **Break** exactly the rule, keeping a copy of the file first; the code must still load.
    Neutralise a method body or put the old rule back; never delete a field, model, external id or
    import. An accept-path test ("a reference used once is accepted") is proven by breaking the
    rule the other way (make the guard refuse every reference); a policy flag ("20 sets no flag")
    by setting the flag at 20.
 3. **Run only the affected tests** and watch them fail - at an assertion, or with the business
    exception the broken rule raises. A load error, a missing field or zero tests selected is a
-   broken measurement: fix it and re-run. A test that stays green guards nothing - strengthen or
+   broken measurement: fix it and re-run. A test that stays green guards nothing: strengthen or
    replace it; never relax it.
 4. **Restore** the file exactly and confirm it (e.g. by hash) before the next break and before you
    return. The final verdict must come from a database that reflects the restored code. A data
-   (XML/CSV) rule is broken by editing the file - `-u` reloads an updatable record, a `noupdate`
-   record needs a fresh build - never by an ORM write inside the test
+   (XML/CSV) rule is broken by editing the file (`-u` reloads an updatable record, a `noupdate`
+   record needs a fresh build), never by an ORM write inside the test
    (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Database state); say when a
-   break touched a `noupdate` record or the schema, so the caller rebuilds fresh.
+   break touched a `noupdate` record or the schema.
 
 A break edit the permission classifier refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
 
 No handle -> the tests stay written and the runs are pending (§ No instance).
 
-Tour/HttpCase: author the tour + `HttpCase` wrapper and prove it the same way; running the suite
-and adjudicating it belong to `odoo-instance` and the caller
+Tour/HttpCase: author the tour + `HttpCase` wrapper and prove it the same way; running and
+adjudicating the suite belong to `odoo-instance` and the caller
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`).
 
 ## Adapt mode (forward-port test translation)
 
-Forward the INTENT of the source tests, not their text; the full protocol is
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/fp-adapt-mode.md`. In short: classify
+Forward the INTENT of the source tests, not their text (protocol:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/fp-adapt-mode.md`). Classify
 each assertion as INTENT or CAPTURE-CODE (internals, a version-only name, a frozen count or
 existence), strip the capture-code, translate the API to the target with OSM
 (`api_version_diff`, `model_inspect`, `test_base_classes`), then prove the forwarded test after the
@@ -216,27 +198,14 @@ is hard, or silence one with `@skip` / `pass`.
 ## Standalone-first fallback
 
 OSM unreachable -> `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: read the addon's
-models and views and the existing tests from disk and write the file in place; emit copy-paste
-blocks only when the repo itself is unreachable, labelled `grounded: local-source -
-not OSM-indexed` or `grounded: ungrounded - OSM unavailable`. Ask (`NEEDS_CONTEXT`) only for a business decision
-no source encodes.
+models, views and existing tests from disk and write the file in place; emit copy-paste blocks only
+when the repo itself is unreachable, labelled `grounded: local-source - not OSM-indexed` or
+`grounded: ungrounded - OSM unavailable`. Ask (`NEEDS_CONTEXT`) only for a business decision no
+source encodes.
 
 ### No instance
 
-With no `INSTANCE_HANDLE` (authoring never waits for one -
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`), write the tests and return
-`status: NEEDS_NEXT` naming the pending tests at method level:
-```
-next:
-  - skill: odoo-instance
-    reason: the tests are written; provision an instance and hand its INSTANCE_HANDLE back so their baseline and break runs can execute - GATE_ROLE node-verify, never the pre-PR lint gate
-    inputs: {operation: run-tests, GATE_ROLE: node-verify, series: "<series>", modules: ["<module under test>"], test_tags: "/<module>:<Class>.<method>[,...] - the pending tests only", mode: "<fresh|reuse - optional>"}
-    confidence: 0.9
-```
-Fall back to `BLOCKED` only when provisioning is itself impossible. On an existing database a run
-uses `-u <module>`, a fresh one `-i <module>`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database - `-i`
-vs `-u`), with the instance's own interpreter (`${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`).
+No `INSTANCE_HANDLE`: write the tests, return `NEEDS_NEXT` for `odoo-instance` run-tests (`GATE_ROLE: node-verify`); `BLOCKED` only if provisioning is impossible; exact block in `references/no-instance.md`.
 
 ## Continuation Contract
 

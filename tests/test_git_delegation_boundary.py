@@ -243,7 +243,7 @@ def _allowed_shape(rel: str, verb: str, line: str) -> bool:
     """
     if "core.hooksPath" in line:
         return True
-    if rel.endswith("commands/odoo-setup.md") and verb == "clone":
+    if (rel.endswith("commands/odoo-setup.md") or "commands/references/odoo-setup/" in rel) and verb == "clone":
         return True
     return False
 

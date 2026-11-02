@@ -30,12 +30,10 @@ is the ONE build every artifact of the run - the `.pot` and each `.po` - is expo
 (`references/i18n-recipe.md` KT4/KT5 + Validation gate 6).
 
 A clean export + a green install is NOT proof the translation survived; only an adjudicated
-diff-review plus an Odoo `-u` reload is. Full recipe (3-layer L1/L2/L3 + validation + glossary):
-`references/i18n-recipe.md`.
+diff-review plus an Odoo `-u` reload is. Full recipe: `references/i18n-recipe.md`.
 
-**Sole dispatcher.** Only this skill launches the `odoo-translator` agent. A caller that needs a
-module translated, a `.pot`/`.po` exported/merged, or cross-module terminology audited invokes this
-skill via the Skill tool. A live instance is provisioned by invoking the `odoo-instance` skill
+**Sole dispatcher.** Only this skill launches the `odoo-translator` agent. A caller needing a module translated, a `.pot`/`.po` exported/merged, or terminology audited
+invokes this skill via the Skill tool. A live instance is provisioned by invoking the `odoo-instance` skill
 (never the raw `odoo-instance-ops` agent).
 
 **`WORKTREE_PATH` is required whenever this skill runs** (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
@@ -51,8 +49,8 @@ via `git-toolkit:git-ops` before P2, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-del
 - Checking whether a RENDERED screen shows the right language / locale at runtime -> use
   `odoo-ui-review` (live browser), not this static export-and-merge pipeline
 - Designing a new model or feature before any code -> use `odoo-solution-design`
-- Reviewing translation code or a `.po` diff for bugs -> use `odoo-code-review`
-- Writing the production code whose strings will later be translated -> use `odoo-coding`
+- Reviewing translation code or a `.po` diff -> use `odoo-code-review`
+- Writing the production code whose strings are translated later -> use `odoo-coding`
 
 ## MCP tools
 
@@ -76,20 +74,16 @@ via `git-toolkit:git-ops` before P2, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-del
 
 ## Standalone-first fallback
 
-i18n REQUIRES a running Odoo instance with the target module installed. Never translate without one
-(no babel, no raw PO parser). When no instance is available, BLOCK with status `NEEDS_CONTEXT`
+i18n REQUIRES a running Odoo instance with the target module installed. Never translate without one (no babel, no raw PO parser). When no instance is available, BLOCK with status `NEEDS_CONTEXT`
 (Continuation Contract `blocked_reason`) and do not export partially. Acquire an instance by invoking
-the `odoo-instance` skill (never the raw `odoo-instance-ops` agent) per
-`docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree, and resume at P2.
+the `odoo-instance` skill per `docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree, and resume at P2.
 
 ## The 6-phase pipeline
 
-Run phases in order. Each phase names its model tier; dispatch follows
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) for any fan-out. Artifacts land
-under the Tier-2 ISOLATE dir; resolve it via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
-below) - `<ISOLATE_DIR>/i18n/<slug>-<date>/`. The full recipe (every command, the diff-review
-reconcile, the validation gates, the glossary) is `references/i18n-recipe.md`.
+Run phases in order. Each phase names its model tier; fan-out follows
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B). Artifacts land under the
+Tier-2 ISOLATE dir, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (shown as
+`<ISOLATE_DIR>`): `<ISOLATE_DIR>/i18n/<slug>-<date>/`. Full recipe: `references/i18n-recipe.md`.
 
 **Orphan sweep (every run, BEFORE P0).** Run:
 
@@ -97,39 +91,7 @@ reconcile, the validation gates, the glossary) is `references/i18n-recipe.md`.
 
 Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 
-**P0 - Scope [haiku].** Resolve the target language list by precedence (highest first),
-then echo which source was used:
-
-1. Explicit languages in the request/args.
-2. Machine-global registry: read `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` and use its
-   `default_languages` array if present and non-empty.
-3. Infer from existing `<lang>.po` filenames in each module's `i18n/` directory
-   (`<module>/i18n/<lang>.po`); skip this tier when no `i18n/` dir exists. A stem is either the
-   full language code or Odoo's export name, the language's ISO code: resolve an ISO-code stem to
-   its language code before passing it to a build.
-4. Query the confirmed instance: `res.lang` records with `active = True` (codes).
-
-**No tier 5 - the target language is a REQUIRED input with NO built-in default.**
-Never treat `en_US` as a *target* language or as a stand-in for an unresolved target. When tiers
-1-4 ALL resolve empty:
-
-- **Standalone** (a human asked directly, not as a dispatched pipeline step): return
-  `status: NEEDS_CONTEXT` naming the missing field (`target language`).
-- **Mandated** (a caller dispatched you as a required step, `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`):
-  record `i18n: not-applicable (no target language resolvable from tiers 1-4)` (escape E3), return
-  that verbatim to the caller, and translate nothing.
-
-A caller SHOULD pass explicit `TARGET LANGUAGES` when it has them; when it has none, tiers 2-4 still
-run against whatever IS available.
-
-**`en_US` is mandatory, independent of the tiers above.** After resolving the target languages, set
-`activation_languages = {"en_US"} union target_languages`. `en_US` is ALWAYS loaded into the DB
-alongside every target language (recipe KT3) - none of the tiers above can produce it (Odoo ships no
-`en_US.po`), so add it here. It governs the DB-activation set - the export build's `languages` and
-the `languages_loaded` its `INSTANCE_HANDLE` must show - ONLY; no `en_US.po` is exported or merged.
-
-Echo the resolved language list (target languages + the `activation_languages` set) AND the source tier
-that produced it in the scope summary.
+**P0 - Scope [haiku].** Resolve the target language list by the 4-tier precedence and echo the source tier used (tiers and rules: `references/i18n-phase-detail.md` § P0 language resolution). There is NO tier 5: `en_US` is never a target or a stand-in. All tiers empty -> `NEEDS_CONTEXT` (`target language`) standalone, or when mandated record `i18n: not-applicable (no target language resolvable from tiers 1-4)` (escape E3), return it verbatim and translate nothing. `en_US` is always added: `activation_languages = {"en_US"} union target_languages` (DB activation only, no `en_US.po`). Echo the resolved list, the `activation_languages` set and the tier in the scope summary.
 
 Also in P0: confirm an instance is available (else BLOCK per `## Standalone-first fallback`). Resolve
 each module name to its directory and dependency closure. Emit a one-line scope summary (modules x
@@ -184,34 +146,9 @@ database: they follow `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.m
 export per database. Loop order: `## Multi-language loop order` in `references/i18n-recipe.md`.
 Model and brief: dispatch contract below.
 
-**P4 - Validate [haiku].** Run all validation gates (recipe § Validation) for EACH target language
-independently, after all P3 leaves finish - a second, independent pass over each leaf's own Round 4
-self-check. Per language:
-run the git-ops diff-review adjudication on `<lang>.po` (BLOCK on any un-adjudicated or WRONG-ruled
-loss), the per-entry placeholder-integrity check, the build-shape gate (recipe gate 6: the export
-build carried demo data, and the `.pot` plus every `.po` came from that ONE build - on a mismatch
-re-export and re-adjudicate rather than commit), the export-format gate (recipe gate 7: only
-`msgstr` content differs from Odoo's export), and the Odoo `-u <module>` reload (NOT `msgfmt`).
-Pre-condition for each language's reload: the target language is LOADED in the DB (listed in the
-export build's `languages_loaded`); confirm BOTH `en_US` (KT3) and each `<lang>`. Verify the `.pot`
-consumed was re-exported THIS run (recipe gate 5). A clean reload with no translation error in the
-log is the pass signal per language. Reload semantics:
-`docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics. Each per-language `-u <module>`
-reload runs against the SAME lease as the P2/L1 `-i` install that created the DB via Odoo
-create-on-init, or mode `exclusive` on a declared DB with the module pre-installed - never a fresh
-`ephemeral` lease.
+**P4 - Validate [haiku].** After all P3 leaves finish, run all validation gates (recipe § Validation) for EACH target language independently, as a second pass over each leaf's Round 4 self-check: the git-ops diff-review adjudication on `<lang>.po` (BLOCK on any un-adjudicated or WRONG-ruled loss), per-entry placeholder integrity, gate 6 (build shape: demo on, `.pot` plus every `.po` from that ONE build - on a mismatch re-export and re-adjudicate), gate 7 (export format: only `msgstr` content differs), gate 5 (the `.pot` was re-exported THIS run), and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition: `en_US` (KT3) and each `<lang>` are in the export build's `languages_loaded`. A clean reload with no translation error in the log is the pass signal. Reload semantics: `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics. Each reload runs against the SAME lease as the P2 `-i` install (Odoo create-on-init, or mode `exclusive` on a declared DB with the module pre-installed) - never a fresh `ephemeral` lease.
 
-**Release the export instance [MANDATORY, after the last P4 reload].** When THIS skill provisioned
-the P2 build (standalone, or `SELF_PROVISION`), you are the run-level owner of the lease
-(`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): once every P3 leaf has returned
-and the last per-language reload is done, call
-`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with its `lease_token` and `run_id` - or
-`lease_park` when the user or a named next step still wants that database. A brief that carries
-`HAND_ON: <skill>` (the caller's documentation step, `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`
-§ One capture instance) keeps the lease running instead: return its `INSTANCE_HANDLE` and
-`BUILD_SHAPE` in the Continuation Contract's `next.inputs` and release nothing; the caller owns it
-from there. An `INSTANCE_HANDLE` your caller forwarded DOWN to you is never yours to release or
-park.
+**[MANDATORY after the last P4 reload]** release or park the lease you provisioned; `HAND_ON: <skill>` and a forwarded handle are exceptions - `references/i18n-phase-detail.md` § Release the export instance.
 
 **P5 - Consistency audit + report [sonnet; ADVISORY].** Audit terminology consistency across the
 translated modules for EACH target language separately. NEVER blocking; do NOT auto-edit or
@@ -235,17 +172,7 @@ language, series; the glossary TM path for that language (`glossary-tm-<lang>.js
 `<lang>.po` and fresh `<module>.pot` paths from the P2 `exports`; and the validation gates the leaf
 must self-check.
 
-Also carry, verbatim, the P2 build the artifacts came from: `INSTANCE_HANDLE` (the SAME handle for
-every leaf of the run) plus `BUILD_SHAPE: demo=on, languages=<activation set>,
-skip_auto_install=<bool>`. A leaf that receives a `BUILD_SHAPE` with `demo` anything but `on`, or
-that cannot corroborate demo records for a module whose manifest declares `demo` files, returns
-BLOCKED rather than reconciling.
-
-Pick the leaf's model per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier
-selection and pass it both as a `DISPATCH MODEL:` line in the brief and as the Agent `model`
-parameter. When a module in the leaf's scope has a `business_function` on the specialist list of
-`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md` (read from its manifest `category`), state the
-function in the brief.
+Also carry the P2 build (`INSTANCE_HANDLE`, `BUILD_SHAPE`), a `DISPATCH MODEL:` line and any specialist `business_function`: `references/i18n-phase-detail.md` § Dispatch brief extras.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
 decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).

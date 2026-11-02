@@ -16,7 +16,7 @@
 | `odoo-content-draft` | spawner-agent | fresh | none | - | odoo-marketer (MODE copy: one piece for one channel; sonnet to compose, haiku to re-cut an existing draft) |
 | `odoo-customer-health` | leaf | fresh | none | - | - |
 | `odoo-customization-inventory` | leaf | fresh | none | - | - |
-| `odoo-data-migration` | leaf | fresh | backend | - | - |
+| `odoo-data-migration` | spawner-agent | send-message | backend | - | odoo-coder, (ONE coder in MODE: migration at sonnet: the PR's single version bump and module migration scripts, proven by migration_gate.py and a real upgrade within the series), odoo-code-reviewer, (MODE R1 at haiku on the coder's commit range; findings go back to the same coder with SendMessage) |
 | `odoo-deal-followup` | leaf | fresh | none | - | - |
 | `odoo-debug` | spawner-agent | fresh | fullstack | - | odoo-backend-debugger (one per incident; resumed at a higher tier with PRIOR_FINDINGS), odoo-ui-debugger (browser-exclusive; one per incident), odoo-perf-audit / odoo-security-audit (Skill tool, inline, reactive mode), odoo-coding (Skill tool, inline, standalone fix hand-off) |
 | `odoo-deep-survey` | spawner-agent | fork | none | - | (anonymous read-only fan-out subagents, explicit model per phase per the capability map: haiku gathers, sonnet dives and synthesizes, opus only on an evidenced trigger or a specialist domain; read-only on Odoo source, write only findings under <SHARE_DIR>/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
@@ -74,7 +74,7 @@
 
 Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate `orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. Two spawn_classes legitimately appear here: (1) a `spawner-agent` (launches a named subagent directly); (2) an `orchestrator-nl` whose `spawns` are SKILL invocations it drives transitively via the Skill tool (e.g. `odoo-forward-port` chaining `odoo-coding` / `git-ops`) - it launches no agent itself, but the skills it dispatches may, so surfacing it here is correct, not a defect. Only a `leaf` listed here is a genuine drift to fix at the SSOT (a leaf must never carry a `spawns` entry - either its class or the `spawns` entry is wrong).
 
-`odoo-acceptance`, `odoo-brl`, `odoo-code-review`, `odoo-coding`, `odoo-content-draft`, `odoo-debug`, `odoo-deep-survey`, `odoo-doc-feature-map`, `odoo-doc-illustration`, `odoo-doc-site`, `odoo-forward-port`, `odoo-gap-analysis`, `odoo-git-rebase`, `odoo-i18n`, `odoo-icon-design`, `odoo-instance`, `odoo-intake`, `odoo-modules-upgrade`, `odoo-planning`, `odoo-pr-monitoring`, `odoo-solution-design`, `odoo-ui-review`, `workflow-chaining`
+`odoo-acceptance`, `odoo-brl`, `odoo-code-review`, `odoo-coding`, `odoo-content-draft`, `odoo-data-migration`, `odoo-debug`, `odoo-deep-survey`, `odoo-doc-feature-map`, `odoo-doc-illustration`, `odoo-doc-site`, `odoo-forward-port`, `odoo-gap-analysis`, `odoo-git-rebase`, `odoo-i18n`, `odoo-icon-design`, `odoo-instance`, `odoo-intake`, `odoo-modules-upgrade`, `odoo-planning`, `odoo-pr-monitoring`, `odoo-solution-design`, `odoo-ui-review`, `workflow-chaining`
 
 ## Skill Conflict Resolution
 

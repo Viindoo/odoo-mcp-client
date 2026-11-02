@@ -75,7 +75,7 @@ to enumerate candidates, and how to ground each candidate against the target. An
 that fails its ground is a SYMBOL-BROKEN finding (Section 4) - resolve via the
 [[fp-intent-4outcome]] bucket before P8 adapt.
 
-Note: P6 runs all classes over the full scope; P7 applies a two-lane split - see fp-phase-detail.md P7 for the operative per-class scope (Lane 1 = d,e,g over ALL .py; Lane 2 = a,b,c,f over tests/).
+P6 runs all classes over the full scope; P7 splits them (`skills/odoo-forward-port/references/fp-phase-p5-p8.md` § P7): Lane 1 = d,e,g over ALL .py; Lane 2 = a,b,c,f over tests/.
 
 ### (a) Test base-class signature drift
 

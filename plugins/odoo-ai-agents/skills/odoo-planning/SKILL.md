@@ -19,7 +19,6 @@ gap/brl  ->  odoo-solution-design (TDD + index.yaml)  ->  HUMAN approves SRS and
    ->  odoo-planning -> odoo-planner (the plan: build nodes + the lifecycle tail)
    ->  EnterPlanMode -> the ONE plan gate -> ExitPlanMode
    ->  intake Phase P serializes run-<id>.json  ->  the main agent runs the plan
-   ->  the doc nodes (docs-module, then docs-site) run after code/review/QA when their `when:` holds, ungated
 ```
 
 ## Role
@@ -28,21 +27,20 @@ Turn an approved technical design into ONE lifecycle plan (the build nodes and t
 documentation included) by launching ONE leaf planner, `odoo-planner`. The plan is run by the main
 agent per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan.
 The documentation of the change is the tail nodes `docs-module` then `docs-site`
-(`plan-mode-schema.md` § Default tail). The documentation target (`module`, `site`, `both`, `none`)
+(`plan-mode-schema.md` § Default tail), run after code/review/QA when their `when:` holds, ungated. The documentation target (`module`, `site`, `both`, `none`)
 comes from `odoo-intake` in the brief.
 
 ## Input port - read the upstream artifacts BY POINTER (before dispatch)
 
-Locate the upstream artifacts and pass their paths to the planner (never paste their contents,
-never re-derive their facts):
+Locate the upstream artifacts and pass their paths to the planner (never paste or re-derive them):
 
 - **Design DAG (OPTIONAL - `none` when no design was authored)** -
   `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` + dependency direction) for a
   master-child design, or the single-mode `<SHARE_DIR>/designs/<slug>-<date>.md`. When one exists the
   planner CONSUMES it and never recomputes it. When none exists the plan is derived from the
-  development work itself and the field is carried as an explicit `none`.
+  development work and the field is an explicit `none`.
 - **Gap matrix** - `<SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
-  `<SHARE_DIR>/brl/<job-id>/`) for per-requirement effort tier - drives the `effort` estimate.
+  `<SHARE_DIR>/brl/<job-id>/`): per-requirement effort tier, drives `effort`.
 - **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`.
   The `acceptance` node is ALWAYS authored statically, never omitted for lack of an oracle. When the
   oracle is absent, the plan sources the node's criteria from the design's §9 Acceptance Criteria;
@@ -53,7 +51,7 @@ never re-derive their facts):
 
 ## Design precedes planning
 
-Planning is MANDATORY for ALL work and is NEVER refused for a missing design
+Planning is MANDATORY for ALL work, never refused for a missing design
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule). Whatever the
 Input port resolved, proceed to § Agent invocation; an unresolved design pointer is carried as `none`
 in the P1 brief and the development work itself is what gets planned. Evaluate no design predicate.
@@ -84,7 +82,7 @@ assigns to the agent-launch tool you hold
 
 ### P1 - The plan (odoo-planner)
 
-Launch `odoo-planner` as a subagent (default: ONE planner). For a very large scope (many
+Launch `odoo-planner` as a subagent (default ONE). For a very large scope (many
 independent module clusters) you MAY fan out one planner per cluster following **Mode B**
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) and reconcile their plans. Choose the
 subagent `model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier

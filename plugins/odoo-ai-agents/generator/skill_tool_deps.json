@@ -461,7 +461,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Writes Odoo pre/post-migration scripts + verification plan; does NOT execute against an instance (that is a separate human-gated deploy step)."
+      "notes": "Front door for the in-series module migration script: launches odoo-coder (MODE: migration) to write the PR's one version bump and scripts and prove them on a scratch database, then odoo-code-reviewer R1; never runs a migration on a real database."
     },
     "odoo-perf-audit": {
       "mcp_tools": [
@@ -1704,13 +1704,22 @@
       "spawns_agents": []
     },
     "odoo-data-migration": {
-      "spawn_class": "leaf",
-      "spawns": [],
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-coder",
+        "(ONE coder in MODE: migration at sonnet: the PR's single version bump and module migration scripts, proven by migration_gate.py and a real upgrade within the series)",
+        "odoo-code-reviewer",
+        "(MODE R1 at haiku on the coder's commit range; findings go back to the same coder with SendMessage)"
+      ],
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1",
-      "spawns_agents": []
+      "spawns_agents": [
+        "odoo-coder",
+        "odoo-code-reviewer"
+      ],
+      "handoff": "send-message"
     },
     "odoo-perf-audit": {
       "spawn_class": "leaf",

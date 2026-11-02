@@ -172,9 +172,16 @@ CD_LIVE_PAGES="$(printf '%s\n' "$CD_PAGE_CALLS" | awk -F'\t' '
     for (i = 1; i <= n; i++) {
       id = ids[i]
       if (!(id in last) || last[id] == "about:blank") continue
-      printf "%s%s (%s)", (shown++ ? ", " : ""), id, (last[id] == "" ? "back/forward/reload" : last[id])
+      if (shown >= 5) { extra++; continue }
+      u = (last[id] == "" ? "back/forward/reload" : last[id])
+      if (length(u) > 80) u = substr(u, 1, 80) "..."
+      printf "%s%s (%s)", (shown++ ? ", " : ""), id, u
     }
+    if (extra) printf ", +%d more", extra
   }' 2>/dev/null || true)"
+# Output bound (the harness cuts a hook output over 10,000 characters to a path and a 2,000-character
+# preview): at most five pages are named, each URL cut at 80 characters, the rest counted.
+CD_LAST_URL="${CD_LAST_URL:0:120}"
 
 # playwright: a page is IMPLICIT and close is close-ALL (one browser_close satisfies any number
 # of opens). DRIVE = any browser_* call EXCEPT the lifecycle verbs (close + video/tracing pairs +
