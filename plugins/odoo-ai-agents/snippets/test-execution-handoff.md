@@ -6,15 +6,13 @@
      odoo-instance skill; odoo-frontend-coder is instance-free (static verify-frontend.sh gate
      only); the lint-class gate runs once at the plan's pre-PR lint gate; odoo-test-writer
      runs only its own break-check runs, inline, on the forwarded handle. Canonical NEEDS_NEXT
-     example lives in odoo-test-writing § Standalone-first fallback.
+     example lives in skills/odoo-test-writing/references/no-instance.md.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
 
 # Test-Execution Handoff Contract (who runs the suite, and where the output goes)
 
-Writing a test, running a test, and judging the result are three different jobs. Folding the run
-into the writer's or the orchestrator's own context mixes the roles AND floods that context with
-test logs and tracebacks. This contract keeps them separate and keeps heavy output out of the
-caller.
+Writing a test, running a test and judging the result are three jobs. Folding the run into the
+writer's or orchestrator's context mixes the roles AND floods it with test logs and tracebacks. This contract keeps them separate and heavy output out of the caller.
 
 ## Three roles, three contexts
 
@@ -63,7 +61,7 @@ though a handle would otherwise be expected. Full contract:
 When a run is required but no live instance is reachable and none was handed in, do NOT fake a
 green result and do NOT block outright. Emit a Continuation Contract
 (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`) with `status: NEEDS_NEXT` routing to
-the `odoo-instance` skill - canonical shape in `odoo-test-writing` § Standalone-first fallback:
+the `odoo-instance` skill - canonical shape in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/no-instance.md`:
 
 ```continuation
 status: NEEDS_NEXT

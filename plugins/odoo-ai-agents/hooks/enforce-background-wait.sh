@@ -158,6 +158,10 @@ OWN_AGENT_IDS=""
 [[ -n "$LIVE_AGENT_ROWS" ]] && OWN_AGENT_IDS="$(_tw_async_launched_ids "$AGENT_TRANSCRIPT")"
 
 # --- Build the findings ----------------------------------------------------------------------
+# Output bound: the harness cuts a hook output over 10,000 characters to a path and a 2,000-character
+# preview, so at most _BW_MAX tasks of each kind are listed, each command cut at 200 characters; the
+# rest are only counted (N and NA stay the true totals).
+_BW_MAX=5
 LINES=""
 N=0
 if [[ -n "$LIVE_ROWS" && -n "$OWN_IDS" ]]; then
@@ -168,13 +172,15 @@ if [[ -n "$LIVE_ROWS" && -n "$OWN_IDS" ]]; then
         # never reconstructed from a guessed temp-dir layout.
         if printf '%s\n' "$OWN_MONITOR_IDS" | grep -qxF "$task_id" 2>/dev/null; then
             N=$(( N + 1 ))
-            LINES="$LINES"$'\n'"  [$task_id] (Monitor watch) $task_cmd"$'\n'"      its events reach you only while this turn lasts - wait for them now, or stop the watch"
+            (( N > _BW_MAX )) && continue
+            LINES="$LINES"$'\n'"  [$task_id] (Monitor watch) ${task_cmd:0:200}"$'\n'"      its events reach you only while this turn lasts - wait for them now, or stop the watch"
             continue
         fi
         out_path="$(printf '%s\n' "$OWN_STRINGS" | grep -oE "/[^ \"']*${task_id}\.output" 2>/dev/null | head -1 || true)"
         [[ -n "$out_path" ]] || out_path="(output path not recorded in your transcript - re-read the Bash result that started task ${task_id})"
         N=$(( N + 1 ))
-        LINES="$LINES"$'\n'"  [$task_id] $task_cmd"$'\n'"      output so far: $out_path"
+        (( N > _BW_MAX )) && continue
+        LINES="$LINES"$'\n'"  [$task_id] ${task_cmd:0:200}"$'\n'"      output so far: ${out_path:0:300}"
     done <<< "$LIVE_ROWS"
 fi
 
@@ -185,11 +191,14 @@ if [[ -n "$LIVE_AGENT_ROWS" && -n "$OWN_AGENT_IDS" ]]; then
         [[ -n "$task_id" ]] || continue
         printf '%s\n' "$OWN_AGENT_IDS" | grep -qxF "$task_id" 2>/dev/null || continue
         NA=$(( NA + 1 ))
-        AGENT_LINES="$AGENT_LINES"$'\n'"  [$task_id] $task_desc"
+        (( NA > _BW_MAX )) && continue
+        AGENT_LINES="$AGENT_LINES"$'\n'"  [$task_id] ${task_desc:0:200}"
     done <<< "$LIVE_AGENT_ROWS"
 fi
 
 [[ "$N" -gt 0 || "$NA" -gt 0 ]] || _pass   # every live task belongs to someone else
+(( N > _BW_MAX )) && LINES="$LINES"$'\n'"  +$(( N - _BW_MAX )) more background task(s), same three moves apply"
+(( NA > _BW_MAX )) && AGENT_LINES="$AGENT_LINES"$'\n'"  +$(( NA - _BW_MAX )) more teammate(s)"
 
 REASON=""
 if [[ "$N" -gt 0 ]]; then

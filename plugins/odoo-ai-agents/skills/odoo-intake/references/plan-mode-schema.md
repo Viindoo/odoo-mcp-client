@@ -345,14 +345,14 @@ A build node gets the fields of
 `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID`, `WORKLOG`,
 `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SRS`, `RECON`, `DOMAIN`, `SELF_PROVISION: worktree-addons` or
 an `INSTANCE_HANDLE` with `ADDONS_PATH`, `SURVEY` (`none` when none), `CONSTRAINTS` (the Block 3
-cross-module assertions). A build node never edits a module's `version` nor creates or edits
-`migrations/`: what existing data needs goes in its worklog for the `migration` node. Return: the
+cross-module assertions). A build node edits a module's `version` or `migrations/` only when its
+brief asks for it; what existing data needs goes in its worklog for the `migration` node. Return: the
 commit range `<base>..<head>` on the node's branch. A tail
 node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
 `odoo-i18n`, `odoo-doc-illustration`) with `WORKTREE_PATH: <repo>/run-integration` and
 `SELF_PROVISION: worktree-addons` where the agent builds its own instance (i18n always: an export
 build needs demo data and the target languages, which a test lease cannot provide). `migration`
-(`odoo-data-migration`) gets `WORKTREE_PATH: <repo>/run-integration`, `ODOO VERSION`, `DESIGN_DOC`, `WORKLOG` and the changed
+(`odoo-data-migration`, which launches `odoo-coder` in `MODE: migration` and an R1 review) gets `WORKTREE_PATH: <repo>/run-integration`, `ODOO VERSION`, `DESIGN_DOC`, `WORKLOG` and the changed
 modules that satisfy its `when:`. `odoo-doc-site`
 gets `CODE_WORKTREE: <code repo>/run-integration`, `RUN_ID` and `FROM CHANGE` instead of
 `WORKTREE_PATH`: the docs repo has no run-integration tree. A verification

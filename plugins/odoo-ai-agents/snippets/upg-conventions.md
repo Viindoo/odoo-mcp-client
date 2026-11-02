@@ -1,7 +1,7 @@
 # Upgrade conventions
 
 Apply every convention below on every profile and distribution, OSM-reachable or not. The
-`odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail.md` § odoo-coding dispatch brief)
+`odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail-p4-p7.md` § odoo-coding dispatch brief)
 cites this file.
 
 ---
@@ -64,9 +64,9 @@ for a change within one series; moving code to a newer framework mechanism = "mo
 **Commit tag.** A commit request for upgrade work proposes the commit convention's series-upgrade
 tag (`[UPG]`), never the migration tag.
 
-**(b) Write the target series' newest mechanism, not a shim.** The P2 NEW-FEATURE SWEEP already
+**(b) Write the target series' newest mechanism, not a shim.** The P2 comparator's reuse-candidate sweep already
 recorded any replacement in `reuse_candidates[]`
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md` § P2 step 3b);
+(the `odoo-diff-comparator` agent's upgrade mode, its "Reuse-candidate sweep" step);
 do NOT re-run it. A feature WITH an entry -> implement the target-core mechanism it names and
 delete the custom implementation; WITHOUT one -> nothing to do. Never wrap the new mechanism in a
 compatibility shim over the old one.

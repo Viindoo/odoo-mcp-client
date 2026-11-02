@@ -36,7 +36,7 @@ Rules, including what to do with a `job_wait` warning that a module must be load
 **Agent-side union this skill does not compute itself.** This skill resolves `PROFILE` and threads it
 into the brief (omitted when empty, never sent empty). The dispatched `odoo-instance-ops` agent PINS
 that profile (`set_active_profile` + explicit `profile_name=` on every probe; an absent `PROFILE`
-field triggers the agent's own vanilla-profile resolution) before one DATA-DRIVEN union:
+field triggers the agent's own vanilla-profile resolution) before one DATA-DRIVEN union (the framework-validation classes go into every tagged run; the lint classes only as below):
 - **Lint modules for `run-tests` - GATED.** Only when this dispatch's `GATE_ROLE` is
   `pre-pr-lint-gate`: the agent resolves and probes the lint-class modules per
   `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` and unions every present one into BOTH the
@@ -49,9 +49,7 @@ field triggers the agent's own vanilla-profile resolution) before one DATA-DRIVE
   A clean counter set on a `pre-pr-lint-gate` dispatch is NOT `tests-passed` until the agent's own
   coverage confirmation clears too (`odoo-instance-ops`'s own "Checker-load coverage confirmation").
 
-### Resolving modules and test_tags for an ad-hoc run-tests
-
-### Resolving `modules` + `test_tags` for a `run-tests` with no plan node
+### Resolving modules and test_tags
 
 A caller driving a plan node passes that node's `modules` list (authored by `odoo-planner` per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`) and the matching tags. For an AD-HOC run
@@ -73,7 +71,7 @@ yourself before dispatching, in this order:
 When the request is explicitly a full sweep, or no code changed at all, pass `TEST_TAGS: full` and
 say which exemption applies (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`).
 
-### Relay the result - the instance-ops block and scope transparency
+### Relay the result
 
 **Relay the result:** Relay the agent's structured output block verbatim to the caller:
 
@@ -125,9 +123,7 @@ out-of-scope `tests-failed` as this module's own regression. Rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`; agent side: `odoo-instance-ops`'s own Scope
 transparency section.
 
-### Inline mode (exceptions (a)-(d) only) and the path-incremental loop
-
-### Inline mode (exceptions (a)-(d) only)
+### Inline mode
 
 Run the ops steps INLINE in the caller's own context, without launching `odoo-instance-ops`, and
 still under the HARD RULES.
@@ -154,8 +150,8 @@ cross-referenced sections):
    `python` on the series' row, build the venv first with `45-venv.sh create-venv` per
    `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md` § If no suitable venv exists yet - the lease
    copies the catalog's interpreter at acquire time, so acquire only after it exits 0. Then
-   `lease_acquire` (`series`, `profile` = `PROFILE` when a catalog row declares it (see the `PROFILE` row), mode `ephemeral`, your `run_id`, `cwd` = the
-   tree you build, `addons_path` from § WORKTREE_PATH substitution when you work in a worktree;
+   `lease_acquire` (`series`, `profile` = `PROFILE` when a catalog row declares it (`dispatch-parameters.md` § Parameters, `PROFILE`), mode `ephemeral`, your `run_id`, `cwd` = the
+   tree you build, `addons_path` from `references/worktree-addons-path.md` when you work in a worktree;
    `ports` 1 for a test build or a listening instance - a test build binds an HTTP port on every
    series - else 0). Never reuse the single declared db/port for a mutation. A refused acquire
    writes no lease: follow the error code's remedy, never retry blind. A result with

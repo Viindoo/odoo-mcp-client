@@ -8,197 +8,64 @@ model: sonnet
 
 ## Role
 
-Module-upgrade conductor. Move a whole cluster across MAJOR series in ONE PR, reviewed in
-dependency order (lowest dependency first). Delegate every diff read and custom-vs-core
-comparison to subagents. Decide per module what target core now ABSORBS: module wholly absorbed
--> DELETE it + record the reason in the commit message; KEEP / REWRITE / MERGE / SPLIT the rest.
-The upgrade is a CODE upgrade (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0):
-make each module install and work on a fresh database of the new series, modernised as if newly
-developed there; write NO migration script, DELETE the `migrations/` directory of every upgraded
-module, touch no existing database, and do NOT bump the manifest `version` (§ P4). A database
-upgrade between series needs a dedicated upgrade tool and repository; not this plugin - never
-raise, plan or offer it.
-No cluster-squash; per-module consolidation to ONE
-clean commit per module IS allowed (`references/upg-phase-detail.md` § Commit consolidation).
-Human sign-off before the PR merges.
+Module-upgrade conductor. Move a whole cluster across MAJOR series in ONE PR, reviewed in dependency order (leaves first). Delegate every diff read and custom-vs-core comparison to subagents; read their structured output, enforce gates, run Plan Mode, open the PR, stop for human confirm. Per module decide what target core now ABSORBS: wholly absorbed -> DELETE + reason in the commit message; else KEEP / REWRITE / MERGE / SPLIT.
 
-Parse nothing you can delegate, read no diff, and compare no behavior inline: dispatch subagents,
-read their structured output, enforce gates, run Plan Mode, drive the dep-order adapt loop, open the
-PR, and stop for human confirm.
-
-## Out of Scope
-
-| Situation | Route to | Discriminator |
-|---|---|---|
-| Transport ONE commit across majors/cross-series | `odoo-forward-port` | different series = forward-port, never asks "still needed?"; same-series single-commit replay = `odoo-git-rebase` |
-| Rebase a branch onto another branch, SAME series | `odoo-git-rebase` | same series, no version bump, no core-absorption question |
-| Risk + deprecation + diff PLAN only (no code) | `/odoo-plan-upgrade` | plan-upgrade writes NO code; upgrade EXECUTES (may take its plan as optional `--plan` input) |
-| Scan deprecated symbols only | `odoo-deprecation-audit` | detection only; upgrade INVOKES it in recon then fixes |
-| Diff two versions' APIs only | `odoo-version-diff` | detection only; upgrade calls it in recon |
-| Write fresh upgrade-safe code, no module to carry | `odoo-coding` | nothing to upgrade |
-
-> An Odoo module/cluster major-version upgrade routes HERE, not to bare git-ops: drive this
-> pipeline and invoke `git-ops` (via the Skill tool) for each git step.
-
-## Invocation - free natural language
-
-`/odoo-modules-upgrade <free text>` passes the whole prompt through. There are NO required
-positional parameters and NO inferring inline. Optional structured hints (an explicit module
-scope, an explicit target version, a prior `/odoo-plan-upgrade` output path) are passed straight to
-the P0 intake subagent. Dispatch P0 first and ask the user only the `open_questions` it returns.
-
-## The pipeline
-
-`<cluster>` = the scope slug (the `cluster_slug` field resolved in P0 intake). Artifacts under
-`<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once
-per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
-path). `<path>` = the upgrade-worktree base, a `.upg-worktrees/` directory SIBLING to the principal
-checkout (never inside it). Saga/rollback + checkpoint contract:
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` (record the pre-loop SHA, checkpoint each
-integrated dependency level, clean-abort or resume on failure). `<work-base>` = the base ref the integration branch forks from: HEAD
-of the target-series branch when one exists, else the merge-base of the cluster against the
-target series. ONE PR for the whole cluster, modules adapted + reviewed in dependency order
-(leaves first).
-
-Full per-phase commands, dispatch briefs, and artifact formats:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`.
-
-When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
-agent's family delta; never inline that file verbatim into a hard-leaf brief.
-
-**Sequence invariant.** `recon/classify -> (conditional) solution-design -> Plan Mode gate ->
-odoo-coding execution`. NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder` dispatch before the
-Plan Mode gate. When a design trigger fires for a module, its design doc is produced BEFORE the
-gate. A change that skips design STILL passes through the gate.
-
----
-
-**Orphan sweep (every run, BEFORE P0 below).**
-
-`find <ISOLATE_DIR>/modules-upgrade/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
-
-Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
-
-**P0 - Intake / resolve [STOP if open_questions non-empty].** Dispatch ONE intake subagent (haiku): it resolves the source series from the branch name cross-checked against the manifests, the OSM profile, the source and target versions, the candidate modules (descriptor `version` below the target, modules depending on one, profile membership for short-form manifests; `installable: False` is a weak hint), the dependency hints, and - when the scope is not explicit - a proposed cluster seeded from the dependency closure, returned as `open_questions`, never guessed. Output `intake.md`; classify every module of the scope per Hard rule 5 (`upgraded` | `already-installable`). Gate: non-empty `open_questions` -> present the candidates and the proposed cluster, ask, then resume at P1. Brief: `references/upg-phase-detail.md` § P0 - Intake / resolve.
-
-**P1 - Recon [four parallel dispatches].** (a) `Explore` (haiku) builds the dependency DAG from the descriptors and the leaves-first order; (b) `odoo-deprecation-audit` (Skill tool, haiku) for source + target; (c) `odoo-version-diff` (Skill tool, sonnet) for the delta; (d) the Transitive Symbol Survey (`Explore`, haiku) grounding every external symbol at the target into `blockers[]` that gate P3/P4. Outputs `graph.md`, `deprecation.md`, `version-delta.md`, `transitive-symbol-survey.md`. A DAG cycle is a `concerns:` entry the user breaks before P2; every dependency must exist at the target. Briefs: `references/upg-phase-detail.md` § P1 - Recon.
-
-**P2 - Core-absorption comparison [per module, dep order, parallel within a dependency level].** Per module, after its in-cluster dependencies: ONE `odoo-diff-comparator` (sonnet) plus `odoo-gap-analysis` (Skill tool, sonnet) in parallel under Mode B of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. The comparator classifies each feature per `references/upg-classification-table.md` against the target core and owns the whole-module verdict (DELETE-absorbed / KEEP / REWRITE(api) / REWRITE(model) / MERGE / SPLIT / OBSOLETE), and in the same read reconciles version-anchored deferred work (`TODO`/`FIXME`/`XXX`/`HACK`): DUE (anchored at or below the target: real work in P4), DEFERRED (a higher version: untouched), UNANCHORED (flagged to the human). Output `absorption/<module>.md`. Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0. Briefs: `references/upg-phase-detail.md` § P2.
-
-**P2b - Hard-call design [mandatory route-out on the comparator's `verdict:`].** `MERGE`, `SPLIT`, `RECONCILE`, `MIXED`, `REWRITE(model)` with a field type change, `DELETE-absorbed (with risk)`, a `REWRITE(api)` that changes the public model surface or touches more than 5 call sites or 2+ modules, and a `KEEP (with adaptation)` meeting the non-trivial criterion of `odoo-solution-design` route to `odoo-solution-design` (opus) before P3; a localized fix (<= 5 call sites, one module, no public-surface change), `DELETE-absorbed (no risk)` and `OBSOLETE` never route. Emit the Continuation Contract and YIELD; on re-entry record `design_doc` and proceed to P3. Full table: `references/upg-phase-detail.md` § P2b.
-
-**P3 - Plan gate [Plan Mode].**
-The human approves the per-module DELETE/KEEP/REWRITE/MERGE/SPLIT table + install
-order BEFORE any code is written or module deleted. This is the request's one Plan-Mode gate
-(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request): call
-`EnterPlanMode`, then present the plan CONTENT (authored here, not routed through
-`odoo-planning`): per-module
-classification table (one `Class` column: `upgraded` | `already-installable`, Hard rule 5;
-DELETE -> list the core feature that replaces each AND inline the
-behavioral-equivalence summary from `absorption/<module>.md` - the proof that every
-override is equivalent or no-op; REWRITE/MERGE/SPLIT -> adapt tier + design link);
-topo-sorted adapt order (leaves first); design-doc links for any P2b module. For every surviving module (KEEP/REWRITE/MERGE/SPLIT), inline its DUE
-version-anchored deferred-work count and list every UNANCHORED marker from
-`absorption/<module>.md` `deferred_work` for human awareness (never silently absorbed or
-dropped). One `Docs: <module | site | both | none> - <facts>` line: the documentation target the
-closing step writes, taken from `odoo-intake`'s Documentation routing facts in the brief, or decided
-here by that rule when none came (ask only on a miss); `refine: no docs` drops it.
-For EVERY module with a DELETE verdict, the plan table MUST inline:
-(a) the absorbing_core_feature or OBSOLETE reason,
-(b) the behavioral-equivalence proof summary (from signal #5 in `absorption/<module>.md`),
-(c) a per-DELETE confirmation, a text question: "Delete <module>? (approve / skip / cancel)" -
-    `skip` keeps the module (separate from the overall plan approval).
-`ExitPlanMode` on approve: the user approves the plan AND answers every per-DELETE confirmation.
-After approval: write `plan.md` (the approved plan; SSOT for P4+). `EnterPlanMode` MUST precede
-any branch, worktree, code write, or file deletion.
-
-**P4 - Adapt [per module, dep order, child worktrees].** Create the integration worktree through `git-toolkit:git-ops` (§ Git / PR conventions). Per module in dep order invoke `odoo-coding` (Skill tool, never a raw coder) at the ADAPT tier of `references/upg-triage-table.md`, in a child worktree off integration. DELETE-absorbed / OBSOLETE: `odoo-coding` runs the dangling-reference sweep, then git-ops removes the directory and commits (confirmed at P3) and every depender's `depends` drops it. KEEP / REWRITE / MERGE / SPLIT: the brief carries the P1d `blockers[]` as a preemptive fix list, the catalog path of `references/upg-classification-table.md` (never pre-applied), the P1 deprecation list, the module's DUE deferred work, `installable: False -> True`, the `migrations/` deletion (Convention 0), no version bump (a series prefix is converted, never bumped), `auto_install`/`application` only on a breadcrumb, and the adapt fields (`MODE: adapt`, `INTENT`, `SOURCE TESTS`, `BROKEN TEST-SYMBOLS`, `RUN_ID`). `odoo-coding` commits in the child worktree; converge serially into integration and remove the child. Brief template: `references/upg-phase-detail.md` § odoo-coding dispatch brief; field detail: § P4 - Adapt.
-
-**P4b - Code-review loop [cap 3 per module].** Dispatch `odoo-code-review` (Skill tool) per adapted module in dep order, scoped to its adapt diff on `worktree:<path>/upg-integration`; a CRITICAL/HIGH finding goes to `odoo-coding` at the ADAPT tier for a root-cause fix and a re-review; MED/LOW wait for P7; a third round still CRITICAL/HIGH is `BLOCKED`. Never review or fix inline. Write `<module>: reviewed` in `checkpoint.json`. A `next: odoo-acceptance` a review emits is not acted on per module - P5.8 covers the cluster once. Loop protocol: `references/upg-phase-detail.md` § P4b.
-
-**P5 - Install + test gate [ephemeral instance, one dependency level at a time].** Dispatch `odoo-instance` (Skill tool) once, then per dependency level (leaves first) init that level's modules and run its tests with `GATE_ROLE: node-verify` - an automation-test build whose demo shape is the row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE, and whose framework-validation classes `odoo-instance-ops` unions in. A red level goes to `odoo-backend-debugger` or `odoo-ui-debugger` for the root cause, back to P4 for that module, and P5 resumes from the failing level per `checkpoint.json`. Output `install-test.md`. Cross-ref `references/runbot-parity-checklist.md`.
-
-**P5 instance release [MANDATORY].** Once every level is green, release the P5 lease (`lease_release` with the cached token and `run_id`; `lease_park` only for a named later step) before P5.7 - never between levels (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
-
-**P5.7 - i18n reconcile [MANDATORY for every surviving module, narrow escape only].** Invoke `odoo-i18n` against a fresh instance with the existing `.po` loaded, with `HAND_ON: odoo-doc-illustration` when the P3 plan's `Docs:` line is not `none` (re-export, git-ops diff-review of every loss, translate the empty `msgstr` per `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`, reload); an escape is one of `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`, recorded in `install-test.md`.
-
-**P5.8 - Acceptance [MANDATORY, cluster-wide, narrow escape only].** Compute the verify scope with `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (`changed_set` = every surviving module; the reverse closure from `graph.md`) and invoke `odoo-acceptance` ONCE for the cluster: `INPUTS` = the changed set, `scope_hint` = `graph.md` + `absorption/*.md`, `odoo_version` = target, `INSTANCE_HANDLE: none provisioned`, `ACCEPTANCE` by pointer to each module's `absorption/<module>.md` behaviour and any P2b design §9 - never the implementation. Skip only when `graph.md` proves a true leaf with no dependents and no behavioural surface, recorded in `install-test.md`. The upgrade is not DONE without ACCEPTED or that recorded escape; the verdict is presented with the P6 sign-off. Output `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. Detail: `references/upg-phase-detail.md` § P5, P5.7 and P5.8.
-
-**P6 - Gate [STOP, human sign-off].**
-Present `plan.md` + `absorption/*` summaries + `install-test.md` (including the list of
-DELETED-absorbed modules + their reasons) + the P5.8 acceptance verdict (or its recorded
-narrow-escape) and ask, as a text question, `approve / skip / cancel`. Wait for
-`approve` before the PR; `skip` ends the run with the branch unpushed.
-
-**P7 - Final review + PR [human merge].** In the order of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail: the Runbot parity gates (`references/runbot-parity-checklist.md`); the convention pass (manifest version form, always-invisible XML comment, `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`); the two-class gate - the PR is not opened while (a) an `upgraded` module still carries a `migrations/` directory, (b) any module's manifest `version` changed other than by dropping a series prefix, or a migration script was added, or (c) any file under a `migrations/<older series>.*/` directory is modified; a perf-lens pass; the i18n pass (P5.7 ran or each skip is a recorded escape); then the final dep-order review of the integration worktree through the review capability, its CRITICAL/HIGH fixed; ONLY then push and open the PR through `git-toolkit:git-ops` (§ Git / PR conventions). Checklist detail: `references/upg-phase-detail.md` § P7 - Final review + PR.
-
-After the PR exists, only PR-OBSERVING work (CI-failure triage, the human merge) and the closing docs below remain. Wait for human merge.
-
-With the PR presented, document the upgraded user-visible features for the target the P3 plan
-approved, per `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` (the i18n build handed on at
-P5.7 is the capture instance, released after the last docs step; a module still
-`installable: False` at the target keeps the docs it had).
+The upgrade is a CODE upgrade: Hard rule 4 and ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0. A database upgrade between series needs a dedicated upgrade tool and repository; not this plugin - never raise, plan or offer it. Human sign-off before the PR merges.
 
 ## Hard rules
 
-1. **Principal-checkout-lock.** NEVER check out or switch the principal (main)
-   checkout off its branch. Materialize any needed branch through `git-toolkit:git-ops` (add a worktree).
-2. **Plan Mode before any delete or code write.** No directory removal, no code changes, no
-   worktree branch until P4 post-gate (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`).
-3. **No cluster-squash; per-module consolidation allowed** (`references/upg-phase-detail.md`
-   § Commit consolidation, via `git-toolkit:git-ops`). Commit message formats: § Git / PR conventions.
-4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
-5. **Code upgrade only (Convention 0), two module classes.** This skill NEVER writes a migration
-   script, never bumps a `version`, never touches an existing database and never raises existing
-   data. Every module the PR touches is classified at P0 and shown at P3:
-   - **upgraded** - `installable` False at `<work-base>`, True after the PR: its `migrations/`
-     directory is deleted;
-   - **already installable** - `installable` True at `<work-base>` (an absent key counts as
-     True) and changed in the same PR: its existing `migrations/` directories are never edited.
-   Convention 0 settles every question about existing data, so none is asked
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md` § 2).
-6. **DELETE-absorbed = delegated directory removal + dep cleanup + commit message, with two mandatory gates.**
-   A module wholly absorbed by core is removed entirely, not set to `installable: False`.
-   The commit message carries the reason (which core feature replaces it). No directory removal is
-   permitted without: (a) signal #5 behavioral-equivalence proof recorded in
-   `absorption/<module>.md` (all overrides enumerated + each proved equivalent or no-op);
-   AND (b) an explicit per-DELETE human acknowledgment at P3, SEPARATE from the overall plan approval:
-   each DELETE row requires its own confirm.
-   For OBSOLETE verdict (module is moot at target, not absorbed by a named feature): the
-   commit request's business outcome states the module is obsolete at `<tgt>` (`<reason>`) -
-   do NOT invent a fake `absorbing_core_feature`.
-7. **Acceptance is mandatory (narrow escape only):** P5.8. The upgrade is not DONE without an
-   ACCEPTED verdict or a recorded narrow-escape.
-8. **i18n reconcile is mandatory (narrow escape only):** P5.7, for EVERY surviving module. The
-   upgrade is not DONE without a per-module i18n result or a recorded escape.
+1. **Principal-checkout-lock.** NEVER check out or switch the principal checkout off its branch; materialize any branch through `git-toolkit:git-ops` (add a worktree).
+2. **Plan Mode before any delete or code write** (${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md).
+3. **ONE PR per cluster**, reviewed in dep order. No cluster-squash; per-module consolidation to one commit IS allowed (`references/upg-phase-detail-p4-p7.md` § Commit consolidation).
+4. **Code upgrade only (Convention 0), two module classes.** This skill NEVER writes a migration script, never bumps a `version`, never touches an existing database and never raises existing data. Every module the PR touches is classified at P0 and shown at P3:
+   - **upgraded** - `installable` False at `<work-base>`, True after the PR: its `migrations/` directory is deleted;
+   - **already installable** - `installable` True at `<work-base>` (an absent key counts as True) and changed in the same PR: its existing `migrations/` directories are never edited.
+   Convention 0 settles every question about existing data, so none is asked (${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md § 2).
+5. **DELETE-absorbed** = directory removal + dep cleanup, never `installable: False`; the commit message names the replacing core feature. Gates: (a) the signal #5 behavioral-equivalence proof in `absorption/<module>.md`; (b) a per-DELETE human acknowledgment at P3, SEPARATE from the plan approval. OBSOLETE: state that the module is obsolete at `<tgt>`; never invent an `absorbing_core_feature`.
+6. **Acceptance (P5.8) and i18n reconcile (P5.7, every surviving module) are mandatory**, narrow escape only; not DONE without the ACCEPTED verdict / per-module i18n result or a recorded escape.
+
+## Out of Scope
+
+| Situation | Route to |
+|---|---|
+| Transport ONE commit across majors | `odoo-forward-port` (same-series replay: `odoo-git-rebase`) |
+| Rebase a branch, SAME series | `odoo-git-rebase` |
+| Risk + deprecation + diff PLAN only | `/odoo-plan-upgrade` (writes no code) |
+| Scan deprecated symbols / diff two versions' APIs only | `odoo-deprecation-audit` / `odoo-version-diff` |
+| Fresh upgrade-safe code, no module to carry | `odoo-coding` |
+
+A module/cluster major upgrade routes HERE, not to bare git-ops: invoke `git-ops` (Skill tool) for each git step. The prompt is free text passed through; optional hints go to the P0 subagent; ask the user only its `open_questions`.
+
+## The pipeline
+
+Artifacts: `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/`; the symbols `<cluster>`, `<path>`, `<work-base>` and the artifact paths: `references/upg-phase-detail.md` § Symbols, § Artifact paths. Saga/rollback: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md. Phase detail: P0-P3 in `references/upg-phase-detail.md`, P4-P7 in `references/upg-phase-detail-p4-p7.md`, each under its `§ P<n>` section. Compose every dispatch from ${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md § Universal skeleton (read it by path) plus the agent's family delta.
+
+**Sequence invariant.** `recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`. NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder` dispatch before the Plan Mode gate; a design doc is produced BEFORE the gate.
+
+**Orphan sweep (every run, BEFORE P0).** `find <ISOLATE_DIR>/modules-upgrade/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md § Clause 3).
+
+- **P0 Intake [STOP if `open_questions` non-empty]:** one intake subagent (haiku) -> `intake.md`; classify every module per Hard rule 4; present the candidate list and the proposed cluster, ask, resume at P1. `references/upg-phase-detail.md` § P0.
+- **P1 Recon [4 parallel]:** DAG, `odoo-deprecation-audit`, `odoo-version-diff`, Transitive Symbol Survey -> `graph.md`, `deprecation.md`, `version-delta.md`, `transitive-symbol-survey.md`; a DAG cycle is a `concerns:` entry the user breaks. § P1.
+- **P2 Core-absorption comparison [per module, dep order]:** `odoo-diff-comparator` + `odoo-gap-analysis` -> `absorption/<module>.md` with the verdict and DUE / DEFERRED / UNANCHORED deferred work. § P2.
+- **P2b Hard-call design [route-out on the comparator's `verdict:`]:** `MERGE`, `SPLIT`, `RECONCILE`, `MIXED`, a field-type `REWRITE(model)`, `DELETE-absorbed (with risk)`, a surface-changing or >5-call-site `REWRITE(api)` and a non-trivial `KEEP (with adaptation)` go to `odoo-solution-design` before P3; emit the Continuation Contract and YIELD, record `design_doc` on re-entry. § P2b.
+- **P3 Plan gate [Plan Mode]:** the human approves the table + order BEFORE any code or deletion (${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md § One Plan-Mode gate per request); `Class` column, per-DELETE questions "Delete <module>? (approve / skip / cancel)", per surviving module its DUE deferred-work count and every UNANCHORED marker listed, one `Docs:` line; then write `plan.md`. § P3.
+- **P4 Adapt [per module, dep order]:** `odoo-coding` (Skill tool, never a raw coder) at the ADAPT tier of `references/upg-triage-table.md` in a child worktree off the integration worktree (n >= 2 modules; a single module dispatches into the integration worktree); DELETE/OBSOLETE modules are removed through `git-toolkit:git-ops`. § P4.
+- **P4b Review loop [cap 3 per module]:** `odoo-code-review` per module; a clean review writes `<module>: reviewed`; CRITICAL/HIGH fixed by `odoo-coding` at the module's ADAPT tier, then re-reviewed; MED/LOW are recorded in the module's row and wait for P7; a third failing round is `BLOCKED`; never review or fix inline. Proceed to P5 ONLY when every adapted module is `reviewed` clean. § P4b.
+- **P5 Install + test gate [one dependency level at a time]:** `odoo-instance` once, `GATE_ROLE: node-verify` per level -> `install-test.md`; then release the P5 lease (`lease_release`, `lease_park` only for a named later step) before P5.7, never between levels (${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md T1). § P5.
+- **P5.7 i18n reconcile [MANDATORY]:** `odoo-i18n` on a fresh instance with the existing `.po` loaded, with `HAND_ON: odoo-doc-illustration` when the P3 `Docs:` line is not `none`; escapes per ${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md. § P5.7.
+- **P5.8 Acceptance [MANDATORY, cluster-wide]:** `odoo-acceptance` ONCE, scope per ${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md; skip only for a true leaf, recorded in `install-test.md`. § P5.
+- **P6 Gate [STOP]:** present `plan.md`, `absorption/*` (with each module's `vendor_api_checked:` line and every UNANCHORED deferred-work marker), `install-test.md` and the P5.8 verdict; ask `approve / skip / cancel`; `skip` ends the run unpushed.
+- **P7 - Final review + PR [human merge]:** in the order of ${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md § Default tail - the Runbot parity gates, the convention pass (${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md), the two-class gate: the PR is not opened while (a) an `upgraded` module still carries a `migrations/` directory, (b) any module's manifest `version` changed other than by dropping a series prefix, or a migration script was added, or (c) any file under a `migrations/<older series>.*/` directory is modified; then the perf and i18n passes and the final dep-order review with its CRITICAL/HIGH fixed; ONLY then push and open the PR through `git-toolkit:git-ops`. § P7.
+
+After the PR exists, only PR-OBSERVING work and the closing docs remain: document the upgraded user-visible features per ${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md (the P5.7 build is the capture instance, released after the last docs step).
 
 ## Checkpoint / resume
 
-`<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json` maps each module to `pending | absorbed | designed | adapted | reviewed | installed | done`, written after each phase; on restart each phase skips the modules at or past its threshold (P2 past `absorbed`, P4 past `adapted`, P4b past `reviewed`, P5 past `installed` per dependency level). Schema and skip table: `references/upg-phase-detail.md` § Checkpoint / resume.
-
-## Cluster / dependency handling
-
-- DAG built ONCE in P1 by a subagent; you only topo-sort it.
-- P2->P4 run per module in dep order (leaves first).
-- P5 installs bottom-up ONE DEPENDENCY LEVEL AT A TIME (leaves first), recording per-level green.
+`checkpoint.json` (in the artifact dir) maps each module to `pending | absorbed | designed | adapted | reviewed | installed | done`, written after each phase; on restart each phase skips modules at or past its threshold (P2 past `absorbed`, P4 past `adapted`, P4b past `reviewed`, P5 past `installed` per dependency level). Schema and skip table: `references/upg-phase-detail-p4-p7.md` § Checkpoint / resume.
 
 ## Git / PR conventions
 
-Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
-
-- Branch: `upg/<src>-<tgt>-<cluster>` (e.g. `upg/<src>-<tgt>-l10n_vn`).
-- Integration worktree: invoke `git-toolkit:git-ops` to add a worktree (branch
-  `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
-- Commit messages: request the commit via `git-toolkit:git-ops` - the files touched, the business
-  outcome (which module moved from which series to which, and what action was taken: KEEP,
-  REWRITE, MERGE, SPLIT, or delete-absorbed/delete-obsolete with the reason), and `WORKTREE_PATH`.
-  Do not compose or prescribe the message; the proposed tag is the series-upgrade tag
-  (`upg-conventions.md` § Convention 0).
-- Push to fork: invoke `git-toolkit:git-ops` to push branch `upg/<src>-<tgt>-<cluster>` to the fork
-  remote (resolve the fork remote from the `remotes` of a `repo_facts` call, or a dedicated fork remote).
-- PR: invoke `git-toolkit:git-ops` to create the PR (resolve upstream org/repo from the `origin_url` of a
-  `repo_facts` call).
+${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md; all through `git-toolkit:git-ops`: branch `upg/<src>-<tgt>-<cluster>`; integration worktree `<path>/upg-integration`, base `<work-base>`; a commit request names the files, the business outcome and `WORKTREE_PATH`, never a composed message (tag: `upg-conventions.md` § Convention 0); push to the fork remote (from `remotes` of a `repo_facts` call); PR against the upstream from its `origin_url`.
 
 ## MCP tools
 
@@ -231,21 +98,8 @@ Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, P0 intake derives
-series from the branch name + reads manifest files directly (no OSM needed). P1 recon
-reads each descriptor's `depends` from disk (BOTH names) for the DAG; `odoo-deprecation-audit` and
-`odoo-version-diff` each have their own standalone fallback (disk-fallback-protocol).
-P2 comparator falls back to disk reads of the source module + the target checkout per
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Label all artifacts
-`grounded: local-source - not OSM-indexed`. The install+test gate (P5) is unaffected.
+OSM unreachable: P0 and P1 read branch name, manifests and `depends` (BOTH descriptor names) from disk; other skills and the P2 comparator use ${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md. Label artifacts `grounded: local-source - not OSM-indexed`.
 
 ## Continuation Contract
 
-When the run finishes (or pauses at a gate), append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
-`produced` lists `intake.md`, `graph.md`, `deprecation.md`, `version-delta.md`,
-`transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
-`<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR URL.
-When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
-Contract payload and the run YIELDS. Fold P4b findings into the module rows of `install-test.md`.
-Both review points (P4b per module, P7 final dep-order review) are required.
+At the end or a gate, append a Continuation Contract block per ${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md (status / produced / next); `produced` lists the phase artifacts, `plan.md`, `checkpoint.json` and the PR URL. When P2b routes a module out, `next: odoo-solution-design` and the run YIELDS. Fold P4b findings into `install-test.md`. Both review points (P4b per module, P7 final) are required.

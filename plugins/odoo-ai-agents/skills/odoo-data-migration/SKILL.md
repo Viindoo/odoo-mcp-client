@@ -8,9 +8,10 @@ model: inherit
 
 ## Role
 
-Developer / Data Engineer - writes safe, idempotent module migration scripts for a change within one Odoo series. Prioritizes
-data integrity above all else: parameterized SQL only, explicit transaction boundaries,
-verifiable row counts, and a rollback note in every output.
+Front door for the module migration script of a change within ONE Odoo series: it resolves the
+scope, launches `odoo-coder` in `MODE: migration` to write the version bump and the script and
+prove them, has `odoo-code-reviewer` (`MODE: R1`) review that diff, and returns. It writes no code
+itself.
 
 ---
 
@@ -26,14 +27,9 @@ verifiable row counts, and a rollback note in every output.
 | Backend model/field creation (no migration needed) | `odoo-coding` |
 | Executive risk overview | `odoo-risk-overview` |
 
-**IMPORTANT - execution boundary.** This skill WRITES the migration script. It does NOT
-execute the migration against any live database. Running the migration is a separate,
-human-gated step that belongs in the deploy pipeline (see
-`docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics); when it is run via
-`odoo-bin -u <module>`, the
-interpreter is resolved per `snippets/venv-resolution.md` (the matching instance's `python`
-field), not system `python3`. Never claim or imply that invoking this skill migrates any real
-data.
+**Execution boundary.** The script is proven on a scratch database only. Running it on a real
+database is a separate, human-gated deploy step (`docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs
+`-u` semantics); never claim or imply that this skill migrated real data.
 
 ---
 
@@ -66,138 +62,54 @@ data.
 Scope: the module migration script of a change within ONE series - the data of the module's own
 change, nothing else. It is never a step of a code upgrade
 (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0) and never executes a
-migration. A database upgrade between series needs a dedicated upgrade tool and repository; not
-this plugin - never offer it.
+migration on a real database. A database upgrade between series needs a dedicated upgrade tool
+and repository; not this plugin - never offer it.
 
 **Under a plan** (an active `run-<id>`, a `WORKTREE_PATH` or plan-provided `inputs`) this skill
-runs only as the plan's `migration` node; invoked from any other node it writes nothing and
+runs only as the plan's `migration` node; invoked from any other node it launches nothing and
 returns `BLOCKED(only the migration node bumps or writes migrations)`.
 
-**Precondition (timing and gate: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
-§ 5).** Write a script only when the module was `installable` True before the change and stays True,
-the development loops are done, and a fresh install is proven. Otherwise write nothing, and say
-which condition failed.
-
-A migration script is needed when the change alters data existing databases hold: field rename, field type change, model split/merge, data backfill (new stored/required field), module data transform (XML records, ir.config_parameter, many2many tags), or column drop with preservation. This step owns the module's one version bump in the PR.
-
----
+**Precondition** (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 5): a
+module that was `installable` True before the change and stays True, whose change alters data
+existing databases hold, after the development loops and a proven fresh install. Otherwise launch
+nothing and say which condition failed.
 
 ## Method
 
-**`WORKTREE_PATH` is required whenever this skill writes a script.** The migration file is
-git-tracked, so per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 the write happens in
-a dedicated worktree - never the principal checkout. A caller (forward-port, modules-upgrade, a
-plan node) passes `WORKTREE_PATH:`; resolve `<module>` under it, never under your own cwd.
-Invoked with no `WORKTREE_PATH` and no worktree already in scope -> provision one via
-`git-toolkit:git-ops` before Round 3, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+1. **Resolve.** Series and profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`;
+   `SHARE_DIR`, `ISOLATE_DIR` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
+   `WORKTREE_PATH` is required (the plan's `run-integration`, else one provisioned through
+   `git-toolkit:git-ops`, never the principal checkout). Collect the modules that meet the
+   precondition and every data note the run's nodes left for them in the worklog.
+2. **Design gate (standalone only).** A model split or merge, a backfill with more than one viable
+   mapping, or a pre/post split that is a real decision, with no approved design: the
+   Continuation Contract carries `next: odoo-solution-design` (below) and nothing is launched.
+3. **Launch** ONE `odoo-coder` (model `sonnet`) with `MODE: migration`, `MODULES` (those modules),
+   `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID`, `WORKLOG`,
+   `DESIGN_DOC`, and `REQUEST` = the data each module's change moves. The coder follows
+   `references/writing-the-script.md`: the version read and computed (the new version is the
+   smallest step; an existing bump of this PR is reused - extend its existing
+   `migrations/<series>.<version>/` folder instead of adding a second one), `migration_gate.py
+   check`, and a real upgrade within the series that reads the moved data back.
+4. **Review.** Launch `odoo-code-reviewer` `MODE: R1` (model `haiku`) on the coder's commit range;
+   a CRITICAL or HIGH finding goes back to the same coder with SendMessage, then to the same
+   reviewer, at most twice.
+5. **Return** the commit range, `MIGRATION_GATE=` and the upgrade proof per module, and the
+   verification checklist of `references/output-templates.md`.
 
-### Round 0 - Resolve project facts + pin the OSM session
-
-**Round 0 - resolve project facts + pin the OSM session.** Resolve series, profile, and module
-scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then `set_active_version` /
-`set_active_profile` with the resolved values (parallel if both are available). Migration history
-is a request or brief input. Resolve `<SHARE_DIR>` once here too, per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, and substitute the captured absolute path
-into every later state-root Read/Write/Edit - never the placeholder or a bare `.odoo-ai/`.
-
-### Round 1 - Confirm migration type and inspect models (parallel)
-
-> **Design-gate (non-trivial migrations).** A model split/merge, a backfill/transform with more
-> than one viable mapping, or a migration where the pre/post split is itself a real decision is a
-> DESIGN choice. When no approved design doc exists (`<SHARE_DIR>/designs/<slug>-*.md` or a
-> `design_doc` input), recommend `odoo-solution-design` first as an **in-block `next:` entry**
-> (§ Continuation Contract below).
-> A straight field rename / type change goes directly to script-writing below.
->
-> **Master-child mode (index-aware):** If the design lives in a master-child subdir, resolve
-> the per-module child path from `index.yaml` (`modules[].child_path` for the module being
-> migrated) as `DESIGN_DOC`; the master TDD (`MASTER_DESIGN_DOC`) carries hard constraints
-> only. Single mode (flat `<SHARE_DIR>/designs/<slug>-*.md`): unchanged. Full contract:
-> `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
-
-Confirm: (1) migration type, (2) source/target field/model names, (3) module name, (4) timing (pre-migrate / post-migrate / both), (5) every data note the earlier nodes left in the worklog for this module - one script per stage covers them all.
-
-**The version, read and computed, never chosen.** Read the module's `version` at the PR base and in
-the worktree. Unchanged -> the new version is the smallest step (the last component +1). Already
-bumped in this PR by the smallest step -> reuse it and extend its existing
-`migrations/<series>.<version>/` folder instead of adding a second one. Bumped any other way ->
-`BLOCKED` naming the module and both versions.
-
-Simultaneously call (parallel):
-
-```
-model_inspect(model=<source_model>, method='fields', odoo_version='<version>')
-model_inspect(model=<target_model>, method='fields', odoo_version='<version>')   # if model changes
-entity_lookup(kind='field', model=<source_model>, field=<source_field>, odoo_version='<version>')
-api_version_diff(symbol=<model_or_field>, from_version=<source_v>, to_version=<target_v>)
-```
-
-Use results to confirm actual column name (stored fields only), real field types, and whether Odoo core already handles this change in the target version.
-
-### Round 2 - Validate relations and helpers (parallel)
-
-For relational fields, call `validate_relation` for each; confirm every ORM or `tools.sql` helper you call with `lookup_core_api` on the series. Fire all calls in parallel.
-
-### Round 3 - Write the script(s)
-
-Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` is the FULL version with the series prefix (`<series>.<new descriptor version>`), so the script runs on that series only, while the descriptor itself keeps the short form; the short form as a folder name runs the script on every series the module ships on and is written only when the SRS asks for that (`migration_gate.py check --allow-short <module>`). The folder equals the one bump this change makes to that descriptor (the filename per series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6; the Tier-2 glob below returns whichever the module has - read that path, never a re-guessed filename).
-
-Set that descriptor's `version` to the new version in the same pass (the module's one bump), then prove the whole PR with `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/migration_gate.py check` (base tree = the PR's merge base; `--help` states every rule): `MIGRATION_GATE=FAIL` is fixed before you return.
-
-Script rules and code templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/script-rules.md`
-
-Output template (script file + verification checklist): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/output-templates.md`
-
-### Round 4 - Produce the verification checklist
-
-Append verification checklist to the chat response after writing the file(s). See template in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/output-templates.md`.
-
----
-
-## Standalone-first fallback
-
-When OSM is unreachable, follow the three-tier grounding in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-
-- **Tier 2 - Disk:** Locate the module by globbing BOTH descriptor filenames -
-  `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)`. Read
-  `models/*.py` with `grep -n "class \|_name\|_inherit\|= fields\." models/*.py`
-  to discover real field names and types. Read any existing `migrations/` directory for
-  prior patterns. The series comes from
-  `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, never from a raw manifest read.
-- **Tier 2 - Column check fallback:** When OSM cannot confirm a column name, add a comment
-  in the script: `# VERIFY: confirm column name against live schema with \`\d <table>\` before running`.
-- **Caveat:** Label output `grounded: local-source - not OSM-indexed`.
-- Escalate to the caller (`NEEDS_CONTEXT`) only for business decisions (e.g. what the
-  default backfill value should be) that no source file encodes.
-
----
-
-## Examples
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/examples.md` for three worked examples: field rename, data backfill for a new stored computed field, and Selection-to-Many2one type change.
-
----
+Examples: `references/examples.md`.
 
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive plan-runner output, changes nothing above.
+(status / produced / next).
 
-**Design-first entry (STANDALONE invocations only - an in-block entry).** When
-Round 1's Design-gate fired (a non-trivial migration with no approved design doc), carry that
-recommendation as an entry in the SAME fenced block's `next:` array: `skill:
-odoo-solution-design`, `reason: <which of the three design choices is open>`, `inputs:
-{odoo_version: <the resolved version>, module: <module>}`, `confidence: 0.4` - advisory, so it never
-blocks your own `status`. `next:` is a LIST, so this rides alongside any other entry
-(`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules).
-
-**Omit this entry entirely when a plan signal is in scope** - an active `run-<id>`, a
-`WORKTREE_PATH`, or plan-provided `inputs` (the three signals in
-`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Approved-plan-artifact detection),
-which includes arriving through the § Migration carve-out (there a design already exists, so the
-gate cannot fire). Under a plan, a missing design is PLAN DRIFT and never a next step: STOP and
-route back to `odoo-planning` to amend the plan (that snippet's § Execution adherence). Design must
-never follow the plan it was supposed to precede, and the runner never launches a design node
+**Design-first entry (standalone only).** When step 2 fired, the block's `next:` carries `skill:
+odoo-solution-design`, `reason: <the open design choice>`, `inputs: {odoo_version, module}`,
+`confidence: 0.4`. Under a plan (any of the three signals of
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Approved-plan-artifact detection) a
+missing design is plan drift: STOP and route back to `odoo-planning`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Execution adherence); the runner
+never launches a design node
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan,
 invariants).

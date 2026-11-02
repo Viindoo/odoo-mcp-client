@@ -160,7 +160,7 @@ adapted worktree.
    (install + test in one pass; the lease only reserves the DB name/ports). Memory-cap is applied
    inside `odoo-instance-ops` (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). The
    concrete dispatch brief with the `WORKTREE_PATH` re-root:
-   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-detail.md` P9.
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-p9-p12.md` § P9.
 3. For a re-verify after a fix inside the SAME batch, or a SUBSEQUENT batch touching only a
    subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE`, `mode: reuse`
    (`-u` semantics) and `GATE_ROLE: node-verify` on the changed modules only.
@@ -239,7 +239,7 @@ The integration worktree branches from the TARGET branch; no direct commit lands
 branch during forward-port and integration never fast-forwards into it (target-branch-lock,
 `odoo-forward-port` Hard rule 1). Adapt work happens DIRECTLY in that integration worktree - the single
 open merge window spans the whole range, so no per-module child worktree exists (derivation:
-`odoo-forward-port` § Git topology). Only after P10 concludes the merge and P11 acceptance and
+`odoo-forward-port` Hard rule 1). Only after P10 concludes the merge and P11 acceptance and
 P12 PR review clear does the human merge the PR; the only thing that lands on the target branch
 is that human-confirmed PR merge.
 

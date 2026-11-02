@@ -170,6 +170,20 @@ fi
 # ---------------------------------------------------------------------------
 if [ "${_added}" -eq 1 ]; then
   _ctx="$(cat "${P}")"
+  # Output bound: the harness replaces a hook output over 10,000 characters by a file path and a
+  # 2,000-character preview. A longer file is bridged as its title, its principle headings, its
+  # closing summary and the path to read in full; the @import loads the whole file from the next
+  # session on.
+  if [ "${#_ctx}" -gt 8000 ]; then
+    _ctx="$(
+      sed -n '1p' "${P}"
+      printf '\n'
+      grep -E '^## ' "${P}"
+      printf '\n'
+      grep -E '^> ' "${P}"
+      printf '\nThis is the outline of the principles, which bind every non-trivial task of this session. Read the full text now: %s\n' "${P}"
+    )"
+  fi
   if command -v jq >/dev/null 2>&1; then
     jq -cn --arg ctx "${_ctx}" \
       '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'

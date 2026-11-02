@@ -49,7 +49,7 @@ Per `[[instance]]`, add OPTIONAL fields (absent = derive a default; old files st
 
 The venv for each instance is built per-profile via `45-venv.sh create-venv --series <X.Y>
 --profile <name>` and lives under `venvs/<series>-<profile>`. The gate for recording the
-`python` field is `odoo-bin --version` (not `import odoo`) - see AI-4 in `commands/odoo-setup.md`.
+`python` field is `odoo-bin --version` (not `import odoo`) - see AI-4 in `commands/references/odoo-setup/instance-cluster.md`.
 
 Every setup step that records a fact on an EXISTING row (`45-venv.sh`, `46-server-wide.sh`)
 writes through ONE writer, `config_merge.py toml-upsert-instance-keys`: it replaces or inserts

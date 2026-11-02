@@ -34,7 +34,7 @@ above. Four values:
   `run_id`. It is the SAME unique-db/pooled-port lease as `ephemeral`, run as a LIVE, listening
   process: TWO LEGS under ONE lease - `instance_build` installs the module set, then
   `instance_serve` with that lease's token listens on the SAME database. The sequence and its
-  invariants are owned by `agents/odoo-instance-ops.md` operation 1 and are NOT restated here.
+  invariants are owned by `snippets/instance-ops-operations.md` operation 1 and are NOT restated here.
   The lease stays `mode: ephemeral` with `drop_on_release: true`, so `lease_release` DROPS this
   database (and so does gc). That is this value's contract, not a downgrade: the database is a
   throwaway that happens to stay listening. Parking keeps its database, filestore and ports but does

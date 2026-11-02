@@ -2,7 +2,7 @@
 
 **Contents:** Full-stack tasks - `odoo-coding` handles both stacks in one skill - Design-first preference - steer non-trivial coding through `odoo-solution-design` - Scope-first rule - establish scope/effort before designing
 
-Read from `SKILL.md` § Routing Table when Tier 1-2 miss.
+Read from `SKILL.md` § Routing Table and rules after the match when Tier 1-2 miss.
 
 ### Routing Table (Tier 3)
 
