@@ -202,16 +202,18 @@ new view content (Hard rule 7) and cannot produce this shape.
    currently does not extend its parent but CAN be enabled" - a deliberate toggle-off-by-default,
    never a candidate to merge away.
 4. V carries no group restriction, checked BOTH ways a restriction can be expressed: (a) V's own
-   `groups_id` field is empty - and structurally almost always is, because Odoo's own
+   group field (`groups_id`, or `group_ids` where `ir.ui.view` has no `groups_id`; resolve it with
+   `model_inspect(model='ir.ui.view', method='fields', name_filter='group', odoo_version='<target>')`)
+   is empty - and structurally almost always is, because Odoo's own
    `ir.ui.view._check_groups` ORM constraint (`base` module, `ir_ui_view.py`) RAISES a
-   `ValidationError` the moment `groups_id` is set on a view that has `inherit_id` with
+   `ValidationError` the moment that field is set on a view that has `inherit_id` with
    `mode != "primary"`, so a well-formed `mode="extension"` child can never legally carry a
-   record-level `groups_id` in the first place; AND (b) no `groups="<module>.<xml_id>"` XML
+   record-level group field in the first place; AND (b) no `groups="<module>.<xml_id>"` XML
    ATTRIBUTE appears on the xpath-inserted content inside V's own arch - this arch-level attribute
    (confirmed in core, e.g. `res.groups._update_user_groups_view` builds
    `E.separator(..., groups='base.group_no_one')`) is the ACTUAL mechanism an extension-mode child
    uses for conditional visibility, since (a) is unavailable to it. Do not check only (a) - a check
-   that only looks at `groups_id` will never fire on a real extension-mode conditional child, since
+   that only looks at the group field will never fire on a real extension-mode conditional child, since
    (a) is always empty for one by construction.
 5. V's `priority` is either the Odoo default, OR non-default but INERT for this base. Ground with
    `entity_lookup(kind='view', xmlid='<xml_id of B>', odoo_version='<target>')` and read its

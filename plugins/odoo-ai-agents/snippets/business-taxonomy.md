@@ -23,7 +23,7 @@ not in the table is `UNKNOWN`; the main agent decides and the taxonomy gains a r
 | `Accounting/Localizations/...`, any module named `l10n_*` | `localization` | accountant of that country |
 | `Sales`, `Sales/Sales`, `Sales/CRM` | `sales` | salesperson, sales manager |
 | `Sales/Point of Sale` | `point-of-sale` | cashier, shop manager |
-| `Inventory/Inventory` | `inventory` | warehouse operator, inventory manager |
+| `Inventory` (any refinement except Purchase), `Operations/Inventory`, `Marketplace/Inventory`, `Warehouse`, `Warehouse Management` | `inventory` | warehouse operator, inventory manager |
 | `Inventory/Purchase` | `purchase` | purchaser, purchase manager |
 | `Manufacturing` | `manufacturing` | production planner, shop-floor operator |
 | `Human Resources` (any refinement except Payroll) | `human-resources` | HR officer, employee, manager |

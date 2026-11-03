@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The access-groups snippet no longer mandates `category_id` on every group: it first resolves
+  which group model the target series uses, keeps the category rules for the series that have it,
+  and describes the privilege model (`res.groups.privilege` through `privilege_id`, privilege-less
+  groups as independent "Extra Rights" checkboxes, the renamed `user_ids` and `all_implied_ids`)
+  so a module written for it installs.
+- The code reviewer, the security audit and the coding-guidelines index no longer say every
+  `res.groups` carries `category_id`; they point at the access-groups snippet, which resolves the
+  group model of the target series.
+- The access-groups snippet and the forward-port view-group check name the group-link field by the
+  series (`groups_id` or `group_ids` on `res.users`, `ir.ui.view`, `ir.ui.menu`) instead of
+  assuming one.
+- The business taxonomy maps the manifest categories `Inventory` (any refinement except Purchase),
+  `Operations/Inventory`, `Marketplace/Inventory`, `Warehouse` and `Warehouse Management` to the
+  `inventory` function instead of leaving them `UNKNOWN`.
+
 ## [8.5.0] - 2026-11-02
 
 ### Added

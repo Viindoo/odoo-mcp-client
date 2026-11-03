@@ -12,7 +12,7 @@
     "skills/_shared/odoo-module-graph.md": 6362,
     "snippets/acceptance-oracle-contract.md": 7445,
     "snippets/acceptance-scope.md": 5336,
-    "snippets/access-groups-conventions.md": 4139,
+    "snippets/access-groups-conventions.md": 7467,
     "snippets/context-handoff-protocol.md": 10210,
     "snippets/disk-fallback-protocol.md": 5807,
     "snippets/execution-tasklist-contract.md": 3752,
@@ -50,7 +50,7 @@
     "skills/_shared/regression-scope.md": 5294,
     "snippets/test-scope-contract.md": 5685,
     "snippets/test-sensitivity-contract.md": 8995,
-    "snippets/business-taxonomy.md": 4794,
+    "snippets/business-taxonomy.md": 4903,
     "snippets/odoo-platform-design-principles.md": 10151,
     "skills/_shared/doc-capture-mechanics.md": 18527,
     "snippets/code-comment-contract.md": 5574

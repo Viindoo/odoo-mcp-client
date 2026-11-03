@@ -78,7 +78,7 @@ map to load only the snippets that apply to your task.
 
 | Snippet | Read when | Scope |
 |---|---|---|
-| `access-groups-conventions.md` | Adding/editing `res.groups` for an application (category_id derivation, implied_ids ladder) | CORE - all distributions |
+| `access-groups-conventions.md` | Adding/editing `res.groups` for an application (group model of the series, category_id derivation, implied_ids ladder) | CORE - all distributions |
 | `field-presence-resolution.md` | Writing or reviewing any field/method access | CORE - all distributions |
 | `xml-view-conventions.md` | Writing/reviewing XML views in v18+ (`<chatter/>`, `<list>`) | CORE - all distributions |
 | `odoo-version-pivots.md` | Any cross-version upgrade, or code touching a version-sensitive API | CORE - all distributions |
