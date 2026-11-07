@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   websocket accepted while Odoo shuts down holds the process open, so a run still alive 60 s
   after Odoo's shutdown line is stopped and judged from its log; a failed test stays failed
   (#307).
+- The pre-PR lint gate gives the same verdict for the same evidence: a lint module's tests are
+  proven to have run by the runner's start line with no skip (the checkers log no count), only
+  an explicit shortfall holds the gate, and Odoo's "unknown option" warning for a scoping key
+  the gate passed itself is no longer counted as a warning (#306).
 
 ## [8.5.0] - 2026-11-02
 

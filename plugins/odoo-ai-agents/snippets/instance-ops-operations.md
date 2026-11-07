@@ -129,12 +129,7 @@ The install set and the tag set MUST derive from the SAME probe - never tag a mo
 
 **Scope adjudication (the agent's Scope transparency rule).** Adjudicate SCOPE from `findings_path`: a failing or erroring test whose module is NOT in `--modules` is OUT OF SCOPE. Whenever one exists, `notes` MUST state that the verdict was decided partly (or, when no in-scope test failed, ENTIRELY) by tests outside the module under verification, naming those modules. The verdict never softens: an out-of-scope failure is still `tests-failed` and BLOCKING. The one exception is a lint-class FINDING about code outside the PR's modules, decided by `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Scope the gate to the PR's modules.
 
-**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - BEFORE trusting any branch above as a pass).** A checker that fails to load inside a lint-class module produces none of the four signals. For every lint-class module this build unioned into the install+tag set (the SAME probe result, never a second probe), read that module's portion of the log (bounded grep of `log_path`) for POSITIVE evidence that its full checker/rule set loaded and ran (a live-log fact of THIS run, never a fixed phrase):
-
-- It states fewer checkers/checks loaded or ran than the module registered or requested (a checker/plugin import failure, a "not loaded"/"skipped loading" statement tied to a checker name, an explicit smaller-than-expected count) -> a CONFIRMED coverage shortfall.
-- It carries NO statement of how many checks/checkers ran, for a module installed and tagged this run -> coverage UNCONFIRMED. Silence is never proof of a clean run.
-
-Either outcome escalates `status` to `tests-inconclusive` REGARDLESS of the counters, even a genuine `0/0/0/0`. Record in `notes` which module's coverage could not be confirmed and why (shortfall vs unconfirmed).
+**Lint coverage (`GATE_ROLE: pre-pr-lint-gate` only - BEFORE trusting any branch above as a pass).** `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Coverage evidence decides it; a shortfall escalates `status` to `tests-inconclusive` regardless of the counters.
 
 ## Step C detail
 

@@ -1,6 +1,5 @@
-<!-- SSOT snippet. The single home for WHICH modules make up the backend lint-class gate, how to
-     select and scope them, and the stale-index false-green trap. Consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md - never restate the module set elsewhere. -->
+<!-- SSOT snippet: the backend lint-class gate's modules, their selection and scoping, and how a
+     run is read. Consumers point here; never restate the module set elsewhere. -->
 
 # Backend lint-class gate - module selection
 
@@ -16,7 +15,7 @@ the resolved addons path, never from memory.
 
 ## Selection - run every step, in order
 
-1. List the candidates above for the target series and addons path.
+1. List the candidates for the target series and addons path.
 2. Confirm each with `check_module_exists(name='<module>', odoo_version='<series>',
    profile_name='<pinned profile>')`; pass `profile_name=` explicitly on every call.
 3. Union each confirmed module into BOTH the `-i`/`-u` install list AND `--test-tags`
@@ -51,11 +50,21 @@ not loaded makes the gate `tests-inconclusive`.
 
 ## A probe is not proof - the index can be stale (HARD RULE)
 
-`check_module_exists` answers from the revision it indexed, so it can report Indexed = Yes for a
-module the addons path no longer ships. That name installs nothing, its tag matches nothing, and the
-run reports a clean pass anyway - a FALSE GREEN on the gate whose job is to catch what review missed.
+`check_module_exists` answers from the revision it indexed, so it can confirm a module the addons
+path no longer ships: that name installs nothing, its tag matches nothing, and the run reports a
+FALSE GREEN. The addons path decides the module; after the run, § Coverage evidence decides whether
+each tagged module really ran.
 
-- The addons path decides the module; the probe only confirms the pinned profile carries it.
-- After the run, confirm from the build log that every tagged lint module INSTALLED and its tests
-  LOADED. A tagged module whose tests never loaded makes the gate `tests-inconclusive`, never a
-  pass - report it as a finding and name the module.
+## Coverage evidence
+
+Read before trusting any pass, for every lint module the build unioned (the same probe result).
+The log of THIS run shows, per module: the module installed, and each of its tests has the
+runner's start line (`Starting <Class>.<method> ...`; on a series whose runner
+logs no per-test line, the module's test-load line) and is not skipped.
+
+A lint test that runs its checker and reports nothing after its start line passed clean: the
+checkers log no count, so that silence is the normal result, never a hold. Only a shortfall makes
+the gate `tests-inconclusive`, whatever the counters say: a module whose tests never loaded, a
+lint test skipped (its tool missing or too old, its scope filtered to nothing), a checker or
+plugin the log says failed to load, a count smaller than requested. `notes` names the module and
+the shortfall.
