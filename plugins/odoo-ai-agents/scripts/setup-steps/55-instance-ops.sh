@@ -1325,6 +1325,22 @@ _open_log() {
     echo "LOG_PATH=$logf"
 }
 
+# _test_warning_lines <logf> - the WARNING log lines of a run that count as
+#   warnings. Odoo warns "unknown option '<key>' in the config file" for every
+#   run-conf key it has no option for; a key this run passed with --conf-option
+#   (arg_conf_options, read by dynamic scope from cmd_test) is the caller's own
+#   setting, so that line is not a finding. The key is matched as a fixed string;
+#   the same warning for any other key, and every other warning, stays.
+_test_warning_lines() {
+    local _logf="$1" _opt _out
+    _out="$(grep -aE '[[:space:]]WARNING[[:space:]]' "$_logf" 2>/dev/null || true)"
+    for _opt in ${arg_conf_options[@]+"${arg_conf_options[@]}"}; do
+        _out="$(printf '%s\n' "$_out" | grep -avF "unknown option '${_opt%%=*}' in the config file" || true)"
+    done
+    [[ -n "$_out" ]] && printf '%s\n' "$_out"
+    return 0
+}
+
 # ---------------------------------------------------------------------------
 # _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT= plus the
 #   TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and a FINDINGS_PATH
@@ -1350,7 +1366,7 @@ _parse_test_result() {
     local n_fail n_error n_warn
     n_fail="$(grep -acE "$_TEST_FAIL_PER_TEST_FAIL_RE" "$logf" 2>/dev/null || true)"
     n_error="$(grep -acE "$_TEST_FAIL_PER_TEST_ERROR_RE" "$logf" 2>/dev/null || true)"
-    n_warn="$(grep -acE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
+    n_warn="$(_test_warning_lines "$logf" | wc -l | tr -d "[:space:]")"
     n_fail="${n_fail:-0}"; n_error="${n_error:-0}"; n_warn="${n_warn:-0}"
     # Whether the log NAMED individual failing tests, kept before the counts can
     # be re-sourced from an aggregate below. The findings file branches on THIS,
@@ -1623,7 +1639,7 @@ _parse_test_result() {
         echo
         echo '```'
         if [[ -n "$mod_regex" ]]; then
-            grep -E '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null \
+            _test_warning_lines "$logf" \
                 | grep -E "$mod_regex" 2>/dev/null | head -n "$warn_cap" || true
         fi
         echo '```'
@@ -1631,7 +1647,7 @@ _parse_test_result() {
         echo "## All warnings (capped at $warn_cap)"
         echo
         echo '```'
-        grep -E '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null | head -n "$warn_cap" || true
+        _test_warning_lines "$logf" | head -n "$warn_cap" || true
         echo '```'
     } >"$findings" 2>/dev/null || true
 
