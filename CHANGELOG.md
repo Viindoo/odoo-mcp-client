@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `build_compare.py` judges a page's per-language images by content: Sphinx renames a second
   image of the same name (`x.vi1.png`), which no longer fails a correct build, and a page that
   shows another page's same-named image now fails (#305).
+- An `instance_build` test run no longer stays busy for an hour after its tests end: a browser
+  websocket accepted while Odoo shuts down holds the process open, so a run still alive 60 s
+  after Odoo's shutdown line is stopped and judged from its log; a failed test stays failed
+  (#307).
 
 ## [8.5.0] - 2026-11-02
 
