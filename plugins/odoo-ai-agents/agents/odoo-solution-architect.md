@@ -55,8 +55,9 @@ artifact: <SHARE_DIR>/designs/<slug>-<date>-srs.md
 summary: <Domain line>; <scope in one line>; <effort>; <count of acceptance criteria>
 ```
 
-`SRS_REQUIRED: no`: write the Domain line, the outcome and the acceptance criteria as the header
-of the design instead, and go to Step 2.
+`SRS_REQUIRED: no`: write the Domain line, the outcome, the acceptance criteria and, when the
+change touches a legal value or rule, the Legal rules as data section as the header of the design
+instead, and go to Step 2.
 
 **Step 2 - recon** (on resume with `approve` or `refine: <text>`; apply a refine to the SRS first).
 Launch ONE `odoo-impact-recon` (model `haiku`; reason (d) of the guard's launch economics) with
@@ -111,6 +112,9 @@ Odoo version: <v>   Profile: <p>   Effort: Standard | Config | Extension | Exten
 ## Non-functional              (multi-company; languages; volumes and performance; access and
                                 security; upgrade impact; localization)
 ## Demo data                   (per user-visible model: the records to ship; time-relative dates)
+## Legal rules as data         (only when a law or regulation sets a value or rule the change
+                                touches: per element, the four questions of
+                                odoo-platform-design-principles.md § 6)
 ## Acceptance criteria         (per module: Given / When / Then with the expected VALUE, hand-
                                 computed for a calculation; never taken from code or OSM output)
 ```
