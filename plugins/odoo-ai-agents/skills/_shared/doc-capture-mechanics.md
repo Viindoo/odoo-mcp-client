@@ -278,9 +278,9 @@ For `odoo-doc-site-writer` (a docs-site page, never a module doc):
 - **Staging.** Sections 3 and 13 do not apply. Stage every shot under the staging root `S` =
   `<ISOLATE_DIR>/visual/<RUN_ID>/site_staging/`, already at its final repo-relative path and name,
   which the writer body states.
-- **Slot.** The slot is the CONTENT WIDTH of the brief. Section 7's slot measurement, `:width:` and
-  module-slot rules do not apply; the viewport is at most 1.25 x CONTENT WIDTH at device pixel
-  ratio 2.
+- **Slot.** The slot is the CONTENT WIDTHS entry of the place the image goes into (body, list
+  item, admonition, table cell). Section 7's slot measurement, `:width:` and module-slot rules do
+  not apply; the viewport is at most 1.25 x that entry at device pixel ratio 2.
 - **Locale.** A locale that fails to load or switch is `BLOCKED` for that page; never reuse another
   language's shots (section 12's locale fallback does not apply).
 - **Company.** Before the first shot of a language, the main company of the capture database
