@@ -27,7 +27,8 @@ Run the gates BEFORE listing the plan or touching any file. They make no changes
 
 **Gate #2 - Host prerequisites.** Only after Gate #1 passes. Skip this gate
 entirely for `permissions` and `runtime` (they only edit config files).
-- Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply` and read the checklist.
+- Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply [--version X.Y] [--profile P]`
+  (the run's own `--version` / `--profile`, when given) and read the checklist.
 - Every REQUIRED item present: continue without asking - the plan lists what was found.
 - A REQUIRED item missing: stop before the plan with the item in the operator's words and the
   fix the checklist prints ("PostgreSQL is not answering on this machine - start it, or tell

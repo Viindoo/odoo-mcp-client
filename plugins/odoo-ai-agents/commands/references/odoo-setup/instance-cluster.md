@@ -68,8 +68,9 @@ For each repo in the confirmed set:
   `python3 "$STEPS_DIR/../lib/fork_facts.py" --summary --repo <path> [--repo <path> ...]` once over
   every matched repo of role `own` and follow **Fork resolution**; an `inherited` repo gets none.
 - **MISSING** → compose and print for the user (the agent does NOT run it) a clone
-  command: git clone with -b BRANCH, --no-single-branch, SSH_URL, into a local
-  directory named `odoo<major>` - where BRANCH and SSH_URL come from OSM at runtime
+  command: git clone with -b BRANCH, --no-single-branch, SSH_URL, into a local directory
+  named the way the matched clones on this machine are named (none to follow:
+  `<repo>_<series>`) - where BRANCH and SSH_URL come from OSM at runtime
   (`<Org>/<repo>` is the runtime placeholder).
   Do **NOT** auto-clone. Print the command and ask the user to run it first, then
   re-run this step - or confirm they want to skip that repo. Fork resolution runs
@@ -99,9 +100,8 @@ orchestrator runs those after CONFIRM #4. **Detect the series by RUNNING Odoo, n
 Candidate venv locations to scan (check in this order):
 - The `python` field in `$ODOO_AI_HOME/instances.toml` for the matching series
   (if already set from a previous run).
-- `venvs/<series>-<profile>` inside the project's Tier-2 SHARE dir
-  (`scripts/lib/resolve_project_dir.sh share`; per-profile venv path
-  written by `45 create-venv`).
+- `$ODOO_AI_HOME/venvs/<series>-<profile>` (host-global; the path `45 create-venv` gives a
+  new instance).
 - Any path the user already named in this session.
 
 Two probes (the subagent only reads / runs `--version`, installs nothing). Try Probe 1 first;
@@ -253,8 +253,9 @@ never once per clone. Read the facts first:
   machine. A `fork owner` line means step 34 has its answer: ask nothing.
 - `60-docs-site`: `propose` prints `FORK_STATUS` for the docs repo and `FORK_KNOWN_OWNERS` when
   another clone on this machine has a pushed fork.
-- AI-3: `fork_facts.py --summary` prints `FORK_KNOWN_OWNERS`, one `FORK_ORIGIN_WITHOUT_FORK` per
-  origin none of whose clones has a pushed fork, and `FORK_QUESTION` only when no owner is known.
+- AI-3: `fork_facts.py --summary` prints `FORK_KNOWN_OWNERS` (from the given clones and every
+  repository the machine's instance catalog holds), one `FORK_ORIGIN_WITHOUT_FORK` per origin
+  none of whose given clones has a pushed fork, and `FORK_QUESTION` only when no owner is known.
 
 Resolve:
 

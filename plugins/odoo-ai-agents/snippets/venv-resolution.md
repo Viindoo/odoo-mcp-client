@@ -62,10 +62,10 @@ Build (or record an existing) venv for the series with the optional setup step:
 ```
 
 When multiple profiles share the same series, pass `--profile` to select the right instance
-and venv. The venv is created under `venvs/<series>-<profile>` and its path is recorded as
-the `python` field on the matching catalog row; `catalog_read` returns it afterwards. The script
-verifies all the profile's repos are present and that `odoo-bin --version` runs (not a bare
-`import odoo`) before recording the `python` field.
+and venv. The venv is created under `$ODOO_AI_HOME/venvs/<series>-<profile>` from any
+directory, and its path recorded as the `python` field of the catalog row;
+`catalog_read` returns it. The script verifies the profile's repos are present and that
+`odoo-bin --version` runs (not a bare `import odoo`) before recording it.
 
 The supported Python range of a series is read from the instance's own Odoo checkout
 (`45-venv.sh suggest <series> [--profile <name>]` prints it and the recommended version);

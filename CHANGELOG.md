@@ -40,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   proven to have run by the runner's start line with no skip (the checkers log no count), only
   an explicit shortfall holds the gate, and Odoo's "unknown option" warning for a scoping key
   the gate passed itself is no longer counted as a warning (#306).
+- `/odoo-ai-agents:odoo-setup` across several series: a new instance's venv goes to the
+  host-global `$ODOO_AI_HOME/venvs/<series>-<profile>` from any directory (it failed outside a
+  git repository and landed in the current repository's project dir inside one); `--rebuild`
+  prints the packages the old venv had that the new one dropped or changed; `.gitignore` is
+  written only at the top of a git work tree; the stale-comment check no longer flags
+  `debian/control`, port lists or the plugin's own comments; the fork owner is also read from
+  the clones of the machine's catalog before it is asked; the prerequisite check honours
+  `--version` / `--profile`; clone guidance follows the machine's directory naming (#308).
 
 ## [8.5.0] - 2026-11-02
 

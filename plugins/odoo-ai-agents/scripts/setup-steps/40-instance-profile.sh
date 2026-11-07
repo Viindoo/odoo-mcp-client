@@ -69,7 +69,6 @@ source "$SCRIPT_DIR/../lib/resolve_instances.sh"
 # shellcheck source=../lib/resolve_project_dir.sh
 source "$SCRIPT_DIR/../lib/resolve_project_dir.sh"
 INSTANCES_TOML="$(_write_instances_target)"
-GITIGNORE="$PWD/.gitignore"
 
 # P2 db_name project-discriminator (49-solution-final.md §2.4.3): the first 8
 # hex chars of sha256(realpath(git-common-dir)) - a stable, project-unique
@@ -121,12 +120,20 @@ cmd_check() {
 }
 
 # ---------------------------------------------------------------------------
-# gitignore - idempotent append of `.odoo-ai/` to the PROJECT-local .gitignore,
-# so this checkout's project-scoped .odoo-ai/ state dir is never committed.
+# gitignore - idempotent append of `.odoo-ai/` to the .gitignore at the top level of the git
+# work tree that holds the cwd, so this checkout's project-scoped .odoo-ai/ state dir is never
+# committed. Outside a git work tree nothing is written.
 # (The machine-global $ODOO_AI_HOME/.gitignore is a separate file, written by
 # lib/resolve_instances.sh - not this function.)
 # ---------------------------------------------------------------------------
 _ensure_gitignore() {
+    local top GITIGNORE
+    top="$(git rev-parse --show-toplevel 2>/dev/null)" || top=""
+    if [[ -z "$top" ]]; then
+        echo "  not inside a git work tree - no .gitignore written"
+        return 0
+    fi
+    GITIGNORE="$top/.gitignore"
     if [[ -f "$GITIGNORE" ]]; then
         if grep -qxF '.odoo-ai/' "$GITIGNORE"; then
             echo "  .gitignore already excludes .odoo-ai/ - no change"

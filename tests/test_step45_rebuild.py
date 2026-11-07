@@ -58,8 +58,8 @@ def world(tmp_path):
         profile = "std"
         addons_path = ["%s", "%s"]
         python = "%s"
-        # old note: see /nonexistent/override-18.0.txt
-        ''' % (addons, odoo / "addons", venv / "bin" / "python")), encoding="utf-8")
+        # old note: see %s
+        ''' % (addons, odoo / "addons", venv / "bin" / "python", tmp_path / "gone" / "override-18.0.txt")), encoding="utf-8")
     # a stub uv that creates the venv shape and logs every call
     bindir = tmp_path / "bin"; bindir.mkdir()
     log = tmp_path / "uv.log"
@@ -182,7 +182,7 @@ def test_a_venv_shared_by_two_rows_is_split_one_venv_per_profile_and_the_orphan_
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "SPLIT_FROM=%s" % shared in proc.stdout and "SHARED_BY=17.0:other" in proc.stdout
     assert "PATH_SOURCE=split" in proc.stdout and "--force" not in proc.stderr
-    own = world["tmp"] / "share" / "venvs" / "17.0-std"
+    own = world["home"] / "venvs" / "17.0-std"
     assert own.is_dir() and (own / "MARKER").read_text().strip() == "new"
     assert (shared / "MARKER").read_text().strip() == "old"             # untouched for the other row
     assert _row(world)["python"] == str(own / "bin" / "python")
@@ -196,7 +196,7 @@ def test_a_venv_shared_by_two_rows_is_split_one_venv_per_profile_and_the_orphan_
 
 def test_check_flags_a_dead_python_a_missing_override_and_a_stale_comment(world):
     proc = _run(world, "check")
-    assert proc.returncode == 0 and "STALE_COMMENT" in proc.stderr and "/nonexistent/override-18.0.txt" in proc.stderr
+    assert proc.returncode == 0 and "STALE_COMMENT" in proc.stderr and "override-18.0.txt" in proc.stderr
     toml = world["home"] / "instances.toml"
     toml.write_text(toml.read_text().replace('python = "', 'uv_override = "/nonexistent/o.txt"\npython = "'), encoding="utf-8")
     proc = _run(world, "check")
@@ -283,3 +283,66 @@ def test_a_build_that_fails_for_another_reason_names_the_error_line_and_the_log(
     assert "pg_config executable not found" in proc.stderr and ".build.log" in proc.stderr
     assert "check system build deps" not in proc.stderr
     assert (world["venv"] / "MARKER").read_text() == "old"       # the old venv came back
+
+
+def _dist(venv: Path, name: str, version: str):
+    d = venv / "lib" / "python3.12" / "site-packages" / ("%s-%s.dist-info" % (name.replace("-", "_"), version))
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "METADATA").write_text("Metadata-Version: 2.1\nName: %s\nVersion: %s\n\nBody: ignored\n" % (name, version), encoding="utf-8")
+
+
+def test_a_new_venv_without_a_recorded_python_lands_under_the_global_state_root_from_any_cwd(world, tmp_path):
+    """venvs/ is host-global: the path is $ODOO_AI_HOME/venvs/<series>-<profile>, whatever the cwd
+    (a directory that is not inside any git repository included)."""
+    toml = world["home"] / "instances.toml"
+    toml.write_text("".join(l for l in toml.read_text().splitlines(True) if not l.startswith("python = ")), encoding="utf-8")
+    outside = tmp_path / "not-a-repo"; outside.mkdir()
+    env = dict(world["env"]); env.pop("ODOO_AI_PROJECT_DIR", None)
+    proc = subprocess.run(["bash", str(STEP), "create-venv", "--series", SERIES, "--profile", "std"],
+                          capture_output=True, text=True, env=env, cwd=str(outside), timeout=120)
+    expected = world["home"] / "venvs" / "17.0-std"
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "VENV_PATH=%s" % expected in proc.stdout and (expected / "pyvenv.cfg").is_file()
+    assert not (world["home"] / "projects").exists()
+
+
+def test_a_rebuild_names_the_packages_the_new_venv_lost_or_moved_before_removing_the_old_one(world):
+    _dist(world["venv"], "lxml", "5.0.0"); _dist(world["venv"], "pylint-odoo", "9.0.5"); _dist(world["venv"], "requests", "2.31.0")
+    _write_exec(world["tmp"] / "bin" / "uv", '''\
+        #!/usr/bin/env bash
+        if [ "$1" = "venv" ]; then
+          d="$2"; mkdir -p "$d/bin" "$d/lib/python3.12/site-packages/lxml-5.2.0.dist-info" "$d/lib/python3.12/site-packages/requests-2.31.0.dist-info"
+          printf 'Name: lxml\\nVersion: 5.2.0\\n' > "$d/lib/python3.12/site-packages/lxml-5.2.0.dist-info/METADATA"
+          printf 'Name: requests\\nVersion: 2.31.0\\n' > "$d/lib/python3.12/site-packages/requests-2.31.0.dist-info/METADATA"
+          echo "home = /usr/bin" > "$d/pyvenv.cfg"; printf '#!/usr/bin/env bash\\nexit 0\\n' > "$d/bin/python"; chmod +x "$d/bin/python"
+        fi
+        exit 0
+        ''')
+    proc = _run(world, "create-venv", "--series", SERIES, "--profile", "std", "--rebuild")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "DROPPED=pylint-odoo==9.0.5" in proc.stdout and "CHANGED=lxml 5.0.0->5.2.0" in proc.stdout
+    assert "requests" not in proc.stdout.replace("--extra", "")      # unchanged: not reported
+    assert "--extra" in proc.stdout
+    assert not list(world["tmp"].glob("venvs/17.0-std.rebuilding-*"))   # the old venv is gone afterwards
+
+
+def test_diff_venvs_is_never_fatal_for_a_missing_venv(tmp_path, capsys):
+    assert venv_facts.cmd_diff_venvs(str(tmp_path / "nope"), str(tmp_path / "nada")) == 0
+    assert capsys.readouterr().out == ""
+
+
+def _stale(tmp_path, capsys, comment):
+    f = tmp_path / "c.toml"; f.write_text("a = 1  # %s\n" % comment, encoding="utf-8")
+    rc = venv_facts.cmd_stale_comments(str(f)); capsys.readouterr()
+    return rc
+
+
+def test_a_comment_is_stale_only_when_it_names_a_missing_path_under_a_directory_that_exists(tmp_path, capsys):
+    assert _stale(tmp_path, capsys, "see %s" % (tmp_path / "gone" / "x.txt")) == 2      # a path claim, missing file
+    assert _stale(tmp_path, capsys, "see %s." % (tmp_path / "gone")) == 2                # trailing "." stripped
+    assert _stale(tmp_path, capsys, "see %s" % tmp_path) == 0                            # exists
+    for prose in ("needs debian/control", "ports 8129/8139/8149", "Ephemeral/exclusive acquires",
+                  "run /odoo-ai-agents:odoo-setup", "see (/odoo-ai-agents:odoo-setup)",
+                  "Authentication to the cluster is set up by /odoo-ai-agents:odoo-setup.",
+                  "see /nonexistent-root/x.txt"):
+        assert _stale(tmp_path, capsys, prose) == 0, prose
