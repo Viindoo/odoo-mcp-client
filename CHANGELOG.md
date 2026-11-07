@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   admonition and a table cell, a shot's viewport is at most 1.25 times its place's width, and
   the acceptance placement item compares an image with its own place, so screenshots inside
   numbered steps pass the legibility item (#303).
+- Access groups install on the series that hangs a group on a privilege: the access-groups
+  snippet resolves the group model of the target series and describes the privilege model
+  (`res.groups.privilege` through `privilege_id`, a group without one as an "Extra Rights"
+  checkbox in developer mode, `user_ids`, `all_implied_ids`), the version pivots record those
+  renames and `group_ids` on users, views, menus and the three action models, and the code
+  reviewer, the security audit and the forward-port view check no longer assume `category_id` or
+  `groups_id`. The business taxonomy maps the warehouse and inventory manifest categories to
+  `inventory` instead of `UNKNOWN`.
 - `po_sync.py generate` and `fill` change only the entries whose text changed: an unchanged
   entry keeps its committed lines, comments and flags, a new or changed one follows the layout
   of the catalog it lands in, `:0` locations and committed obsolete `#~` entries are kept, so a

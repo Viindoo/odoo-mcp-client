@@ -87,7 +87,7 @@ Resolve series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/pr
 - `find_examples(query='ir.model.access model access csv', odoo_version='<version>')`.
 - `find_examples(query='ir.rule record rule domain', odoo_version='<version>')`.
 - Cross-reference with local file scan (see Standalone fallback Tier 2) if OSM inconclusive.
-- **`res.groups` category/hierarchy correctness** - any `res.groups` in scope: `category_id` set to the manifest-derived `base.module_category_<slug>`, and same-ladder groups chained via `implied_ids` (not left as orphan checkboxes). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`.
+- **`res.groups` placement/hierarchy correctness** - any `res.groups` in scope: placed on the group model the target series uses (`category_id` or `privilege_id`; resolve it, never assume it), and same-ladder groups chained via `implied_ids` (not left as orphan checkboxes). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`.
 
 **Disk scan supplement** (always run alongside OSM rounds):
 
