@@ -46,8 +46,9 @@ field triggers the agent's own vanilla-profile resolution) before one DATA-DRIVE
   lint-class module (then `NEEDS_CONTEXT`). Full contract: `odoo-instance-ops`'s own "Lint modules -
   installed ONLY for the designated pre-PR lint gate (HARD RULE)" and
   `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
-  A clean counter set on a `pre-pr-lint-gate` dispatch is NOT `tests-passed` until the agent's own
-  coverage confirmation clears too (`odoo-instance-ops`'s own "Checker-load coverage confirmation").
+  A clean counter set on a `pre-pr-lint-gate` dispatch is NOT `tests-passed` until the lint
+  coverage evidence clears too (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Coverage
+  evidence).
 
 ### Resolving modules and test_tags
 

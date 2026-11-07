@@ -63,9 +63,11 @@ def _add_fetch_only_upstream(repo, owner="bigupstream"):
     _sh(repo, "git", "fetch", "-q", str(src), "+refs/heads/*:refs/remotes/upstream/*")
 
 
-def _cli(repo, *flags):
+def _cli(repo, *flags, catalog=os.devnull):
+    """Run the CLI with `catalog` as this machine's instance catalog (empty by default)."""
+    env = dict(os.environ, ODOO_AI_INSTANCES=str(catalog))
     return subprocess.run([sys.executable, str(LIB / "fork_facts.py"), "--repo", str(repo), *flags],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, timeout=60, env=env)
 
 
 def test_a_clone_with_only_origin_has_no_fork_remote(clone):
@@ -257,3 +259,26 @@ def test_cli_with_several_repos_but_no_summary_is_refused(machine):
     out = _cli(Path(machine[0]), "--repo", machine[1])
     assert out.returncode == 2
     assert out.stdout == ""
+
+
+def test_catalog_repos_supply_known_owners_without_becoming_origins_or_a_question(clone, tmp_path):
+    """The machine catalog's repositories (another catalog with `--instances`) are owner sources
+    only."""
+    other = tmp_path / "catalog-repo"; other.mkdir()
+    _sh(other, "git", "init", "-q", "-b", "17.0")
+    _sh(other, "git", "commit", "-q", "--allow-empty", "-m", "init")
+    _sh(other, "git", "remote", "add", "origin", "https://example.org/acme/catalog-repo.git")
+    _sh(other, "git", "remote", "add", "fork", "https://example.org/alice/catalog-repo.git")
+    _sh(other, "git", "config", "remote.fork.pushurl", str(other.parent / "alice-bare.git"))
+    _sh(other.parent, "git", "init", "-q", "--bare", str(other.parent / "alice-bare.git"))
+    _sh(other, "git", "push", "-q", "fork", "HEAD:refs/heads/feat-x")
+    addons = other / "addons"; addons.mkdir()
+    catalog = tmp_path / "instances.toml"
+    catalog.write_text('[[instance]]\nseries = "17.0"\naddons_path = ["%s"]\n' % addons, encoding="utf-8")
+    plain = json.loads(_cli(clone, "--summary", "--json").stdout)
+    assert plain["question"] and plain["known_owners"] == []
+    for out in (json.loads(_cli(clone, "--summary", "--json", catalog=catalog).stdout),
+                json.loads(_cli(clone, "--summary", "--json", "--instances", str(catalog)).stdout)):
+        assert out["known_owners"] == ["alice"] and out["question"] == ""
+        assert out["without_fork"] == ["acme/addons-repo"]             # the catalog repo is not listed
+        assert [o["origin"] for o in out["origins"]] == ["acme/addons-repo"]

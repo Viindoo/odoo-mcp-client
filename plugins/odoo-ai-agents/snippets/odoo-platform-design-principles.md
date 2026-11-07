@@ -64,10 +64,7 @@ module only **seeds** the rules/data/COA/taxes that differ per country.
   countries will also need.
 - Keep user-facing strings translatable (`_()`, no hardcoded language/currency/locale) so the
   generic layer serves every locale.
-- **A value set by law or regulation is a data record, never code**: a rate, a ceiling, a
-  threshold, an effective date, an account code a regulation assigns - shipped as XML data,
-  editable in the UI, read by the code as the record in force on the business date for the
-  company and country. Never a Python constant, never a number inside a formula string.
+- **A value or rule set by law or regulation is a data record, never code** (§ 6).
 - **A generic accounting module runs on the generic chart of `account`** and is tested with it:
   accounts come from configuration, from the account type or from a partner or company property,
   never from a code a localization assigns (`331`, `3388`); the `l10n_*` module fills the hook.
@@ -103,8 +100,6 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
   module: read them from the record, the company, the user or the context.
 - **A defect in Odoo core is reported, not patched in a downstream module.** The fix goes where
   the defect lives.
-- **Reversibility over blocking:** § 0 - the default for a user action is confirm-and-allow-
-  correction, never a constraint.
 
 ## 5. Change hygiene: versions, migrations, retirement
 
@@ -119,7 +114,9 @@ Within a series; a cross-series code upgrade follows
   one module never bump it separately - they record what existing data needs in the worklog for
   that node. A module that was `installable` True before the PR (an absent key counts as True),
   is proven on a FRESH install, and whose change alters data existing databases hold gets ONE
-  bump of its short `version` by the smallest step (the last component +1) and ONE folder
+  bump of its short `version` by the smallest step - `x.y.z` -> `x.y.(z+1)`, and a two-component
+  `x.y` -> `x.y.1`, never `x.(y+1)`; versions compare numerically, a missing component read as
+  0 (`0.3` < `0.3.1` < `0.4`) - and ONE folder
   `migrations/<series>.<new short version>/` holding at most one file per stage
   (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never a file named after a business
   topic and never an edit to a folder that already exists. A folder named in the short form runs
@@ -141,3 +138,44 @@ Within a series; a cross-series code upgrade follows
 - **Removing a `noupdate` data file deletes its records** at `_process_end` and cascades into
   customer records through `ondelete='cascade'`. A record customers reference is pinned by
   dropping its XML ID, never by removing the file.
+
+## 6. Legal rules as data
+
+**Scope.** Anything a law or regulation sets that can change when the law changes. Values: a rate,
+a ceiling, a threshold, an amount, a deadline or payment term, an effective date, an account or
+form code a regulation assigns, a citation. Rules: a time window (night work), a weekly rest day,
+an hour limit, how a tax is treated, which account is used, a duty to ask consent or to notify.
+The test: can a new law or decree change it? Yes -> this section applies; a technical constant no
+law sets is out of scope.
+
+**Shape.**
+- An ordinary record, shipped as XML data and editable in the UI: a salary rule, an
+  `account.tax`, a report line, an `account.payment.term`.
+- A legal model the module defines carries a valid-from and a valid-to date, both optional; code
+  reads the record in force on the business date for the company and country, so a change already
+  enacted is entered today and applies on its date.
+- Which record applies is a company field or a Settings option: a new company gets the default
+  from data (e.g. the chart template's `template_data`), a running company keeps its value.
+- Python only reads data: no constant, no number inside a formula string, no hardcoded xmlid, no
+  `if` for one article.
+- The generic module holds the model and the way it is read, for every country; an `l10n_*`
+  module only seeds its country's records (§ 2).
+- The software records a violation and never enforces the law by blocking (§ 0).
+
+**Removing a legal constant.** Grep the whole repository, `migrations/` and tests included. A
+migration script declares the historical values it needs itself and never imports them from
+`models/`: a fresh-install test runs no migration, so nothing else catches that import error
+before an upgraded database does.
+
+**Per role.**
+- Architect: the SRS (without one, the design header) has a section `Legal rules as data` that
+  answers per legal element: (1) which record carries it; (2) which role edits it, on which
+  screen; (3) its effective dates; (4) where the user updates it when the law changes. An element
+  that is not data yet gets the shape it will take.
+- Coder: before adding a field or a setting, search for the field, record or data template that
+  already holds the value. A legal value or rule in Python, in a module the PR touches, moves to
+  data in the same PR; one in another module is listed in the return (file:line, what it is).
+- Test writer: `test-behavior-contract.md` § Protect the outcome, never the implementation.
+- Reviewer: asks the four questions; a legal value or rule held in Python is a finding.
+
+A brief to an agent that does not read this file carries this section's path.

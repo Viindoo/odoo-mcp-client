@@ -25,6 +25,18 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | User group test - single xmlid | `user.has_group('mod.xmlid')` | v8 | -- (present since v8) |
 | User group test - plural / env shorthand | `user.has_groups('a.x,b.y')` | v18 | `user_has_groups(xmlid)` **REMOVED v18** |
 
+## Access groups
+
+Which model a group hangs on, and how to declare it: `access-groups-conventions.md`.
+
+| Change | New API | From | Old |
+|---|---|---|---|
+| Group placement | `res.groups.privilege_id` -> `res.groups.privilege` (which carries `category_id`) | v19 | `res.groups.category_id` **REMOVED v19** |
+| Users of a group | `res.groups.user_ids` | v19 | `res.groups.users` **REMOVED v19** |
+| Transitive implied groups | `res.groups.all_implied_ids` | v19 | `res.groups.trans_implied_ids` **REMOVED v19** |
+| Group link of a user, view, menu or action | `group_ids` on `res.users`, `ir.ui.view`, `ir.ui.menu`, `ir.actions.act_window`, `ir.actions.server`, `ir.actions.report` | v19 | `groups_id` **REMOVED v19** |
+| Category of independent rights | a `res.groups` with no `privilege_id` | v19 | `base.module_category_usability` **REMOVED v19** |
+
 ## Python ORM - model API
 
 | Change | New API | From | Old |

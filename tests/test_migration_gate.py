@@ -145,3 +145,45 @@ def test_help_prints_the_full_docstring():
     r = subprocess.run([sys.executable, str(GATE), "--help"], capture_output=True, text=True)
     assert r.returncode == 0
     assert "Rules (within one pull request" in r.stdout
+
+
+def test_two_part_version_bumps_only_to_dot_one_with_matching_folder(tmp_path):
+    pair(tmp_path, "0.3", "0.3.1", {"migrations/99.0.0.3.1/post-migrate.py": "x = 1\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "MIGRATION_GATE=PASS" in out
+    assert "BUMP=smallest" in out and "MIGRATION_DIRS_NEW=99.0.0.3.1" in out
+
+
+def test_two_part_bump_without_migration_folder_warns_and_passes(tmp_path):
+    pair(tmp_path, "0.3", "0.3.1", {"models.py": "x = 1\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "MIGRATION_GATE=PASS" in out and "BUMP=smallest" in out
+    assert "WARN=m1: version bumped without a migration folder" in out
+
+
+def test_two_part_minor_step_fails_naming_the_expected_dot_one(tmp_path):
+    pair(tmp_path, "0.3", "0.4", {"models.py": "x = 1\n"})
+    rc, out = run(tmp_path)
+    assert rc == 1 and "BUMP=other" in out and "MIGRATION_GATE=FAIL" in out
+    assert "is not the smallest step; expected 0.3.1" in out
+
+
+def test_three_part_patch_step_is_the_smallest_bump(tmp_path):
+    pair(tmp_path, "1.2.3", "1.2.4", {"models.py": "x = 1\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "BUMP=smallest" in out
+
+
+def test_two_part_to_dot_zero_or_dot_two_fails(tmp_path):
+    for head in ("0.3.0", "0.3.2"):
+        pair(tmp_path, "0.3", head, {"models.py": "x = 1\n"})
+        rc, out = run(tmp_path)
+        assert rc == 1 and "BUMP=other" in out, head
+        assert "expected 0.3.1" in out, head
+
+
+def test_any_other_change_of_length_fails(tmp_path):
+    for base, head in (("1.0.3", "1.0"), ("0.3", "0.3.1.1")):
+        pair(tmp_path, base, head, {"models.py": "x = 1\n"})
+        rc, out = run(tmp_path)
+        assert rc == 1 and "BUMP=other" in out, (base, head)

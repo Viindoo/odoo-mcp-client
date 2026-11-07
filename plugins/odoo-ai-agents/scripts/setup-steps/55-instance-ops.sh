@@ -82,7 +82,9 @@
 #             Deterministic completion contract (never a log-tail wait - see
 #             docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14): the process ALWAYS
 #             runs with --stop-after-init, so completion is PROCESS EXIT, bounded
-#             by nothing more than the caller's own foreground timeout. <ns> is
+#             by nothing more than the caller's own foreground timeout (a `test` run
+#             also ends a process still alive a grace period after Odoo's
+#             "Initiating shutdown" line - see cmd_test). <ns> is
 #             the checkout's core package ('openerp' where the core package is
 #             openerp/, else 'odoo': _resolve_log_ns) - the root of the namespace
 #             Odoo's module-loading logger lives under. The
@@ -1323,6 +1325,22 @@ _open_log() {
     echo "LOG_PATH=$logf"
 }
 
+# _test_warning_lines <logf> - the WARNING log lines of a run that count as
+#   warnings. Odoo warns "unknown option '<key>' in the config file" for every
+#   run-conf key it has no option for; a key this run passed with --conf-option
+#   (arg_conf_options, read by dynamic scope from cmd_test) is the caller's own
+#   setting, so that line is not a finding. The key is matched as a fixed string;
+#   the same warning for any other key, and every other warning, stays.
+_test_warning_lines() {
+    local _logf="$1" _opt _out
+    _out="$(grep -aE '[[:space:]]WARNING[[:space:]]' "$_logf" 2>/dev/null || true)"
+    for _opt in ${arg_conf_options[@]+"${arg_conf_options[@]}"}; do
+        _out="$(printf '%s\n' "$_out" | grep -avF "unknown option '${_opt%%=*}' in the config file" || true)"
+    done
+    [[ -n "$_out" ]] && printf '%s\n' "$_out"
+    return 0
+}
+
 # ---------------------------------------------------------------------------
 # _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT= plus the
 #   TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and a FINDINGS_PATH
@@ -1348,7 +1366,7 @@ _parse_test_result() {
     local n_fail n_error n_warn
     n_fail="$(grep -acE "$_TEST_FAIL_PER_TEST_FAIL_RE" "$logf" 2>/dev/null || true)"
     n_error="$(grep -acE "$_TEST_FAIL_PER_TEST_ERROR_RE" "$logf" 2>/dev/null || true)"
-    n_warn="$(grep -acE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
+    n_warn="$(_test_warning_lines "$logf" | wc -l | tr -d "[:space:]")"
     n_fail="${n_fail:-0}"; n_error="${n_error:-0}"; n_warn="${n_warn:-0}"
     # Whether the log NAMED individual failing tests, kept before the counts can
     # be re-sourced from an aggregate below. The findings file branches on THIS,
@@ -1621,7 +1639,7 @@ _parse_test_result() {
         echo
         echo '```'
         if [[ -n "$mod_regex" ]]; then
-            grep -E '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null \
+            _test_warning_lines "$logf" \
                 | grep -E "$mod_regex" 2>/dev/null | head -n "$warn_cap" || true
         fi
         echo '```'
@@ -1629,7 +1647,7 @@ _parse_test_result() {
         echo "## All warnings (capped at $warn_cap)"
         echo
         echo '```'
-        grep -E '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null | head -n "$warn_cap" || true
+        _test_warning_lines "$logf" | head -n "$warn_cap" || true
         echo '```'
     } >"$findings" 2>/dev/null || true
 
@@ -2602,11 +2620,30 @@ cmd_test() {
     _lim_kib="$(resource_limit_hard_kib)"
 
     local rc=0
+    # Completion of a test run is the process exit, with one bound: Odoo logs
+    # "Initiating shutdown" when its tests are over, and a request thread still
+    # held by a late browser connection (a websocket opened after the server
+    # closed the existing ones) can keep the interpreter from exiting for an hour
+    # or more. A process still alive ODOO_AI_TEST_SHUTDOWN_GRACE seconds (default
+    # 60) after that line, in the part of the log THIS launch wrote, is stopped
+    # (SIGTERM, then SIGKILL after 10 s); the run is then judged from the log
+    # alone, exactly as a clean exit is.
+    local _grace="${ODOO_AI_TEST_SHUTDOWN_GRACE:-60}"
+    [[ "$_grace" =~ ^[0-9]+$ ]] || _grace=60
+    local _log_start
+    _log_start="$(wc -c <"$logf" 2>/dev/null || true)"
+    [[ "$_log_start" =~ ^[0-9]+$ ]] || _log_start=0
+    local _odoo_pid _shutdown_at="" _forced=0 _i _scan_from="$_log_start" _size
     # shellcheck disable=SC2086
     # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
     # invocation and never leaks past it. --limit-memory-hard sits BEFORE
     # ${arg_extra} so a caller-supplied override in --extra still wins.
+    # The subshell runs in the background and `exec`s odoo-bin, so its pid IS
+    # odoo-bin's and it stays in this script's process group (a stop sent to the
+    # group reaches it). `set +e`: no step before odoo-bin may end the launch
+    # early - odoo-bin's own exit status is the only one that counts.
     (
+        set +e
         # The escape-hatch credential is handed to libpq under its OWN variable,
         # for this launch only.
         # Odoo omits the password from its connection entirely unless db_password is
@@ -2634,7 +2671,7 @@ cmd_test() {
         # it earns its place when this subcommand is the first to name a
         # not-yet-existing database, which is the only moment unaccent can
         # still be installed.
-        "$arg_python" "$odoo_bin" \
+        exec "$arg_python" "$odoo_bin" \
             -c "$RUN_CONF" \
             -d "$arg_db" \
             "$mode_flag" "$arg_modules" \
@@ -2649,7 +2686,45 @@ cmd_test() {
             "${log_flag_args[@]}" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
-    ) >>"$logf" 2>&1 || rc=$?
+    ) >>"$logf" 2>&1 &
+    _odoo_pid=$!
+    # A stop aimed at this script alone still takes odoo-bin down with it.
+    trap 'kill -TERM "$_odoo_pid" 2>/dev/null; exit 143' TERM
+    trap 'kill -TERM "$_odoo_pid" 2>/dev/null; exit 130' INT
+    while kill -0 "$_odoo_pid" 2>/dev/null; do
+        sleep 1
+        if [[ -z "$_shutdown_at" ]]; then
+            # Only the bytes written since the last pass are read, with a
+            # 256-byte overlap so a line split across two passes is still seen.
+            # pipefail is off inside the subshell: grep -q stops reading at the
+            # first match, and the SIGPIPE that leaves upstream is not a miss.
+            _size="$(wc -c <"$logf" 2>/dev/null || true)"
+            [[ "$_size" =~ ^[0-9]+$ ]] || _size="$_scan_from"
+            if (( _size > _scan_from )) \
+                && ( set +o pipefail; tail -c "+$((_scan_from + 1))" "$logf" 2>/dev/null \
+                    | head -c "$((_size - _scan_from))" | grep -aqF "Initiating shutdown" ); then
+                _shutdown_at=$SECONDS
+            fi
+            if (( _size - 256 > _scan_from )); then
+                _scan_from=$((_size - 256))
+            fi
+        elif (( SECONDS - _shutdown_at >= _grace )) && kill -0 "$_odoo_pid" 2>/dev/null; then
+            _forced=1
+            kill -TERM "$_odoo_pid" 2>/dev/null || true
+            for _i in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$_odoo_pid" 2>/dev/null || break
+                sleep 1
+            done
+            kill -KILL "$_odoo_pid" 2>/dev/null || true
+            break
+        fi
+    done
+    wait "$_odoo_pid" 2>/dev/null || rc=$?
+    trap - TERM INT
+    if [[ "$_forced" -eq 1 ]]; then
+        rc=0
+        echo "allocator: FORCED_EXIT_AFTER_SHUTDOWN grace=${_grace}s" >>"$logf"
+    fi
 
     # The summary goes to stdout AND into the log. `wait-log` reads nothing but
     # the log, so a verdict that only ever reaches stdout is unreachable by

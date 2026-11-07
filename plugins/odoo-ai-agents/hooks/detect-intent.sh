@@ -270,7 +270,7 @@ case "${_domain}" in
     # anchor - a domain-bucket match alone (e.g. a non-Odoo "visual design" or "version" prompt)
     # is not proof this is an Odoo task.
     if [ "${_odoo_anchor}" = "true" ] && [ "${_osm_wired}" = "true" ]; then
-      _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup for every module OUTSIDE the worktree you edit; a module inside that worktree (edited, new, renamed, or with a changed depends) is read from disk, not from the index. Do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
+      _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__plugin_odoo-semantic-mcp_odoo-semantic__set_active_version then model_inspect/entity_lookup for every module OUTSIDE the worktree you edit; a module inside that worktree (edited, new, renamed, or with a changed depends) is read from disk, not from the index. Do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
       _osm_r2="[Tip] For an engineering task, planning enters Plan Mode for you before any file is changed."
       _blocks+=("${_osm_r1}" "${_osm_r2}")
     fi
@@ -284,7 +284,7 @@ esac
 # may be ToolSearch-deferred (only their name in context) - this hint is the
 # in-context pointer that survives deferral.
 if [ "${_osm_wired}" = "true" ] && [ "${_odoo_anchor}" = "true" ] && [ "${_is_lookup}" = "true" ]; then
-  _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / odoo_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
+  _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__plugin_odoo-semantic-mcp_odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / odoo_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
   _blocks+=("${_osm_lk}")
 fi
 

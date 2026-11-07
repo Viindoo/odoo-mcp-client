@@ -213,7 +213,9 @@ Keep this in sync with the server's `INSTRUCTIONS` SSOT. Guard: `tests/test_disa
 `odoo-semantic` appears in many forms with strict meanings - see the table in `CONTRIBUTING.md`
 ("Naming policy"). Briefly: `odoo-semantic-mcp` = the MCP plugin; `odoo-ai-agents` = the skills
 plugin; `Odoo Semantic`/`OSM` = the brand; `` `odoo-semantic` `` in backticks = the runtime server
-id (config only); `mcp__odoo-semantic__*` = the tool-call prefix. A bare `odoo-semantic` token
+id (config only); `mcp__plugin_odoo-semantic-mcp_odoo-semantic__*` = the tool-call prefix Claude
+Code gives the plugin's server (`mcp__odoo-semantic__*` only for a server registered by hand under
+that id). A bare `odoo-semantic` token
 outside those contexts is a bug. Enforced by `tests/test_naming_consistency.py`.
 
 ### Versioning - VERSION is SSOT, kept in lockstep

@@ -1296,7 +1296,7 @@
           "RUN_ID",
           "FROM CHANGE",
           "USER LANGUAGE",
-          "CONTENT WIDTH",
+          "CONTENT WIDTHS",
           "SERVED URLS"
         ]
       }

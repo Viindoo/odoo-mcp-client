@@ -123,7 +123,7 @@ Usage examples:
     | python3 config_merge.py toml-ensure-table pyproject.toml '[tool.my-server]'
 
   # Idempotently add a permission prefix
-  python3 config_merge.py json-ensure-allow ~/.claude/settings.json mcp__odoo-semantic
+  python3 config_merge.py json-ensure-allow ~/.claude/settings.json mcp__plugin_odoo-semantic-mcp_odoo-semantic
 """
 
 # Annotations stay strings: the builtin-generic / `X | None` forms below would

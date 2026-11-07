@@ -18,7 +18,7 @@ DOCS PYTHON: <abs path of the docs venv python recorded in step 0>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
 POLICY: <abs path of <RUN_DIR>policy.json>
 REPO FACTS: <abs path of <RUN_DIR>repo-facts.json>
-CONTENT WIDTH: <content_width of the content-width record | none>   SERVED URLS: <language: base URL | none>
+CONTENT WIDTHS: <the record's reference_viewport>; <its content_widths, place=px, ...> | none   SERVED URLS: <language: base URL | none>
 FROM CHANGE: <abs path of the change file | none>
 VIDEOS: <page: lang=embed id, lang=embed id | none>   (one id per language; a page embeds only its own language)
 USER LANGUAGE: <lang | omit>
@@ -26,7 +26,7 @@ USER LANGUAGE: <lang | omit>
 
 Required: `SITE WORKTREE`, `SERIES`, `LANGUAGES`, `PAGE PLAN`, `FACTS`, `INSTANCE HANDLE`,
 `DOCS PYTHON`, `SHARE_DIR`, `ISOLATE_DIR`, `POLICY`, `REPO FACTS`. `FACTS` is one file per group,
-`<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`; no two writers share a file. `CONTENT WIDTH` is `none` only for the
+`<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`; no two writers share a file. `CONTENT WIDTHS` is `none` only for the
 `check-shot` launch, which gets `SERVED URLS` to measure it; every other launch gets the recorded
 value and `none` for `SERVED URLS`.
 
@@ -44,7 +44,7 @@ value and `none` for `SERVED URLS`.
 | `wire` | adds the toctree entries and cross-references; no new prose |
 | `fill` | fills existing `.po` entries from the module translations and the reused terms |
 | `port` | the page was merged into the worktree from the row's `source_series` by `odoo-forward-port`: re-verifies, adapts, recaptures every image, regenerates and fills the translation |
-| `check-shot` | captures the one screen per language of `check-shot.md`, measures the content width; writes no page |
+| `check-shot` | captures the one screen per language of `check-shot.md`, measures the content widths; writes no page |
 
 ## A finding to fix (SendMessage to the same writer)
 
@@ -58,4 +58,4 @@ FINDINGS:
 
 The status word first, then the pages written (paths), images, translation entries, facts gaps,
 findings, `UNKNOWN`s, and the Continuation Contract block. A `check-shot` launch returns the
-image paths, `reference_viewport` and `content_width`.
+image paths, `reference_viewport` and `content_widths`.

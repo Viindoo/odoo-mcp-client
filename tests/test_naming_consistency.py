@@ -24,7 +24,8 @@ SCANNED = sorted(
 )
 
 _LEGIT = re.compile(
-    r"mcp__odoo-semantic__\w*"
+    r"mcp__plugin_odoo-semantic-mcp_odoo-semantic__\w*"
+    r"|mcp__odoo-semantic__\w*"
     r"|odoo-semantic-mcp"
     r"|odoo-semantic\.viindoo\.com"
 )

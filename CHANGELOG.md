@@ -6,6 +6,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.6.0] - 2026-11-07
+
+### Changed
+
+- A two-component module version `x.y` is bumped to `x.y.1`, never `x.(y+1)`;
+  `migration_gate.py` accepts that step and names the expected version when a bump is not the
+  smallest, and the forward-port version rule (C1) uses the same step and compares versions
+  numerically with a missing component read as 0 (#309).
+- "Legal rules as data" is one section of the platform design principles: every value and every
+  rule a law can change (rates, ceilings, deadlines, time windows, rest days, tax treatment,
+  accounts, consent duties) is an editable record with effective dates, never Python; the SRS
+  answers four questions per legal element, the reviewer asks them, and a test changes the
+  record and asserts that the result follows (#301).
+
+### Fixed
+
+- `odoo-doc-site` sizes each screenshot for the place its image sits in: the check shot records
+  the width an image renders at in the article body, a list item, a nested list item, an
+  admonition and a table cell, a shot's viewport is at most 1.25 times its place's width, and
+  the acceptance placement item compares an image with its own place, so screenshots inside
+  numbered steps pass the legibility item (#303).
+- Access groups install on the series that hangs a group on a privilege: the access-groups
+  snippet resolves the group model of the target series and describes the privilege model
+  (`res.groups.privilege` through `privilege_id`, a group without one as an "Extra Rights"
+  checkbox in developer mode, `user_ids`, `all_implied_ids`), the version pivots record those
+  renames and `group_ids` on users, views, menus and the three action models, and the code
+  reviewer, the security audit and the forward-port view check no longer assume `category_id` or
+  `groups_id`. The business taxonomy maps the warehouse and inventory manifest categories to
+  `inventory` instead of `UNKNOWN`.
+- `po_sync.py generate` and `fill` change only the entries whose text changed: an unchanged
+  entry keeps its committed lines, comments and flags, a new or changed one follows the layout
+  of the catalog it lands in, `:0` locations and committed obsolete `#~` entries are kept, so a
+  one-word page edit gives a few-line `.po` diff instead of a rewritten file (#304).
+- `build_compare.py` judges a page's per-language images by content: Sphinx renames a second
+  image of the same name (`x.vi1.png`), which no longer fails a correct build, and a page that
+  shows another page's same-named image now fails (#305).
+- An `instance_build` test run no longer stays busy for an hour after its tests end: a browser
+  websocket accepted while Odoo shuts down holds the process open, so a run still alive 60 s
+  after Odoo's shutdown line is stopped and judged from its log; a failed test stays failed
+  (#307).
+- The pre-PR lint gate gives the same verdict for the same evidence: a lint module's tests are
+  proven to have run by the runner's start line with no skip (the checkers log no count), only
+  an explicit shortfall holds the gate, and Odoo's "unknown option" warning for a scoping key
+  the gate passed itself is no longer counted as a warning (#306).
+- `/odoo-ai-agents:odoo-setup` across several series: a new instance's venv goes to the
+  host-global `$ODOO_AI_HOME/venvs/<series>-<profile>` from any directory (it failed outside a
+  git repository and landed in the current repository's project dir inside one); `--rebuild`
+  prints the packages the old venv had that the new one dropped or changed; `.gitignore` is
+  written only at the top of a git work tree; the stale-comment check no longer flags
+  `debian/control`, port lists or the plugin's own comments; the fork owner is also read from
+  the clones of the machine's catalog before it is asked; the prerequisite check honours
+  `--version` / `--profile`; clone guidance follows the machine's directory naming (#308).
+- Odoo Semantic tools go by the name Claude Code gives the `odoo-semantic-mcp` plugin's server,
+  `mcp__plugin_odoo-semantic-mcp_odoo-semantic__<tool>`: agent instructions call them by it, the
+  grounding hook counts those calls (an honest `grounded: osm` report was blocked), the
+  permission check accepts that rule, and `check_deps.py` checks prefixed names in skill prose;
+  `module_inspect` calls use methods the tool has (`summary`; `resolve_stylesheet` for SCSS
+  imports) and the developer guide lists the real parameters without the removed tools.
+- `odoo-semantic-mcp` 1.1.1 -> 1.1.2 - `/odoo-semantic-mcp:connect` allows
+  `mcp__plugin_odoo-semantic-mcp_odoo-semantic`: the `mcp__odoo-semantic` rule it wrote does not
+  cover the plugin's tools, so every call still asked for permission.
+
 ## [8.5.0] - 2026-11-02
 
 ### Added

@@ -12,8 +12,8 @@ AI-5 and AI-6 are INSIDE this cluster.
 
 **AI-1 - OSM version + profile probe (CONFIRM #1)**
 
-Call `mcp__odoo-semantic__list_available_versions` and
-`mcp__odoo-semantic__list_available_profiles` (no arguments). Then DECIDE before asking:
+Call `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions` and
+`mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_profiles` (no arguments). Then DECIDE before asking:
 - **Versions**: `--version` when given; else the series of every Odoo checkout under
   `$ODOO_GIT_BASE` (the odoo-local `series_detect` tool on each) and of every declared row.
   One or more found: they are the decision, shown with their sources. None: ask "Which Odoo
@@ -35,7 +35,7 @@ and continue to AI-3 directly (skip AI-2). This is the **user-declared path** - 
 
 For each version confirmed in AI-1, call:
 ```
-mcp__odoo-semantic__profile_inspect(method='repos', name=<profile>, odoo_version=<version>)
+mcp__plugin_odoo-semantic-mcp_odoo-semantic__profile_inspect(method='repos', name=<profile>, odoo_version=<version>)
 ```
 (fall back to `method='summary'` if `repos` is unsupported). OSM returns a
 repo set: SSH URL @ branch, own vs. inherited. Before anything is proposed, confirm each
@@ -68,8 +68,9 @@ For each repo in the confirmed set:
   `python3 "$STEPS_DIR/../lib/fork_facts.py" --summary --repo <path> [--repo <path> ...]` once over
   every matched repo of role `own` and follow **Fork resolution**; an `inherited` repo gets none.
 - **MISSING** → compose and print for the user (the agent does NOT run it) a clone
-  command: git clone with -b BRANCH, --no-single-branch, SSH_URL, into a local
-  directory named `odoo<major>` - where BRANCH and SSH_URL come from OSM at runtime
+  command: git clone with -b BRANCH, --no-single-branch, SSH_URL, into a local directory
+  named the way the matched clones on this machine are named (none to follow:
+  `<repo>_<series>`) - where BRANCH and SSH_URL come from OSM at runtime
   (`<Org>/<repo>` is the runtime placeholder).
   Do **NOT** auto-clone. Print the command and ask the user to run it first, then
   re-run this step - or confirm they want to skip that repo. Fork resolution runs
@@ -99,9 +100,8 @@ orchestrator runs those after CONFIRM #4. **Detect the series by RUNNING Odoo, n
 Candidate venv locations to scan (check in this order):
 - The `python` field in `$ODOO_AI_HOME/instances.toml` for the matching series
   (if already set from a previous run).
-- `venvs/<series>-<profile>` inside the project's Tier-2 SHARE dir
-  (`scripts/lib/resolve_project_dir.sh share`; per-profile venv path
-  written by `45 create-venv`).
+- `$ODOO_AI_HOME/venvs/<series>-<profile>` (host-global; the path `45 create-venv` gives a
+  new instance).
 - Any path the user already named in this session.
 
 Two probes (the subagent only reads / runs `--version`, installs nothing). Try Probe 1 first;
@@ -178,11 +178,11 @@ Never compose `--load`. For EVERY series (and profile) in the confirmed spec, af
    manifest, row) - show the operator that source beside each candidate. `CORE_READABLE=0`: fix
    `odoo_root` (AI-4) first.
 2. **Odoo Semantic evidence** (skip on the user-declared path, and say so). Call
-   `mcp__odoo-semantic__find_examples(query='server_wide_modules', odoo_version=<X.Y>,
+   `mcp__plugin_odoo-semantic-mcp_odoo-semantic__find_examples(query='server_wide_modules', odoo_version=<X.Y>,
    profile_name=<profile>, limit=20)` and take every module whose code tests ITS OWN name
    against `server_wide_modules`. Such checks usually run at import time in a module's
    `__init__.py`: an empty answer is never evidence of "none" - step 1 is the primary source. Then, for every candidate from any
-   source, call `mcp__odoo-semantic__check_module_exists(name=<module>,
+   source, call `mcp__plugin_odoo-semantic-mcp_odoo-semantic__check_module_exists(name=<module>,
    odoo_version=<X.Y>, profile_name=<profile>)` and flag a candidate the profile does not
    contain.
 3. **Probe build (optional - offer it; needs AI-5 done and a runnable venv).** `run_id` =
@@ -253,8 +253,9 @@ never once per clone. Read the facts first:
   machine. A `fork owner` line means step 34 has its answer: ask nothing.
 - `60-docs-site`: `propose` prints `FORK_STATUS` for the docs repo and `FORK_KNOWN_OWNERS` when
   another clone on this machine has a pushed fork.
-- AI-3: `fork_facts.py --summary` prints `FORK_KNOWN_OWNERS`, one `FORK_ORIGIN_WITHOUT_FORK` per
-  origin none of whose clones has a pushed fork, and `FORK_QUESTION` only when no owner is known.
+- AI-3: `fork_facts.py --summary` prints `FORK_KNOWN_OWNERS` (from the given clones and every
+  repository the machine's instance catalog holds), one `FORK_ORIGIN_WITHOUT_FORK` per origin
+  none of whose given clones has a pushed fork, and `FORK_QUESTION` only when no owner is known.
 
 Resolve:
 

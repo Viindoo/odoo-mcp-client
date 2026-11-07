@@ -5,7 +5,7 @@
 # This is a REGISTRY + REACHABILITY check (is `odoo-semantic` declared in
 # ~/.claude.json, and does its /health endpoint answer?). It is NOT a
 # session-load check: Claude Code does not hot-reload MCP servers, so whether
-# the mcp__odoo-semantic__* tools are actually callable in the CURRENT session
+# the mcp__plugin_odoo-semantic-mcp_odoo-semantic__* tools are actually callable in the CURRENT session
 # can only be told by the AI agent trying to call one. The setup command's
 # Gate #1 does that authoritative check; this script is the shell-level
 # fallback (useful in non-interactive runs) and a clear, documented dependency.

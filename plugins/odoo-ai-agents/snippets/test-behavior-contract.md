@@ -32,6 +32,9 @@ the ORM cache. Example: assert `order.state == 'sale'` after confirming, not tha
 cascades, widgets): it pins what the module's own code decides - its guards, rules, computes,
 messages and exits. Two sharp tests judge a suite before a rewrite: rename a private method, and
 refactor with the same result; a test that goes red pins the how and is deleted, not repaired.
+A legal value or rule (`odoo-platform-design-principles.md` § 6) is tested by changing its record
+or setting and asserting that the result follows - raise the ceiling record, the computed
+allowance follows - never by asserting the value it holds.
 
 ## Drive the real workflow
 

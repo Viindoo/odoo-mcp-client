@@ -82,10 +82,9 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
    - Run `repo_facts.py --worktree <worktree> --json` and save the result to
      `<RUN_DIR>repo-facts.json` (the writers' `REPO FACTS`). `NEEDS_CONTEXT` when `series_agree` is
      false or `series` differs from the row's series.
-   - When the site and series have no content-width record (`references/check-shot.md`), or
-     `check_shot` is `always`, run `build_compare.py` on the fresh worktree (candidate equals base,
-     before any edit) and `build_compare.py serve` it: step 3 measures the theme's content column
-     on it, then the server is stopped.
+   - When the check shot runs (`references/check-shot.md` § When it runs), run `build_compare.py`
+     on the fresh worktree (candidate equals base, before any edit) and `build_compare.py serve` it:
+     step 3 measures the content widths on it, then the server is stopped.
 1. **Find existing content before writing** (`references/page-plan.md`) - mandatory, per series.
    Map the area to modules, search the branch and the open pull requests, write the page plan
    (`update | new | skip` per page), then decide it per `references/page-plan.md` § 4.
@@ -105,9 +104,9 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
      returned block verbatim as `INSTANCE_HANDLE`. Build, update and reinstall decisions follow
      `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree.
    - The check shot runs when `references/check-shot.md` § When it runs says so; its launch also
-     measures the content width on the served build. Stop the server once it is recorded. This
-     skill writes the content-width record from the `reference_viewport` and `content_width` the
-     writer returns.
+     measures the content widths on the served build. Stop the server once they are recorded.
+     This skill writes the content-width record from the `reference_viewport` and `content_widths`
+     the writer returns.
 4. **Write.** Launch `odoo-doc-site-writer` per disjoint page group (`references/writer-brief.md`).
    Model tier per `references/writer-brief.md`. Groups run in parallel only up to `W` of
    § Browser exclusivity of that file, each on its own browser family, and only when the capture

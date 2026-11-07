@@ -57,8 +57,9 @@ every module's adapt work, closed once. In this order:
     the source.** The true merge already carries whatever the source commit did to the module
     descriptor (the filename per series: `odoo-era-boundaries.md` row 6). `M` = the target module's
     version BEFORE this forward-port, `S` = its version at the source tip, both read on the module
-    part after the series prefix and compared as dotted integer tuples; `+ 1` adds one to the last
-    component. For a module that exists on the target, whether or not the merge conflicted on
+    part after the series prefix and compared numerically, a missing component read as 0; `M + 1`
+    is the smallest step of `odoo-platform-design-principles.md` § 5 (`0.1.2` -> `0.1.3`, `0.1` ->
+    `0.1.1`). For a module that exists on the target, whether or not the merge conflicted on
     that field:
     - installable on both series (`installable_false=no` on its `merge-log.md` row; an absent
       `installable` key counts as installable - `[[fp-installable-false]]` § Discriminator):
@@ -120,7 +121,7 @@ state when it upgrades to the target series.
 
 Worked (`V = max(M + 1, S)`): M=0.1.2, S=0.1.2 -> V=0.1.3, dir `<tgt>.0.1.3` (`<tgt>.0.1.2` never
 runs: `<tgt>.0.1.2 < <tgt>.0.1.2` is false). M=0.1.1, S=0.1.5 -> V=0.1.5. M=0.1.4, S=0.1.2 ->
-V=0.1.5. A source migration repairing a shape the target never had -> no retarget, dir stays
+V=0.1.5. M=0.1, S=0.1 -> V=0.1.1. M=0.3, S=0.3.1 -> V=0.3.1. M=0.1.2, S=0.1 -> V=0.1.3. A source migration repairing a shape the target never had -> no retarget, dir stays
 `<src-series>.a.b.c`, reason on the `merge-log.md` row; the manifest still follows C1.
 
 ## Skip-code-but-still-absorb rule

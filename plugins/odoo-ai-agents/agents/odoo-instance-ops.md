@@ -153,13 +153,13 @@ Then `instance_build` (op `test`, `modules`, `languages`, `test_mode`, no `demo`
 - `failed` -> `status: tests-failed` (a test failure, or an install failure that left no test able to run): a BLOCKING gate. The caller MUST halt - no merge, no next phase - and route `findings_path` + `log_path` to `odoo-debug`. A non-zero `JS_FAILED_REPORTED` and `JS_FAILED_TESTS` go beside the Python counts in `notes`.
 - `inconclusive` -> `status: tests-inconclusive` (a `concerns:` entry at minimum, a HOLD not a green light): skips with no failure, or no proof any test ran (no tests shipped, or the tag filter matched nothing). Never downgrade it to `tests-passed`. The caller MUST NOT proceed to merge or the next phase without a human reviewing `findings_path`.
 - `passed` and `warnings > 0` -> `status: tests-passed-with-warnings` (a `concerns:` entry): warnings ARE findings to fix, so surface `findings_path`.
-- `passed` and `warnings = 0` -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address. It REQUIRES `test_result` `passed` (all-zero counters are also what a suite that never ran reports) - unless the checker-load coverage check below downgrades it.
+- `passed` and `warnings = 0` -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address. It REQUIRES `test_result` `passed` (all-zero counters are also what a suite that never ran reports) - unless the lint coverage check below downgrades it.
 
 Never decide from a JS success marker in the log; read `test_result` and the `JS_*` fields.
 
 **Scope transparency (EVERY `run-tests` dispatch).** Never drop a module in `--modules` from the tags and never add a skip-auto-install flag the caller did not ask for, to quiet a failure or fit a timeout. In `notes` report `TEST_TAGS_USED` with provenance (caller-supplied / derived / `full` under a named exemption), `MODULES_LOADED` next to how many modules `--modules` named, and `TESTS_RUN`; a figure the summary lacks is `unknown`, never estimated or omitted. A failing test whose module is NOT in `--modules` is OUT OF SCOPE: `notes` MUST say the verdict was decided partly (or entirely) by tests outside the module under verification, naming them; the verdict never softens (still `tests-failed`, BLOCKING).
 
-**Before trusting a pass.** Verify "fresh" from the log, and for `GATE_ROLE: pre-pr-lint-gate` confirm checker-load coverage of every unioned lint module: any shortfall or silence downgrades `status` to `tests-inconclusive` regardless of the counters. Procedure: snippet § Run-tests adjudication.
+**Before trusting a pass.** Verify "fresh" from the log, and for `GATE_ROLE: pre-pr-lint-gate` read the lint coverage of every unioned lint module (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Coverage evidence): a shortfall downgrades `status` to `tests-inconclusive` regardless of the counters. Procedure: snippet § Run-tests adjudication.
 
 Release the lease you acquired for this run when done (`reuse` drops nothing), unless the brief says `HAND_ON: yes` on a `fresh` run - then forward its `INSTANCE_HANDLE` to your dispatching caller as the named catcher.
 

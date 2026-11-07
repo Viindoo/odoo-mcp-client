@@ -31,12 +31,18 @@ Subcommands (stdlib only, Python 3.8+):
       Runs the command holding an exclusive lock on `<venv_dir>.lock` (two rebuilds of one venv
       never interleave; macOS has no flock(1), so the lock is taken here).
   stale-comments <instances.toml>
-      Prints STALE_COMMENT=<line no>: <text> for a `#` comment naming an absolute path that does
-      not exist; exit 2 when any, 0 otherwise.
+      Prints STALE_COMMENT=<line no>: <text> for a `#` comment naming a path (a word starting
+      /, ~/ or $HOME/, whose first directory exists on this host) that does not exist; exit 2
+      when any, 0 otherwise.
+  diff-venvs <old venv> <new venv>
+      Prints DROPPED=<name>==<ver> for a distribution only the old venv has and
+      CHANGED=<name> <old>-><new> for one whose version moved, read from each venv's
+      site-packages *.dist-info/METADATA (no pip). Never fatal.
   lint-extras <addons dir> ...
       Prints SUGGESTED_EXTRA=<dist> for a lint package an addon's tests import optionally
       (pylint-odoo, flake8) - the shape _install_test_deps solves for the core test framework.
 """
+import glob
 import hashlib
 import json
 import os
@@ -175,6 +181,52 @@ def cmd_finish(venv_dir):
     return rc
 
 
+def _dist_versions(venv_dir):
+    """{normalised name: (name, version)} read from the *.dist-info/METADATA of every
+    site-packages under the venv - no pip and no interpreter of the venv needed."""
+    found = {}
+    pattern = os.path.join(venv_dir, "lib*", "python*", "site-packages", "*.dist-info", "METADATA")
+    pattern_win = os.path.join(venv_dir, "Lib", "site-packages", "*.dist-info", "METADATA")
+    for meta in glob.glob(pattern) + glob.glob(pattern_win):
+        name = version = None
+        try:
+            with open(meta, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if not line.strip():
+                        break
+                    if line.startswith("Name:") and name is None:
+                        name = line.split(":", 1)[1].strip()
+                    elif line.startswith("Version:") and version is None:
+                        version = line.split(":", 1)[1].strip()
+                    if name and version:
+                        break
+        except OSError:
+            continue
+        if name and version:
+            found[re.sub(r"[-_.]+", "-", name).lower()] = (name, version)
+    return found
+
+
+def cmd_diff_venvs(old_dir, new_dir):
+    """DROPPED=<name>==<ver> for a distribution only the old venv had, CHANGED=<name> <old>-><new>
+    for one whose version moved. Never fatal."""
+    try:
+        old, new = _dist_versions(old_dir), _dist_versions(new_dir)
+    except Exception as exc:  # noqa: BLE001 - a comparison must never stop a rebuild
+        print("  Warning: the two venvs could not be compared (%s)" % exc, file=sys.stderr)
+        return 0
+    dropped = [old[k] for k in sorted(old) if k not in new]
+    for name, ver in dropped:
+        print("DROPPED=%s==%s" % (name, ver))
+    for k in sorted(old):
+        if k in new and old[k][1] != new[k][1]:
+            print("CHANGED=%s %s->%s" % (new[k][0], old[k][1], new[k][1]))
+    if dropped:
+        print("  %d package(s) of the previous venv are not in the new one; re-add one the instance "
+              "needs with --extra <name>." % len(dropped))
+    return 0
+
+
 def cmd_reconcile(venv_dir):
     venv_dir = os.path.abspath(venv_dir).rstrip(os.sep)
     entry = _read_journal(venv_dir)
@@ -259,6 +311,10 @@ def stale_comments(path):
     return [line for line in buf.getvalue().splitlines() if line.strip()]
 
 
+# A path claim starts the comment or follows whitespace or "(", and reads /..., ~/... or $HOME/...
+_PATH_CLAIM_RE = re.compile(r"(?<![^\s(])((?:~|\$HOME)?/[^\s'\"`,;)]+)")
+
+
 def cmd_stale_comments(path):
     found = 0
     try:
@@ -267,9 +323,11 @@ def cmd_stale_comments(path):
                 if "#" not in line:
                     continue
                 comment = line.split("#", 1)[1]
-                for token in re.findall(r"(?:~|\$HOME)?/[^\s'\"`,;)]+", comment):
-                    expanded = os.path.expanduser(token.replace("$HOME", "~"))
-                    if expanded.startswith("/") and not os.path.exists(expanded):
+                for token in _PATH_CLAIM_RE.findall(comment):
+                    expanded = os.path.expanduser(token.rstrip(".:!?").replace("$HOME", "~"))
+                    first = "/" + expanded.lstrip("/").split("/", 1)[0]
+                    if (expanded.startswith("/") and os.path.exists(first)
+                            and not os.path.exists(expanded)):
                         print("STALE_COMMENT=%d: %s" % (no, line.strip()))
                         found += 1
                         break
@@ -317,6 +375,8 @@ def main(argv=None):
         return cmd_restore(rest[0])
     if cmd == "finish" and len(rest) == 1:
         return cmd_finish(rest[0])
+    if cmd == "diff-venvs" and len(rest) == 2:
+        return cmd_diff_venvs(rest[0], rest[1])
     if cmd == "reconcile" and len(rest) == 1:
         return cmd_reconcile(rest[0])
     if cmd == "basis" and len(rest) >= 1:

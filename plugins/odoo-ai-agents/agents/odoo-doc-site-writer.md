@@ -30,12 +30,12 @@ of the docs-site tooling and the caller lands the pages (`${CLAUDE_PLUGIN_ROOT}/
 | `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals |
 | `POLICY` | path of the policy file: banned terms and exempt paths, version-prose rule, marketplace pattern, URL prefix, demo company per language, semantic classes |
 | `REPO FACTS` | path of the `repo_facts.py` JSON of the worktree: `series`, `series_agree`, `languages`, `figure_language_filename`, `translate_target_rewrites_all_po`, `po.wrap_width`, `po.header_sample`, `extensions` |
-| `CONTENT WIDTH` | the recorded theme content column width in CSS pixels; `none` on a `check-shot` row |
+| `CONTENT WIDTHS` | the reference viewport and, per place an image can sit in (`body`, `list_1`, `list_2`, `admonition`, `table_cell`), the width an image renders at, in CSS pixels; `none` on a `check-shot` row |
 | `SERVED URLS` | content pages of the locally served build; only on a `check-shot` row |
 | `FROM CHANGE` | optional: path of the change file (one line per changed feature, its module and UI label); touch only what it affects |
 | `USER LANGUAGE` | optional; governs your report, never the pages |
 
-A missing field the work needs: `NEEDS_CONTEXT(<field>)`; a capturing row without `CONTENT WIDTH` is `NEEDS_CONTEXT(CONTENT WIDTH)`. No
+A missing field the work needs: `NEEDS_CONTEXT(<field>)`; a capturing row without `CONTENT WIDTHS` is `NEEDS_CONTEXT(CONTENT WIDTHS)`. No
 `INSTANCE HANDLE` on a row that captures: write the structure with `[Image: <slug>]` placeholders
 and return `NEEDS_NEXT` with `next: odoo-instance`.
 
@@ -54,8 +54,8 @@ regenerate the template with `po_sync.py`, treat the old `msgstr` as memory only
 links to this series and follow module renames; steps 2-8. `recapture`: steps 4-5 for the listed
 shots, same size as the existing file, no prose edit. `relabel`: correct UI terms and alt text
 only. `wire`: toctree entries and cross-references only. `fill`: translation entries only.
-`check-shot`: capture the named screen once per language, measure the content column
-(Screenshots) and return the paths, `reference_viewport` and `content_width`; write no page. A
+`check-shot`: capture the named screen once per language, measure the content widths
+(Screenshots) and return the paths, `reference_viewport` and `content_widths`; write no page. A
 `skip` row is never touched; a `new` row without a `toctree_parent` is `NEEDS_CONTEXT`.
 
 ## Steps
@@ -91,9 +91,10 @@ only. `wire`: toctree entries and cross-references only. `fill`: translation ent
    (the field list at the top of the sibling - a local-toc or display-toc field, an orphan or
    nosearch mark) copied as it stands: those fields decide the page's column width.
    **First page only:** build it (the `DOCS PYTHON` build of step 8 on that one page), open it
-   at the `CONTENT WIDTH` record's `reference_viewport` and read the main article's CSS width the
-   way a `check-shot` row does; a width that differs from `CONTENT WIDTH` by more than 5 percent
-   is a finding to fix NOW (the metadata, or a wrong record) - before a single image is captured.
+   at the reference viewport of `CONTENT WIDTHS` and read the width of each place its images sit
+   in the way a `check-shot` row does; a width that differs from its `CONTENT WIDTHS` entry by
+   more than 5 percent is a finding to fix NOW (the metadata, or a wrong record) - before a single
+   image is captured.
 7. **Translate.** `po_sync.py` (run by `DOCS PYTHON`) `generate` adds the entries of your pages; `fill` writes the
    `msgstr` for the target language. UI terms are exactly what the target-language UI shows: reuse
    the module `.po` files and the module guides; never invent a term. The page meta description
@@ -123,11 +124,12 @@ version prose, no series number appears in prose.
 
 - Enough context to recognise the screen: the app menu, the breadcrumb, the view title and the tabs
   visible.
-- The viewport width is derived at run time from `CONTENT WIDTH`, at most 1.25 times it, device
-  pixel ratio 2. On a `check-shot` row, measure it first: open the named content page of
-  `SERVED URLS` at a desktop reference viewport and read the CSS width of the main article
-  element, named by its role in the page and not by a theme selector; return it as `content_width`
-  with the viewport used as `reference_viewport`.
+- A shot's viewport width is at most 1.25 times the `CONTENT WIDTHS` entry of the place its image
+  goes into (the image of a numbered step sits in a list item; a place without an entry takes the
+  narrowest entry), device pixel ratio 2. On a `check-shot` row, measure first: open the named
+  content page of `SERVED URLS` at a desktop reference viewport, read the width of each place as
+  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-site/references/check-shot.md` § The content widths
+  says, and return them as `content_widths` with the viewport used as `reference_viewport`.
 - Full-screen shots first; a detail crop only as an extra after them.
 - Alt text says what the screen shows, in the page's language.
 

@@ -147,8 +147,8 @@ mention, not a claim.
 
 For **spawned workers** (odoo-coder, odoo-frontend-coder, workflow-chaining fan-out, code/UI agents), a
 `SubagentStop` hook (`hooks/enforce-grounding.sh`) reads the worker's own transcript and makes
-§1/§4 a checkable invariant: if your label line claims OSM but you made **zero**
-`mcp__odoo-semantic__*` calls, the stop is **blocked** and you are asked to either actually
+§1/§4 a checkable invariant: if your label line claims OSM but you made **zero** Odoo Semantic
+tool calls, the stop is **blocked** and you are asked to either actually
 verify or relabel honestly (`grounded: local-source - <why>` or `grounded: ungrounded - <why>`).
 The label must be *earned* from real calls, not asserted. A malformed label line, and two softer
 gaps, raise a **non-blocking note** (not a block): backend code written with OSM reachable but

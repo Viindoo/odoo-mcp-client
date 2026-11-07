@@ -64,7 +64,7 @@ Before beginning this checklist, confirm all of the following:
    - Gemini CLI: plugin directory referenced in `~/.gemini/GEMINI.md`.
 
 2. **OSM MCP server reachable**:
-   - `mcp__odoo-semantic__list_available_versions` returns a non-empty list.
+   - `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions` returns a non-empty list.
    - API key is valid (test with one quick `cli_help` call).
 
 3. **A declared `[[instance]]` for the target series** in `$ODOO_AI_HOME/instances.toml` (run

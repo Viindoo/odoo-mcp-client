@@ -29,7 +29,7 @@ def _catalog(tmp_path):
     dead_py = _venv(tmp_path / "venvs" / "16.0", ok=False)
     toml = tmp_path / "instances.toml"
     toml.write_text(textwrap.dedent('''\
-        # the venv of 17.0 used to live at /nonexistent/old-venv
+        # the venv of 17.0 used to live at %(oldvenv)s
         [[instance]]
         series = "17.0"
         profile = "std"
@@ -69,7 +69,7 @@ def _catalog(tmp_path):
         instance_key = "17.0:std"
         addons_path = ["%(good)s"]
         python = ""
-        ''' % {"good": good, "shared": shared, "gone": tmp_path / "gone", "dead": dead_py}))
+        ''' % {"good": good, "shared": shared, "gone": tmp_path / "gone", "dead": dead_py, "oldvenv": tmp_path / "gone-venvs" / "old-venv"}))
     return toml
 
 
@@ -88,7 +88,7 @@ def test_review_names_every_anomaly_with_its_fix(tmp_path):
     assert ("DEAD_ADDONS_PATH", "19.0:internal") in kinds
     assert ("DEAD_PYTHON", "16.0") in kinds
     assert ("NO_PYTHON", "15.0") in kinds
-    assert any(f["kind"] == "STALE_COMMENT" and "/nonexistent/old-venv" in f["detail"] for f in findings)
+    assert any(f["kind"] == "STALE_COMMENT" and "old-venv" in f["detail"] for f in findings)
     assert all(f["fix"] for f in findings)
     text = _run("review", str(toml)).stdout
     assert "FINDINGS=%d" % len(findings) in text and "FINDING=SHARED_VENV rows=17.0:std 19.0:std 19.0:internal" in text

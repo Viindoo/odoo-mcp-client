@@ -65,8 +65,8 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
 4. **Currency**: each core symbol the diff calls directly -> `lookup_core_api` is `stable`;
    `find_deprecated_usage` over the changed files; a removed or deprecated symbol -> HIGH.
 5. **Access**: a new model has its `ir.model.access.csv` row; a model with `company_id` has a
-   company record rule; a `res.groups` carries `category_id` and the right `implied_ids`
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`).
+   company record rule; a `res.groups` sits on the group model of the target series and
+   carries the right `implied_ids` (`${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`).
 6. **Code hygiene**, each a grep: `cr.commit()` or `cr.rollback()` in business code or tests;
    `sudo()` without a reason comment on the same statement; `search`, `browse` or a compute read
    inside a `for rec in self` loop; a `_compute_*` body reading a field its `@api.depends` omits;
@@ -76,10 +76,10 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
    boolean `and` / `or` hand-wrapped across lines (`${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`
    § Python wrapping); `Args:`, `Returns:` or `Raises:` inside a triple-quoted string of a `.py`
    file (a Google or NumPy docstring -> LOW, the fix is the rst field form of
-   `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 5); a rate, ceiling, threshold,
-   effective date or regulation-assigned account code written as a Python constant or inside a
-   formula string (`code`, `amount_python_compute`) instead of a data record -> MED
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 2).
+   `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 5); a legal value or rule held in
+   Python - a constant, a number inside a formula string (`code`, `amount_python_compute`), a
+   hardcoded xmlid, an `if` for one article - instead of a data record -> MED
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 6).
    A `_name`, `_inherit` or `_inherits` value that is not a string literal (or a list or dict of
    literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
 7. **Conventions**: every section of every guideline file you read for the file types in
@@ -128,7 +128,9 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
    a new constraint, refused transition or cascade cancel whose evidence and way out for the
    user neither the SRS nor the coder's return names -> HIGH; a guard that blocks on a legal or
    policy limit (a cap, a ratio, an approval window, a tax method) instead of flagging it for
-   audit -> HIGH; a stored compute over a many-record relation
+   audit -> HIGH; a legal value or rule the change touches for which the SRS or the design header
+   leaves one of the four questions of § 6 unanswered, or that the code does not read as the
+   record in force on the business date -> MED; a stored compute over a many-record relation
    (`${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`).
 5. **Impact map**: `IMPACT_MAP` names every symbol the diff changed with its dependents and
    siblings checked; a symbol missing from it, or a dependent `RECON` lists that the map does
