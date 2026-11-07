@@ -22,7 +22,7 @@ These two steps are easy to confuse. Only the first is required:
 
 | Step | Command / skill | Scope | When |
 |------|-----------------|-------|------|
-| 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** - registers server URL + API key so `mcp__odoo-semantic__*` tools load |
+| 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** - registers server URL + API key so the Odoo Semantic tools (`mcp__plugin_odoo-semantic-mcp_odoo-semantic__*`) load |
 | 2. Declare an instance | `/odoo-ai-agents:odoo-setup` | Once per repo/series | **Optional** - browser MCP + Playwright + a local Odoo instance declared in `$ODOO_AI_HOME/instances.toml`, only for the `Visual` skills or a live run |
 
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Without it, every `odoo-*` skill still resolves the Odoo series/profile/scope from the checkout the first time you invoke it in a new repo.
@@ -177,9 +177,9 @@ Verify: run `/mcp` in a live session, or `claude mcp list` from the shell. You s
 ### Auto-trust: skip permission prompts
 <a id="claude-code-auto-trust"></a>
 
-> **If you installed via the plugin:** `/odoo-semantic-mcp:connect` already adds this entry to `~/.claude/settings.json` automatically (idempotent, with backup, no side effects on other keys). Confirm at the final prompt - you can skip the rest of this section. If you declined: follow the manual snippet below.
+> **If you installed via the plugin:** `/odoo-semantic-mcp:connect` adds the entry `mcp__plugin_odoo-semantic-mcp_odoo-semantic` (the plugin's tools are named `mcp__plugin_odoo-semantic-mcp_odoo-semantic__<tool>`) to `~/.claude/settings.json` (idempotent, with backup, no side effects on other keys). Confirm at the final prompt - you can skip the rest of this section. If you declined: add that string to `permissions.allow` by hand.
 
-Manual snippet (for users who ran `claude mcp add` directly, without the plugin):
+Manual snippet (for users who ran `claude mcp add` directly, without the plugin - the server id `odoo-semantic` names the tools `mcp__odoo-semantic__<tool>`):
 
 ```json
 {
@@ -734,10 +734,10 @@ each folds several narrower lookups into one discriminator-routed call:
 
 | Superset tool | Use case | Valid `method` values |
 |---------------|----------|-----------------------|
-| `model_inspect(model, method, ...)` | Model-level inspection: summary, field/method/view inventory | `summary` · `fields` · `methods` · `views` · `field` · `method` |
-| `module_inspect(name, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches, dependencies | `summary` · `views` · `owl` · `qweb` · `js` · `dependencies` |
-| `entity_lookup(kind, ...)` | Single entity drill-down by ID | kind: `field` · `method` · `view` |
-| `profile_inspect(profile, method, ...)` | Profile-level introspection: inheritance chain, repos, module inventory | `summary` · `repos` · `modules` |
+| `model_inspect(model, method, ...)` | Model-level inspection: summary, field/method/view inventory, extending modules | `summary` · `fields` · `methods` · `views` · `field` · `method` · `extenders` |
+| `module_inspect(name, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches, dependencies, test classes | `summary` · `views` · `owl` · `qweb` · `js` · `dependencies` · `tests` |
+| `entity_lookup(kind, ...)` | Single entity drill-down | kind: `model` · `field` · `method` · `view` · `module` · `pattern` · `report` |
+| `profile_inspect(method, name=..., ...)` | Profile-level introspection: inheritance chain, repos, module inventory, coverage by category | `summary` · `repos` · `modules` · `coverage` |
 
 ### ORM-validation tools (server v0.8.0+)
 

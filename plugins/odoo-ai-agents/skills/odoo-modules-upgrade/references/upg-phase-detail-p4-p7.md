@@ -94,7 +94,7 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
     grep -rn "group_<module>" . --include="*.xml" --include="*.py" --include="*.csv"
     grep -rn "<xmlid from the module>" . --include="*.xml"
   The brief carries the module's model names (from absorption/<module>.md) and known XML IDs,
-  sourced from `module_inspect(name='<module>', method='models', odoo_version='<source_version>')`
+  sourced from `module_inspect(name='<module>', method='summary', odoo_version='<source_version>')`
   + the module's data/security XML at SOURCE. For EACH dangling
   reference found: either rehome it to the absorbing core module/feature OR remove it.
   Document the rehoming decisions in the commit request's business-outcome description or an

@@ -26,7 +26,7 @@ Read from Hard rule 3 of `SKILL.md`.
      - **(iii-b) touches local code/instance** but 0 manifests found → addon is likely outside maxdepth-3: **ask for the addon path / instance URL and re-probe**; if still 0, proceed standalone with a caveat.
      - **(iii-c) purely non-Odoo** (HR/finance/legal/PR/general writing) → § Multi-plugin routing.
 
-   **3c. OSM probe + version confirmation.** Call `mcp__odoo-semantic__list_available_versions`, then branch:
+   **3c. OSM probe + version confirmation.** Call `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions`, then branch:
    - **OSM reachable AND 3a resolved the series** → confirm the series is in the indexed list and mark `backed`. Do NOT re-ask the version.
    - **OSM reachable BUT the series is still unresolved after every rung** → present the indexed version menu from `list_available_versions` → `list_available_profiles` filtered to the chosen version → `profile_inspect(method='summary', …)` to confirm the profile name resolves. Record both as the values in force for this turn. Mark `backed`. When no `[[instance]]` in the catalog covers this repo, add ONE line offering `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; the run proceeds on the resolved values either way.
    - **OSM absent/unreachable** → mark `standalone`. The series still comes from 3a's rungs; ask for it only when every rung missed. When no `[[instance]]` in the catalog covers this repo, add ONE line offering `/odoo-ai-agents:odoo-setup`.

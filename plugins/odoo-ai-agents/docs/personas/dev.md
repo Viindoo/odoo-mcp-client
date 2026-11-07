@@ -10,14 +10,14 @@ The full **31-tool arsenal**, optimized for development workflows - understandin
 
 ## All Tools Available to Developers
 
-### Supersets (v0.5+ - preferred over legacy siblings)
+### Supersets
 
 | Tool | Use case |
 |------|----------|
-| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'extenders'\|'field'\|'method', ...)` | One call returns the model's summary, field list, method list, view inventory, paginated extender list, or a single entity drill-down. **Replaces** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
-| `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches, dependencies. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
-| `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
-| `profile_inspect(profile, method='summary'\|'repos'\|'modules', ...)` | Profile-level introspection: inheritance chain + repos + module inventory (method=summary\|repos\|modules). |
+| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'extenders'\|'field'\|'method', ...)` | One call returns the model's summary, field list, method list, view inventory, paginated extender list, or a single entity drill-down. |
+| `module_inspect(name, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies'\|'tests', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches, dependencies and test classes. |
+| `entity_lookup(kind='model'\|'field'\|'method'\|'view'\|'module'\|'pattern'\|'report', ...)` | One entity drill-down when its kind is known. |
+| `profile_inspect(method='summary'\|'repos'\|'modules'\|'coverage', name=<profile>, ...)` | Profile-level introspection: inheritance chain, repos, module inventory, module count by category. |
 
 ### Session context (per-MCP-session pin, 24h idle TTL - racy when actors share a session)
 
@@ -76,12 +76,6 @@ Discover what is already tested before writing new tests - avoid reinventing cov
 | `test_base_classes(odoo_version="<version>")` | Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) **for the given version**, with `test_type` and cursor contract. Always surfaces: `cr.commit()` FORBIDDEN - isolation is savepoint rollback. |
 | `test_coverage_audit(module, odoo_version="<version>")` | Audit an entire module for test coverage gaps: lists fields/methods with zero `COVERS_*` edges (never referenced by any test). **Static reference coverage only, not runtime executed coverage.** |
 | `js_test_inspect(module, odoo_version="<version>")` | List JS test suites in a module: framework mix (Hoot/QUnit/tour), file paths, suite sizes, tags. |
-
-### Removed in v0.6
-
-The 10 flat tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were deprecated in v0.5 and **removed in v0.6**. They no longer exist on the server. Use the supersets above.
-
-See the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) for side-by-side migration examples.
 
 ### MCP Resources (`odoo://` URI scheme, v0.5+)
 

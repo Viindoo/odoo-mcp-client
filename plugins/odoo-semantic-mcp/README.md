@@ -45,7 +45,8 @@ it and verifies the result.
    Code's masked dialog), or `claude plugin configure odoo-semantic-mcp@viindoo-plugins
    --values-stdin` in your terminal. The key never passes through the chat.
 3. After `/reload-plugins`, verifies the connection by calling the server's tools.
-4. Pre-approves all `mcp__odoo-semantic__*` tools in `~/.claude/settings.json` (idempotent).
+4. Pre-approves all the plugin's tools (`mcp__plugin_odoo-semantic-mcp_odoo-semantic__*`) in
+   `~/.claude/settings.json` (idempotent).
 
 The manual snippet for `permissions.allow` is in
 [`docs/setup.md#claude-code-auto-trust`](../odoo-ai-agents/docs/setup.md#claude-code-auto-trust).

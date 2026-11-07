@@ -28,8 +28,8 @@ Use ALL of the following to confirm DELETE-absorbed. A single signal is insuffic
 
 1. `check_module_exists(name='<candidate_core_module>', odoo_version='<target_version>')` returns
    `exists: true, edition: CE|EE` - the core module exists at target.
-2. `module_inspect(name='<candidate_core_module>', method='models', odoo_version='<target_version>')`
-   lists a model that covers the custom module's primary domain.
+2. `module_inspect(name='<candidate_core_module>', method='summary', odoo_version='<target_version>')`
+   lists (defined or extended models) a model that covers the custom module's primary domain.
 3. `model_inspect(model='<custom_model>', method='fields', odoo_version='<target_version>')` -
    if the custom model is now an extension of a core model that provides the same fields,
    the custom extension adds zero net behavior.
@@ -99,7 +99,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | `FieldWidget` / `AbstractField` from web module | v14 (deprecated) - NOT removed at v16; absent from the OSM index by v18 | Route to `odoo-coding` (frontend leg) for OWL rewrite |
 | Legacy asset bundle keys (`web.assets_backend` manifest shape) | v15+ | Update `__manifest__.py` `assets` dict to new bundle format |
 | SCSS `@import "variables"` | v16+ | Replace with `@use "variables" as *` + `math.div()` for division |
-| `@import` for SCSS files that moved | any | Verify import paths against `module_inspect(name='<module>', method='assets', odoo_version='<target_version>')` at target |
+| `@import` for SCSS files that moved | any | Verify import paths against `resolve_stylesheet(module='<module>', odoo_version='<target_version>')` (its `@import` chain) at target |
 | QUnit tests | the series in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 2 | Move to Hoot (`describe/test/expect`) - route to `odoo-coding` (frontend leg) |
 
 ### Manifest breaks

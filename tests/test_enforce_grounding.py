@@ -44,6 +44,12 @@ def _line(role="assistant", content=None):
     return json.dumps({"role": role, "content": content or []})
 
 
+OSM_PREFIXES = [
+    pytest.param("mcp__plugin_odoo-semantic-mcp_odoo-semantic__", id="plugin-form"),
+    pytest.param("mcp__odoo-semantic__", id="hand-registered-form"),
+]
+
+
 def _tool_use(name, file_path=None):
     inp = {"file_path": file_path} if file_path else {}
     return {"type": "tool_use", "name": name, "input": inp}
@@ -109,7 +115,7 @@ def test_silent_skipper_gets_a_note_not_a_pass(tmp_path):
     assert rc == 0
     assert out is not None, "silent-skipper must produce a note, not a silent pass"
     note = _note_text(out)
-    assert "ZERO mcp__odoo-semantic__" in note, note
+    assert "ZERO Odoo Semantic tool calls" in note, note
     # The extra turn's last message is what the caller receives: the note must say so, or the
     # subagent ends on a one-line acknowledgement and the caller loses the report.
     assert "repeating your complete report" in note, note
@@ -135,10 +141,11 @@ def test_silent_skipper_is_not_blocked_even_with_orm_looking_code(tmp_path):
     assert out is not None and out.get("decision") != "block"
 
 
-def test_half_grounded_gets_a_note(tmp_path):
+@pytest.mark.parametrize("osm", OSM_PREFIXES)
+def test_half_grounded_gets_a_note(tmp_path, osm):
     """Backend .py written, OSM called, but ORM validators skipped -> non-blocking note."""
     lines = [
-        _line(content=[_tool_use("mcp__odoo-semantic__model_inspect")]),
+        _line(content=[_tool_use(osm + "model_inspect")]),
         _line(content=[_tool_use("Write", "models/sale.py")]),
     ]
     _, out = _run(tmp_path, lines)
@@ -164,11 +171,12 @@ def test_honest_local_source_label_passes_clean(tmp_path):
     assert out is None, "an honest local-source label must not be nagged"
 
 
-def test_properly_grounded_passes_clean(tmp_path):
+@pytest.mark.parametrize("osm", OSM_PREFIXES)
+def test_properly_grounded_passes_clean(tmp_path, osm):
     """OSM calls made AND validators run AND claims osm -> fully grounded -> pass."""
     lines = [
-        _line(content=[_tool_use("mcp__odoo-semantic__model_inspect")]),
-        _line(content=[_tool_use("mcp__odoo-semantic__validate_depends")]),
+        _line(content=[_tool_use(osm + "model_inspect")]),
+        _line(content=[_tool_use(osm + "validate_depends")]),
         _line(content=[_tool_use("Write", "models/sale.py")]),
         _line(content=[_text("grounded: osm")]),
     ]
@@ -361,10 +369,11 @@ def test_a_label_line_claiming_osm_without_an_osm_call_is_blocked(tmp_path, labe
     assert out is not None and out.get("decision") == "block", out
 
 
-def test_a_label_line_claiming_osm_with_osm_calls_passes(tmp_path):
+@pytest.mark.parametrize("osm", OSM_PREFIXES)
+def test_a_label_line_claiming_osm_with_osm_calls_passes(tmp_path, osm):
     lines = [brief_record(),
-             _line(content=[_tool_use("mcp__odoo-semantic__set_active_version")]),
-             _line(content=[_tool_use("mcp__odoo-semantic__model_inspect")])]
+             _line(content=[_tool_use(osm + "set_active_version")]),
+             _line(content=[_tool_use(osm + "model_inspect")])]
     _, out = _run(tmp_path, lines,
                   last_message="Checked sale.order.\ngrounded: osm\n```continuation\nstatus: DONE\n```")
     assert out is None, out

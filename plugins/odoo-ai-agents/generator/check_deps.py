@@ -17,7 +17,8 @@ surfaced were being closed - see below; all 9 are now declared or ruled a docume
 exception, so it is fatal by default. --strict / DEPS_STRICT=1 are now no-ops kept only for
 back-compat with the same flag/env-var convention check_workflows.py's WORKFLOWS_STRICT and
 check_orchestration.py's ORCH_STRICT still use):
-  4. every mcp__odoo-semantic__* tool NAMED in a skill's HAND-WRITTEN SKILL.md prose (the text
+  4. every Odoo Semantic tool NAMED (bare, or as `mcp__plugin_odoo-semantic-mcp_odoo-semantic__<tool>`
+     or `mcp__odoo-semantic__<tool>`) in a skill's HAND-WRITTEN SKILL.md prose (the text
      outside the <!-- BEGIN/END GENERATED TOOLS --> markers) must appear in that skill's OWN
      declared mcp_tools list. Without this, a skill's prose can silently call a tool its own
      SSOT entry doesn't know about (measured: odoo-perf-audit / odoo-security-audit /
@@ -71,6 +72,11 @@ def hand_written_prose(skill_md_text: str) -> str:
 _NEGATION_CUE_RE = re.compile(r"\b(?:do\s+not|never)\s+call\b", re.IGNORECASE)
 
 
+# The two spellings of the tool-call prefix: the plugin-installed server and a hand-registered one.
+# Stripped so a prefixed tool name is checked exactly like a bare one.
+_TOOL_PREFIX_RE = re.compile(r"mcp__(?:plugin_odoo-semantic-mcp_)?odoo-semantic__")
+
+
 def tools_named_in_prose(prose: str, live_tool_names: set) -> set:
     """Return the subset of live_tool_names that appear as a whole word in prose.
 
@@ -85,6 +91,7 @@ def tools_named_in_prose(prose: str, live_tool_names: set) -> set:
     for sentence in prose.split("."):
         if _NEGATION_CUE_RE.search(sentence):
             continue
+        sentence = _TOOL_PREFIX_RE.sub("", sentence)
         for name in live_tool_names:
             if re.search(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", sentence):
                 found.add(name)

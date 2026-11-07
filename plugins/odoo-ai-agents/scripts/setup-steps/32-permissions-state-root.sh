@@ -48,7 +48,7 @@
 #     `instances.toml`. A sitecustomize.py under venvs/ or an edited
 #     setup-scripts/*.sh is deferred code execution, not scratch data -
 #     granting blanket Edit(//$ODOO_AI_HOME/**) would auto-approve that too.
-#   - Never writes `mcp__odoo-semantic` - that permission's owner is
+#   - Never writes the Odoo Semantic rule (`mcp__plugin_odoo-semantic-mcp_odoo-semantic`, or `mcp__odoo-semantic` for a hand-registered server) - that permission's owner is
 #     plugins/odoo-semantic-mcp/commands/connect.md step 5; `check` below only
 #     REPORTS its absence and points there.
 #   - Bash rules are EXACT, wildcard-free command strings (the script this
@@ -178,7 +178,7 @@
 #              `apply` legitimately skips as covered never makes `check`
 #              report the setup as incomplete (that mismatch would loop the
 #              SessionStart hook). Also reports (non-blocking) whether
-#              mcp__odoo-semantic is present, pointing at its real owner.
+#              the Odoo Semantic rule is present, pointing at its real owner.
 #   apply      Ask [Y/n] (honors ODOO_AI_NO_AUTO_PERMS=1 opt-out); for the two
 #              version-pinned Bash rules, unconditionally prunes stale same-
 #              plugin entries first (config_merge.py json-prune-allow); then
@@ -336,7 +336,8 @@ try:
 except Exception:
     sys.exit(1)
 allow = (data.get("permissions") or {}).get("allow") or []
-sys.exit(0 if any(a == "mcp__odoo-semantic" or a.startswith("mcp__odoo-semantic__") for a in allow) else 1)
+PREFIXES = ("mcp__plugin_odoo-semantic-mcp_odoo-semantic", "mcp__odoo-semantic")
+sys.exit(0 if any(a == p or a.startswith(p + "__") for a in allow for p in PREFIXES) else 1)
 PY
 }
 
@@ -402,7 +403,7 @@ cmd_check() {
     # Informational only - mcp__odoo-semantic is NOT this step's rule to write
     # or require; its owner is odoo-semantic-mcp's connect command.
     if ! _odoo_semantic_present; then
-        echo "i  mcp__odoo-semantic is not in permissions.allow[] - that is NOT this step's job; run /odoo-semantic-mcp:connect (step 5) to add it." >&2
+        echo "i  mcp__plugin_odoo-semantic-mcp_odoo-semantic is not in permissions.allow[] - that is NOT this step's job; run /odoo-semantic-mcp:connect (step 5) to add it." >&2
     fi
     return "$missing"
 }

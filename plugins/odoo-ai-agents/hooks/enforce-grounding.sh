@@ -5,7 +5,7 @@
 # ADVISORY prose today - an agent can emit `grounded: osm` without having made a single
 # OSM call, and nothing notices. This hook turns the EXISTING contracts into a checkable
 # invariant by reading the subagent's own transcript: if its report CLAIMS OSM grounding (its label
-# line - see _grounding_labels) but the transcript shows ZERO `mcp__odoo-semantic__*` calls, that is
+# line - see _grounding_labels) but the transcript shows ZERO Odoo Semantic tool calls, that is
 # a self-reported lie - block with corrective feedback (when, and how often: CONTRACT below). Softer
 # gaps are surfaced as NON-blocking notes: a label line whose value is outside the contract's set;
 # (a) backend .py written while OSM was reachable but the ORM validators never ran; and
@@ -71,8 +71,11 @@ TRANSCRIPT="$(_hook_transcript "$INPUT")"
 NORM="$(_assistant_signals "$TRANSCRIPT" "$(_hook_last_message "$INPUT")")"
 
 _cnt() { printf '%s\n' "$NORM" | grep -ciE "$1" 2>/dev/null | tr -d '[:space:]' || true; }
-OSM_CALLS=$(_cnt $'^CALL\tmcp__odoo-semantic__')
-VALIDATOR_CALLS=$(_cnt $'^CALL\tmcp__odoo-semantic__(validate_depends|validate_domain|validate_relation|resolve_orm_chain)')
+# An Odoo Semantic tool is named `mcp__plugin_odoo-semantic-mcp_odoo-semantic__<tool>` when the
+# server comes from the odoo-semantic-mcp plugin and `mcp__odoo-semantic__<tool>` when it is
+# registered by hand; both count.
+OSM_CALLS=$(_cnt $'^CALL\tmcp__[^\t]*odoo-semantic__')
+VALIDATOR_CALLS=$(_cnt $'^CALL\tmcp__[^\t]*odoo-semantic__(validate_depends|validate_domain|validate_relation|resolve_orm_chain)')
 # Backend .py writes: a Write/Edit/MultiEdit tool_use whose path ends in .py.
 PY_WRITES=$(_cnt $'^CALL\t(Write|Edit|MultiEdit)\t.*\\.py$')
 # Read-before-write signal: did the subagent open a coding_guidelines/<version>/ file?
@@ -145,7 +148,7 @@ if [[ "$CLAIMS_OSM" -gt 0 && "$OSM_CALLS" -eq 0 ]]; then
     # caller, so the reason ends on the sentence that says so (final-report.sh _subagent_note_tail).
     # A fresh stop is always checked; inside a hook-continued chain this exact refusal is given once
     # (hooks/advice-once.sh _stop_block_due), so a block the subagent ignores cannot loop.
-    REASON="Grounding invariant violated: your report's \`grounded:\` label line claims OSM but this subagent's transcript shows ZERO mcp__odoo-semantic__* calls. Either actually verify the claim against OSM (set_active_version + model_inspect/entity_lookup/etc.), or relabel honestly: \`grounded: local-source - <why>\` when you read the source, \`grounded: ungrounded - <why>\` when nothing was checked (osm-first-contract.md section 5: the first word after the key is the value, the rest is explanation). Your report carries one label line, for its own work: describe an earlier label in prose, never on a label line. Do not assert OSM grounding you did not perform. $(_subagent_note_tail "$TRANSCRIPT" "$INPUT")"
+    REASON="Grounding invariant violated: your report's \`grounded:\` label line claims OSM but this subagent's transcript shows ZERO Odoo Semantic tool calls. Either actually verify the claim against OSM (set_active_version + model_inspect/entity_lookup/etc.), or relabel honestly: \`grounded: local-source - <why>\` when you read the source, \`grounded: ungrounded - <why>\` when nothing was checked (osm-first-contract.md section 5: the first word after the key is the value, the rest is explanation). Your report carries one label line, for its own work: describe an earlier label in prose, never on a label line. Do not assert OSM grounding you did not perform. $(_subagent_note_tail "$TRANSCRIPT" "$INPUT")"
     _stop_block_due "$TRANSCRIPT" "$STOP_ACTIVE" "$REASON" || _pass
     jq -cn --arg r "$REASON" '{decision:"block", reason:$r}'
     exit 0
@@ -187,7 +190,7 @@ fi
 # work and pressure the agent into emitting an unverifiable `grounded: local-source`. So: nudge,
 # don't gate - the hard quality gate is /test_lint/CI (behavior), not OSM-call-count.
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -eq 0 && "$CLAIMS_OSM" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    _note "Grounding note: this subagent wrote backend Python (.py) but made ZERO mcp__odoo-semantic__* calls and emitted no grounding label. If the file touches ORM (models/fields/@api.depends/domain=/related=), ground it before presenting - set_active_version + model_inspect/entity_lookup to verify, then the Round-4 ORM validators + the /test_lint backend lint gate - or, if OSM is unreachable, ground against disk and label \`grounded: local-source - OSM unreachable\`. If the file is pure-Python with no ORM (util/migration/test/__init__/__manifest__/data), label it \`grounded: ungrounded - pure Python, no ORM\`, so the grounding gate is satisfied. Don't leave Odoo backend code silently ungrounded. Also confirm currency of touched core symbols via lookup_core_api (existence is not currency).${GUIDELINES_NOTE}"
+    _note "Grounding note: this subagent wrote backend Python (.py) but made ZERO Odoo Semantic tool calls and emitted no grounding label. If the file touches ORM (models/fields/@api.depends/domain=/related=), ground it before presenting - set_active_version + model_inspect/entity_lookup to verify, then the Round-4 ORM validators + the /test_lint backend lint gate - or, if OSM is unreachable, ground against disk and label \`grounded: local-source - OSM unreachable\`. If the file is pure-Python with no ORM (util/migration/test/__init__/__manifest__/data), label it \`grounded: ungrounded - pure Python, no ORM\`, so the grounding gate is satisfied. Don't leave Odoo backend code silently ungrounded. Also confirm currency of touched core symbols via lookup_core_api (existence is not currency).${GUIDELINES_NOTE}"
 fi
 
 # NOTE: the read-before-write reminder is appended to Invariants 2/3 (via $GUIDELINES_NOTE), not

@@ -10,7 +10,7 @@ behavior/security contract, not the implementation):
 
   - `describe|check|apply` subcommand contract, idempotent;
   - writes ONLY `permissions.allow[]` - never `deny[]`/`ask[]`/`additionalDirectories`;
-  - never writes `mcp__odoo-semantic` (that permission's owner is
+  - never writes an Odoo Semantic rule (that permission's owner is
     odoo-semantic-mcp's connect command, not this step);
   - refuses to write when the target settings file is not valid JSON (exit 2);
   - honours the `ODOO_AI_NO_AUTO_PERMS=1` opt-out (no write at all);
@@ -122,22 +122,45 @@ def test_writes_only_permissions_allow(settings, odoo_ai_home):
     assert "allow" in perms and perms["allow"], "must write permissions.allow[]"
 
 
-def test_never_writes_mcp_odoo_semantic(settings, odoo_ai_home):
+_OSM_PLUGIN_RULE = "mcp__plugin_odoo-semantic-mcp_odoo-semantic"
+_OSM_SHORT_RULE = "mcp__odoo-semantic"
+
+
+def _is_osm_rule(a):
+    return any(a == p or a.startswith(p + "__") for p in (_OSM_PLUGIN_RULE, _OSM_SHORT_RULE))
+
+
+def test_never_writes_an_odoo_semantic_rule(settings, odoo_ai_home):
     _run("apply", settings, odoo_ai_home)
     allow = _allow(settings)
-    assert not any(a == "mcp__odoo-semantic" or a.startswith("mcp__odoo-semantic__") for a in allow), (
-        f"must never write mcp__odoo-semantic (owned by odoo-semantic-mcp connect.md step 5); "
+    assert not any(_is_osm_rule(a) for a in allow), (
+        f"must never write an Odoo Semantic rule (owned by odoo-semantic-mcp connect.md step 5); "
         f"allow={allow}"
     )
 
 
-def test_check_reports_mcp_odoo_semantic_absence_pointer(settings, odoo_ai_home):
+def test_check_reports_odoo_semantic_absence_pointer(settings, odoo_ai_home):
     r = _run("check", settings, odoo_ai_home)
     combined = r.stdout + r.stderr
-    assert "mcp__odoo-semantic" in combined and "connect" in combined.lower(), (
-        "check should report mcp__odoo-semantic's absence and point at the connect command "
-        f"that owns it; got: {combined!r}"
+    assert _OSM_PLUGIN_RULE in combined and "connect" in combined.lower(), (
+        "check should report the plugin-form Odoo Semantic rule's absence and point at the connect "
+        f"command that owns it; got: {combined!r}"
     )
+
+
+@pytest.mark.parametrize("rule", [
+    pytest.param(_OSM_PLUGIN_RULE, id="plugin-rule"),
+    pytest.param(_OSM_PLUGIN_RULE + "__model_inspect", id="plugin-tool-entry"),
+    pytest.param(_OSM_SHORT_RULE, id="hand-registered-rule"),
+])
+def test_check_is_silent_about_odoo_semantic_when_an_allow_entry_exists(settings, odoo_ai_home, rule):
+    _run("apply", settings, odoo_ai_home)
+    data = json.loads(settings.read_text(encoding="utf-8"))
+    data["permissions"]["allow"].append(rule)
+    settings.write_text(json.dumps(data), encoding="utf-8")
+    r = _run("check", settings, odoo_ai_home)
+    combined = r.stdout + r.stderr
+    assert "connect" not in combined.lower(), f"no absence message expected; got: {combined!r}"
 
 
 def test_refuses_invalid_json(settings, odoo_ai_home):

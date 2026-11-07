@@ -10,14 +10,14 @@ Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hi
 
 ## Tất cả công cụ dành cho Lập trình viên
 
-### Supersets (v0.5+ - ưu tiên hơn các sibling cũ)
+### Supersets
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'extenders'\|'field'\|'method', ...)` | Một lời gọi trả về summary của model, danh sách field, danh sách method, kiểm kê view, danh sách extender phân trang, hoặc drill-down một entity đơn lẻ. **Thay thế** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
-| `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies', ...)` | Kiểm kê cấp module qua manifest, models, views, OWL, QWeb, JS patches, dependencies. **Thay thế** `describe_module` + `list_views` (phạm vi module) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
-| `entity_lookup(kind='field'\|'method'\|'view', ...)` | Drill-down một entity theo ID. **Thay thế** `resolve_field` + `resolve_method` + `resolve_view`. |
-| `profile_inspect(profile, method='summary'\|'repos'\|'modules', ...)` | Introspection cấp profile: inheritance chain + repos + kiểm kê module (method=summary\|repos\|modules). |
+| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'extenders'\|'field'\|'method', ...)` | Một lời gọi trả về summary của model, danh sách field, danh sách method, kiểm kê view, danh sách extender phân trang, hoặc drill-down một entity đơn lẻ. |
+| `module_inspect(name, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies'\|'tests', ...)` | Kiểm kê cấp module qua manifest, models, views, OWL, QWeb, JS patches, dependencies và test class. |
+| `entity_lookup(kind='model'\|'field'\|'method'\|'view'\|'module'\|'pattern'\|'report', ...)` | Drill-down một entity khi đã biết kind của nó. |
+| `profile_inspect(method='summary'\|'repos'\|'modules'\|'coverage', name=<profile>, ...)` | Introspection cấp profile: inheritance chain, repos, kiểm kê module, số module theo category. |
 
 ### Session context (pin theo từng phiên MCP, idle TTL 24h - racy khi nhiều actor dùng chung một phiên)
 
@@ -76,12 +76,6 @@ Khám phá những gì đã được test trước khi viết test mới - trán
 | `test_base_classes(odoo_version="<version>")` | Menu các base class của framework test Odoo chính thức (TransactionCase, HttpCase, SavepointCase, Form, v.v.) **cho đúng phiên bản được truyền vào**, kèm `test_type` và hợp đồng cursor. Luôn nêu rõ: `cr.commit()` bị CẤM - cô lập là savepoint rollback. |
 | `test_coverage_audit(module, odoo_version="<version>")` | Rà soát TOÀN BỘ một module tìm khoảng trống độ phủ test: liệt kê field/method có zero cạnh `COVERS_*` (chưa bao giờ được test nào tham chiếu). **Chỉ là độ phủ tham chiếu tĩnh, không phải độ phủ thực thi lúc chạy.** |
 | `js_test_inspect(module, odoo_version="<version>")` | Liệt kê các test suite JS trong một module: mix framework (Hoot/QUnit/tour), đường dẫn file, kích thước suite, tag. |
-
-### Removed in v0.6
-
-10 flat tool (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) đã bị deprecated ở v0.5 và **removed in v0.6**. Chúng không còn tồn tại trên server. Hãy dùng các superset ở trên.
-
-Xem server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) để có các ví dụ migration đặt cạnh nhau.
 
 ### MCP Resources (`odoo://` URI scheme, v0.5+)
 
