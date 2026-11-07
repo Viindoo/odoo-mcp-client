@@ -25,6 +25,9 @@
 # Subcommands: describe | check | apply
 #   check  -> exit 0 only if every REQUIRED auto-detected item is present.
 #   apply  -> print the full checklist (auto-detected + needs-confirm).
+#   check/apply accept --version X.Y and --profile P (the meaning they have in the other
+#   steps): the per-instance checks - the venv gate and the authentication / CREATEDB report -
+#   then cover only the matching declared instances and name the others in one line.
 
 set -euo pipefail
 
@@ -32,6 +35,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 ODOO_GIT_BASE="${ODOO_GIT_BASE:-$HOME/git}"
 SETUP_FILTER="${SETUP_FILTER:-all}"
+# Optional narrowing of the per-instance checks (--version / --profile); empty = every row.
+FILTER_VERSION=""
+FILTER_PROFILE=""
 # addons_path separator SSOT mirror (_addons_path_to_array) - see
 # scripts/lib/instances_io.py's join_addons_path/split_addons_path docstring.
 # shellcheck source=../lib/resolve_instances.sh
@@ -108,9 +114,9 @@ _resolve_instances_path() {
 _enumerate_source_instances() {
     local toml="$1"
     [[ -f "$toml" ]] || return 0
-    python3 - "$toml" "$LIB_DIR" <<'PY' 2>/dev/null || true
+    python3 - "$toml" "$LIB_DIR" "$FILTER_VERSION" "$FILTER_PROFILE" <<'PY' 2>/dev/null || true
 import os, sys
-toml, libdir = sys.argv[1], sys.argv[2]
+toml, libdir, want_ver, want_prof = sys.argv[1:5]
 sys.path.insert(0, libdir)
 import instances_io
 for it in instances_io.load_instances(toml):
@@ -118,6 +124,8 @@ for it in instances_io.load_instances(toml):
         continue
     series = instances_io.series_of(it)
     if not series:
+        continue
+    if (want_ver and series != want_ver) or (want_prof and instances_io.profile_of(it) != want_prof):
         continue
     py = str(it.get("python", ""))
     ap = it.get("addons_path", [])
@@ -216,6 +224,32 @@ _pg_probe_declared() {
     return 2
 }
 
+# ONE line naming the declared instances the --version / --profile narrowing left out
+# (count + keys); nothing when no narrowing is active or nothing was left out. $2 = "source"
+# counts only source-mode rows (what the venv gate looks at).
+_left_out_line() {
+    local toml="$1" only="${2:-}" out
+    [[ -n "$FILTER_VERSION$FILTER_PROFILE" && -f "$toml" ]] || return 0
+    out="$(python3 - "$toml" "$LIB_DIR" "$FILTER_VERSION" "$FILTER_PROFILE" "$only" <<'PY' 2>/dev/null || true
+import sys
+toml, libdir, want_ver, want_prof, only = sys.argv[1:6]
+sys.path.insert(0, libdir)
+import instances_io
+keys = []
+for it in instances_io.load_instances(toml):
+    series = instances_io.series_of(it)
+    if not series or (only == "source" and str(it.get("run_mode", "source")) != "source"):
+        continue
+    if (want_ver and series != want_ver) or (want_prof and instances_io.profile_of(it) != want_prof):
+        keys.append(instances_io.instance_key_of(it))
+if keys:
+    print("%d other declared instance(s) not checked (left out by --version/--profile): %s" % (len(keys), " ".join(keys)))
+PY
+)"
+    [[ -n "$out" ]] && printf '  [skip] %s\n' "$out"
+    return 0
+}
+
 # Report BOTH facts per declared instance, auto-detected by asking the cluster
 # (never inferred from which binaries are installed): can Odoo AUTHENTICATE, and
 # may the declared role CREATE DATABASE. An instance whose role lacks CREATEDB
@@ -266,6 +300,7 @@ _createdb_report() {
                echo "         db_container so the capability can be asked inside the container)" ;;
         esac
     done < <(_enumerate_instance_keys "$toml")
+    _left_out_line "$toml"
 }
 
 # Emit TAB-separated `series<TAB>profile` for EVERY declared instance, whatever its
@@ -275,14 +310,16 @@ _createdb_report() {
 _enumerate_instance_keys() {
     local toml="$1"
     [[ -f "$toml" ]] || return 0
-    python3 - "$toml" "$LIB_DIR" <<'PY' 2>/dev/null || true
+    python3 - "$toml" "$LIB_DIR" "$FILTER_VERSION" "$FILTER_PROFILE" <<'PY' 2>/dev/null || true
 import sys
-toml, libdir = sys.argv[1], sys.argv[2]
+toml, libdir, want_ver, want_prof = sys.argv[1:5]
 sys.path.insert(0, libdir)
 import instances_io
 for it in instances_io.load_instances(toml):
     series = instances_io.series_of(it)
     if not series:
+        continue
+    if (want_ver and series != want_ver) or (want_prof and instances_io.profile_of(it) != want_prof):
         continue
     print("\t".join([series, str(instances_io.profile_of(it) or "")]))
 PY
@@ -328,6 +365,7 @@ _venv_gate() {
             fi
         fi
     done < <(_enumerate_source_instances "$toml")
+    _left_out_line "$toml" source >&2
     return "$failed"
 }
 
@@ -401,7 +439,8 @@ cmd_apply() {
         esac
         _createdb_report
         printf '  %s' "$(_mark _repos_present)"; echo " Odoo repos under \${ODOO_GIT_BASE:-\$HOME/git} ($ODOO_GIT_BASE)"
-        echo "         fix: git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo17"
+        echo "         fix: git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo_17.0"
+        echo "              (one clone per series, named <repo>_<series>)"
         echo "              (or set ODOO_GIT_BASE to where your repos live)"
         printf '  %s' "$(_mark _have docker)";   echo " docker (REQUIRED when your PostgreSQL runs in a container - db_run_mode=docker)"
         printf '  %s' "$(_mark _have ffmpeg)";   echo " ffmpeg (optional - video/GIF recording and the narrated-video assembler; 'video_publish.py verify-tools' lists the filters)"
@@ -446,9 +485,21 @@ if [[ -r "$_REQ_PY" ]]; then
     esac
 fi
 
-case "${1:-}" in
+SUBCMD="${1:-}"
+shift || true
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --version|--profile)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") $1 requires a value" >&2; exit 2; }
+            if [[ "$1" == "--version" ]]; then FILTER_VERSION="$2"; else FILTER_PROFILE="$2"; fi
+            shift 2 ;;
+        *) echo "Usage: $(basename "$0") {describe|check|apply} [--version X.Y] [--profile P]" >&2; exit 2 ;;
+    esac
+done
+
+case "$SUBCMD" in
     describe) cmd_describe ;;
     check)    cmd_check ;;
     apply)    cmd_apply ;;
-    *) echo "Usage: $(basename "$0") {describe|check|apply}" >&2; exit 2 ;;
+    *) echo "Usage: $(basename "$0") {describe|check|apply} [--version X.Y] [--profile P]" >&2; exit 2 ;;
 esac

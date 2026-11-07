@@ -26,6 +26,8 @@ clone has a pushed fork for, and raises ONE question, only when no fork owner is
 
   fork_facts.py --repo PATH [--json]               one clone: KEY=VALUE lines or one JSON object
   fork_facts.py --repo PATH --repo PATH --summary  many clones: grouped by origin (also --json)
+  --summary also counts the fork owners of the repositories of this machine's instance catalog
+  (another one with --instances PATH) as known owners; they are neither grouped nor asked about.
 """
 from __future__ import annotations
 
@@ -183,13 +185,15 @@ def known_owners(all_facts: list[dict]) -> list[str]:
     return out
 
 
-def summarize(all_facts: list[dict]) -> dict:
+def summarize(all_facts: list[dict], owner_sources: list[dict] | None = None) -> dict:
     """The fork facts of many clones, grouped by origin.
 
     {known_owners, origins: [{origin, clones, fork_owners, candidate_owners}], without_fork, question}.
     `without_fork` lists the origins none of whose clones has a pushed fork remote. `question` is set
-    only when `without_fork` is not empty AND no fork owner is known from any clone."""
-    known = known_owners(all_facts)
+    only when `without_fork` is not empty AND no fork owner is known from any clone.
+    `owner_sources` are further clones whose fork owners count as known: they are never grouped
+    into `origins` or `without_fork`."""
+    known = known_owners(all_facts + list(owner_sources or []))
     by_origin: dict[str, dict] = {}
     for found in all_facts:
         key = origin_key(found)
@@ -241,8 +245,13 @@ def main(argv: list[str]) -> int:
                     help="path inside a git clone (repeat with --summary)")
     ap.add_argument("--summary", action="store_true",
                     help="group the clones by origin: known fork owners, origins without a fork")
+    ap.add_argument("--instances", metavar="INSTANCES_TOML",
+                    help="with --summary: the instance catalog whose repositories also supply known "
+                         "fork owners (default: this machine's catalog; never listed as origins)")
     ap.add_argument("--json", action="store_true", help="print one JSON object")
     args = ap.parse_args(argv)
+    if args.instances and not args.summary:
+        ap.error("--instances needs --summary")
     if len(args.repo) > 1 and not args.summary:
         ap.error("several --repo need --summary")
     roots: list[str] = []
@@ -254,7 +263,10 @@ def main(argv: list[str]) -> int:
         if root not in roots:
             roots.append(root)
     if args.summary:
-        summary = summarize([fork_facts(r) for r in roots])
+        import auto_mode_facts  # noqa: PLC0415 - it imports this module
+        sources = [fork_facts(r) for r in auto_mode_facts.catalog_repos(args.instances or "")
+                   if r not in roots]
+        summary = summarize([fork_facts(r) for r in roots], sources)
         if args.json:
             print(json.dumps(summary))
         else:

@@ -678,13 +678,9 @@ def test_step45_per_profile_venv_path_auto_derived(tmp_path):
         encoding="utf-8",
     )
 
-    # Auto-derived venv dir: <SHARE dir>/venvs/17.0-minimal_17 (Tier-2 SHARE -
-    # snippets/state-root-resolution.md; resolve_project_dir.sh share). Pin the
-    # SHARE dir via the documented ODOO_AI_PROJECT_DIR override so this test is
-    # hermetic (independent of the real git repo / HOME it happens to run in).
-    # slug of "minimal_17" = "minimal_17" (already clean)
-    share_dir = tmp_path / "odoo-ai" / "share"
-    expected_venv = share_dir / "venvs" / "17.0-minimal_17"
+    # Auto-derived venv dir: $ODOO_AI_HOME/venvs/17.0-minimal_17 (host-global,
+    # snippets/state-root-resolution.md). slug of "minimal_17" = "minimal_17".
+    expected_venv = tmp_path / "odoo-ai-home" / "venvs" / "17.0-minimal_17"
 
     # Pre-create the venv dir with a python stub so uv stub no-ops and
     # the gate check finds the right python.
@@ -706,7 +702,6 @@ def test_step45_per_profile_venv_path_auto_derived(tmp_path):
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_PROJECT_DIR"] = str(share_dir)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
 
     # Run WITHOUT --path so the auto-derive branch is exercised.
@@ -2058,7 +2053,7 @@ def test_step45_no_profile_multiprofile_fails_early(tmp_path):
     bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
 
     # A representative auto-derived venv path. The --profile guard fires BEFORE
-    # the venv path is ever computed (resolve_project_dir_share included), so
+    # the venv path is ever computed, so
     # its exact root is irrelevant to this assertion - what matters is that NO
     # venv directory materializes anywhere under tmp_path.
     auto_venv_path = tmp_path / "odoo-ai" / "venvs" / "17.0"

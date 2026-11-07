@@ -125,7 +125,7 @@ Map: page 1 = `instance`, `venv`, `browser`, `auto-mode`; page 2 = `docs-site` +
      Other error: continue with a warning. HARD block for `all` and `instance`; SOFT for `browser`, `runtime`,
      `permissions`.
    - **Gate #2 - Host prerequisites** (after Gate #1; skipped for `permissions` and `runtime`):
-     `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply`. A REQUIRED item missing stops before the plan,
+     `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply`, plus the run's `--version` / `--profile`. A REQUIRED item missing stops before the plan,
      in the operator's words; the venv hard-gate (`ODOO_AI_ALLOW_NO_VENV=1` downgrades it to a WARN) is in the file.
 1. **List the plan.** `for s in "$STEPS_DIR"/*.sh; do echo "- $(basename "$s"): $("$s" describe)"; done` is the
    engine's list; the operator sees the plan of "How this command asks": per goal the decisions with their

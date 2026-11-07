@@ -79,13 +79,6 @@ source "$SCRIPT_DIR/../lib/pg_mode.sh"
 # instances.toml is machine-global; resolve it (global-wins) via the shared helper.
 # shellcheck source=../lib/resolve_instances.sh
 source "$SCRIPT_DIR/../lib/resolve_instances.sh"
-# venvs/ root (Tier-2 SHARE - snippets/state-root-resolution.md): sourced for
-# resolve_project_dir_share, called lazily in cmd_create_venv (below) so a venv
-# built in one linked worktree of a repo is reused by every other worktree of
-# the SAME repo, instead of the old $ODOO_AI_DIR-relative (cwd/worktree-scoped)
-# path. follow-up: reclassify venvs/ to host-global by requirements-hash (deferred).
-# shellcheck source=../lib/resolve_project_dir.sh
-source "$SCRIPT_DIR/../lib/resolve_project_dir.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 
 cmd_describe() {
@@ -773,11 +766,9 @@ cmd_create_venv() {
         }
     fi
 
-    # Venv path: when --profile is given and --path is absent, use a per-profile
-    # path rooted at the resolver's Tier-2 SHARE dir (resolve_project_dir.sh
-    # share) - converges across a repo's linked worktrees instead of the old
-    # $ODOO_AI_DIR-relative (cwd/worktree-scoped) path.
-    # follow-up: reclassify venvs/ to host-global by requirements-hash (deferred).
+    # Venv path: when --path is absent, $ODOO_AI_HOME/venvs/<series>[-<profile>] -
+    # venvs/ is host-global (Tier-1), so the path never depends on the cwd and
+    # every checkout and worktree on the host reuses the same venv.
     # The row's own facts: the venv its `python` lives in (a rebuild never relocates it), the rows
     # that share that venv, and the extras / override recorded by an earlier build.
     local plan_json="{}" row_venv="" shared_by="" rec_override="" rec_basis=""
@@ -800,24 +791,23 @@ cmd_create_venv() {
     fi
     echo "BUILD_TOOL=$tool"
     echo "TOOL_SOURCE=$tool_source"
-    local path_source="flag"
+    local path_source="flag" venvs_root=""
+    venvs_root="$(python3 "$SCRIPT_DIR/../lib/paths.py" root)/venvs" || {
+        echo "x could not resolve the state root for venvs/ (set ODOO_AI_HOME)." >&2
+        return 1
+    }
     if [[ -z "$path" ]]; then
         if [[ -n "$row_venv" ]]; then
             path="$row_venv"; path_source="row"
         else
-            local share_dir
-            share_dir="$(resolve_project_dir_share)" || {
-                echo "x could not resolve the project SHARE dir for venvs/ (see resolve_project_dir.sh)." >&2
-                return 1
-            }
             if [[ -n "$profile" ]]; then
                 local prof_slug
                 prof_slug="$(printf '%s' "$profile" | tr -c '[:alnum:]._-' '_')"
-                path="$share_dir/venvs/${series}-${prof_slug}"
+                path="$venvs_root/${series}-${prof_slug}"
             else
-                path="$share_dir/venvs/$series"
+                path="$venvs_root/$series"
             fi
-            path_source="share"
+            path_source="state-root"
         fi
     fi
     # One venv per profile. A venv that another row also uses is never rebuilt in place (their
@@ -825,15 +815,11 @@ cmd_create_venv() {
     # shared one stays for the other rows until each is rebuilt too, then it is removed (below).
     local split_from=""
     if [[ -n "$shared_by" && "$path" == "$row_venv" ]]; then
-        local share_dir prof_slug
-        share_dir="$(resolve_project_dir_share)" || {
-            echo "x could not resolve the project SHARE dir for venvs/ (see resolve_project_dir.sh)." >&2
-            return 1
-        }
+        local prof_slug
         prof_slug="$(printf '%s' "${profile:-default}" | tr -c '[:alnum:]._-' '_')"
         split_from="$path"
-        path="$share_dir/venvs/${series}-${prof_slug}"
-        [[ "$path" == "$split_from" ]] && path="$share_dir/venvs/${series}-${prof_slug}-own"
+        path="$venvs_root/${series}-${prof_slug}"
+        [[ "$path" == "$split_from" ]] && path="$venvs_root/${series}-${prof_slug}-own"
         path_source="split"
         echo "SPLIT_FROM=$split_from"
         echo "SHARED_BY=$shared_by"
@@ -1169,6 +1155,7 @@ cmd_create_venv() {
     local _rec_rc=0
     _record_env_facts "$series" "$profile" "$venv_py" "$(dirname "$core_bin")" "${venv_keys[@]+"${venv_keys[@]}"}" || _rec_rc=$?
     if [[ -n "$old_dir" ]]; then
+        python3 "$facts" diff-venvs "$old_dir" "$path" || true
         python3 "$facts" finish "$path" >/dev/null || true
         echo "  The previous venv was removed."
     fi
