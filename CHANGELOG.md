@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   entry keeps its committed lines, comments and flags, a new or changed one follows the layout
   of the catalog it lands in, `:0` locations and committed obsolete `#~` entries are kept, so a
   one-word page edit gives a few-line `.po` diff instead of a rewritten file (#304).
+- `build_compare.py` judges a page's per-language images by content: Sphinx renames a second
+  image of the same name (`x.vi1.png`), which no longer fails a correct build, and a page that
+  shows another page's same-named image now fails (#305).
 
 ## [8.5.0] - 2026-11-02
 

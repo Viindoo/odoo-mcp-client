@@ -42,6 +42,7 @@ import argparse
 import collections
 import filecmp
 import functools
+import hashlib
 import html.parser
 import http.server
 import json
@@ -159,11 +160,44 @@ class _Imgs(html.parser.HTMLParser):
                 break
 
 
-def img_basenames(html_text):
+def img_sources(html_text):
+    """Every image source of a page, URL-decoded and without query or fragment."""
     parser = _Imgs()
     parser.feed(html_text)
-    return {os.path.basename(urllib.parse.unquote(s.split("?")[0].split("#")[0]))
-            for s in parser.srcs}
+    return [urllib.parse.unquote(s.split("?")[0].split("#")[0]) for s in parser.srcs]
+
+
+def img_basenames(html_text):
+    return {os.path.basename(s) for s in img_sources(html_text)}
+
+
+def _digest(path):
+    """sha256 of a file, or None when it cannot be read."""
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def built_images(html_text, html_dir):
+    """(names, digests of the files the page shows, names of the images whose file cannot be read).
+
+    A source is resolved against the directory of the built HTML file. Sphinx gives a second
+    image of the same basename another name, so the content, not the name, says which image a
+    page shows."""
+    names, digests, unresolved = set(), set(), set()
+    for src in img_sources(html_text):
+        name = os.path.basename(src)
+        names.add(name)
+        digest = None
+        if src and not re.match(r"^[a-zA-Z][\w+.-]*:", src) and not src.startswith("//"):
+            digest = _digest(os.path.normpath(os.path.join(html_dir, src)))
+        if digest is None:
+            unresolved.add(name)
+        else:
+            digests.add(digest)
+    return names, digests, unresolved
 
 
 def rst_image_refs(rst_text):
@@ -203,9 +237,11 @@ def figure_pattern(conf_text):
 
 
 def image_expectations(plain_names, tree_dirs_by_name, lang, pattern, ref_dirs=None):
-    """Variant names the built page must reference: those whose file the repo ships beside the
-    image the page names. `tree_dirs_by_name` maps basename -> set of directories holding a file of
-    that name; `ref_dirs` maps a plain basename -> the directories the page's references point into.
+    """What the built page must show for each plain image: {plain name: {"variant": name,
+    "variant_files": [source paths], "plain_files": [source paths]}}, for the plain images whose
+    language variant the repo ships beside the image the page names. `tree_dirs_by_name` maps
+    basename -> set of directories holding a file of that name; `ref_dirs` maps a plain basename
+    -> the directories the page's references point into.
 
     Where the reference directory is known, the variant counts when a variant file sits in it -
     whether or not the plain file does. A name with no known reference directory (found only in
@@ -218,16 +254,48 @@ def image_expectations(plain_names, tree_dirs_by_name, lang, pattern, ref_dirs=N
             continue
         have = tree_dirs_by_name.get(variant, set())
         where = ref_dirs.get(plain) or tree_dirs_by_name.get(plain, set())
-        if where & have:
-            expected[plain] = variant
+        here = where & have
+        if here:
+            plain_dirs = where & tree_dirs_by_name.get(plain, set())
+            expected[plain] = {
+                "variant": variant,
+                "variant_files": sorted(os.path.join(d, variant) for d in here),
+                "plain_files": sorted(os.path.join(d, plain) for d in plain_dirs)}
     return expected
 
 
-def judge_images(expected, html_names):
-    """(missing variants, plain images still used although a variant exists)."""
-    missing = sorted(v for v in expected.values() if v not in html_names)
-    plain_used = sorted(p for p in expected if p in html_names)
-    return missing, plain_used
+def judge_images(expected, html_names, digests=None, unresolved=None):
+    """(missing variants, plain images still used although a variant exists).
+
+    With `digests` (the content of the files the page shows) a variant is shown when the page
+    shows a file byte-identical to one of its source files, whatever name the build gave the copy,
+    and the plain image is used under the same test; a plain file identical to the variant draws
+    no plain-used verdict. An image whose built file cannot be read (`unresolved` names) and an
+    image with no readable source file are judged by name."""
+    missing, plain_used = [], []
+    for plain, exp in sorted(expected.items()):
+        variant = exp["variant"]
+        variant_digests = {d for d in map(_digest, exp["variant_files"]) if d}
+        plain_digests = {d for d in map(_digest, exp["plain_files"]) if d}
+        if digests is None:
+            shown_variant, shown_plain = variant in html_names, plain in html_names
+        else:
+            unresolved = unresolved or set()
+            if variant_digests:
+                shown_variant = bool(variant_digests & digests) or variant in unresolved
+            else:
+                shown_variant = variant in html_names
+            if plain_digests:
+                shown_plain = bool(plain_digests & digests) or plain in unresolved
+            else:
+                shown_plain = plain in html_names
+            if plain_digests & variant_digests:
+                shown_plain = False
+        if not shown_variant:
+            missing.append(variant)
+        if shown_plain:
+            plain_used.append(plain)
+    return sorted(missing), sorted(plain_used)
 
 
 # --------------------------------------------------------------------------- #
@@ -403,13 +471,14 @@ def check_images(cand_dir, content_dir, pages, lang, built, source_built, patter
             if src_html:
                 plain |= img_basenames(_po.read_text(src_html))
         expected = image_expectations(plain, index, lang, pattern, ref_dirs)
-        rec = {"page": page, "lang": lang, "expected": sorted(expected.values()),
+        rec = {"page": page, "lang": lang, "expected": sorted(e["variant"] for e in expected.values()),
                "missing": [], "plain_used": [], "html_found": True}
         html_path = page_html(built["html_root"], docname) if built.get("html_root") else None
         if html_path is None:
             rec["html_found"] = False
         elif expected:
-            rec["missing"], rec["plain_used"] = judge_images(expected, img_basenames(_po.read_text(html_path)))
+            names, digests, unresolved = built_images(_po.read_text(html_path), os.path.dirname(html_path))
+            rec["missing"], rec["plain_used"] = judge_images(expected, names, digests, unresolved)
         results.append(rec)
     return results
 
