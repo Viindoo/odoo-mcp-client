@@ -106,14 +106,16 @@ def test_a_language_image_is_expected_only_when_the_repo_ships_it_beside_the_pla
              "other.png": {"/c/img"}, "lone.png": {"/c/x"}, "lone.vi.png": {"/c/y"}}
     exp = bc.image_expectations({"pic.png", "other.png", "lone.png"}, index, "vi",
                                 "{root}.{language}{ext}")
-    assert exp == {"pic.png": "pic.vi.png"}
+    assert {k: v["variant"] for k, v in exp.items()} == {"pic.png": "pic.vi.png"}
+    assert exp["pic.png"]["variant_files"] == ["/c/img/pic.vi.png"]
+    assert exp["pic.png"]["plain_files"] == ["/c/img/pic.png"]
 
 
 def test_a_language_image_is_expected_when_the_variant_exists_even_though_the_plain_file_does_not():
     ref_dirs = {"pic.png": {"/c/img"}, "far.png": {"/c/img"}}
     index = {"pic.vi.png": {"/c/img"}, "far.vi.png": {"/c/elsewhere"}}
     exp = bc.image_expectations({"pic.png", "far.png"}, index, "vi", "{root}.{language}{ext}", ref_dirs)
-    assert exp == {"pic.png": "pic.vi.png"}      # far.vi.png sits beside no reference of far.png
+    assert {k: v["variant"] for k, v in exp.items()} == {"pic.png": "pic.vi.png"}      # far.vi.png sits beside no reference of far.png
 
 
 def test_image_references_resolve_against_the_page_directory_or_the_source_root():
@@ -162,7 +164,7 @@ def test_doctrees_are_removed_from_a_build_output_and_the_html_is_kept(tmp_path)
 
 
 def test_a_page_still_pointing_at_the_plain_image_is_missing_the_language_one():
-    exp = {"pic.png": "pic.vi.png"}
+    exp = {"pic.png": {"variant": "pic.vi.png", "variant_files": [], "plain_files": []}}
     assert bc.judge_images(exp, {"pic.png"}) == (["pic.vi.png"], ["pic.png"])
     assert bc.judge_images(exp, {"pic.vi.png"}) == ([], [])
 
@@ -319,7 +321,7 @@ def site(tmp_path):
     (repo / "content" / "index.rst").write_text("Index\n=====\n\n.. toctree::\n\n   a\n")
     (repo / "content" / "a.rst").write_text(A_RST)
     (repo / "content" / "img" / "pic.png").write_bytes(PNG)
-    (repo / "content" / "img" / "pic.vi.png").write_bytes(PNG)
+    (repo / "content" / "img" / "pic.vi.png").write_bytes(PNG + b"vi")
     _git(repo, "init", "-q")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "base")
@@ -482,3 +484,96 @@ def test_a_lazy_loading_theme_s_images_are_seen_by_the_image_gate():
             '<img class="lazy" src="data:image/gif;base64,R0lG" data-src="_images/03-list.vi.jpg">'
             '<img srcset="_images/04-a.vi.jpg 1x, _images/04-a@2x.vi.jpg 2x">')
     assert bc.img_basenames(html) == {"01-menu.vi.jpg", "02-form.vi.jpg", "03-list.vi.jpg", "04-a.vi.jpg"}
+
+
+# --------------------------------------------------------------------------- image content
+def _two_pages(tmp_path):
+    """Two pages whose images share a basename but not bytes, each with a .vi variant; the built
+    output holds the copies under the names Sphinx gives them."""
+    src = tmp_path / "cand" / "content"
+    for page, tag in (("a", b"A"), ("b", b"B")):
+        (src / page / "img").mkdir(parents=True)
+        (src / (page + ".rst")).write_text("T\n=\n\n.. image:: %s/img/shot.png\n" % page)
+        (src / page / "img" / "shot.png").write_bytes(b"plain" + tag)
+        (src / page / "img" / "shot.vi.png").write_bytes(b"vi" + tag)
+    built = tmp_path / "html"
+    (built / "_images").mkdir(parents=True)
+    (built / "_images" / "shot.vi.png").write_bytes(b"viA")
+    (built / "_images" / "shot.vi1.png").write_bytes(b"viB")
+    (built / "_images" / "shot.png").write_bytes(b"plainA")
+    (built / "_images" / "shot1.png").write_bytes(b"plainB")
+    return tmp_path, built
+
+
+def _check(tmp_path, built):
+    return {r["page"]: r for r in bc.check_images(
+        str(tmp_path / "cand"), "content", ["content/a.rst", "content/b.rst"], "vi",
+        {"html_root": str(built)}, None, "{root}.{language}{ext}")}
+
+
+def test_two_pages_sharing_an_image_name_both_pass_when_the_build_renamed_the_second_copy(tmp_path):
+    tmp_path, built = _two_pages(tmp_path)
+    (built / "a.html").write_text('<img src="_images/shot.vi.png">')
+    (built / "b.html").write_text('<img src="_images/shot.vi1.png">')
+    rows = _check(tmp_path, built)
+    assert rows["content/a.rst"]["missing"] == [] and rows["content/b.rst"]["missing"] == []
+
+
+def test_a_page_showing_another_pages_same_named_image_is_missing_its_own(tmp_path):
+    tmp_path, built = _two_pages(tmp_path)
+    (built / "a.html").write_text('<img src="_images/shot.vi.png">')
+    (built / "b.html").write_text('<img src="_images/shot.vi.png">')     # a's bytes under b's name
+    rows = _check(tmp_path, built)
+    assert rows["content/a.rst"]["missing"] == []
+    assert rows["content/b.rst"]["missing"] == ["shot.vi.png"]
+
+
+def test_the_plain_image_is_detected_by_content_even_when_the_build_renamed_it(tmp_path):
+    tmp_path, built = _two_pages(tmp_path)
+    (built / "a.html").write_text('<img src="_images/shot.vi.png">')
+    (built / "b.html").write_text('<img src="_images/shot1.png">')       # b's plain image, renamed
+    rows = _check(tmp_path, built)
+    assert rows["content/b.rst"]["plain_used"] == ["shot.png"]
+    assert rows["content/b.rst"]["missing"] == ["shot.vi.png"]
+    assert rows["content/a.rst"]["plain_used"] == []
+
+
+def test_a_plain_image_identical_to_its_variant_draws_no_plain_used_verdict(tmp_path):
+    img = tmp_path / "img"
+    img.mkdir()
+    (img / "x.png").write_bytes(b"same")
+    (img / "x.vi.png").write_bytes(b"same")
+    exp = bc.image_expectations({"x.png"}, {"x.png": {str(img)}, "x.vi.png": {str(img)}}, "vi",
+                                "{root}.{language}{ext}", {"x.png": {str(img)}})
+    built = tmp_path / "html"
+    (built / "_images").mkdir(parents=True)
+    (built / "_images" / "x.png").write_bytes(b"same")
+    names, digests, unresolved = bc.built_images('<img src="_images/x.png">', str(built))
+    assert bc.judge_images(exp, names, digests, unresolved) == ([], [])
+
+
+def test_an_image_whose_built_file_cannot_be_read_is_judged_by_name(tmp_path):
+    tmp_path, built = _two_pages(tmp_path)
+    (built / "a.html").write_text('<img src="_images/shot.vi.png">')
+    (built / "b.html").write_text('<img src="_images/shot.vi.png">')
+    (built / "_images" / "shot.vi.png").unlink()
+    rows = _check(tmp_path, built)
+    assert rows["content/a.rst"]["missing"] == [] and rows["content/b.rst"]["missing"] == []
+
+
+@needs_sphinx
+def test_a_real_build_passes_two_pages_that_share_an_image_name_with_different_bytes(site):
+    for page, tag in (("p", b"P"), ("q", b"Q")):
+        d = site / "content" / page
+        d.mkdir()
+        (site / "content" / (page + ".rst")).write_text("T%s\n==\n\n.. image:: %s/shot.png\n" % (page, page))
+        (d / "shot.png").write_bytes(PNG + b"plain" + tag)
+        (d / "shot.vi.png").write_bytes(PNG + b"vi" + tag)
+    (site / "content" / "index.rst").write_text("Index\n=====\n\n.. toctree::\n\n   a\n   p\n   q\n")
+    _git(site, "add", "-A")
+    _git(site, "commit", "-qm", "two pages with one image name")
+    (site / "content" / "p.rst").write_text("T\n==\n\n.. image:: p/shot.png\n\nmore\n")
+    (site / "content" / "q.rst").write_text("T\n==\n\n.. image:: q/shot.png\n\nmore\n")
+    res, _ = compare(site, expect=0)
+    rows = [r for r in res["images"] if r["lang"] == "vi"]
+    assert len(rows) >= 2 and all(r["missing"] == [] for r in rows)
