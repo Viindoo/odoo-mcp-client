@@ -119,7 +119,9 @@ Within a series; a cross-series code upgrade follows
   one module never bump it separately - they record what existing data needs in the worklog for
   that node. A module that was `installable` True before the PR (an absent key counts as True),
   is proven on a FRESH install, and whose change alters data existing databases hold gets ONE
-  bump of its short `version` by the smallest step (the last component +1) and ONE folder
+  bump of its short `version` by the smallest step - `x.y.z` -> `x.y.(z+1)`, and a two-component
+  `x.y` -> `x.y.1`, never `x.(y+1)`; versions compare numerically, a missing component read as
+  0 (`0.3` < `0.3.1` < `0.4`) - and ONE folder
   `migrations/<series>.<new short version>/` holding at most one file per stage
   (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never a file named after a business
   topic and never an edit to a folder that already exists. A folder named in the short form runs

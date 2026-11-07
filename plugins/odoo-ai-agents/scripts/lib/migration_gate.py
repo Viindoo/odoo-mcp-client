@@ -26,8 +26,9 @@ Output is KEY=VALUE lines.
 
 Rules (within one pull request, i.e. one change inside one series):
   1. A touched module's short manifest version is bumped at most once, by the smallest step:
-     the last numeric component +1 and nothing else changed. Two components changed, +2, a
-     downgrade, or a change of length is BUMP=other and FAILs.
+     `x.y.z` -> `x.y.(z+1)`, or `x.y` -> `x.y.1`, and nothing else changed. Any other change
+     (two components, +2, a downgrade, `x.y` -> `x.(y+1)`, a change of length) is BUMP=other
+     and FAILs, naming the expected smallest step.
   2. A migration folder without a bump FAILs. A bump without a migration folder is a WARN
      only (a pure code change may be versioned on purpose); a bump goes with a migration
      script, or with the caller's declaration that the change moves existing data.
@@ -117,13 +118,20 @@ def _tuple(version):
         return None
 
 
+def smallest_step(base_short):
+    """Return the smallest bump of a short version, or None when it is not numeric."""
+    b = _tuple(base_short)
+    if b is None:
+        return None
+    if len(b) == 2:
+        return base_short + ".1"
+    return ".".join(str(p) for p in b[:-1] + (b[-1] + 1,))
+
+
 def classify_bump(base_short, head_short):
     if base_short == head_short:
         return "none"
-    b, h = _tuple(base_short), _tuple(head_short)
-    if b is None or h is None or len(b) != len(h):
-        return "other"
-    if b[:-1] == h[:-1] and h[-1] == b[-1] + 1:
+    if head_short == smallest_step(base_short):
         return "smallest"
     return "other"
 
@@ -219,7 +227,10 @@ def check_module(name, base_dir, head_dir, series, allow_short, fails, warns, ou
         fails.append("%s: %d new migration folders (%s); at most one per module"
                      % (name, len(new_dirs), ", ".join(new_dirs)))
     if bump == "other":
-        fails.append("%s: version %s -> %s is not the smallest step" % (name, b_short, h_short))
+        expected = smallest_step(b_short)
+        fails.append("%s: version %s -> %s is not the smallest step%s"
+                     % (name, b_short, h_short,
+                        "; expected " + expected if expected else ""))
     if new_dirs and bump == "none":
         fails.append("%s: a migration folder was added without a version bump" % name)
     if bump == "smallest" and not new_dirs:
