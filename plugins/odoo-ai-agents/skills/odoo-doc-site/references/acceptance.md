@@ -33,8 +33,8 @@ USER LANGUAGE: <lang | omit>
 
 Write the checklist to `<SHARE_DIR>/docs-site/<site>/<series>/acceptance-checklist.md` from the
 table below, unchanged, under one header line:
-`reference_viewport: <WxH> | content_width: <px> | density: 2 | mobile_viewport: 390x844`
-(`reference_viewport` and `content_width` from the content-width record). The tester covers every
+`reference_viewport: <WxH> | content_widths: <place=px, ...> | density: 2 | mobile_viewport: 390x844`
+(`reference_viewport` and `content_widths` from the content-width record). The tester covers every
 plan row whose action is not `skip`, in every language, at a desktop and a mobile viewport, and
 opens every image of `IMAGES TO REVIEW` (item 12).
 
@@ -45,7 +45,7 @@ opens every image of `IMAGES TO REVIEW` (item 12).
 | 1 | Reachable | the page opens from the navigation or the toctree of its parent; title and breadcrumb are the planned ones |
 | 2 | Images load | after each image is scrolled into view, its natural width is above zero |
 | 3 | Language variant | each image shows the interface in the page's language |
-| 4 | Placement | at the reference viewport each image spans the recorded content width and has no text beside it |
+| 4 | Placement | at the reference viewport each image spans the width of the place it sits in (body, list item, admonition, table cell) and has no text beside it |
 | 5 | Legibility | at the reference viewport, rendered width divided by intrinsic CSS width (natural width divided by the shot's density) is at least 0.75; judged on the desktop viewport only |
 | 6 | No horizontal scroll | the mobile page does not scroll sideways; a wide table scrolls inside its own box |
 | 7 | Internal links | every internal link and anchor answers on the local server; none is a 404 |

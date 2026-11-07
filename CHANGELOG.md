@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   answers four questions per legal element, the reviewer asks them, and a test changes the
   record and asserts that the result follows (#301).
 
+### Fixed
+
+- `odoo-doc-site` sizes each screenshot for the place its image sits in: the check shot records
+  the width an image renders at in the article body, a list item, a nested list item, an
+  admonition and a table cell, a shot's viewport is at most 1.25 times its place's width, and
+  the acceptance placement item compares an image with its own place, so screenshots inside
+  numbered steps pass the legibility item (#303).
+
 ## [8.5.0] - 2026-11-02
 
 ### Added
