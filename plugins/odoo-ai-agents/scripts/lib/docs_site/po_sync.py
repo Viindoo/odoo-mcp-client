@@ -366,6 +366,92 @@ def render_body(catalog, width):
     return split_header(buf.getvalue().decode("utf-8"))[1]
 
 
+def _blocks(text, lang):
+    """(live, obsolete) of a PO text: `live` maps (context, msgid) to (message, lines of its
+    committed block); `obsolete` lists the raw `#~` blocks."""
+    head, rest = split_header(text)
+    head = set_header_field(head, "Language", lang) if lang else head
+    live, obsolete = {}, []
+    for block in rest.split("\n\n"):
+        if not block.strip():
+            continue
+        if any(ln.startswith("#~") for ln in block.split("\n")):
+            obsolete.append(block.strip("\n"))
+            continue
+        msgs = [m for m in parse_catalog(head + "\n\n" + block, lang) if m.id]
+        if len(msgs) == 1:
+            live[(msgs[0].context or "", msgs[0].id)] = (msgs[0], block.strip("\n").split("\n"))
+    return live, obsolete
+
+
+def _layouts(cat, width, count):
+    """Candidate renderings of `cat` as lists of entry blocks (one per message): Babel at
+    `width`, unwrapped, and polib at 78 when polib is importable."""
+    bodies = [render_body(cat, width), render_body(cat, 10 ** 6)]
+    if importlib.util.find_spec("polib") is not None:
+        import polib
+        po = polib.pofile("msgid \"\"\nmsgstr \"\"\n\n" + bodies[0], wrapwidth=78)
+        bodies.append(split_header(str(po))[1])
+    out = [[b for b in body.split("\n\n") if b.strip()] for body in bodies]
+    return [blocks for blocks in out if len(blocks) == count]
+
+
+def _text_lines(lines):
+    return [ln for ln in lines if not ln.startswith("#")]
+
+
+def _location_set(lines):
+    toks = " ".join(ln[2:] for ln in lines if ln.startswith("#:")).split()
+    return set(re.sub(r":(0|None)$", "", t) for t in toks)
+
+
+def _with_locations(lines, locs):
+    rest = [ln for ln in lines if not ln.startswith("#:")]
+    at = next((i for i, ln in enumerate(lines) if ln.startswith("#:")), None)
+    if at is None:
+        at = next((i for i, ln in enumerate(rest) if ln.startswith("#,") or not ln.startswith("#")),
+                  len(rest))
+    return rest[:at] + locs + rest[at:]
+
+
+def render_merged(old_text, cat, width, lang, template_text=None):
+    """The body (everything after the header) of the refreshed catalog `cat`, keeping the text
+    the committed catalog `old_text` already holds.
+
+    An entry whose msgid, context, msgstr and fuzzy state are unchanged keeps its committed
+    block; a new or changed one is rendered in the layout (Babel at `width`, unwrapped, polib at
+    78) that reproduces most committed entries. Location lines come from the template, but the
+    committed ones stay when they say the same thing; committed `#~` blocks are kept.
+    """
+    msgs = [m for m in cat if m.id]
+    old, obsolete = _blocks(old_text, lang)
+    template = _blocks(template_text, None)[0] if template_text else {}
+    layouts = _layouts(cat, width, len(msgs))
+    keys = [(m.context or "", m.id) for m in msgs]
+
+    def same(key, msg):
+        before = old[key][0] if key in old else None
+        return before is not None and before.string == msg.string \
+            and ("fuzzy" in before.flags) == ("fuzzy" in msg.flags)
+
+    def score(blocks):
+        return sum(_text_lines(blocks[i].split("\n")) == _text_lines(old[k][1])
+                   for i, k in enumerate(keys) if same(k, msgs[i]))
+
+    chosen = max(layouts, key=score) if layouts else []   # max keeps the first of equals
+    entries = []
+    for i, (key, msg) in enumerate(zip(keys, msgs)):
+        fresh = chosen[i].split("\n") if chosen else []
+        lines = old[key][1] if same(key, msg) else fresh
+        target = [ln for ln in (template[key][1] if key in template else fresh)
+                  if ln.startswith("#:")]
+        if key in old and _location_set(old[key][1]) == _location_set(target):
+            target = [ln for ln in old[key][1] if ln.startswith("#:")]
+        entries.append("\n".join(_with_locations(lines, target)))
+    tail = old_text[len(old_text.rstrip("\n")):] or "\n"
+    return "\n\n".join(entries + obsolete) + tail
+
+
 def _strip_python_format(catalog):
     for msg in catalog:
         msg.flags.discard("python-format")
@@ -435,7 +521,9 @@ def merge_catalog(pot_text, po_path, lang, width, locale_root):
                 else shape_new_header(model_head, lang, creation_date))
         if exists and creation_date is not None:
             head = set_header_field(head, HEADER_DATE_FIELD, creation_date)
-        write_text_atomic(po_path, head + "\n\n" + render_body(cat, width))
+        body = (render_merged(old_text, cat, width, lang, pot_text) if exists
+                else render_body(cat, width))
+        write_text_atomic(po_path, head + "\n\n" + body)
         report["written"] = True
     return report, report["written"]
 
@@ -556,7 +644,7 @@ def cmd_fill(args):
     keep_pyfmt = "python-format" in text
     if not keep_pyfmt:
         _strip_python_format(cat)
-    write_text_atomic(args.po, head + "\n\n" + render_body(cat, width))
+    write_text_atomic(args.po, head + "\n\n" + render_merged(text, cat, width, lang))
     out = account(cat)
     out.update({"ok": True, "po": args.po, "set": len(spec)})
     return out, EXIT_OK
