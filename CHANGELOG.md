@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `migration_gate.py` accepts that step and names the expected version when a bump is not the
   smallest, and the forward-port version rule (C1) uses the same step and compares versions
   numerically with a missing component read as 0 (#309).
+- "Legal rules as data" is one section of the platform design principles: every value and every
+  rule a law can change (rates, ceilings, deadlines, time windows, rest days, tax treatment,
+  accounts, consent duties) is an editable record with effective dates, never Python; the SRS
+  answers four questions per legal element, the reviewer asks them, and a test changes the
+  record and asserts that the result follows (#301).
 
 ## [8.5.0] - 2026-11-02
 

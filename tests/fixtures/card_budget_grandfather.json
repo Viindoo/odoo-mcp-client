@@ -29,7 +29,7 @@
     "snippets/planning-gate-contract.md": 7952,
     "snippets/scouting-persistence-contract.md": 7399,
     "snippets/symbol-currency-check.md": 9329,
-    "snippets/test-behavior-contract.md": 8168,
+    "snippets/test-behavior-contract.md": 8416,
     "snippets/test-execution-handoff.md": 6752,
     "snippets/test-expected-log-contract.md": 5462,
     "snippets/upg-conventions.md": 5875,
@@ -51,7 +51,7 @@
     "snippets/test-scope-contract.md": 5685,
     "snippets/test-sensitivity-contract.md": 8995,
     "snippets/business-taxonomy.md": 4794,
-    "snippets/odoo-platform-design-principles.md": 10300,
+    "snippets/odoo-platform-design-principles.md": 12583,
     "skills/_shared/doc-capture-mechanics.md": 18527,
     "snippets/code-comment-contract.md": 5574
   }
