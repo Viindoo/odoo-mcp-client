@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   admonition and a table cell, a shot's viewport is at most 1.25 times its place's width, and
   the acceptance placement item compares an image with its own place, so screenshots inside
   numbered steps pass the legibility item (#303).
+- `po_sync.py generate` and `fill` change only the entries whose text changed: an unchanged
+  entry keeps its committed lines, comments and flags, a new or changed one follows the layout
+  of the catalog it lands in, `:0` locations and committed obsolete `#~` entries are kept, so a
+  one-word page edit gives a few-line `.po` diff instead of a rewritten file (#304).
 
 ## [8.5.0] - 2026-11-02
 

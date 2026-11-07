@@ -461,3 +461,124 @@ def test_clean_by_worktree_also_removes_the_hash_directory_it_leaves_empty(docs)
     work = Path(generate(docs)["work_dir"])
     run(docs, "clean", "--worktree", str(docs), expect=0)
     assert not work.parent.exists()
+
+
+# --------------------------------------------------------------------------- committed layout
+def _relayout(text, kind):
+    """`text` re-rendered the way another tool lays a catalog out: polib at 78 or unwrapped."""
+    code = (
+        "import sys, io\n"
+        "text = sys.stdin.read()\n"
+        "if sys.argv[1] == 'polib':\n"
+        "    import polib\n"
+        "    out = str(polib.pofile(text, wrapwidth=78))\n"
+        "else:\n"
+        "    from babel.messages.pofile import read_po, write_po\n"
+        "    buf = io.BytesIO(); write_po(buf, read_po(io.BytesIO(text.encode()), locale='vi'), width=10**6)\n"
+        "    out = buf.getvalue().decode()\n"
+        "sys.stdout.write(out)")
+    proc = subprocess.run([DOCS_PYTHON, "-c", code, kind], input=text, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, universal_newlines=True)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
+def _paragraph(n):
+    return ("Paragraph %d explains how the warehouse team counts every product on a shelf, writes "
+            "the counted quantity on the sheet and asks the manager to confirm the difference "
+            "before the stock is corrected in the system." % n)
+
+
+def _blocks(text):
+    return [b.strip("\n") for b in text.strip("\n").split("\n\n")]
+
+
+def _msg_lines(block):
+    return [ln for ln in block.split("\n") if not ln.startswith("#")]
+
+
+@needs_docs_python
+@pytest.mark.skipif(DOCS_PYTHON is None or not _has(DOCS_PYTHON, "polib"),
+                    reason="the docs python has no polib")
+@pytest.mark.parametrize("kind", ["polib", "flat", "mixed"])
+def test_changing_one_source_message_changes_only_that_entry_of_a_committed_catalog(docs, kind):
+    (docs / "content" / "a.rst").write_text(
+        "Page A\n======\n\n" + "\n\n".join(_paragraph(n) for n in range(1, 5)) + "\n")
+    generate(docs)
+    run(docs, "fill", "--po", str(po_of(docs)), "--spec", _spec(
+        docs, {m: "VI " + m for m in [_paragraph(n) for n in range(1, 5)] + ["Page A"]}), expect=0)
+    blocks = _blocks(po_of(docs).read_text())
+    if kind == "mixed":
+        polib_blocks = _blocks(_relayout("\n\n".join(blocks) + "\n", "polib"))
+        flat_blocks = _blocks(_relayout("\n\n".join(blocks) + "\n", "flat"))
+        blocks = polib_blocks[:5] + flat_blocks[5:]
+    else:
+        blocks = [blocks[0]] + _blocks(_relayout("\n\n".join(blocks) + "\n", kind))[1:]
+    assert len(blocks) == 6
+    blocks[2] = "# translator note\n" + blocks[2]
+    blocks[4] = "#, fuzzy\n" + blocks[4]
+    old_text = "\n\n".join(blocks) + '\n\n#~ msgid "Gone"\n#~ msgstr "Da bo"\n'
+    po_of(docs).write_text(old_text)
+
+    changed = _paragraph(2).replace("counts", "recounts")
+    (docs / "content" / "a.rst").write_text(
+        "Page A\n======\n\n" + "\n\n".join(
+            changed if n == 2 else _paragraph(n) for n in range(1, 5)) + "\n")
+    generate(docs)
+    run(docs, "fill", "--po", str(po_of(docs)), "--spec", _spec(docs, {changed: "VI " + changed}),
+        expect=0)
+    new_text = po_of(docs).read_text()
+
+    old, new = _blocks(old_text), _blocks(new_text)
+    assert len(old) == len(new)
+    assert [i for i, (a, b) in enumerate(zip(old, new)) if a != b][-1] == 3   # only the entry
+    assert all(i in (0, 3) for i, (a, b) in enumerate(zip(old, new)) if a != b)   # or the header date
+    assert new[-1] == '#~ msgid "Gone"\n#~ msgstr "Da bo"'
+    assert "# translator note" in new[2] and "#, fuzzy" in new[4]
+    allowed = set(old[0].split("\n") + new[0].split("\n") + old[3].split("\n") + new[3].split("\n"))
+    import difflib
+    moved = [ln[1:] for ln in difflib.unified_diff(old_text.split("\n"), new_text.split("\n"),
+                                                   lineterm="", n=0)
+             if ln[0] in "+-" and not ln.startswith(("---", "+++"))]
+    assert moved and set(moved) <= allowed
+    expected = _blocks(_relayout(new_text, "flat" if kind == "flat" else "polib"))
+    assert _msg_lines(new[3]) == _msg_lines(expected[3])                       # the file's layout
+
+
+def _merge_twice(tmp_path, pot_texts, edit_po=None):
+    code = (
+        "import sys; sys.path.insert(0, %r); import po_sync\n"
+        "pot, po, root = sys.argv[1:4]\n"
+        "po_sync.merge_catalog(open(pot, encoding='utf-8').read(), po, 'vi', 76, root)\n"
+        % str(MODULE.parent))
+    pot, po = tmp_path / "a.pot", tmp_path / "vi" / "a.po"
+    po.parent.mkdir(exist_ok=True)
+    results = []
+    for i, text in enumerate(pot_texts):
+        pot.write_text(text, encoding="utf-8")
+        if i == 1 and edit_po:
+            po.write_text(edit_po(po.read_text(encoding="utf-8")), encoding="utf-8")
+        proc = subprocess.run([DOCS_PYTHON, "-c", code, str(pot), str(po), str(po.parent)],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              universal_newlines=True)
+        assert proc.returncode == 0, proc.stderr
+        results.append(po.read_text(encoding="utf-8"))
+    return results
+
+
+@needs_docs_python
+def test_a_location_the_template_carries_with_line_zero_stays_when_another_entry_changes(tmp_path):
+    first, second = _merge_twice(
+        tmp_path, [POT_WITH_ZERO_LINE, POT_WITH_ZERO_LINE.replace('"World"', '"World!"')],
+        edit_po=lambda t: t.replace('a.rst\nmsgid "Hello"', 'a.rst:0\nmsgid "Hello"'))
+    assert "#: ../../content/a.rst:0\nmsgid \"Hello\"" in second
+    assert _blocks(first)[1].replace("a.rst", "a.rst:0") == _blocks(second)[1]
+    assert _blocks(second)[2].endswith('msgid "World!"\nmsgstr ""')
+
+
+@needs_docs_python
+def test_a_committed_location_that_says_the_same_as_the_template_is_kept_as_written(tmp_path):
+    _, second = _merge_twice(
+        tmp_path, [POT_WITH_ZERO_LINE, POT_WITH_ZERO_LINE.replace('"World"', '"World!"')],
+        edit_po=lambda t: t.replace("a.rst\nmsgid", "a.rst:None\nmsgid"))
+    assert '#: ../../content/a.rst:None\nmsgid "Hello"' in second
