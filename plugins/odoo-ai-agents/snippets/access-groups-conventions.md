@@ -1,18 +1,26 @@
-<!-- SSOT snippet. Access-group authoring rules for Odoo: ir.module.category XML id derivation +
-     implied_ids hierarchy.
+<!-- SSOT snippet. Access-group authoring rules for Odoo: which group model the target series uses
+     (category or privilege), ir.module.category XML id derivation, implied_ids hierarchy.
      Edit here only; consumers cross-ref, never restate.
      Consumers are DERIVED, never listed here - re-derive with `grep -rl "access-groups-conventions.md" plugins/odoo-ai-agents/`. -->
 
 # Access Groups Conventions - CORE (all distributions)
 
-CORE Odoo rules for declaring `res.groups` records: how Odoo auto-derives the `ir.module.category`
-external id from the manifest `category` string, and how to wire an `implied_ids` privilege ladder
-so Settings > Users > Permissions renders it correctly. Both the derivation algorithm and the
-`implied_ids` mechanism are algorithmically identical (same output v8-v19).
+CORE Odoo rules for declaring `res.groups` records. Which model a group hangs on depends on the
+series; the `ir.module.category` id derivation and the `implied_ids` mechanism do not.
+
+## Which group model the target series uses
+
+Resolve it, never assume it: `model_inspect(model='res.groups', method='fields', name_filter='_id',
+odoo_version='<target>')`. A `category_id` field means the **category model**, a `privilege_id`
+field (and no `category_id`) the **privilege model**; the series each starts at and the fields it
+renames are in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Access groups. In the
+privilege model a `category_id` on a `res.groups` record fails the module install, and
+`base.module_category_usability` does not exist; `base.module_category_hidden` exists but no group
+points at it.
 
 ---
 
-## Category id (ir.module.category XML id derivation)
+## Category id (ir.module.category XML id derivation) - both models
 
 When a module declares `application: True` (or otherwise ships custom `res.groups`), Odoo
 auto-creates one `ir.module.category` record per segment of the manifest `category` string at
@@ -24,13 +32,14 @@ as Odoo does:
 2. `slug = '_'.join(seg.lower() for seg in segments)` then `.replace('&', 'and').replace(' ', '_')`.
 3. The deepest (full-path) id is `base.module_category_<slug>`.
 
-A new `res.groups` record MUST set `category_id` to this derived id:
+The record that points at it sets `category_id` to the derived id: the `res.groups` record in the
+category model, the `res.groups.privilege` record in the privilege model.
 
 ```xml
 <field name="category_id" ref="base.module_category_<slug>"/>
 ```
 
-Do NOT invent an id and do NOT omit `category_id` for an application's groups.
+Do NOT invent an id. In the category model do NOT omit `category_id` for an application's groups.
 
 - Only `&` and space are transformed - other characters (`.`, `-`, digits) pass through unchanged,
   and repeated underscores are NOT collapsed.
@@ -54,7 +63,7 @@ Do NOT invent an id and do NOT omit `category_id` for an application's groups.
 
 ---
 
-## Group hierarchy (implied_ids ladder)
+## Category model - group hierarchy (implied_ids ladder)
 
 To expose a role LADDER as a single-select dropdown in Settings > Users > Permissions (rather than
 independent checkboxes), give every group in the ladder the SAME `category_id` (the derived
@@ -73,13 +82,63 @@ to most privileged, with the base rung implying `base.group_user`:
 ```
 
 Semantics: a user granted `group_<mod>_manager` automatically holds every group its `implied_ids`
-transitively reach (Odoo computes `trans_implied_ids`) - that transitive closure is what drives the
+transitively reach (`trans_implied_ids` in this model) - that transitive closure is what drives the
 single-select dropdown rendering.
 
 - Groups that are INDEPENDENT feature toggles (not a privilege ladder) must NOT be chained with
-  `implied_ids` - they render as checkboxes, not a dropdown.
-- Never wire an `implied_ids` cycle.
+  `implied_ids` - they render as checkboxes, not a dropdown; they take
+  `base.module_category_usability`, and a technical group takes `base.module_category_hidden`.
+- Never wire an `implied_ids` cycle. The group's users field is `users`; the group link on
+  `res.users`, `ir.ui.view`, `ir.ui.menu` and the actions (`ir.actions.act_window`,
+  `ir.actions.server`, `ir.actions.report`) is `groups_id`.
 - Canonical reference (core `hr/security/hr_security.xml`, v17): `group_hr_user` implies
   `base.group_user`; `group_hr_manager` implies `group_hr_user`; both share
   `category_id = base.module_category_human_resources_employees`.
-- `implied_ids` (and its `trans_implied_ids` compute) on `res.groups` in `base` is stable v8-v19.
+
+---
+
+## Privilege model
+
+A `res.groups` record has NO `category_id`; `privilege_id` points at a `res.groups.privilege`,
+which carries the `category_id` (optional: without one the privilege lands under "Other"). The
+users field is `user_ids`, the transitive implied set `all_implied_ids`, and the group link on
+`res.users`, `ir.ui.view`, `ir.ui.menu` and the actions (`ir.actions.act_window`,
+`ir.actions.server`, `ir.actions.report`) is `group_ids` (not `groups_id`). Source: core `base`
+`models/res_groups.py`, `models/res_groups_privilege.py`, and the user-form widget
+`web/static/src/webclient/res_user_group_ids_field/res_user_group_ids_field.js`.
+
+| The groups are | Declare | User form shows |
+|---|---|---|
+| Mutually exclusive LEVELS of one app (user < officer < manager), as core `hr` does | one `res.groups.privilege`; every level sets `privilege_id` to it | one select per privilege (placeholder "No" = none) |
+| An INDEPENDENT right, or a technical group (core `product.group_product_variant`) | a `res.groups` with NO `privilege_id` | an independent checkbox under "Extra Rights", in developer mode only |
+
+```xml
+<record id="res_groups_privilege_<mod>" model="res.groups.privilege">
+    <field name="name">App name</field>
+    <field name="category_id" ref="base.module_category_<slug>"/>
+</record>
+<record id="group_<mod>_user" model="res.groups">
+    <field name="name">User</field>
+    <field name="sequence">10</field>
+    <field name="privilege_id" ref="res_groups_privilege_<mod>"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+</record>
+<record id="group_<mod>_manager" model="res.groups">
+    <field name="name">Administrator</field>
+    <field name="sequence">20</field>
+    <field name="privilege_id" ref="res_groups_privilege_<mod>"/>
+    <field name="implied_ids" eval="[(4, ref('group_<mod>_user'))]"/>
+</record>
+<!-- independent toggle: no privilege_id, no implied_ids chain -->
+<record id="group_<mod>_<feature>" model="res.groups">
+    <field name="name">Feature name</field>
+    <field name="comment">What the user may do with it (the checkbox help text).</field>
+</record>
+```
+
+- Chain levels with `implied_ids` from least to most privileged; the select orders a privilege's
+  groups by how many of its own groups each implies, then `sequence`. Never wire a cycle.
+- A group name is unique within its privilege (`UNIQUE (privilege_id, name)`).
+- Canonical reference (core `hr/security/hr_security.xml`): `group_hr_user` and `group_hr_manager`
+  share `res_groups_privilege_employees` (category `base.module_category_human_resources`), the
+  manager implying the officer.

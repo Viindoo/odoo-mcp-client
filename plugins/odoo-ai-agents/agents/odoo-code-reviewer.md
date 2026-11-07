@@ -65,8 +65,8 @@ answer with a tool result or a grep is written as `NEEDS_JUDGEMENT: <question>` 
 4. **Currency**: each core symbol the diff calls directly -> `lookup_core_api` is `stable`;
    `find_deprecated_usage` over the changed files; a removed or deprecated symbol -> HIGH.
 5. **Access**: a new model has its `ir.model.access.csv` row; a model with `company_id` has a
-   company record rule; a `res.groups` carries `category_id` and the right `implied_ids`
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`).
+   company record rule; a `res.groups` sits on the group model of the target series and
+   carries the right `implied_ids` (`${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`).
 6. **Code hygiene**, each a grep: `cr.commit()` or `cr.rollback()` in business code or tests;
    `sudo()` without a reason comment on the same statement; `search`, `browse` or a compute read
    inside a `for rec in self` loop; a `_compute_*` body reading a field its `@api.depends` omits;
