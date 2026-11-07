@@ -894,8 +894,8 @@ If you have the old plugin installed, switch over:
     /odoo-semantic-mcp:connect
 
 Then restart Claude Code. Your OSM API key + MCP URL are unchanged; the MCP server
-(`odoo-semantic`) and sibling plugin (`odoo-semantic-mcp`) are NOT renamed, so anything using
-`mcp__odoo-semantic__*` keeps working. After reinstalling, re-run
+(`odoo-semantic`) and sibling plugin (`odoo-semantic-mcp`) are NOT renamed, so the Odoo Semantic
+tools keep their names (`mcp__plugin_odoo-semantic-mcp_odoo-semantic__*`). After reinstalling, re-run
 `/odoo-ai-agents:odoo-setup permissions` to re-allow the bundled browser MCP tools under the
 new `mcp__plugin_odoo-ai-agents_*` prefix.
 

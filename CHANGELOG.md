@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.6.0] - 2026-11-07
+
 ### Changed
 
 - A two-component module version `x.y` is bumped to `x.y.1`, never `x.(y+1)`;
@@ -56,6 +58,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `debian/control`, port lists or the plugin's own comments; the fork owner is also read from
   the clones of the machine's catalog before it is asked; the prerequisite check honours
   `--version` / `--profile`; clone guidance follows the machine's directory naming (#308).
+- Odoo Semantic tools go by the name Claude Code gives the `odoo-semantic-mcp` plugin's server,
+  `mcp__plugin_odoo-semantic-mcp_odoo-semantic__<tool>`: agent instructions call them by it, the
+  grounding hook counts those calls (an honest `grounded: osm` report was blocked), the
+  permission check accepts that rule, and `check_deps.py` checks prefixed names in skill prose;
+  `module_inspect` calls use methods the tool has (`summary`; `resolve_stylesheet` for SCSS
+  imports) and the developer guide lists the real parameters without the removed tools.
+- `odoo-semantic-mcp` 1.1.1 -> 1.1.2 - `/odoo-semantic-mcp:connect` allows
+  `mcp__plugin_odoo-semantic-mcp_odoo-semantic`: the `mcp__odoo-semantic` rule it wrote does not
+  cover the plugin's tools, so every call still asked for permission.
 
 ## [8.5.0] - 2026-11-02
 

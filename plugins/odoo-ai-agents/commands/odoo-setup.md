@@ -119,7 +119,7 @@ Map: page 1 = `instance`, `venv`, `browser`, `auto-mode`; page 2 = `docs-site` +
 ## Steps for the AI agent
 
 0. **Preflight - two gates** (`references/odoo-setup/preflight.md`; no changes made, before the plan).
-   - **Gate #1 - Odoo Semantic MCP connection**: the tool call `mcp__odoo-semantic__list_available_versions`
+   - **Gate #1 - Odoo Semantic MCP connection**: the tool call `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions`
      (fallback `cli_help`) is authoritative; `00-osm-gate.sh check` is a secondary signal. Not found: stop, no
      changes, tell the user `/odoo-semantic-mcp:connect`, `/reload-plugins`, re-run. 401: stop, suggest `connect`.
      Other error: continue with a warning. HARD block for `all` and `instance`; SOFT for `browser`, `runtime`,

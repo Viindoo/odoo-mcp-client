@@ -4,8 +4,8 @@ Run the gates BEFORE listing the plan or touching any file. They make no changes
 
 **Gate #1 - Odoo Semantic MCP connection.** Confirm it is reachable in THIS session.
 - Authoritative check (AI-level): try calling the MCP tool
-  `mcp__odoo-semantic__list_available_versions` with no arguments (fallback:
-  `mcp__odoo-semantic__cli_help`). This call, not a shell probe, is the source of truth.
+  `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions` with no arguments (fallback:
+  `mcp__plugin_odoo-semantic-mcp_odoo-semantic__cli_help`). This call, not a shell probe, is the source of truth.
   - Responds normally → connected. Continue to Gate #2.
   - Tool is "not found" / unavailable → the server is not loaded in this
     session. **Stop setup and make no changes.** Tell the user: run

@@ -150,7 +150,7 @@ matches what you actually mean:
 | The plugin that ships the skills / agents / commands | `odoo-ai-agents` | Plugin name, `/odoo-ai-agents:odoo-setup`, etc. |
 | The product / brand / hosted service | `Odoo Semantic` (prose) or `OSM` (abbrev) | README prose, "the Odoo Semantic service"; URL `odoo-semantic.viindoo.com` |
 | The **MCP server id** (runtime identifier) | `odoo-semantic` in backticks, config/code only | `.mcp.json`, editor snippets - naming the registered server id. NEVER as a plugin name |
-| The **tool-call prefix** | `mcp__odoo-semantic__*` | Tool names in skills/agents/docs/tests - always the full `mcp__…__` form |
+| The **tool-call prefix** | `mcp__plugin_odoo-semantic-mcp_odoo-semantic__*` | Tool names in skills/agents/docs/tests - always the full `mcp__…__` form Claude Code gives the plugin's server; `mcp__odoo-semantic__*` only where a server registered by hand under the id `odoo-semantic` is meant (manual config, other clients) |
 | The running MCP server, as a noun in prose | `the odoo-semantic-mcp server` | Fallback / standalone sections ("when the … server is unreachable") |
 
 Rule of thumb: a bare `odoo-semantic` token that is **not** inside `mcp__…__`, **not** a

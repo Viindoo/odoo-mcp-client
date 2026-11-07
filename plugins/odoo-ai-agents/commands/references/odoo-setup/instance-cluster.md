@@ -12,8 +12,8 @@ AI-5 and AI-6 are INSIDE this cluster.
 
 **AI-1 - OSM version + profile probe (CONFIRM #1)**
 
-Call `mcp__odoo-semantic__list_available_versions` and
-`mcp__odoo-semantic__list_available_profiles` (no arguments). Then DECIDE before asking:
+Call `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions` and
+`mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_profiles` (no arguments). Then DECIDE before asking:
 - **Versions**: `--version` when given; else the series of every Odoo checkout under
   `$ODOO_GIT_BASE` (the odoo-local `series_detect` tool on each) and of every declared row.
   One or more found: they are the decision, shown with their sources. None: ask "Which Odoo
@@ -35,7 +35,7 @@ and continue to AI-3 directly (skip AI-2). This is the **user-declared path** - 
 
 For each version confirmed in AI-1, call:
 ```
-mcp__odoo-semantic__profile_inspect(method='repos', name=<profile>, odoo_version=<version>)
+mcp__plugin_odoo-semantic-mcp_odoo-semantic__profile_inspect(method='repos', name=<profile>, odoo_version=<version>)
 ```
 (fall back to `method='summary'` if `repos` is unsupported). OSM returns a
 repo set: SSH URL @ branch, own vs. inherited. Before anything is proposed, confirm each
@@ -178,11 +178,11 @@ Never compose `--load`. For EVERY series (and profile) in the confirmed spec, af
    manifest, row) - show the operator that source beside each candidate. `CORE_READABLE=0`: fix
    `odoo_root` (AI-4) first.
 2. **Odoo Semantic evidence** (skip on the user-declared path, and say so). Call
-   `mcp__odoo-semantic__find_examples(query='server_wide_modules', odoo_version=<X.Y>,
+   `mcp__plugin_odoo-semantic-mcp_odoo-semantic__find_examples(query='server_wide_modules', odoo_version=<X.Y>,
    profile_name=<profile>, limit=20)` and take every module whose code tests ITS OWN name
    against `server_wide_modules`. Such checks usually run at import time in a module's
    `__init__.py`: an empty answer is never evidence of "none" - step 1 is the primary source. Then, for every candidate from any
-   source, call `mcp__odoo-semantic__check_module_exists(name=<module>,
+   source, call `mcp__plugin_odoo-semantic-mcp_odoo-semantic__check_module_exists(name=<module>,
    odoo_version=<X.Y>, profile_name=<profile>)` and flag a candidate the profile does not
    contain.
 3. **Probe build (optional - offer it; needs AI-5 done and a runnable venv).** `run_id` =

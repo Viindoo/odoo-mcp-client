@@ -44,7 +44,7 @@ stores the key.
    You never ask for the key, never receive it in chat, never write it anywhere.
 
 3. **Verify the connection from THIS session** once the operator says the dialog is done and the
-   plugins were reloaded: call the MCP tool `mcp__odoo-semantic__list_available_versions` with no
+   plugins were reloaded: call the MCP tool `mcp__plugin_odoo-semantic-mcp_odoo-semantic__list_available_versions` with no
    arguments.
    - A list comes back: connected. Say so, with the versions it names.
    - The tool is not available: the reload has not happened (MCP servers do not hot-reload a new
@@ -78,7 +78,7 @@ if os.path.exists(p):
     shutil.copy2(p, f"{p}.bak.{int(time.time())}")
 perms = data.setdefault("permissions", {})
 allow = perms.setdefault("allow", [])
-entry = "mcp__odoo-semantic"
+entry = "mcp__plugin_odoo-semantic-mcp_odoo-semantic"
 if entry in allow:
     print(f"ok {entry} already in allow-list - no change.")
     sys.exit(0)
