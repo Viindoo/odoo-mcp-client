@@ -17,7 +17,7 @@ def test_only_the_migration_node_bumps_and_writes_migration_scripts():
     rule = _read("snippets/odoo-platform-design-principles.md")
     assert "the plan's `migration` node is the ONLY step that edits a module's `version`" in rule
     assert "immediately before `integrate`" in rule
-    assert "by the smallest step (the last component +1)" in rule
+    assert "by the smallest step - `x.y.z` -> `x.y.(z+1)`, and a two-component `x.y` -> `x.y.1`" in rule
     assert "`migrations/<series>.<new short version>/`" in rule
     assert "scripts/lib/migration_gate.py check" in rule
 

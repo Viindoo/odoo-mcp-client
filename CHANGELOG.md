@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- A two-component module version `x.y` is bumped to `x.y.1`, never `x.(y+1)`;
+  `migration_gate.py` accepts that step and names the expected version when a bump is not the
+  smallest, and the forward-port version rule (C1) uses the same step and compares versions
+  numerically with a missing component read as 0 (#309).
+
 ## [8.5.0] - 2026-11-02
 
 ### Added

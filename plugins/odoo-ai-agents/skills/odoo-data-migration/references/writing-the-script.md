@@ -14,11 +14,11 @@ module. One script per stage covers them all.
 ## The version, read and computed, never chosen
 
 Read the module's `version` at the PR base and in the worktree. Unchanged -> the new version is
-the smallest step (the last component +1). Already bumped in this PR by the smallest step ->
-reuse it and extend its existing `migrations/<series>.<version>/` folder instead of adding a
-second one. Bumped any other way -> `BLOCKED` naming the module and both versions. Write the
-descriptor's `version` in the same pass (the module's one bump), in the short form the descriptor
-already uses (the filename per series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`
+the smallest step of § 5 (`1.0.3` -> `1.0.4`, `0.3` -> `0.3.1`). Already bumped in this PR by the
+smallest step -> reuse it and extend its existing `migrations/<series>.<version>/` folder instead
+of adding a second one. Bumped any other way -> `BLOCKED` naming the module and both versions.
+Write the descriptor's `version` in the same pass (the module's one bump), in the short form the
+descriptor already uses (the filename per series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`
 row 6; read the path the module has, never a re-guessed filename).
 
 ## Path
