@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.7.0] - 2026-11-08
+
+### Added
+
+- Documentation screenshots weigh less on the web with no loss of quality: a screenshot is
+  captured as PNG; module-doc and App Store images are re-encoded losslessly after placement by
+  `scripts/lib/image_optimize.py` (Pillow, decoded pixels unchanged, 10-16% smaller on real
+  screenshots; animated PNGs, PNGs with gamma or sRGB chunks, JPEG and GIF stay as they are); a
+  docs-site install encodes each PNG once to a progressive JPEG at quality 85 and refuses a
+  staged JPEG. The prerequisite check lists Pillow with its package command for macOS (Homebrew),
+  Debian/Ubuntu and Fedora.
+
 ### Fixed
 
 - Odoo Semantic is detected where the `odoo-semantic-mcp` plugin sets it up: `00-osm-gate.sh check`

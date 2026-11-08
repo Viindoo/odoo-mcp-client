@@ -178,7 +178,7 @@ Return the three paths and stop.
    ```
    Exit 1: fix the file and re-run. You never return a file that exits 1.
 7. **Finals and reference gate.** `mv` each final into `static/description/assets/` under its
-   convention name (doc-capture-mechanics § 13), bring every off-convention reference of the files you
+   convention name and optimise it (doc-capture-mechanics § 13), bring every off-convention reference of the files you
    wrote into the convention, then run the gate of `module-doc-references.md` § Reference gate
    (`--series` = the resolved `ODOO VERSION`) on every `doc/*.rst` you wrote until it exits 0; exit 2 is
    `NEEDS_CONTEXT` with the printed remedy.

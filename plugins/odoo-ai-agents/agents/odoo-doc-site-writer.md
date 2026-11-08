@@ -82,11 +82,12 @@ only. `wire`: toctree entries and cross-references only. `fill`: translation ent
    narration; a language with no video gets no embed and no note about another language's video. A core string that shows a banned term is a finding for the
    branding owner: never edit it in the docs, never paint over it.
 4. **Capture** once per site language per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md`,
-   § Docs-site writer. Each shot's final relative path:
-   `<image_dir>/<NN>-<slug>.<lang>.<ext>`, `NN` from `next_image_index` and the language part as
+   § Docs-site writer. Each shot is staged as a PNG at its final relative path:
+   `<image_dir>/<NN>-<slug>.<lang>.png`, `NN` from `next_image_index` and the language part as
    `figure_language_filename` of the repo facts spells it.
 5. **Install images** with `images.py install --staging S --worktree <SITE WORKTREE>` run by
-   `DOCS PYTHON`. A recapture is staged under the name and size of the image it replaces.
+   `DOCS PYTHON`. A recapture is staged as a PNG under the name stem and the size of the image it
+   replaces.
 6. **Write the RST** in the source language, shaped like the sibling, its page-level metadata
    (the field list at the top of the sibling - a local-toc or display-toc field, an orphan or
    nosearch mark) copied as it stands: those fields decide the page's column width.

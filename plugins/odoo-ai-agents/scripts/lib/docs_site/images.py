@@ -4,11 +4,12 @@
   images.py install --staging S --worktree W [--quality 85] [--allow-resize] [--json]
   images.py check   --worktree W --pages p1,p2 --langs en,vi [--source-lang en] [--json]
 
-install: each staged `<rel/dir>/<stem>.<lang>.png|jpg|jpeg` becomes `W/<rel/dir>/<stem>.<lang>.jpg`
-  (alpha flattened onto white, JPEG at --quality, optimized, NOT progressive, no metadata).
+install: each staged `<rel/dir>/<stem>.<lang>.png` becomes `W/<rel/dir>/<stem>.<lang>.jpg`
+  (alpha flattened onto white, JPEG at --quality, optimized, progressive, no metadata).
   A target whose directory does not exist is refused and reported (the directory is never made),
   so is a staged file without a `.<lang>` suffix, two staged files for one target, and - unless
-  --allow-resize - an image whose pixel size differs from the target it would replace.
+  --allow-resize - an image whose pixel size differs from the target it would replace. A staged
+  JPEG is refused too: every image is encoded to JPEG exactly once, from a PNG capture.
   The only command that writes inside the docs repo. Needs Pillow: exit 3 with a remedy line when
   it is missing (check does not need it).
 check: every image a page references (image/figure/thumbnail directives, written WITHOUT the language
@@ -32,7 +33,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from docs_site import emit, image_refs, read_text, rst_lines  # noqa: E402
 from docs_site import repo_facts  # noqa: E402
 
-PILLOW_REMEDY = "Pillow is required for `images.py install`: python3 -m pip install --user Pillow"
+from image_optimize import PILLOW_REMEDY as _PILLOW_REMEDY  # noqa: E402
+
+PILLOW_REMEDY = "Pillow is required for `images.py install`. Install it: " + _PILLOW_REMEDY
 IMAGE_EXT = (".png", ".jpg", ".jpeg")
 _STAGED = re.compile(r"^(?P<stem>.+)\.(?P<lang>[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,4})?)\.(?P<ext>png|jpe?g)$",
                      re.I)
@@ -60,6 +63,9 @@ def plan_install(staging, worktree):
             m = _STAGED.match(name)
             item = {"source": rel, "target": None, "status": "refused", "reason": None}
             items.append(item)
+            if name.lower().endswith((".jpg", ".jpeg")):
+                item["reason"] = "STAGED_JPEG: capture PNG so the image is encoded to JPEG once"
+                continue
             if not m:
                 item["reason"] = "NO_LANG_SUFFIX: expected <stem>.<lang>.png|jpg"
                 continue
@@ -118,7 +124,7 @@ def install_one(Image, source_path, target_path, quality, allow_resize):
     tmp = "%s.tmp.%d" % (target_path, os.getpid())
     mode = stat.S_IMODE(os.stat(target_path).st_mode) if os.path.isfile(target_path) else 0o644
     try:
-        rgb.save(tmp, "JPEG", quality=quality, optimize=True, progressive=False)
+        rgb.save(tmp, "JPEG", quality=quality, optimize=True, progressive=True)
         os.chmod(tmp, mode)
         os.replace(tmp, target_path)
     except Exception:
