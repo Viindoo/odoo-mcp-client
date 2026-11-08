@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Odoo Semantic is detected where the `odoo-semantic-mcp` plugin sets it up: `00-osm-gate.sh check`
+  reported "not connected" on a working plugin install because it read only a server registered by
+  hand in `~/.claude.json`, and the prompt hook offered the Odoo Semantic hints whenever the text
+  `odoo-semantic` appeared anywhere in that file (a project path, a skill-usage entry) and never on
+  a fresh plugin install. Both now read one helper, `scripts/lib/osm_registration.py`: a server
+  registered by hand first, else the enabled plugin with its server URL set.
+
 ## [8.6.0] - 2026-11-07
 
 ### Changed
