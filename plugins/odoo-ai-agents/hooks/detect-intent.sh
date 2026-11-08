@@ -197,11 +197,12 @@ case "${_domain}" in
 esac
 
 # --- OSM-availability probe ---
-# Grep for "odoo-semantic" in the Claude config file (same pattern as check-setup-deps.sh
-# uses for chrome-devtools). Safe when the file is absent: grep returns non-zero, no error.
+# Wired = the plugin is enabled with its URL set, or a server is registered by hand
+# (scripts/lib/osm_registration.py; local files only, no network). No python3 or a failing
+# helper means not wired.
 _osm_wired=false
-_claude_cfg="${CLAUDE_CONFIG:-$HOME/.claude.json}"
-if [ -f "${_claude_cfg}" ] && grep -q "odoo-semantic" "${_claude_cfg}" 2>/dev/null; then
+_osm_lib="${CLAUDE_PLUGIN_ROOT:-${BASH_SOURCE[0]%/*}/..}/scripts/lib"
+if command -v python3 >/dev/null 2>&1 && python3 "${_osm_lib}/osm_registration.py" >/dev/null 2>&1; then
   _osm_wired=true
 fi
 

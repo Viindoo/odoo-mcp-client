@@ -148,7 +148,7 @@ def _env(tmp_path: Path, **extra) -> dict:
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)
     cfg = tmp_path / "claude.json"
-    cfg.write_text(json.dumps({"mcpServers": {"odoo-semantic": {}}}), encoding="utf-8")
+    cfg.write_text(json.dumps({"mcpServers": {"odoo-semantic": {"url": "https://osm.example/mcp"}}}), encoding="utf-8")
     e.update({"HOME": str(home), "ODOO_AI_HOME": str(home / ".odoo-ai"),
               "CLAUDE_CONFIG": str(cfg), "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)})
     e.update(extra)

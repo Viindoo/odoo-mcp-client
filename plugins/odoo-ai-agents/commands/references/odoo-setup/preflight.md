@@ -18,9 +18,10 @@ Run the gates BEFORE listing the plan or touching any file. They make no changes
     → this is a server issue, not a session issue. You MAY continue with a
     clear warning that indexed-codebase grounding will be unavailable until
     the server is back.
-- Shell fallback: `00-osm-gate.sh check` confirms the server is registered in
-  `~/.claude.json` and its `/health` endpoint answers. Use it only as a
-  secondary signal (e.g. non-interactive runs); the tool call above is authoritative.
+- Shell fallback: `00-osm-gate.sh check` confirms the server is set up (by the
+  `odoo-semantic-mcp` plugin's configuration, or registered by hand in `~/.claude.json`) and its
+  `/health` endpoint answers. Use it only as a secondary signal (e.g. non-interactive runs); the
+  tool call above is authoritative.
 - Filter-aware: for `all` and `instance`, Gate #1 is a HARD block (those
   flows need the backend). For browser-only filters (`browser`, `runtime`,
   `permissions`) it is a SOFT warning - the user may proceed.

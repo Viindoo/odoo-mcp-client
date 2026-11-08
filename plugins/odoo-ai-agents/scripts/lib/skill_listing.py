@@ -45,6 +45,7 @@ import time
 _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
+from claude_settings import config_dir_path, settings_files, user_settings_path  # noqa: E402,F401
 from config_merge import locked_target  # noqa: E402  (sibling lib; one lock for settings writers)
 
 # Claude Code's defaults (see the module docstring).
@@ -175,23 +176,6 @@ def plugin_entry_sizes(plugin_root, overrides=None):
     else:
         cmd_files = sorted(glob.glob(os.path.join(plugin_root, cmds or "commands", "*.md")))
     return _md_entries(skill_files + cmd_files, name, overrides)
-
-
-def settings_files(config_dir, cwd):
-    """(scope, path) in Claude Code's precedence order, highest first (managed is out of reach)."""
-    return [
-        ("local", os.path.join(cwd, ".claude", "settings.local.json")),
-        ("project", os.path.join(cwd, ".claude", "settings.json")),
-        ("user", user_settings_path(config_dir)),
-    ]
-
-
-def user_settings_path(config_dir):
-    return os.environ.get("CLAUDE_SETTINGS") or os.path.join(config_dir, "settings.json")
-
-
-def config_dir_path():
-    return os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".claude")
 
 
 def _merged_setting(config_dir, cwd, key):
