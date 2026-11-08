@@ -148,9 +148,10 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
      address, an identifier, a key-shaped string); an unwanted AREA is framed out or cropped from
      the image file, never hidden in the page. Whether an element is the module's is read from
      its view or field definition (`entity_lookup`, the XML), never from its label.
-6. **Final format at capture time.** chrome-devtools `take_screenshot` `format` `jpeg` + `quality`,
-   or `png`; playwright `type`. A GIF's width = the slot width: record at a viewport within the step-3 cap and pass the slot width as
-   `record_and_gif` `gifWidth` / `convert_to_gif` `width`.
+6. **Final format at capture time.** A screenshot is captured as PNG (chrome-devtools
+   `take_screenshot` `format` `png`; playwright `type` `png`), so text stays sharp. A GIF's width = the slot width: record at a
+   viewport within the step-3 cap and pass the slot width as `record_and_gif` `gifWidth` /
+   `convert_to_gif` `width`.
 7. **Verify.** Read the image's pixel width from its file header with the plugin interpreter:
 
    ```
@@ -258,7 +259,9 @@ showing that screen references the one file. An existing off-convention name or 
 into `assets/` under the convention name.
 
 `mv` (never `cp`) each final from staging into its directory under its final name, renaming it in
-the same `mv` (`mkdir -p` the directory first).
+the same `mv` (`mkdir -p` the directory first). Then run
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_optimize.py <the finals>` (a lossless re-encode for
+the web); report a `PILLOW=missing` line with its `REMEDY`.
 
 In every doc file you write, bring each off-convention image reference into the convention, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
@@ -277,7 +280,7 @@ For `odoo-doc-site-writer` (a docs-site page, never a module doc):
 
 - **Staging.** Sections 3 and 13 do not apply. Stage every shot under the staging root `S` =
   `<ISOLATE_DIR>/visual/<RUN_ID>/site_staging/`, already at its final repo-relative path and name,
-  which the writer body states.
+  which the writer body states, as a PNG (`images.py install` refuses a staged JPEG).
 - **Slot.** The slot is the CONTENT WIDTHS entry of the place the image goes into (body, list
   item, admonition, table cell). Section 7's slot measurement, `:width:` and module-slot rules do
   not apply; the viewport is at most 1.25 x that entry at device pixel ratio 2.

@@ -2,7 +2,7 @@
 
 Two promises are protected. `install` must never write somewhere the docs repo did not already
 have a place for an image, never swap a screenshot for one of another size by accident, and
-always produce a flat, non-progressive JPEG. `check` must say, per language, which referenced image
+always produce a progressive JPEG from a PNG capture (a staged JPEG is refused). `check` must say, per language, which referenced image
 is missing - the build silently falls back to the other language's picture otherwise.
 
 Pillow-backed cases skip when Pillow is absent; the mapping, refusal and check logic is pure.
@@ -49,12 +49,12 @@ def run_cli(*args):
 def test_a_staged_png_maps_to_a_jpg_with_the_same_stem_and_language(tmp_path):
     staging, wt = tmp_path / "s", tmp_path / "w"
     touch(staging, "content/a/img-p/01-form.vi.png")
-    touch(staging, "content/a/img-p/02-list.en.jpg")
+    touch(staging, "content/a/img-p/02-list.en.png")
     (wt / "content/a/img-p").mkdir(parents=True)
     plan = images.plan_install(str(staging), str(wt))
     got = {i["source"]: (i["target"], i["status"]) for i in plan["items"]}
     assert got["content/a/img-p/01-form.vi.png"] == ("content/a/img-p/01-form.vi.jpg", "ok")
-    assert got["content/a/img-p/02-list.en.jpg"] == ("content/a/img-p/02-list.en.jpg", "ok")
+    assert got["content/a/img-p/02-list.en.png"] == ("content/a/img-p/02-list.en.jpg", "ok")
 
 
 def test_a_target_whose_directory_does_not_exist_is_refused_and_reported(tmp_path):
@@ -79,11 +79,25 @@ def test_a_staged_image_without_a_language_suffix_is_refused(tmp_path):
 def test_two_staged_files_for_one_target_are_both_refused(tmp_path):
     staging, wt = tmp_path / "s", tmp_path / "w"
     touch(staging, "content/a/01-form.vi.png")
-    touch(staging, "content/a/01-form.vi.jpg")
+    touch(staging, "content/a/01-form.vi.PNG")
     (wt / "content/a").mkdir(parents=True)
     items = images.plan_install(str(staging), str(wt))["items"]
     assert [i["status"] for i in items] == ["refused", "refused"]
     assert all(i["reason"].startswith("TARGET_COLLISION") for i in items)
+
+
+@needs_pillow
+def test_a_staged_jpeg_is_refused_so_every_image_is_encoded_to_jpeg_once(tmp_path):
+    staging, wt = tmp_path / "s", tmp_path / "w"
+    touch(staging, "content/a/01-form.vi.jpg")
+    touch(staging, "content/a/02-form.vi.jpeg")
+    (wt / "content/a").mkdir(parents=True)
+    plan = images.plan_install(str(staging), str(wt))
+    assert [i["status"] for i in plan["items"]] == ["refused", "refused"]
+    assert all(i["reason"].startswith("STAGED_JPEG") for i in plan["items"])
+    res = run_cli("install", "--staging", staging, "--worktree", wt)
+    assert res.returncode == 1
+    assert list((wt / "content/a").iterdir()) == []
 
 
 def test_non_image_files_in_staging_are_skipped_not_installed(tmp_path):
@@ -116,14 +130,14 @@ def test_transparency_is_flattened_onto_white(tmp_path):
 
 
 @needs_pillow
-def test_the_jpeg_is_quality_85_and_not_progressive_by_default(tmp_path):
+def test_the_jpeg_is_quality_85_and_progressive_by_default(tmp_path):
     staging, wt = tmp_path / "s", tmp_path / "w"
     png(staging / "d/01-x.vi.png", (64, 64), (10, 120, 200))
     (wt / "d").mkdir(parents=True)
     assert run_cli("install", "--staging", staging, "--worktree", wt).returncode == 0
     with Image.open(wt / "d/01-x.vi.jpg") as out:
         assert out.format == "JPEG"
-        assert "progressive" not in out.info and "progression" not in out.info
+        assert out.info.get("progressive") or out.info.get("progression")
         assert out.quantization[0][0] == 5          # the luminance table scaled for quality 85
 
 
@@ -197,7 +211,7 @@ def test_install_without_pillow_exits_3_with_a_remedy_line(tmp_path):
             "runpy.run_path(%r, run_name='__main__')" % (str(staging), str(wt), str(SCRIPT)))
     res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
     assert res.returncode == 3
-    assert "pip install" in res.stderr and "Pillow" in res.stderr
+    assert "brew install pillow" in res.stderr and "python3-pil" in res.stderr
 
 
 def test_check_does_not_need_pillow(tmp_path):

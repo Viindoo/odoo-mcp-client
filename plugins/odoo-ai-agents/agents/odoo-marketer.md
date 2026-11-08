@@ -182,7 +182,7 @@ buyers are developers, when the technical names are the value.
    `currency` or `live_test_url` the brief did not supply; list the gaps (missing `icon.png` ->
    `odoo-icon-design`, missing cover, missing `license`, missing contact page) in the report.
 5. **Finals and gates.** `mv` each final into `static/description/assets/` under its convention
-   name (doc-capture-mechanics § 13), bring every off-convention reference into the convention,
+   name and optimise it (doc-capture-mechanics § 13), bring every off-convention reference into the convention,
    then run the gate of `module-doc-references.md` § Reference gate (`--series` = the resolved
    `ODOO VERSION`, `--addons-path` = `ADDONS_PATH`, so a store link to a module that does not exist
    is caught) on every `index*.html` you wrote plus the descriptor until it exits 0; exit 2
