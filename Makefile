@@ -1,12 +1,15 @@
-.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check sync-budgets help setup bump bump-dry bump-patch bump-minor bump-major FORCE
+.PHONY: validate test test-run gen gen-check deps-check workflows-check orchestration-check sync-budgets help setup bump bump-dry bump-patch bump-minor bump-major FORCE
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
 VENV_STAMP := $(VENV)/.stamp
+# Parallel workers for the first test pass: a number, or `auto` (one per CPU). Fewer is safer on a busy machine.
+TEST_WORKERS ?= auto
+PYTEST ?= $(PYTHON) -m pytest
 
 help:
 	@echo "make validate        - validate plugin.json + skill frontmatter + workflows (claude plugin validate + pytest); ENFORCES workflows-check + orchestration-check in strict mode"
-	@echo "make test            - run the plugin test suite"
+	@echo "make test            - run the plugin test suite: the tests in parallel (TEST_WORKERS=<n|auto>), then the timing-sensitive set (SERIAL_TESTS in tests/conftest.py) alone"
 	@echo "make gen             - regenerate skill ## MCP tools sections + IDE snippets + orchestration map"
 	@echo "make gen-check       - run gen then assert git diff is empty (CI idempotency check)"
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
@@ -55,7 +58,16 @@ workflows-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py $(if $(WORKFLOWS_STRICT),--strict,)
 
 test: $(VENV_STAMP)
-	$(PYTHON) -m pytest tests/ -q
+	@$(MAKE) --no-print-directory test-run
+
+# The two passes, with no venv step (CI calls this one: `make test-run PYTEST="python -m pytest"`). Both always run, so
+# one failure never hides the other; the exit status is the first failing pass. `--dist loadfile` hands a
+# whole file to one worker, so a module-scoped fixture is built once per file.
+test-run:
+	@rc=0; \
+	$(PYTEST) tests/ -q -n $(TEST_WORKERS) --dist loadfile -m "not serial" || rc=$$?; \
+	$(PYTEST) tests/ -q -m serial || { [ $$rc -ne 0 ] || rc=$$?; }; \
+	exit $$rc
 
 # SSOT generator: read generator/server-surface.json → emit skill sections + snippets + orchestration map.
 # Also regenerates Codex CLI + Gemini CLI MCP manifests from .mcp.json SSOT.

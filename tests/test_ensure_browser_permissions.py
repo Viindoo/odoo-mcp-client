@@ -77,7 +77,7 @@ def _run(settings_path, env_extra=None):
 
 def _allow(settings_path):
     data = json.loads(Path(settings_path).read_text(encoding="utf-8"))
-    return set((data.get("permissions") or {}).get("allow") or [])
+    return list((data.get("permissions") or {}).get("allow") or [])
 
 
 @pytest.fixture()
@@ -87,54 +87,46 @@ def settings(tmp_path):
     return p
 
 
-def test_hook_file_present():
-    assert HOOK.is_file(), f"missing hook: {HOOK}"
+@pytest.fixture(scope="module")
+def two_runs(tmp_path_factory):
+    """The hook run twice over one empty settings file: what the first run left, and what the
+    second one changed."""
+    p = tmp_path_factory.mktemp("two-runs") / "settings.json"
+    p.write_text("{}", encoding="utf-8")
+    first = _run(p)
+    after_first = _allow(p)
+    second = _run(p)
+    return first, after_first, second, _allow(p)
 
 
-def test_adds_own_prefixes(settings):
-    r = _run(settings)
-    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
-    missing = OWN_PREFIXES - _allow(settings)
-    assert not missing, f"hook did not add own-prefixes {missing}; allow={_allow(settings)}"
+def test_every_browser_mcp_family_gets_its_plugin_namespaced_prefix(two_runs):
+    # Anti-drift, per-family: for EVERY browser MCP family in the static SSOT - the eager
+    # chrome-devtools AND the five opt-in families that left .mcp.json, `-headed` variants
+    # included - the `mcp__plugin_<name>_<server>` prefix must land in permissions.allow[]
+    # (permissions decoupled from the eager set, per issue #156).
+    first, allow, _, _ = two_runs
+    assert first.returncode == 0, f"hook must exit 0; stderr={first.stderr}"
+    missing = OWN_PREFIXES - set(allow)
+    assert not missing, f"hook did not add own-prefixes {missing}; allow={allow}"
 
 
-def test_every_mcp_server_gets_a_prefix(settings):
-    # Anti-drift, per-family: for EVERY browser MCP family in the static SSOT -
-    # the eager chrome-devtools AND the five opt-in families that left .mcp.json,
-    # `-headed` variants included - the corresponding `mcp__plugin_<name>_<server>`
-    # prefix must land in permissions.allow[] (permissions decoupled from the
-    # eager set, per issue #156).
-    r = _run(settings)
-    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
-    allow = _allow(settings)
-    for server in SERVERS:
-        prefix = f"mcp__plugin_{NAME}_{server}"
-        assert prefix in allow, (
-            f"server '{server}' from .mcp.json has no allow prefix '{prefix}'; allow={allow}"
-        )
-
-
-def test_local_server_is_not_seeded_as_a_browser_permission(settings):
+def test_local_server_is_not_seeded_as_a_browser_permission(two_runs):
     """Negative case: odoo-local is bundled in the SAME .mcp.json as chrome-devtools, but it is
     a LOCAL (non-browser) server (scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS) - some of its
     tools are destructive (lease_release, an applied lease_gc), so it must never be seeded as a
     browser-style allow-prefix. Approval for it is auto-approve-local.sh's job (in-session,
     PermissionRequest), never this SessionStart durable-settings self-apply."""
-    r = _run(settings)
-    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
-    allow = _allow(settings)
+    _, allow, _, _ = two_runs
     assert f"mcp__plugin_{NAME}_odoo-local" not in allow, (
         f"odoo-local must not get a browser allow-prefix; allow={allow}"
     )
     assert "mcp__odoo-local" not in allow
 
 
-def test_idempotent(settings):
-    _run(settings)
-    first = _allow(settings)
-    r = _run(settings)
-    assert r.returncode == 0, f"second run must exit 0; stderr={r.stderr}"
-    assert _allow(settings) == first, "second run changed the allow-list (not idempotent)"
+def test_idempotent(two_runs):
+    _, first, second, again = two_runs
+    assert second.returncode == 0, f"second run must exit 0; stderr={second.stderr}"
+    assert again == first, "second run changed the allow-list (not idempotent)"
 
 
 def test_opt_out_writes_nothing(settings):
@@ -142,4 +134,4 @@ def test_opt_out_writes_nothing(settings):
     r = _run(settings, {"ODOO_AI_NO_AUTO_PERMS": "1"})
     assert r.returncode == 0, f"opt-out must still exit 0; stderr={r.stderr}"
     assert settings.read_text(encoding="utf-8") == before, "opt-out must not modify settings"
-    assert not (OWN_PREFIXES & _allow(settings)), "opt-out must add no prefixes"
+    assert not (OWN_PREFIXES & set(_allow(settings))), "opt-out must add no prefixes"

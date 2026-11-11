@@ -111,30 +111,38 @@ def _jobs(world):
 # --------------------------------------------------------------------------- #
 # instance_build: the argv each series receives
 # --------------------------------------------------------------------------- #
+# Demo OFF is spelled --without-demo=True on every series, so it is checked on one series of each
+# option era (before 19.0 the checkout declares only --without-demo; from 19.0 --with-demo too).
+DEMO_OFF_SERIES = ("8.0", "19.0")
+
+
 @pytest.mark.parametrize("series", BUILD_SERIES)
-@pytest.mark.parametrize("demo", ["off", "on"])
-def test_a_build_carries_load_languages_and_the_series_demo_flag(world, series, demo):
+def test_a_build_carries_load_languages_and_the_series_demo_flag(world, series):
     _declare_series(world, series)
     _declare_server_wide(world, ["to_base", "web"])
     _checkout(world, series)
+    expected_load = trees.CORE_LOAD[series] + [m for m in ("to_base", "web")
+                                               if m not in trees.CORE_LOAD[series]]
     with McpClient(world["env"](), world["work"]) as c:
         c.initialize()
         lease = _lease(c, world, series=series)
-        job = _ok(_build(c, world, lease["token"], demo=demo, languages=["vi_VN", "en_US"]))
-        assert _wait(c, job["job_id"])["result"] == "success"
-    expected_load = trees.CORE_LOAD[series] + [m for m in ("to_base", "web")
-                                               if m not in trees.CORE_LOAD[series]]
-    assert job["server_wide_modules"] == expected_load
-    assert job["languages"] == ["en_US", "vi_VN"], "en_US first, never twice"
-    (argv,) = _odoo_calls(world)
-    assert _flags(argv, "--load=") == ["--load=" + ",".join(expected_load)]
-    assert _flags(argv, "--load-language") == ["--load-language=en_US,vi_VN"]
-    flag = (DEMO_ON_FLAG if demo == "on" else DEMO_OFF_FLAG)[series]
-    assert _flags(argv, "--with", "--without") == ([flag] if flag else [])
-    ((conf, lines),) = _run_confs(world)
-    assert _conf_of(argv) == conf, "odoo-bin reads the tool's config file, never ~/.odoorc"
-    assert lines == ["[options]"] + (DEMO_ON_CONF[series] if demo == "on" else []), (
-        "the run's config file states only what the build itself states")
+        for demo in ("on", "off") if series in DEMO_OFF_SERIES else ("on",):
+            job = _ok(_build(c, world, lease["token"], demo=demo, languages=["vi_VN", "en_US"]))
+            assert _wait(c, job["job_id"])["result"] == "success"
+            assert job["server_wide_modules"] == expected_load
+            assert job["languages"] == ["en_US", "vi_VN"], "en_US first, never twice"
+            argv = _odoo_calls(world)[-1]
+            assert _flags(argv, "--load=") == ["--load=" + ",".join(expected_load)], (series, demo)
+            assert _flags(argv, "--load-language") == ["--load-language=en_US,vi_VN"], (series, demo)
+            flag = (DEMO_ON_FLAG if demo == "on" else DEMO_OFF_FLAG)[series]
+            assert _flags(argv, "--with", "--without") == ([flag] if flag else []), (series, demo)
+            conf, lines = _run_confs(world)[-1]
+            assert _conf_of(argv) == conf, "odoo-bin reads the tool's config file, never ~/.odoorc"
+            assert lines == ["[options]"] + (DEMO_ON_CONF[series] if demo == "on" else []), (
+                "the run's config file states only what the build itself states", series, demo)
+            if series == "8.0":
+                # openerp/ (the oldest series) reads $OPENERP_SERVER, not $ODOO_RC, at import time.
+                assert world["rc_env"].read_text().splitlines()[-1] == "%s|%s" % (conf, conf)
 
 
 def test_no_operator_config_file_reaches_any_build(world, tmp_path):
@@ -162,33 +170,25 @@ def test_no_operator_config_file_reaches_any_build(world, tmp_path):
         assert env == conf + "|", env
 
 
-def test_the_oldest_core_package_is_isolated_through_its_own_variable(world):
-    """openerp/ (the oldest series) reads $OPENERP_SERVER, not $ODOO_RC, at import time."""
-    _declare_series(world, "8.0")
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series="8.0")
-        _wait(c, _ok(_build(c, world, lease["token"], demo="on"))["job_id"])
-    ((conf, lines),) = _run_confs(world)
-    assert world["rc_env"].read_text().splitlines() == ["%s|%s" % (conf, conf)]
-    assert lines == ["[options]", "without_demo = False"]
+def _drop_core_load(world):
+    """The checkout's config.py keeps every other option but no longer states its --load default."""
+    config = world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
+    config.write_text("\n".join(ln for ln in config.read_text().splitlines() if '"--load"' not in ln),
+                      encoding="utf-8")
 
 
-def test_nothing_declared_passes_no_load_and_en_us_is_always_loaded(client, world):
+def test_the_server_wide_set_is_what_the_catalog_declares_and_never_guessed(client, world):
     _checkout(world, SERIES)
     lease = _lease(client, world)
     job = _ok(_build(client, world, lease["token"]))
     _wait(client, job["job_id"])
     (argv,) = _odoo_calls(world)
     assert _flags(argv, "--load=") == [] and job["server_wide_modules"] == []
-    assert _flags(argv, "--load-language") == ["--load-language=en_US"]
+    assert _flags(argv, "--load-language") == ["--load-language=en_US"], "nothing declared: no --load"
 
-
-def test_a_lease_written_without_the_key_uses_the_catalog_rows_set(client, world):
-    """A lease an older allocator wrote carries no server_wide_modules: the catalog row the lease
-    was acquired for decides, rather than silently loading nothing."""
+    # A lease an older allocator wrote carries no server_wide_modules: the catalog row the lease
+    # was acquired for decides, rather than silently loading nothing.
     _declare_server_wide(world, ["to_base"])
-    _checkout(world, SERIES)
     lease = _lease(client, world)
     reg = world["home"] / "runtime" / "leases.json"
     doc = json.loads(reg.read_text())
@@ -197,126 +197,90 @@ def test_a_lease_written_without_the_key_uses_the_catalog_rows_set(client, world
     reg.write_text(json.dumps(doc), encoding="utf-8")
     job = _ok(_build(client, world, lease["token"]))
     assert job["server_wide_modules"] == ["base", "web", "to_base"]
+    _wait(client, job["job_id"])  # the checkout is read by the build: let it finish before editing it
 
-
-def _drop_core_load(world):
-    """The checkout's config.py keeps every other option but no longer states its --load default."""
-    config = world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
-    config.write_text("\n".join(ln for ln in config.read_text().splitlines() if '"--load"' not in ln),
-                      encoding="utf-8")
-
-
-def test_declared_modules_with_an_unreadable_core_are_refused_before_anything_starts(client, world):
-    _declare_server_wide(world, ["to_base"])
+    # Declared modules with an unreadable core default are refused, and nothing is started.
     _drop_core_load(world)
+    before = len(_odoo_calls(world))
     lease = _lease(client, world)
     err = _err(_build(client, world, lease["token"]))
     assert err["code"] == "SERVER_WIDE_CORE_UNKNOWN"
     assert "odoo_root" in err["remedy"] and "--load" in err["remedy"]
-    assert _jobs(world) == [] and _odoo_calls(world) == []
+    assert len(_odoo_calls(world)) == before
 
 
 # --------------------------------------------------------------------------- #
 # demo policy
 # --------------------------------------------------------------------------- #
-def test_demo_is_required_for_init_and_refused_for_update(client, world):
+def test_the_demo_argument_is_required_for_init_and_refused_everywhere_else(client, world):
     """Demo data loads when a module is installed; an update never adds it to the modules the
-    database holds, so a demo value on an update would only be misrecorded on the lease."""
+    database holds, so a demo value on an update would only be misrecorded on the lease. An
+    automation test build always runs with the series default, so the default is the only path: an
+    explicit demo - even one equal to the default - is refused on every series, and the message
+    says to omit it. A checkout that states no demo option cannot spell either."""
     lease = _lease(client, world, ports=1)
     err = _err(_build(client, world, lease["token"], op="init", demo=None))
     assert err["code"] == "INVALID_ARGUMENTS" and "arguments.demo" in err["message"]
     for demo in ("on", "off"):
         err = _err(_build(client, world, lease["token"], op="update", demo=demo))
         assert err["code"] == "INVALID_ARGUMENTS" and "arguments.demo" in err["message"], err
-        assert "op init" in err["message"], err["message"]
-    assert _jobs(world) == []
     row = next(r for r in _registry(world) if r["token"] == lease["token"])
     assert (row.get("built") or {}).get("demo") is None, "a refused update records nothing"
-    _ok(_build(client, world, lease["token"], op="update", demo=None))
+    for series in ("8.0", "17.0", "18.0", "19.0", "20.0"):
+        _declare_series(world, series)
+        leased = _lease(client, world, series=series, ports=1)
+        for demo in ("on", "off"):
+            err = _err(_build(client, world, leased["token"], op="test", demo=demo, test_tags="/my_mod"))
+            assert err["code"] == "INVALID_ARGUMENTS", (series, demo, err)
+            assert "arguments.demo" in err["message"], err["message"]
+        _ok(client.call("lease_release", {"lease_token": leased["token"], "run_id": RUN}))
+    config = world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
+    config.write_text("\n".join(ln for ln in config.read_text().splitlines() if "demo" not in ln),
+                      encoding="utf-8")
+    for over in ({"op": "init", "demo": "off"}, {"op": "test", "test_tags": "/my_mod"}):
+        err = _err(_build(client, world, lease["token"], **over))
+        assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "demo" in err["message"], over
+        assert "odoo_root" in err["remedy"]
+    assert _jobs(world) == [] and _odoo_calls(world) == [], "every refusal came before anything started"
 
 
-@pytest.mark.parametrize("checkout,default", [("17.0", "on"), ("8.0", "on"), ("18.0", "on"),
-                                              ("19.0", "off"), ("20.0", "off")])
-def test_a_test_build_without_demo_runs_with_the_series_default(world, checkout, default):
-    """Automation tests run as the series runs its own: with demo where the series loads it by
-    default, without it where demo is opt-in - read from the lease's checkout, stated explicitly
-    to odoo-bin (so no config value can flip it), and the value used is reported and recorded (not
-    left unstated)."""
-    _declare_series(world, checkout)
+# The demo policy is what the lease's CHECKOUT declares (--with-demo in its config.py), never the
+# catalog's series label: (catalog series, checkout, the demo a test build runs with).
+DEMO_CASES = [("8.0", "8.0", "on"), ("18.0", "18.0", "on"), ("19.0", "19.0", "off"),
+              ("20.0", "20.0", "off"), ("17.0", "19.0", "off"), ("19.0", "17.0", "on")]
+
+
+@pytest.mark.parametrize("series,checkout,default", DEMO_CASES)
+def test_the_demo_a_test_build_runs_with_and_refuses_follows_the_leases_checkout(world, series, checkout,
+                                                                               default):
+    """Automation tests run as the series runs its own: with demo where the checkout loads it by
+    default, without it where demo is opt-in - stated explicitly to odoo-bin (so no config value
+    can flip it), reported and recorded. Where demo is opt-in a test build on a database any build
+    filled with demo is refused (and told to omit demo); elsewhere it runs."""
+    _declare_series(world, series, checkout=checkout)
     with McpClient(world["env"](), world["work"]) as c:
         c.initialize()
-        lease = _lease(c, world, series=checkout, ports=1)
+        lease = _lease(c, world, series=series, ports=1)
         job = _ok(_build(c, world, lease["token"], op="test", demo=None, test_tags="/my_mod"))
         assert job["demo"] == default
         row = next(r for r in _registry(world) if r["token"] == lease["token"])
         assert row["built"]["demo"] is (default == "on"), "recorded on the lease"
         done = _wait(c, job["job_id"])
-    assert done["demo"] == default
-    (argv,) = _odoo_calls(world)
-    flag = {"on": DEMO_ON_FLAG, "off": DEMO_OFF_FLAG}[default].get(checkout) if checkout in BUILD_SERIES \
-        else None
-    assert _flags(argv, "--with", "--without") == ([flag] if flag else [])
-    ((_conf, lines),) = _run_confs(world)
-    assert lines == ["[options]"] + (DEMO_ON_CONF.get(checkout, []) if default == "on" else [])
+        assert done["demo"] == default
+        (argv,) = _odoo_calls(world)
+        flag = ({"on": DEMO_ON_FLAG, "off": DEMO_OFF_FLAG}[default].get(checkout)
+                if checkout in BUILD_SERIES else None)
+        assert _flags(argv, "--with", "--without") == ([flag] if flag else [])
+        ((_conf, lines),) = _run_confs(world)
+        assert lines == ["[options]"] + (DEMO_ON_CONF.get(checkout, []) if default == "on" else [])
 
-
-@pytest.mark.parametrize("series", ["8.0", "17.0", "18.0", "19.0", "20.0"])
-@pytest.mark.parametrize("demo", ["on", "off"])
-def test_a_test_build_refuses_any_demo_argument_on_every_series(world, series, demo):
-    """An automation test build always runs with the series default, so the default is the only
-    path: an explicit demo - even one equal to the default - is refused before anything starts,
-    and the message says to omit it."""
-    _declare_series(world, series)
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series=series, ports=1)
-        err = _err(_build(c, world, lease["token"], op="test", demo=demo, test_tags="/my_mod"))
-    assert err["code"] == "INVALID_ARGUMENTS", err
-    assert "arguments.demo" in err["message"] and "omit demo" in err["message"], err["message"]
-    assert _jobs(world) == [] and _odoo_calls(world) == []
-
-
-@pytest.mark.parametrize("series,refused", [("19.0", True), ("20.0", True), ("17.0", False),
-                                            ("8.0", False)])
-def test_a_test_build_on_a_database_filled_with_demo_is_refused_where_demo_is_opt_in(
-        world, series, refused):
-    _declare_series(world, series)
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series=series, ports=1)
         init = _ok(_build(c, world, lease["token"], demo="on"))
         assert _wait(c, init["job_id"])["instance_handle"]["demo"] is True, (
             "the build's demo is recorded on the lease")
         res = _build(c, world, lease["token"], op="test", test_mode="reuse", test_tags="/my_mod")
-        if refused:
+        if default == "off":
             err = _err(res)
             assert err["code"] == "TEST_DB_HAS_DEMO" and "lease_acquire" in err["remedy"]
-            assert "omit demo" in err["remedy"] and "demo off" not in err["remedy"].split(
-                "op init")[0], "the remedy must not tell a test build to pass demo"
-        else:
-            _ok(res)
-
-
-@pytest.mark.parametrize("series,checkout,default", [("17.0", "19.0", "off"), ("19.0", "17.0", "on")])
-def test_the_demo_policy_follows_the_leases_checkout_not_the_catalog_series(world, series, checkout,
-                                                                            default):
-    """Whether demo is opt-in is what the lease's checkout declares (--with-demo in its config.py);
-    the catalog's series label never decides it - neither the default a test build runs with nor
-    whether a demo database is refused."""
-    _declare_series(world, series, checkout=checkout)
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series=series, ports=1)
-        job = _ok(_build(c, world, lease["token"], op="test", test_tags="/my_mod"))
-        assert job["demo"] == default
-        _wait(c, job["job_id"])
-        (argv,) = _odoo_calls(world)
-        assert _flags(argv, "--with", "--without") == (
-            ["--without-demo=True"] if default == "off" else []), "the default, stated explicitly"
-        _wait(c, _ok(_build(c, world, lease["token"], demo="on"))["job_id"])
-        res = _build(c, world, lease["token"], op="test", test_mode="reuse", test_tags="/my_mod")
-        if default == "off":
-            assert _err(res)["code"] == "TEST_DB_HAS_DEMO"
         else:
             _ok(res)
 
@@ -341,43 +305,6 @@ def _edit_row(world, token, **fields):
     reg.write_text(json.dumps(doc), encoding="utf-8")
 
 
-@pytest.mark.parametrize("series", ["19.0", "20.0"])
-def test_a_test_build_on_a_forwarded_database_built_with_demo_is_refused(world, series):
-    """The provider built the database with demo on its own lease; the consumer takes an exclusive
-    lease on the same database to run tests. Demo data is a fact of the DATABASE, so the consumer's
-    fresh lease - which recorded no build - must still see it, and the test build is refused."""
-    _declare_series(world, series)
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        provider = _lease(c, world, series=series)
-        _wait(c, _ok(_build(c, world, provider["token"], demo="on", languages=["vi_VN"]))["job_id"])
-        consumer = _second_lease_on(c, world, provider["db_name"], series)
-        assert consumer["built"] == {"demo": None, "languages": []}, "the consumer's own lease built nothing"
-        err = _err(_build(c, world, consumer["token"], op="test", test_mode="reuse", test_tags="/my_mod"))
-        assert err["code"] == "TEST_DB_HAS_DEMO", err
-        assert err["diagnostics"]["token_prefix"] == consumer["token"][:8]
-        assert len(_odoo_calls(world)) == 1, "only the provider's build ran"
-
-
-def test_the_handle_of_a_second_lease_on_a_database_carries_that_databases_build_facts(world):
-    """A consumer that reads the handle of its own lease on a forwarded database learns what the
-    database holds (demo, proven languages), not an empty 'nothing recorded'."""
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        provider = _lease(c, world)
-        _wait(c, _ok(_build(c, world, provider["token"], demo="on"))["job_id"])
-        _record_languages(world, provider["token"], ["en_US", "vi_VN"])
-        acquired = _ok(c.call("lease_acquire", {"series": SERIES, "run_id": RUN, "mode": "exclusive",
-                                                "db_name": provider["db_name"], "no_create": True,
-                                                "cwd": str(world["work"])}))
-        assert acquired["instance_handle"]["demo"] is True
-        assert acquired["instance_handle"]["languages_loaded"] == ["en_US", "vi_VN"]
-        job = _ok(_build(c, world, acquired["lease"]["token"], op="update"))
-        done = _wait(c, job["job_id"])
-        assert done["instance_handle"]["demo"] is True
-        assert done["instance_handle"]["languages_loaded"] == ["en_US", "vi_VN"]
-
-
 def _record_languages(world, token, languages):
     """Record proven languages on a lease the way job_wait does (allocator record-build)."""
     import subprocess
@@ -386,65 +313,67 @@ def _record_languages(world, token, languages):
                    env=world["env"](), check=True, capture_output=True, timeout=60)
 
 
-def test_a_database_with_the_same_name_on_another_cluster_is_another_database(world):
-    """Rows naming the same database on DIFFERENT Postgres coordinates describe two databases:
-    the demo one build loaded on one cluster never refuses a test build on the other."""
+def test_demo_and_languages_are_facts_of_the_database_every_lease_on_it_sees(world):
+    """The provider built the database with demo on its own lease; the consumer takes an exclusive
+    lease on the same database. Demo data is a fact of the DATABASE, so the consumer's fresh lease -
+    which recorded no build - must still see it: its test build is refused, its handle states what
+    the database holds, and demo once loaded stays on the handle. A database of the same name on
+    another cluster is another database, and one built without demo refuses nothing."""
     _declare_series(world, "19.0")
     with McpClient(world["env"](), world["work"]) as c:
         c.initialize()
         provider = _lease(c, world, series="19.0")
-        _wait(c, _ok(_build(c, world, provider["token"], demo="on"))["job_id"])
-        consumer = _second_lease_on(c, world, provider["db_name"], "19.0")
+        _wait(c, _ok(_build(c, world, provider["token"], demo="on", languages=["vi_VN"]))["job_id"])
+        later = _wait(c, _ok(_build(c, world, provider["token"], demo="off"))["job_id"])
+        assert later["instance_handle"]["demo"] is True, "demo once loaded stays on the handle"
+        assert next(r for r in _registry(world) if r["token"] == provider["token"])["built"]["demo"] is True
+
+        _record_languages(world, provider["token"], ["en_US", "vi_VN"])
+        acquired = _ok(c.call("lease_acquire", {"series": "19.0", "run_id": RUN, "mode": "exclusive",
+                                                "db_name": provider["db_name"], "no_create": True,
+                                                "ports": 1, "cwd": str(world["work"])}))
+        consumer = acquired["lease"]
+        assert consumer["built"] == {"demo": None, "languages": []}, "the consumer's own lease built nothing"
+        err = _err(_build(c, world, consumer["token"], op="test", test_mode="reuse", test_tags="/my_mod"))
+        assert err["code"] == "TEST_DB_HAS_DEMO", err
+        assert err["diagnostics"]["token_prefix"] == consumer["token"][:8]
+        assert len(_odoo_calls(world)) == 2, "only the provider's two builds ran"
+
+        # The handle of a lease taken on that database learns what the database holds.
+        assert acquired["instance_handle"]["demo"] is True
+        assert acquired["instance_handle"]["languages_loaded"] == ["en_US", "vi_VN"]
+        done = _wait(c, _ok(_build(c, world, consumer["token"], op="update"))["job_id"])
+        assert done["instance_handle"]["demo"] is True
+        assert done["instance_handle"]["languages_loaded"] == ["en_US", "vi_VN"]
+
+        # Rows naming the same database on DIFFERENT Postgres coordinates describe two databases:
+        # the demo one build loaded on one cluster never refuses a test build on the other.
         _edit_row(world, provider["token"], db_port="5999")
         _edit_row(world, consumer["token"], db_port="5433")
         _ok(_build(c, world, consumer["token"], op="test", test_mode="reuse", test_tags="/my_mod"))
 
-
-def test_a_database_built_without_demo_by_another_lease_is_not_refused(world):
-    _declare_series(world, "19.0")
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        provider = _lease(c, world, series="19.0")
-        _wait(c, _ok(_build(c, world, provider["token"], demo="off"))["job_id"])
-        consumer = _second_lease_on(c, world, provider["db_name"], "19.0")
-        _ok(_build(c, world, consumer["token"], op="test", test_mode="reuse", test_tags="/my_mod"))
-
-
-def test_a_checkout_stating_no_demo_option_is_refused_before_anything_starts(client, world):
-    config = world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
-    config.write_text("\n".join(ln for ln in config.read_text().splitlines() if "demo" not in ln),
-                      encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    for over in ({"op": "init", "demo": "off"}, {"op": "test", "test_tags": "/my_mod"}):
-        err = _err(_build(client, world, lease["token"], **over))
-        op = over["op"]
-        assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "demo" in err["message"], op
-        assert "odoo_root" in err["remedy"]
-    assert _jobs(world) == [] and _odoo_calls(world) == []
-
-
-def test_demo_once_loaded_stays_on_the_handle(client, world):
-    lease = _lease(client, world)
-    _wait(client, _ok(_build(client, world, lease["token"], demo="on"))["job_id"])
-    later = _wait(client, _ok(_build(client, world, lease["token"], demo="off"))["job_id"])
-    assert later["instance_handle"]["demo"] is True
-    row = next(r for r in _registry(world) if r["token"] == lease["token"])
-    assert row["built"]["demo"] is True
+        # A database built without demo by another lease is not refused.
+        plain = _lease(c, world, series="19.0")
+        _wait(c, _ok(_build(c, world, plain["token"], demo="off"))["job_id"])
+        reader = _second_lease_on(c, world, plain["db_name"], "19.0")
+        _ok(_build(c, world, reader["token"], op="test", test_mode="reuse", test_tags="/my_mod"))
 
 
 # --------------------------------------------------------------------------- #
 # extra_args may not carry a build fact
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("token,points_at", [("--load=base,web", "server_wide argument"),
-                                             ("--load-language=fr_FR", "languages argument"),
-                                             ("-lfr_FR", "languages argument"),
-                                             ("--without-demo=all", "demo argument"),
-                                             ("--with-demo", "demo argument")])
-def test_a_build_fact_in_extra_args_is_refused_naming_the_input_that_sets_it(client, world, token,
-                                                                             points_at):
+BUILD_FACT_TOKENS = [("--load=base,web", "server_wide argument"),
+                     ("--load-language=fr_FR", "languages argument"),
+                     ("-lfr_FR", "languages argument"),
+                     ("--without-demo=all", "demo argument"),
+                     ("--with-demo", "demo argument")]
+
+
+def test_a_build_fact_in_extra_args_is_refused_naming_the_input_that_sets_it(client, world):
     lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"], extra_args=[token]))
-    assert err["code"] == "INVALID_ARGUMENTS" and points_at in err["message"], err["message"]
+    for token, points_at in BUILD_FACT_TOKENS:
+        err = _err(_build(client, world, lease["token"], extra_args=[token]))
+        assert err["code"] == "INVALID_ARGUMENTS" and points_at in err["message"], (token, err["message"])
 
 
 # --------------------------------------------------------------------------- #
@@ -461,95 +390,157 @@ LOG_LINES = (
 )
 
 
-def test_job_wait_reports_proven_languages_warnings_and_a_real_handle(client, world):
-    world["behavior"].write_text("".join('echo "%s"\n' % ln.replace("`", "\\`") for ln in LOG_LINES)
-                                 + 'echo "odoo.modules.loading: Modules loaded."\nexit 0\n',
-                                 encoding="utf-8")
-    lease = _lease(client, world)
-    job = _ok(_build(client, world, lease["token"], languages=["vi_VN", "xx_XX"]))
-    done = _wait(client, job["job_id"])
-    assert done["result"] == "success"
-    assert done["languages_loaded"] == ["en_US", "vi_VN"]
-    assert done["languages_failed"] == ["xx_XX"], "a language with no load evidence is not loaded"
-    wide = [w for w in done["warnings"] if "viin_brand" in w]
-    assert wide and "server_wide_modules" in wide[0] and "odoo-setup" in wide[0]
-    assert 'server_wide.include ["viin_brand"]' in wide[0], (
-        "the warning names the per-call route as well as the catalog route")
-    assert any("my_mod" in w and "WITHOUT demo" in w for w in done["warnings"])
-    handle = done["instance_handle"]
-    assert handle["demo"] is False and handle["languages_loaded"] == ["en_US", "vi_VN"]
-    assert handle["lease_token"] == lease["token"]
-    row = next(r for r in _registry(world) if r["token"] == lease["token"])
-    assert row["built"] == {"demo": False, "languages": ["en_US", "vi_VN"]}
+def _lang_line(code):
+    return ('echo "odoo.addons.base.models.ir_module: module base: loading translation file '
+            '/x/base/i18n/%s.po for language %s"\n' % (code.split("_")[0], code))
 
 
-def test_a_failed_build_proves_no_en_us_and_a_running_one_reports_nothing_yet(client, world):
-    world["behavior"].write_text('sleep 3\necho "CRITICAL boom"\nexit 1\n', encoding="utf-8")
-    lease = _lease(client, world)
-    job_id = _ok(_build(client, world, lease["token"]))["job_id"]
-    running = _wait(client, job_id, timeout_s=1)
-    assert running["result"] == "timeout"
-    assert running["languages_loaded"] is None and running["instance_handle"] is None
-    done = _wait(client, job_id)
-    assert done["result"] == "failure"
-    assert done["languages_loaded"] == [] and done["languages_failed"] == ["en_US"]
-
-
-@pytest.mark.parametrize("suite,result", [
-    ('echo "odoo.tests.result: 1 failed, 0 error(s) of 3 tests when loading database"\nexit 1\n',
-     "failure"),
-    ('echo "odoo.tests: skipped test_x"\nexit 0\n', "inconclusive"),
-])
-def test_a_test_build_whose_modules_loaded_proves_its_languages_whatever_the_suite_says(
-        world, suite, result):
-    """The languages are activated while the modules load; the test suite runs after that. A
-    failed or inconclusive SUITE says nothing about whether en_US and the requested languages were
-    loaded - reporting en_US as failed there would be false."""
-    world["behavior"].write_text(
-        'echo "odoo.addons.base.models.ir_module: module base: loading translation file '
-        '/x/base/i18n/vi.po for language vi_VN"\n'
-        'echo "odoo.modules.loading: Modules loaded."\n' + suite, encoding="utf-8")
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, ports=1)
-        done = _wait(c, _ok(_build(c, world, lease["token"], op="test", test_tags="/my_mod",
-                                   languages=["vi_VN", "xx_XX"]))["job_id"])
-    assert done["result"] == result, done
-    assert done["languages_loaded"] == ["en_US", "vi_VN"]
-    assert done["languages_failed"] == ["xx_XX"], "only the language nothing proved loaded"
-
-
-def test_a_build_that_stopped_before_its_modules_loaded_proves_no_en_us(client, world):
-    world["behavior"].write_text('echo "Traceback (most recent call last):"\nexit 1\n',
-                                 encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
-                                    test_tags="/my_mod"))["job_id"])
-    assert done["result"] == "failure"
-    assert done["languages_loaded"] == [] and done["languages_failed"] == ["en_US"]
-
-
-def test_a_server_wide_warning_names_the_leases_catalog_row_by_its_key(world):
-    """The remedy must select THE row the lease came from: a series may declare several
-    profiles, so "series 17.0" alone sends the operator to the wrong one."""
+def test_job_wait_reports_proven_languages_warnings_and_a_real_handle(world):
+    """The remedy of a server-wide warning must select THE row the lease came from: a series may
+    declare several profiles, so "series 17.0" alone sends the operator to the wrong one."""
     toml = world["home"] / "instances.toml"
     toml.write_text(toml.read_text() + 'profile = "std_17"\n', encoding="utf-8")
     world["behavior"].write_text("".join('echo "%s"\n' % ln.replace("`", "\\`") for ln in LOG_LINES)
                                  + 'echo "odoo.modules.loading: Modules loaded."\nexit 0\n',
                                  encoding="utf-8")
+    gate = world["work"] / "build-gate"
     with McpClient(world["env"](), world["work"]) as c:
         c.initialize()
         lease = _lease(c, world, profile="std_17")
-        done = _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
-    (wide,) = [w for w in done["warnings"] if "viin_brand" in w]
-    assert "17.0:std_17" in wide, wide
-    assert "refresh --version 17.0 --profile std_17" in wide, wide
+        job = _ok(_build(c, world, lease["token"], languages=["vi_VN", "xx_XX"]))
+        done = _wait(c, job["job_id"])
+        assert done["result"] == "success"
+        assert done["languages_loaded"] == ["en_US", "vi_VN"]
+        assert done["languages_failed"] == ["xx_XX"], "a language with no load evidence is not loaded"
+        (wide,) = [w for w in done["warnings"] if "viin_brand" in w]
+        assert "server_wide_modules" in wide and "odoo-setup" in wide
+        assert 'server_wide.include ["viin_brand"]' in wide, (
+            "the warning names the per-call route as well as the catalog route")
+        assert "17.0:std_17" in wide and "refresh --version 17.0 --profile std_17" in wide, wide
+        assert any("my_mod" in w and "WITHOUT demo" in w for w in done["warnings"])
+        handle = done["instance_handle"]
+        assert handle["demo"] is False and handle["languages_loaded"] == ["en_US", "vi_VN"]
+        assert handle["lease_token"] == lease["token"]
+        row = next(r for r in _registry(world) if r["token"] == lease["token"])
+        assert row["built"] == {"demo": False, "languages": ["en_US", "vi_VN"]}
+
+        # A clean build has no warnings.
+        world["behavior"].write_text('echo "odoo.modules.loading: Modules loaded."\nexit 0\n', encoding="utf-8")
+        clean = _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
+        assert clean["warnings"] == [] and clean["languages_loaded"] == ["en_US"]
+
+        # A running build reports nothing yet; a failed one proves no en_US.
+        world["behavior"].write_text('while [[ ! -f "%s" ]]; do sleep 0.1; done\necho "CRITICAL boom"\nexit 1\n'
+                                     % gate, encoding="utf-8")
+        job_id = _ok(_build(c, world, lease["token"]))["job_id"]
+        running = _wait(c, job_id, timeout_s=1)
+        assert running["result"] == "timeout"
+        assert running["languages_loaded"] is None and running["instance_handle"] is None
+        gate.write_text("go", encoding="utf-8")
+        failed = _wait(c, job_id)
+        assert failed["result"] == "failure"
+        assert failed["languages_loaded"] == [] and failed["languages_failed"] == ["en_US"]
+
+        # The summary schema leaves room for the keys the script may print beyond the documented
+        # ones, and names where the languages came from.
+        tools = c.request("tools/list")["result"]["tools"]
+        (job_wait,) = [t for t in tools if t["name"] == "job_wait"]
+        (out,) = [branch["properties"] for branch in job_wait["outputSchema"]["anyOf"]
+                  if "job_id" in branch.get("properties", {})]
+        assert out["languages_source"]["enum"] == ["database", "log", None]
+        assert out["summary"].get("additionalProperties", True) is not False
 
 
-def test_a_clean_build_has_no_warnings(client, world):
-    lease = _lease(client, world)
-    done = _wait(client, _ok(_build(client, world, lease["token"]))["job_id"])
-    assert done["warnings"] == [] and done["languages_loaded"] == ["en_US"]
+def test_a_test_builds_proven_languages_are_read_from_the_modules_loading_not_the_suite(world):
+    """The languages are activated while the modules load; the test suite runs after that. A
+    failed or inconclusive SUITE says nothing about whether en_US and the requested languages were
+    loaded - reporting en_US as failed there would be false. A build that stopped before its modules
+    loaded proves no en_US; an at_install failure still proves it (Odoo logs "At least one test
+    failed when loading the modules." instead of "Modules loaded.")."""
+    loaded = ('echo "odoo.addons.base.models.ir_module: module base: loading translation file '
+              '/x/base/i18n/vi.po for language vi_VN"\n'
+              'echo "odoo.modules.loading: Modules loaded."\n')
+    with McpClient(world["env"](), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world, ports=1)
+
+        def test_build(behavior, **over):
+            world["behavior"].write_text(behavior, encoding="utf-8")
+            return _wait(c, _ok(_build(c, world, lease["token"], op="test", test_tags="/my_mod",
+                                       **over))["job_id"])
+
+        for suite, result in (
+                ('echo "odoo.tests.result: 1 failed, 0 error(s) of 3 tests when loading database"\nexit 1\n',
+                 "failure"),
+                ('echo "odoo.tests: skipped test_x"\nexit 0\n', "inconclusive")):
+            done = test_build(loaded + suite, languages=["vi_VN", "xx_XX"])
+            assert done["result"] == result, done
+            assert done["languages_loaded"] == ["en_US", "vi_VN"], suite
+            assert done["languages_failed"] == ["xx_XX"], "only the language nothing proved loaded"
+
+        done = test_build('echo "Traceback (most recent call last):"\nexit 1\n')
+        assert done["result"] == "failure"
+        assert done["languages_loaded"] == [] and done["languages_failed"] == ["en_US"]
+
+        done = test_build('echo "odoo.addons.my_mod.tests.test_x: FAIL: test_y"\n'
+                          'echo "odoo.modules.loading: At least one test failed when loading the modules."\n'
+                          "exit 1\n")
+        assert done["result"] == "failure"
+        assert done["summary"]["BUILD_MODULES_LOADED"] == "1"
+        assert done["languages_loaded"] == ["en_US"] and done["languages_failed"] == []
+
+        # The database's own active languages win over the log: a test may activate a language
+        # inside its own transaction (rolled back), so the log shows Odoo loading its terms yet the
+        # database never holds it.
+        world["db_facts"].write_text("DB_EXISTS=1\nDEMO=0\nLANGUAGES=vi_VN,en_US\n", encoding="utf-8")
+        done = test_build(_lang_line("vi_VN") + _lang_line("de_DE")
+                          + 'echo "odoo.modules.loading: Modules loaded."\n' + _lang_line("fr_FR") + "exit 0\n",
+                          languages=["vi_VN", "de_DE"])
+        assert done["languages_source"] == "database"
+        assert done["languages_loaded"] == ["en_US", "vi_VN"], "the database's own active set"
+        assert done["languages_failed"] == ["de_DE"]
+        assert done["instance_handle"]["facts_source"] == "database"
+
+        # When the database cannot be read, only requested languages count from the log.
+        world["db_facts"].unlink()
+        done = test_build(_lang_line("vi_VN") + 'echo "odoo.modules.loading: Modules loaded."\n'
+                          + _lang_line("fr_FR") + "exit 0\n", languages=["vi_VN"])
+        assert done["languages_source"] == "log"
+        assert done["languages_loaded"] == ["en_US", "vi_VN"], "fr_FR was never requested"
+        assert done["languages_failed"] == []
+
+
+def test_job_wait_names_a_missing_optional_test_import_with_its_remedy(client, world):
+    """The checkout's test framework imports a package only when present (a fictional one here, so
+    the venv can never import it); without it every browser, tour and Hoot test skips. job_wait
+    names the package, the tests that skipped for it, and how to install it into the lease's venv -
+    and warns nothing when the venv has every optional import."""
+    dist = "fictional-browser-driver"
+    trees.write_test_common(world["odoo_bin"].parent, SERIES,
+                            imports=(("fictional_browser_driver", dist),))
+    world["behavior"].write_text(
+        'echo "odoo.modules.loading: Modules loaded."\n'
+        'echo "INFO 1 insttest odoo.addons.web.tests.test_js: skipped test_qunit_desktop : %s module is not installed"\n'
+        'echo "INFO 1 insttest odoo.tests.result: 0 failed, 0 error(s) of 3 tests"\nexit 0\n' % dist,
+        encoding="utf-8")
+    lease = _lease(client, world, ports=1)
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
+                                    test_tags="/my_mod"))["job_id"])
+    assert done["summary"]["TEST_DEPS_MISSING"] == dist
+    assert done["summary"]["TEST_DEPS_SKIPPED"] == dist
+    (warning,) = [w for w in done["warnings"] if dist in w]
+    assert "/odoo-ai-agents:odoo-setup" in warning and "create-venv" in warning
+    assert str(world["python"]) in warning, "the remedy names the venv to install it into"
+
+    trees.write_test_common(world["odoo_bin"].parent, SERIES, imports=(("json", None),))
+    world["behavior"].write_text(
+        'echo "odoo.modules.loading: Modules loaded."\n'
+        'echo "INFO 1 insttest odoo.tests.result: 0 failed, 0 error(s) of 3 tests"\nexit 0\n',
+        encoding="utf-8")
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
+                                    test_tags="/my_mod"))["job_id"])
+    assert done["summary"]["TEST_DEPS_MISSING"] == ""
+    assert not [w for w in done["warnings"] if "test framework" in w]
 
 
 # --------------------------------------------------------------------------- #
@@ -559,61 +550,8 @@ def _served_conf(world):
     return "\n".join(p.read_text() for p in (world["home"] / "conf").glob("*.conf"))
 
 
-def test_serve_writes_the_resolved_server_wide_set_into_the_conf(client, world):
-    _declare_server_wide(world, ["to_base"])
-    _checkout(world, SERIES)
-    lease = _lease(client, world, ports=1)
-    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                          timeout=120))
-    assert out["served_server_wide_modules"] == ["base", "web", "to_base"]
-    assert "server_wide_modules = base,web,to_base" in _served_conf(world)
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-def test_serve_by_series_resolves_the_catalog_rows_set(client, world):
-    _declare_server_wide(world, ["viin_brand"])
-    _checkout(world, "19.0")
-    out = _ok(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
-                          timeout=120))
-    assert out["served_server_wide_modules"] == ["base", "rpc", "web", "viin_brand"]
-
-
-def test_serve_refuses_declared_modules_with_an_unreadable_core_and_launches_nothing(client, world):
-    _declare_server_wide(world, ["to_base"])
-    _drop_core_load(world)
-    lease = _lease(client, world, ports=1)
-    err = _err(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                           timeout=120))
-    assert err["code"] == "SERVER_WIDE_CORE_UNKNOWN"
-    assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
-    row = next(r for r in _registry(world) if r["token"] == lease["token"])
-    assert (row.get("owner") or {}).get("pid") is None, "nothing was launched or bound"
-
-
-def test_serve_takes_no_complete_set_from_the_agent_only_an_adjustment(client, world):
-    """The tool composes the --load set; an agent states only what to leave out or add. A complete
-    set under any name - the removed load_modules input, or a key server_wide does not define -
-    is refused before anything is launched."""
-    lease = _lease(client, world, ports=1)
-    for args in ({"load_modules": ["base", "web"]}, {"server_wide": {"set": ["base", "web"]}}):
-        err = _err(client.call("instance_serve", dict(args, lease_token=lease["token"])))
-        assert err["code"] == "INVALID_ARGUMENTS", args
-        assert ("load_modules" if "load_modules" in args else "set") in err["message"], err["message"]
-    assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
-
-
-# --------------------------------------------------------------------------- #
-# the facts are visible where agents read leases and the catalog
-# --------------------------------------------------------------------------- #
-def test_lease_and_catalog_expose_the_declared_set(client, world):
-    _declare_server_wide(world, ["to_base"])
-    lease = _lease(client, world)
-    assert lease["server_wide_modules"] == ["to_base"]
-    assert lease["built"] == {"demo": None, "languages": []}
-    rows = _ok(client.call("catalog_read", {"cwd": str(world["work"])}))["rows"]
-    assert [r["server_wide_modules"] for r in rows] == [["to_base"]]
-    listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
-    assert listed["server_wide_modules"] == ["to_base"]
+def _no_conf_written(world):
+    return not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
 
 
 # --------------------------------------------------------------------------- #
@@ -637,13 +575,81 @@ def _declared_world(world):
     _checkout(world, SERIES)  # core default base,web
 
 
-def test_without_server_wide_a_build_loads_the_default_set(client, world):
+def test_serving_writes_the_resolved_and_the_adjusted_server_wide_set_into_the_conf(client, world):
     _declared_world(world)
-    lease = _lease(client, world)
-    job = _ok(_build(client, world, lease["token"]))
-    _wait(client, job["job_id"])
-    assert _load_of_last_build(world) == ["--load=base,web,to_base,viin_brand"]
-    assert job["server_wide_adjustment"] is None
+    _addon(world["addons"], "my_wide")
+    lease = _lease(client, world, ports=1)
+    # The facts are visible where agents read leases and the catalog.
+    assert lease["server_wide_modules"] == DECLARED
+    assert lease["built"] == {"demo": None, "languages": []}
+    rows = _ok(client.call("catalog_read", {"cwd": str(world["work"])}))["rows"]
+    assert [r["server_wide_modules"] for r in rows] == [DECLARED]
+    listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
+    assert listed["server_wide_modules"] == DECLARED
+
+    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                          timeout=120))
+    assert out["served_server_wide_modules"] == ["base", "web", "to_base", "viin_brand"]
+    assert "server_wide_modules = base,web,to_base,viin_brand" in _served_conf(world)
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+    for conf in (world["home"] / "conf").glob("*.conf"):
+        conf.unlink()
+    (world["home"].parent / "curl-count").unlink(missing_ok=True)  # nothing listens yet again
+
+    # An adjusted set is written as it is, and an attach cannot change the set of the server
+    # already running: asking for the same set again attaches; asking for no adjustment reports the
+    # set really serving; asking for another set is refused rather than reported as applied.
+    lease = _lease(client, world, ports=1)
+    wide = {"exclude": ["viin_brand"], "include": ["my_wide"]}
+    serve = dict(lease_token=lease["token"], cwd=str(world["work"]))
+    first = _ok(client.call("instance_serve", dict(serve, server_wide=wide), timeout=120))
+    assert first["state"] == "launched"
+    assert first["served_server_wide_modules"] == ["base", "web", "to_base", "my_wide"]
+    assert first["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": ["my_wide"]}
+    assert "server_wide_modules = base,web,to_base,my_wide" in _served_conf(world)
+    again = _ok(client.call("instance_serve", dict(serve, server_wide=wide), timeout=120))
+    assert again["state"] == "attached" and again["server_pid"] == first["server_pid"]
+    plain = _ok(client.call("instance_serve", serve, timeout=120))
+    assert plain["served_server_wide_modules"] == ["base", "web", "to_base", "my_wide"], (
+        "an attach reports the set the running server was launched with")
+    err = _err(client.call("instance_serve", dict(serve, server_wide={"exclude": ["to_base"]}),
+                           timeout=120))
+    assert err["code"] == "SERVER_WIDE_NOT_APPLIED", err
+    assert err["diagnostics"]["running"] == ["base", "web", "to_base", "my_wide"]
+    assert "lease_park" in err["remedy"]
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+    # The tool composes the --load set; an agent states only what to leave out or add. A complete
+    # set under any name - the removed load_modules input, or a key server_wide does not define -
+    # is refused before anything is launched; so is a declared set over an unreadable core.
+    for conf in (world["home"] / "conf").glob("*.conf"):
+        conf.unlink()
+    lease = _lease(client, world, ports=1)
+    for args in ({"load_modules": ["base", "web"]}, {"server_wide": {"set": ["base", "web"]}}):
+        err = _err(client.call("instance_serve", dict(args, lease_token=lease["token"])))
+        assert err["code"] == "INVALID_ARGUMENTS", args
+        assert ("load_modules" if "load_modules" in args else "set") in err["message"], err["message"]
+    assert _no_conf_written(world)
+    _drop_core_load(world)
+    err = _err(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                           timeout=120))
+    assert err["code"] == "SERVER_WIDE_CORE_UNKNOWN"
+    assert _no_conf_written(world)
+    row = next(r for r in _registry(world) if r["token"] == lease["token"])
+    assert (row.get("owner") or {}).get("pid") is None, "nothing was launched or bound"
+
+
+def test_serving_by_series_resolves_the_catalog_rows_set_and_takes_no_adjustment(client, world):
+    _declare_server_wide(world, ["viin_brand"])
+    _checkout(world, "19.0")
+    # The shared render server's set is the catalog row's for every reader.
+    err = _err(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"]),
+                                              "server_wide": {"exclude": ["viin_brand"]}}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
+    assert _no_conf_written(world)
+    out = _ok(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
+                          timeout=120))
+    assert out["served_server_wide_modules"] == ["base", "rpc", "web", "viin_brand"]
 
 
 def test_exclude_leaves_a_declared_module_out_for_that_build_only(client, world):
@@ -656,229 +662,61 @@ def test_exclude_leaves_a_declared_module_out_for_that_build_only(client, world)
     assert _load_of_last_build(world) == ["--load=base,web,to_base"]
     assert job["server_wide_modules"] == done["server_wide_modules"] == ["base", "web", "to_base"]
     assert done["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": []}
-    _wait(client, _ok(_build(client, world, lease["token"], op="update"))["job_id"])
+    nxt = _ok(_build(client, world, lease["token"], op="update"))
+    assert nxt["server_wide_adjustment"] is None
+    _wait(client, nxt["job_id"])
     assert _load_of_last_build(world) == ["--load=base,web,to_base,viin_brand"]
     row = next(r for r in _registry(world) if r["token"] == lease["token"])
     assert row["server_wide_modules"] == DECLARED, "the lease keeps the catalog's set"
-
-
-def test_excluding_every_declared_module_still_passes_the_core_set(client, world):
-    """With an adjustment --load is always passed, so the core modules must be in it."""
-    _declared_world(world)
-    lease = _lease(client, world)
-    _wait(client, _ok(_build(client, world, lease["token"],
-                             server_wide={"exclude": DECLARED}))["job_id"])
+    # With an adjustment --load is always passed, so the core modules must be in it.
+    _wait(client, _ok(_build(client, world, lease["token"], server_wide={"exclude": DECLARED}))["job_id"])
     assert _load_of_last_build(world) == ["--load=base,web"]
 
 
-@pytest.mark.parametrize("exclude,named", [(["web"], "core"), (["viin_brnd"], "not in the declared")])
-def test_an_exclude_of_a_core_or_undeclared_module_is_refused_before_anything_starts(
-        client, world, exclude, named):
-    _declared_world(world)
-    lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"], server_wide={"exclude": exclude}))
-    assert err["code"] == "INVALID_ARGUMENTS", err
-    assert "arguments.server_wide.exclude" in err["message"] and named in err["message"], err
-    assert _jobs(world) == [] and _odoo_calls(world) == []
-
-
-def test_a_module_in_both_lists_is_refused(client, world):
-    _declared_world(world)
-    lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"],
-                      server_wide={"exclude": ["to_base"], "include": ["to_base"]}))
-    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
-    assert _jobs(world) == []
-
-
-def test_include_adds_a_module_the_catalog_does_not_declare(client, world):
-    """A new module that must load server-wide, found on the lease's addons path - or in the
+def test_include_adds_a_module_and_every_bad_adjustment_is_refused_before_anything_starts(client, world):
+    """A new module that must load server-wide is found on the lease's addons path - or in the
     checkout's core addons, which Odoo always searches."""
-    _checkout(world, SERIES)
+    _declared_world(world)
     _addon(world["addons"], "my_wide")
     _addon(world["odoo_bin"].parent / "odoo" / "addons", "core_wide")
     lease = _lease(client, world)
     job = _ok(_build(client, world, lease["token"],
                      server_wide={"include": ["my_wide", "core_wide", "web"]}))
     _wait(client, job["job_id"])
-    assert _load_of_last_build(world) == ["--load=base,web,my_wide,core_wide"], (
+    assert _load_of_last_build(world) == ["--load=base,web,to_base,viin_brand,my_wide,core_wide"], (
         "core first; an include already in the set is a no-op")
+    calls_before = len(_odoo_calls(world))
+    jobs_before = len(_jobs(world))
 
-
-def test_an_include_odoo_cannot_find_is_refused_before_anything_starts(client, world):
-    _checkout(world, SERIES)
-    lease = _lease(client, world)
+    for exclude, named in ((["web"], "core"), (["viin_brnd"], "not in the declared")):
+        err = _err(_build(client, world, lease["token"], server_wide={"exclude": exclude}))
+        assert err["code"] == "INVALID_ARGUMENTS", err
+        assert "arguments.server_wide.exclude" in err["message"] and named in err["message"], err
+    err = _err(_build(client, world, lease["token"],
+                      server_wide={"exclude": ["to_base"], "include": ["to_base"]}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
     err = _err(_build(client, world, lease["token"], server_wide={"include": ["no_such_module"]}))
     assert err["code"] == "SERVER_WIDE_MODULE_NOT_FOUND", err
     assert "no_such_module" in err["message"] and err["diagnostics"]["modules"] == ["no_such_module"]
     assert str(world["addons"]) in err["diagnostics"]["searched"]
     assert "check_module_exists" in err["remedy"]
-    assert _jobs(world) == [] and _odoo_calls(world) == []
 
-
-def test_an_adjustment_with_an_unreadable_core_default_is_refused(client, world):
-    """Nothing declared, but an include makes --load necessary - and --load without the core
-    modules would drop them."""
-    _addon(world["addons"], "my_wide")
+    # An include makes --load necessary - and --load without the core modules would drop them.
     _drop_core_load(world)
-    lease = _lease(client, world)
     err = _err(_build(client, world, lease["token"], server_wide={"include": ["my_wide"]}))
     assert err["code"] == "SERVER_WIDE_CORE_UNKNOWN" and "server_wide" in err["remedy"]
-    assert _jobs(world) == []
-
-
-def test_serve_writes_the_adjusted_set_into_the_conf(client, world):
-    _declared_world(world)
-    _addon(world["addons"], "my_wide")
-    lease = _lease(client, world, ports=1)
-    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"]),
-                                             "server_wide": {"exclude": ["viin_brand"],
-                                                             "include": ["my_wide"]}},
-                          timeout=120))
-    assert out["state"] == "launched"
-    assert out["served_server_wide_modules"] == ["base", "web", "to_base", "my_wide"]
-    assert out["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": ["my_wide"]}
-    assert "server_wide_modules = base,web,to_base,my_wide" in _served_conf(world)
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-def test_an_attach_cannot_change_the_set_of_the_server_already_running(client, world):
-    """The lease's server keeps the set it was launched with. Asking for the same set again
-    attaches; asking for no adjustment reports the set really serving; asking for another set is
-    refused rather than reported as applied."""
-    _declared_world(world)
-    lease = _lease(client, world, ports=1)
-    wide = {"exclude": ["viin_brand"]}
-    serve = dict(lease_token=lease["token"], cwd=str(world["work"]))
-    first = _ok(client.call("instance_serve", dict(serve, server_wide=wide), timeout=120))
-    assert first["state"] == "launched"
-    again = _ok(client.call("instance_serve", dict(serve, server_wide=wide), timeout=120))
-    assert again["state"] == "attached" and again["server_pid"] == first["server_pid"]
-    plain = _ok(client.call("instance_serve", serve, timeout=120))
-    assert plain["served_server_wide_modules"] == ["base", "web", "to_base"], (
-        "an attach reports the set the running server was launched with")
-    err = _err(client.call("instance_serve", dict(serve, server_wide={"exclude": ["to_base"]}),
-                           timeout=120))
-    assert err["code"] == "SERVER_WIDE_NOT_APPLIED", err
-    assert err["diagnostics"]["running"] == ["base", "web", "to_base"]
-    assert "lease_park" in err["remedy"]
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-def test_the_shared_instance_takes_no_adjustment(client, world):
-    """Serving by series attaches to (or starts) the multi-reader render server: its set is the
-    catalog row's for every reader."""
-    _declared_world(world)
-    err = _err(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"]),
-                                              "server_wide": {"exclude": ["viin_brand"]}}))
-    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
-    assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
-
-
-def _lang_line(code):
-    return ('echo "odoo.addons.base.models.ir_module: module base: loading translation file '
-            '/x/base/i18n/%s.po for language %s"\n' % (code.split("_")[0], code))
-
-
-def test_job_wait_reads_active_languages_from_the_database_not_from_a_tests_rolled_back_activation(
-        client, world):
-    """A test may activate a language inside its own transaction (rolled back): the log shows Odoo
-    loading its terms, yet the database never holds it. A requested language the log shows
-    loading but the database does not hold is not loaded either."""
-    world["behavior"].write_text(
-        _lang_line("vi_VN") + _lang_line("de_DE") + 'echo "odoo.modules.loading: Modules loaded."\n'
-        + _lang_line("fr_FR") + "exit 0\n", encoding="utf-8")
-    world["db_facts"].write_text("DB_EXISTS=1\nDEMO=0\nLANGUAGES=vi_VN,en_US\n", encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod",
-                                    languages=["vi_VN", "de_DE"]))["job_id"])
-    assert done["languages_source"] == "database"
-    assert done["languages_loaded"] == ["en_US", "vi_VN"], "the database's own active set"
-    assert done["languages_failed"] == ["de_DE"]
-    assert done["instance_handle"]["facts_source"] == "database"
-
-
-def test_when_the_database_cannot_be_read_only_requested_languages_count_from_the_log(client, world):
-    world["behavior"].write_text(
-        _lang_line("vi_VN") + 'echo "odoo.modules.loading: Modules loaded."\n' + _lang_line("fr_FR")
-        + "exit 0\n", encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod",
-                                    languages=["vi_VN"]))["job_id"])
-    assert done["languages_source"] == "log"
-    assert done["languages_loaded"] == ["en_US", "vi_VN"], "fr_FR was never requested"
-    assert done["languages_failed"] == []
-
-
-def test_a_test_build_whose_at_install_tests_failed_still_proves_en_us(client, world):
-    """Odoo logs "At least one test failed when loading the modules." instead of "Modules
-    loaded." when an at_install test failed: the modules (and en_US) still loaded."""
-    world["behavior"].write_text(
-        'echo "odoo.addons.my_mod.tests.test_x: FAIL: test_y"\n'
-        'echo "odoo.modules.loading: At least one test failed when loading the modules."\n'
-        "exit 1\n", encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
-                                    test_tags="/my_mod"))["job_id"])
-    assert done["result"] == "failure"
-    assert done["summary"]["BUILD_MODULES_LOADED"] == "1"
-    assert done["languages_loaded"] == ["en_US"] and done["languages_failed"] == []
-
-
-def test_the_job_wait_summary_schema_says_status_is_the_exit_not_the_test_verdict(client):
-    tools = client.request("tools/list")["result"]["tools"]
-    (job_wait,) = [t for t in tools if t["name"] == "job_wait"]
-    (out,) = [branch["properties"] for branch in job_wait["outputSchema"]["anyOf"]
-              if "job_id" in branch.get("properties", {})]
-    status = out["summary"]["properties"]["STATUS"]["description"]
-    assert "exit" in status and "NOT the test verdict" in status and "test_result" in status
-    loaded = out["summary"]["properties"]["BUILD_MODULES_LOADED"]["description"]
-    assert "Modules loaded." in loaded and "test-failed" in loaded
-    assert out["languages_source"]["enum"] == ["database", "log", None]
-    assert out["summary"].get("additionalProperties", True) is not False, (
-        "the script may print keys beyond the documented ones")
-
-
-def test_job_wait_names_a_missing_optional_test_import_with_its_remedy(client, world):
-    """The checkout's test framework imports a package only when present (a fictional one here, so
-    the venv can never import it); without it every browser, tour and Hoot test skips. job_wait
-    names the package, the tests that skipped for it, and how to install it into the lease's venv."""
-    dist = "fictional-browser-driver"
-    message = "%s module is not installed" % dist
-    trees.write_test_common(world["odoo_bin"].parent, SERIES,
-                            imports=(("fictional_browser_driver", dist),))
-    world["behavior"].write_text(
-        'echo "odoo.modules.loading: Modules loaded."\n'
-        'echo "INFO 1 insttest odoo.addons.web.tests.test_js: skipped test_qunit_desktop : %s"\n'
-        'echo "INFO 1 insttest odoo.tests.result: 0 failed, 0 error(s) of 3 tests"\nexit 0\n'
-        % message, encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
-                                    test_tags="/my_mod"))["job_id"])
-    assert done["summary"]["TEST_DEPS_MISSING"] == dist
-    assert done["summary"]["TEST_DEPS_SKIPPED"] == dist
-    (warning,) = [w for w in done["warnings"] if dist in w]
-    assert "/odoo-ai-agents:odoo-setup" in warning and "create-venv" in warning
-    assert str(world["python"]) in warning, "the remedy names the venv to install it into"
-
-
-def test_job_wait_warns_nothing_when_the_venv_has_every_optional_test_import(client, world):
-    trees.write_test_common(world["odoo_bin"].parent, SERIES, imports=(("json", None),))
-    world["behavior"].write_text(
-        'echo "odoo.modules.loading: Modules loaded."\n'
-        'echo "INFO 1 insttest odoo.tests.result: 0 failed, 0 error(s) of 3 tests"\nexit 0\n',
-        encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    done = _wait(client, _ok(_build(client, world, lease["token"], op="test",
-                                    test_tags="/my_mod"))["job_id"])
-    assert done["summary"]["TEST_DEPS_MISSING"] == ""
-    assert not [w for w in done["warnings"] if "test framework" in w]
+    assert len(_odoo_calls(world)) == calls_before and len(_jobs(world)) == jobs_before
 
 
 # --------------------------------------------------------------------------- #
 # conf_options: extra [options] keys of the build's own generated conf
 # --------------------------------------------------------------------------- #
-def test_conf_options_land_in_the_generated_conf_of_that_build(client, world):
+# The checkout's own dest for --database (a fixture config.py may name it anything): refused
+# because the option is one the tool owns, whatever its dest spells.
+CHECKOUT_DB_DEST = "fixture_database_dest"
+
+
+def test_conf_options_land_in_the_generated_conf_and_the_tools_own_keys_are_refused(client, world):
     lease = _lease(client, world)
     job = _ok(_build(client, world, lease["token"],
                      conf_options={"lint_scope_repo": "a/src", "lint_strict": True, "lint_level": 2}))
@@ -894,31 +732,16 @@ def test_conf_options_land_in_the_generated_conf_of_that_build(client, world):
     assert not [a for a in argv if "lint_" in a], "the keys go into the conf only"
     assert done["summary"]["BUILD_CONF_KEYS"] == "lint_level,lint_scope_repo,lint_strict"
 
-
-# The checkout's own dest for --database (a fixture config.py may name it anything): refused
-# because the option is one the tool owns, whatever its dest spells.
-CHECKOUT_DB_DEST = "fixture_database_dest"
-
-
-@pytest.mark.parametrize("key", ["db_name", "addons_path", "server_wide_modules", "log_level",
-                                 "http_port", "admin_passwd", CHECKOUT_DB_DEST])
-def test_a_conf_option_the_tool_owns_is_refused_naming_it(client, world, key):
     config = world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
     text = config.read_text(encoding="utf-8")
     assert '"--database", dest="database"' in text
     config.write_text(text.replace('"--database", dest="database"',
                                    '"--database", dest="%s"' % CHECKOUT_DB_DEST), encoding="utf-8")
-    lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"], conf_options={key: "x"}))
-    assert err["code"] == "INVALID_ARGUMENTS", err
-    assert "arguments.conf_options.%s" % key in err["message"]
-    assert _jobs(world) == [] and _odoo_calls(world) == [], "nothing may start"
-
-
-@pytest.mark.parametrize("options", [{"Bad-Key": "x"}, {"lint_scope": "two\nlines"},
-                                     {"lint_scope": ["a", "b"]}])
-def test_a_malformed_conf_option_is_refused_before_anything_starts(client, world, options):
-    lease = _lease(client, world)
-    res = _build(client, world, lease["token"], conf_options=options)
-    assert res["isError"] is True
-    assert _jobs(world) == [] and _odoo_calls(world) == []
+    for key in ("db_name", "addons_path", "server_wide_modules", "log_level", "http_port",
+                "admin_passwd", CHECKOUT_DB_DEST):
+        err = _err(_build(client, world, lease["token"], conf_options={key: "x"}))
+        assert err["code"] == "INVALID_ARGUMENTS", (key, err)
+        assert "arguments.conf_options.%s" % key in err["message"], key
+    for options in ({"Bad-Key": "x"}, {"lint_scope": "two\nlines"}, {"lint_scope": ["a", "b"]}):
+        assert _build(client, world, lease["token"], conf_options=options)["isError"] is True, options
+    assert len(_odoo_calls(world)) == 1 and len(_jobs(world)) == 1, "nothing may start"

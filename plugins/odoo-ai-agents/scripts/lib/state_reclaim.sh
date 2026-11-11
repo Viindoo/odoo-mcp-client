@@ -81,7 +81,7 @@ odoo_ai_state_root() {
 #   just under the [ref-scope] size threshold on purpose, because ~50 skills and
 #   agents cite it whole-file with no section anchor, and a row here would push
 #   it over and manufacture dozens of orphan findings against files nobody
-#   touched (tests/test_ref_scope_citation_anchor.py states the measurement).
+#   touched (the [ref-scope] lint of check_orchestration.py states the measurement).
 #   Callers still remove what they create; this only decides WHERE.
 # ---------------------------------------------------------------------------
 odoo_ai_scratch_dir() {

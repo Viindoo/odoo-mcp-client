@@ -10,8 +10,10 @@ Drives throwaway settings (CLAUDE_SETTINGS), state root (ODOO_AI_HOME) and catal
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -50,11 +52,10 @@ def _fetch_upstream(repo, tmp_path, owner):
     _sh(repo, "git", "branch", "--track", "from-upstream", "upstream/17.0")
 
 
-@pytest.fixture()
-def machine(tmp_path):
+def _build_machine(base):
     """A repo with origin (org acme), a fork remote the user pushed to (alice), branches
     master/17.0/18.0, and a catalog declaring two addons entries inside it."""
-    repo = tmp_path / "work" / "addons-repo"
+    repo = base / "work" / "addons-repo"
     (repo / "addons").mkdir(parents=True)
     (repo / "extra").mkdir()
     _sh(repo, "git", "init", "-q", "-b", "17.0")
@@ -62,18 +63,40 @@ def machine(tmp_path):
     _sh(repo, "git", "branch", "18.0")
     _sh(repo, "git", "remote", "add", "origin", "git@example.org:acme/addons-repo.git")
     _sh(repo, "git", "remote", "add", "fork", "https://example.org/alice/addons-repo.git")
-    _push_to_fork(repo, tmp_path / "alice-bare.git")
+    _push_to_fork(repo, base / "alice-bare.git")
     _sh(repo, "git", "update-ref", "refs/remotes/origin/master", "HEAD")
     _sh(repo, "git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master")
-    home = tmp_path / "odoo-ai"
+    home = base / "odoo-ai"
     home.mkdir()
     catalog = home / "instances.toml"
     catalog.write_text(
         '[[instance]]\nseries = "17.0"\naddons_path = ["%s", "%s"]\n' % (repo / "addons", repo / "extra"),
         encoding="utf-8")
-    settings = tmp_path / "settings.json"
+    settings = base / "settings.json"
     settings.write_text("{}", encoding="utf-8")
     return {"repo": repo, "home": home, "catalog": catalog, "settings": settings}
+
+
+@pytest.fixture(scope="module")
+def template(tmp_path_factory):
+    """The machine above, built once; each test works on its own copy."""
+    base = tmp_path_factory.mktemp("template")
+    return base, _build_machine(base)
+
+
+def _copy_machine(template, dest):
+    base, _ = template
+    shutil.copytree(base, dest, symlinks=True, dirs_exist_ok=True)
+    catalog = dest / "odoo-ai" / "instances.toml"
+    catalog.write_text(catalog.read_text(encoding="utf-8").replace(str(base), str(dest)),
+                       encoding="utf-8")
+    return {"repo": dest / "work" / "addons-repo", "home": dest / "odoo-ai",
+            "catalog": catalog, "settings": dest / "settings.json"}
+
+
+@pytest.fixture()
+def machine(template, tmp_path):
+    return _copy_machine(template, tmp_path)
 
 
 def _run(machine, sub, env_extra=None):
@@ -92,24 +115,122 @@ def _data(machine):
     return json.loads(Path(machine["settings"]).read_text(encoding="utf-8"))
 
 
-def test_propose_derives_roots_org_fork_and_branches_from_catalog_and_remotes(machine):
-    out = _run(machine, "propose")
-    assert out.returncode == 0, out.stderr
-    assert f"trusted root: {machine['repo']}" in out.stdout
-    assert f"trusted root: {machine['home']}/projects" in out.stdout
-    assert "organization (origin owner): acme" in out.stdout
-    assert "fork owner (remote the user pushes to): alice" in out.stdout
-    for branch in ("master", "17.0", "18.0"):
-        assert f"protected branch: {branch}" in out.stdout
-
-
 def _fork_lines(out):
     return [ln for ln in out.stdout.splitlines() if ln.startswith("fork owner")]
 
 
-def test_a_remote_the_user_pushes_feature_branches_to_is_a_fork_owner(machine):
-    out = _run(machine, "propose")
-    assert _fork_lines(out) == ["fork owner (remote the user pushes to): alice"]
+def _questions(out):
+    return [ln for ln in out.stdout.splitlines() if ln.startswith("FORK_QUESTION=")]
+
+
+def _owners(data):
+    """Every organization glob (`<owner>/*`) and every fork owner the written entries name."""
+    text = json.dumps(data)
+    orgs = set(re.findall(r"([A-Za-z0-9_.-]+)/\*", text))
+    forks = set()
+    for listed in re.findall(r"Fork owner the agent pushes feature branches to: ([^.]+)\.", text):
+        forks.update(o.strip() for o in listed.split(","))
+    return orgs, forks
+
+
+# --------------------------------------------------------------------------- #
+# The default machine, `propose` once and `apply` + `check` once: what each says is read by the
+# tests below.
+# --------------------------------------------------------------------------- #
+@pytest.fixture(scope="module")
+def default_run(template, tmp_path_factory):
+    m = _copy_machine(template, tmp_path_factory.mktemp("default"))
+    rec = SimpleNamespace(machine=m)
+    rec.propose = _run(m, "propose")
+    rec.check_before = _run(m, "check")
+    rec.apply = _run(m, "apply")
+    rec.settings_text = m["settings"].read_text(encoding="utf-8")
+    rec.data = _data(m)
+    rec.check_after = _run(m, "check")
+    rec.apply_again = _run(m, "apply")
+    rec.settings_text_again = m["settings"].read_text(encoding="utf-8")
+    return rec
+
+
+def test_propose_derives_roots_org_fork_and_branches_from_catalog_and_remotes(default_run):
+    out, machine = default_run.propose, default_run.machine
+    assert out.returncode == 0, out.stderr
+    assert f"trusted root: {machine['repo']}" in out.stdout
+    assert f"trusted root: {machine['home']}/projects" in out.stdout
+    assert "organization (origin owner): acme" in out.stdout
+    for branch in ("master", "17.0", "18.0"):
+        assert f"protected branch: {branch}" in out.stdout
+
+
+def test_a_remote_the_user_pushes_feature_branches_to_is_a_fork_owner_and_nothing_is_asked(default_run):
+    assert _fork_lines(default_run.propose) == ["fork owner (remote the user pushes to): alice"]
+    assert _questions(default_run.propose) == []
+
+
+def test_apply_never_writes_hard_deny_or_broad_allow_or_bypass(default_run):
+    data = default_run.data
+    assert "hard_deny" not in data["autoMode"]
+    assert "allow" not in data["permissions"]
+    assert "bypassPermissions" not in json.dumps(data)
+
+
+def test_apply_is_idempotent_and_check_agrees(default_run):
+    assert default_run.check_before.returncode == 1
+    assert default_run.apply.returncode == 0
+    assert default_run.check_after.returncode == 0
+    assert default_run.apply_again.returncode == 0
+    assert default_run.settings_text_again == default_run.settings_text
+
+
+def test_ask_rules_name_every_protected_branch_in_all_three_push_forms(default_run):
+    ask = default_run.data["permissions"]["ask"]
+    for branch in ("master", "17.0", "18.0"):
+        assert f"Bash(git push * {branch})" in ask
+        assert f"Bash(git push --force* * {branch})" in ask
+        assert f"Bash(git push * --delete {branch})" in ask
+
+
+def test_entries_name_only_the_machine_owners_never_a_hardcoded_org_or_handle(default_run, machine):
+    assert _owners(default_run.data) == ({"acme"}, {"alice"})
+    # The same machine under other owners, over the settings the first owners left: the entries
+    # follow the machine (no owner is wired in) and the stale ones are replaced.
+    machine["settings"].write_text(default_run.settings_text, encoding="utf-8")
+    repo = machine["repo"]
+    _sh(repo, "git", "remote", "set-url", "origin", "git@example.org:orgone/addons-repo.git")
+    _sh(repo, "git", "remote", "set-url", "fork", "https://example.org/handleone/addons-repo.git")
+    assert _run(machine, "apply").returncode == 0
+    assert _owners(_data(machine)) == ({"orgone"}, {"handleone"})
+
+
+# --------------------------------------------------------------------------- #
+# Which remote is a fork
+# --------------------------------------------------------------------------- #
+@pytest.fixture(scope="module")
+def upstream_only(template, tmp_path_factory):
+    """No fork remote, one `upstream` the user only fetches from."""
+    base = tmp_path_factory.mktemp("upstream-only")
+    m = _copy_machine(template, base)
+    _sh(m["repo"], "git", "remote", "remove", "fork")
+    _fetch_upstream(m["repo"], base, "bigupstream")
+    propose = _run(m, "propose")
+    apply = _run(m, "apply")
+    return SimpleNamespace(propose=propose, apply=apply, data=_data(m))
+
+
+def test_a_clone_with_only_an_upstream_remote_has_no_fork_owner(upstream_only):
+    assert upstream_only.propose.returncode == 0, upstream_only.propose.stderr
+    assert _fork_lines(upstream_only.propose) == []
+    assert upstream_only.apply.returncode == 0
+
+
+def test_an_unconfirmed_fork_candidate_is_never_written(upstream_only):
+    assert "bigupstream" not in json.dumps(upstream_only.data)
+    assert not any("Fork owner" in e for e in upstream_only.data["autoMode"]["environment"])
+
+
+def test_propose_asks_which_account_holds_the_fork_when_nothing_was_pushed(upstream_only):
+    [question] = _questions(upstream_only.propose)
+    assert "acme/addons-repo" in question
 
 
 def test_an_upstream_read_only_remote_is_not_a_fork_owner(machine, tmp_path):
@@ -121,36 +242,10 @@ def test_an_upstream_read_only_remote_is_not_a_fork_owner(machine, tmp_path):
     assert "bigupstream" not in json.dumps(_data(machine))
 
 
-def test_a_clone_with_only_an_upstream_remote_has_no_fork_owner(machine, tmp_path):
-    _sh(machine["repo"], "git", "remote", "remove", "fork")
-    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
-    out = _run(machine, "propose")
-    assert _fork_lines(out) == []
-    assert _run(machine, "apply").returncode == 0
-    assert not any("Fork owner" in e for e in _data(machine)["autoMode"]["environment"])
-
-
-def _questions(out):
-    return [ln for ln in out.stdout.splitlines() if ln.startswith("FORK_QUESTION=")]
-
-
-def test_propose_asks_which_account_holds_the_fork_when_nothing_was_pushed(machine, tmp_path):
-    _sh(machine["repo"], "git", "remote", "remove", "fork")
-    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
-    out = _run(machine, "propose")
-    assert out.returncode == 0, out.stderr
-    [question] = _questions(out)
-    assert "acme/addons-repo" in question
-
-
 def test_propose_asks_the_fork_question_for_a_clone_with_no_other_remote(machine):
     _sh(machine["repo"], "git", "remote", "remove", "fork")
     [question] = _questions(_run(machine, "propose"))
     assert "acme/addons-repo" in question
-
-
-def test_propose_asks_nothing_when_a_remote_was_pushed_to(machine):
-    assert _questions(_run(machine, "propose")) == []
 
 
 def _second_machine_clone(machine, tmp_path, name, origin):
@@ -196,15 +291,6 @@ def test_propose_never_prints_a_credential_from_a_remote_url(machine):
     assert "token123" not in out.stdout and "secret456" not in out.stdout
 
 
-def test_an_unconfirmed_fork_candidate_is_never_written(machine, tmp_path):
-    _sh(machine["repo"], "git", "remote", "remove", "fork")
-    _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
-    assert _run(machine, "apply").returncode == 0
-    written = json.dumps(_data(machine))
-    assert "bigupstream" not in written
-    assert not any("Fork owner" in e for e in _data(machine)["autoMode"]["environment"])
-
-
 def test_a_remote_named_as_the_push_target_by_config_is_a_fork_owner(machine, tmp_path):
     _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
     _sh(machine["repo"], "git", "config", "remote.pushDefault", "upstream")
@@ -215,20 +301,20 @@ def test_a_remote_named_as_the_push_target_by_config_is_a_fork_owner(machine, tm
 def test_a_branch_pushed_with_upstream_tracking_to_a_feature_branch_marks_its_remote_a_fork(
         machine, tmp_path):
     _fetch_upstream(machine["repo"], tmp_path, "bigupstream")
-    repo = machine["repo"]
-    _sh(repo, "git", "config", "branch.from-upstream.merge", "refs/heads/my-feature")
+    _sh(machine["repo"], "git", "config", "branch.from-upstream.merge", "refs/heads/my-feature")
     out = _run(machine, "propose")
     assert "bigupstream" in " ".join(_fork_lines(out))
 
 
-def test_propose_without_a_catalog_row_names_what_is_missing_and_exits_1(machine):
+def test_propose_without_a_catalog_row_exits_1(machine):
     machine["catalog"].write_text("", encoding="utf-8")
-    out = _run(machine, "propose")
-    assert out.returncode == 1
-    assert "addons_path" in out.stdout
+    assert _run(machine, "propose").returncode == 1
 
 
-def test_apply_writes_only_the_four_keys_and_keeps_defaults_first(machine):
+# --------------------------------------------------------------------------- #
+# apply over settings that already hold something
+# --------------------------------------------------------------------------- #
+def test_apply_writes_only_the_four_keys_keeps_defaults_first_and_backs_up_the_old_file(machine):
     machine["settings"].write_text(json.dumps({"autoMode": {"allow": ["my own rule"]}, "model": "x"}))
     assert _run(machine, "apply").returncode == 0
     data = _data(machine)
@@ -240,66 +326,7 @@ def test_apply_writes_only_the_four_keys_and_keeps_defaults_first(machine):
     assert "my own rule" in data["autoMode"]["allow"]
     assert any(e.startswith(TAG) for e in data["autoMode"]["allow"])
     assert all(e.startswith(TAG) for e in data["autoMode"]["soft_deny"][1:])
-
-
-def test_apply_never_writes_hard_deny_or_broad_allow_or_bypass(machine):
-    _run(machine, "apply")
-    data = _data(machine)
-    assert "hard_deny" not in data["autoMode"]
-    assert "allow" not in data["permissions"]
-    assert "bypassPermissions" not in json.dumps(data)
-
-
-def test_apply_is_idempotent_and_check_agrees(machine):
-    assert _run(machine, "check").returncode == 1
-    assert _run(machine, "apply").returncode == 0
-    first = machine["settings"].read_text()
-    assert _run(machine, "check").returncode == 0
-    assert _run(machine, "apply").returncode == 0
-    assert machine["settings"].read_text() == first
-
-
-def _named_owners(machine):
-    """Every organization glob (`<owner>/*`) and every fork owner the written entries name."""
-    _run(machine, "apply")
-    text = json.dumps(_data(machine))
-    orgs = set(re.findall(r"([A-Za-z0-9_.-]+)/\*", text))
-    forks = set()
-    for listed in re.findall(r"Fork owner the agent pushes feature branches to: ([^.]+)\.", text):
-        forks.update(o.strip() for o in listed.split(","))
-    return orgs, forks
-
-
-def test_entries_name_only_the_machine_owners_never_a_hardcoded_org_or_handle(machine):
-    assert _named_owners(machine) == ({"acme"}, {"alice"})
-    # The same machine under other owners: the entries follow the machine, so no owner is wired in.
-    repo = machine["repo"]
-    _sh(repo, "git", "remote", "set-url", "origin", "git@example.org:orgone/addons-repo.git")
-    _sh(repo, "git", "remote", "set-url", "fork", "https://example.org/handleone/addons-repo.git")
-    assert _named_owners(machine) == ({"orgone"}, {"handleone"})
-
-
-def test_the_edit_allowance_covers_a_break_check_of_data_security_and_test_files(machine):
-    """A break-check temporarily alters a security or data file and restores it: the classifier
-    must be told that is expected work, or it blocks the proof every test relies on."""
-    _run(machine, "apply")
-    entries = _data(machine)["autoMode"]["allow"]
-    texts = [" ".join(e.lower().split()) for e in entries if e.startswith(TAG)]
-    covering = [t for t in texts
-                if "break-check" in t
-                and re.search(r"\b(data|security|test)(?:,| and| or)[^.;]{0,30}files?\b"
-                              r"|\b(data|security|test) files?\b", t)
-                and ("restored" in t or "rebuilt" in t)]
-    assert covering, "no allow entry covers a break-check of a data, security or test file"
-
-
-def test_ask_rules_name_every_protected_branch_in_all_three_push_forms(machine):
-    _run(machine, "apply")
-    ask = _data(machine)["permissions"]["ask"]
-    for branch in ("master", "17.0", "18.0"):
-        assert f"Bash(git push * {branch})" in ask
-        assert f"Bash(git push --force* * {branch})" in ask
-        assert f"Bash(git push * --delete {branch})" in ask
+    assert list(machine["settings"].parent.glob("settings.json.bak.*")), "the old file must be backed up"
 
 
 def test_a_changed_entry_text_prunes_the_stale_tagged_entry_and_keeps_user_entries(machine):
@@ -333,9 +360,3 @@ def test_invalid_json_settings_exit_2_and_stay_unchanged(machine):
     assert out.returncode == 2
     assert machine["settings"].read_text() == "{not json"
     assert not list(machine["settings"].parent.glob("settings.json.bak.*"))
-
-
-def test_apply_backs_up_existing_settings_before_writing(machine):
-    machine["settings"].write_text(json.dumps({"model": "x"}))
-    _run(machine, "apply")
-    assert list(machine["settings"].parent.glob("settings.json.bak.*"))

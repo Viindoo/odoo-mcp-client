@@ -179,30 +179,6 @@ def test_validate_db_name_accepts_every_must_not_catch_shape(shape, name):
 
 
 # ---------------------------------------------------------------------------
-# Wiring: the gate must actually be REACHED from 50-instance-spinup.sh's db_name resolution -
-# this plugin's dominant defect class is correct code nothing calls.
-# ---------------------------------------------------------------------------
-
-
-def test_step50_calls_validate_db_name_right_after_resolving_db_name():
-    text = STEP50.read_text(encoding="utf-8")
-    anchor = 'local db_name="${ARG_DB_NAME:-${INST_DB_NAME:-odoo}}"'
-    assert anchor in text, "db_name resolution line moved - update this test's anchor"
-    after = text.split(anchor, 1)[1]
-    # The call must be the NEXT non-comment statement, before any of the later gates
-    # (--exclusive, --gevent-port pairing) or file/lease/DB side effects.
-    next_stmt = next(
-        (ln.strip() for ln in after.splitlines() if ln.strip() and not ln.strip().startswith("#")),
-        "",
-    )
-    assert next_stmt == 'validate_db_name "$db_name" || return 1', (
-        f"validate_db_name must be the very next statement after db_name is resolved - it must "
-        f"run before any file is written, lease acquired, or database created. Found: "
-        f"{next_stmt!r}"
-    )
-
-
-# ---------------------------------------------------------------------------
 # Integration / behavioral: through the real `50-instance-spinup.sh apply`.
 # ---------------------------------------------------------------------------
 

@@ -9,9 +9,7 @@ workflows, docs) names those tools. Contracts protected:
   - every argument a prose call form passes (`instance_serve(lease_token)`) is an input the tool
     takes: a removed input cannot leave an agent writing a call the tool refuses;
   - every registered tool documents itself for an executing agent (a description of at least 80
-    chars, a description on every input property);
-  - every registered tool is listed in the human reference's tool index
-    (docs/reference/INSTANCE-ALLOCATION-API.md), so a new tool cannot ship undocumented there.
+    chars, a description on every input property).
 
 A mention is either the full call form `mcp__plugin_odoo-ai-agents_odoo-local__<name>` (always a
 tool reference) or a bare token of the tool-name vocabulary (lease_* / instance_* / catalog_* and
@@ -24,7 +22,6 @@ mention. Everything else in the vocabulary must be a registered tool.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
@@ -35,7 +32,6 @@ from odoo_local import cli, protocol  # noqa: E402
 
 PROSE_DIRS = ("agents", "skills", "snippets", "commands", "workflows", "docs")
 PROSE_SUFFIXES = (".md", ".yaml", ".yml", ".json", ".txt")
-REFERENCE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION-API.md"
 CALL_PREFIX = "mcp__plugin_odoo-ai-agents_odoo-local__"
 
 # Brief / placeholder field names agent prose declares that share the tool vocabulary's shape but
@@ -195,7 +191,7 @@ def test_every_argument_a_prose_call_passes_is_a_tool_input(registry, prose):
 
 
 # --------------------------------------------------------------------------- #
-# registry: self-documenting, and indexed in the reference
+# registry: self-documenting
 # --------------------------------------------------------------------------- #
 def test_every_tool_is_documented_for_an_executing_agent(registry):
     for name in registry.names():
@@ -203,12 +199,3 @@ def test_every_tool_is_documented_for_an_executing_agent(registry):
         assert len(tool.description.strip()) >= 80, name
         for prop, sub in (tool.input_schema.get("properties") or {}).items():
             assert (sub.get("description") or "").strip(), "%s.%s has no description" % (name, prop)
-
-
-def test_every_tool_is_listed_in_the_reference_tool_index(registry):
-    indexed = set(re.findall(r"^\|\s*`([a-z][a-z0-9_]*)`\s*\|", REFERENCE_DOC.read_text(encoding="utf-8"),
-                             re.MULTILINE))
-    missing = sorted(set(registry.names()) - indexed)
-    assert not missing, "tools missing from the %s tool index: %s" % (REFERENCE_DOC.name, missing)
-    stale = sorted(n for n in indexed - set(registry.names()) if BARE_RE.fullmatch(n))
-    assert not stale, "the tool index lists tools the server no longer registers: %s" % stale

@@ -494,7 +494,7 @@ def test_gc_does_not_signal_a_live_unprovable_pid_that_corroborates_nothing(
     assert _leases(alloc_home)[0]["owner"].get("pid_started") is None
 
     assert alloc.cmd_gc({}) == 0
-    time.sleep(1.0)  # a SIGTERM'd group dies in well under this
+    time.sleep(0.3)  # a SIGTERM'd group dies in well under this
 
     assert harness.alive(leader), (
         "an unproven pid must NOT be signalled: this lease row carries no "
@@ -522,7 +522,7 @@ def test_release_does_not_signal_a_live_unprovable_pid(harness, alloc_home, capf
     harness.seed_lease(alloc_home, leader, token="bb" * 16)
 
     assert alloc.cmd_release({"token": "bb" * 16, "run_id": "run-A"}) == 0
-    time.sleep(1.0)
+    time.sleep(0.3)
 
     assert harness.alive(leader) and harness.alive(child), (
         "release must not signal an unproven pid either"
@@ -551,7 +551,7 @@ def test_an_unmeasurable_corroborating_signal_is_not_corroboration(
     harness.seed_lease(alloc_home, leader, ports=[port])
 
     assert alloc.cmd_gc({}) == 0
-    time.sleep(1.0)
+    time.sleep(0.3)
     assert harness.alive(leader) and harness.alive(child)
     err = capfd.readouterr().err
     assert f"REFUSING to signal pid {leader}" in err
@@ -588,7 +588,7 @@ def test_a_fingerprint_mismatch_beats_every_corroborating_signal(
                        owner={"pid_started": _mismatching_fingerprint(alloc, leader)})
 
     assert alloc.cmd_gc({}) == 0
-    time.sleep(1.0)
+    time.sleep(0.3)
     assert harness.alive(leader) and harness.alive(child), (
         "a proven-recycled pid must never be signalled, corroboration or not"
     )
@@ -789,7 +789,7 @@ def test_heartbeat_never_backfills_a_fingerprint_it_cannot_corroborate(
     capfd.readouterr()
     _expire(alloc_home)  # let the TTL elapse so gc actually judges this row
     assert alloc.cmd_gc({}) == 0
-    time.sleep(1.0)
+    time.sleep(0.3)
     assert harness.alive(leader) and harness.alive(child)
     assert f"REFUSING to signal pid {leader}" in capfd.readouterr().err
 

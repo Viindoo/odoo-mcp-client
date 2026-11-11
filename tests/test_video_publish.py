@@ -28,10 +28,12 @@ def _kv(stdout):
     return dict(line.split("=", 1) for line in stdout.splitlines() if "=" in line)
 
 
-@pytest.fixture()
-def media(tmp_path):
+@pytest.fixture(scope="module")
+def media(tmp_path_factory):
+    """The synthetic inputs (read-only for every test): a 2 s 1080p clip and a 3 s narration, built once."""
     if not HAS_FFMPEG:
         pytest.skip("ffmpeg/ffprobe not on PATH")
+    tmp_path = tmp_path_factory.mktemp("media")
     clip, narr = tmp_path / "clip.mp4", tmp_path / "narr.wav"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=25:duration=2",
                     "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "2", "-pix_fmt", "yuv420p", str(clip)],
@@ -41,12 +43,40 @@ def media(tmp_path):
     return clip, narr
 
 
-def test_fit_holds_the_last_frame_to_the_narration_and_concat_passes_the_profile(media, tmp_path):
+@pytest.fixture(scope="module")
+def fitted_narration(media, tmp_path_factory):
+    """`fit` of the clip to the 3 s narration, run once: the scene several tests read, concat or measure."""
     clip, narr = media
-    fitted = tmp_path / "fitted.mp4"
-    fit = _tool("fit", "--clip", str(clip), "--narration", str(narr), "--out", str(fitted))
-    assert fit.returncode == 0, fit.stderr
-    facts = _kv(fit.stdout)
+    out = tmp_path_factory.mktemp("fitted") / "fitted.mp4"
+    proc = _tool("fit", "--clip", str(clip), "--narration", str(narr), "--out", str(out), "--max-silence", "10")
+    assert proc.returncode == 0, proc.stderr
+    return out, _kv(proc.stdout)
+
+
+@pytest.fixture(scope="module")
+def short_fit(media, tmp_path_factory):
+    """`fit` of the clip to a 0.4 s narration (speaks 0.5-0.9 s of the 2 s clip), run once:
+    returns (short wav, fitted scene, `fit` stdout)."""
+    clip, _ = media
+    d = tmp_path_factory.mktemp("short")
+    wav, out = d / "short.wav", d / "fitted.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.4",
+                    "-ac", "1", "-ar", "48000", "-sample_fmt", "s16", str(wav)], check=True, capture_output=True)
+    proc = _tool("fit", "--clip", str(clip), "--narration", str(wav), "--out", str(out), "--max-silence", "5")
+    assert proc.returncode == 0, proc.stderr
+    return wav, out, proc.stdout
+
+
+@pytest.fixture(scope="module")
+def tool_facts():
+    """`verify-tools`, asked once."""
+    if not HAS_FFMPEG:
+        pytest.skip("ffmpeg/ffprobe not on PATH")
+    return _kv(_tool("verify-tools").stdout)
+
+
+def test_fit_holds_the_last_frame_to_the_narration_and_concat_passes_the_profile(fitted_narration, tmp_path):
+    fitted, facts = fitted_narration
     assert float(facts["DURATION_S"]) == pytest.approx(3.8, abs=0.05)  # 0.5 lead-in + 3 s + 0.3 fade
     assert float(facts["HOLD_S"]) == pytest.approx(1.8, abs=0.05)
     (tmp_path / "list.txt").write_text("%s\n%s\n" % (fitted, fitted), encoding="utf-8")
@@ -68,38 +98,32 @@ def test_verify_fails_a_file_that_breaks_the_profile(media, tmp_path):
     assert "SIZE=FAIL" in ver.stdout
 
 
-def test_fit_reports_a_scene_that_moves_longer_than_the_silence_limit_with_nobody_speaking(media, tmp_path):
+def test_fit_reports_a_scene_that_moves_longer_than_the_silence_limit_with_nobody_speaking(
+        media, short_fit, tmp_path):
     clip, _ = media
-    short = tmp_path / "short.wav"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.4",
-                    "-ac", "1", "-ar", "48000", "-sample_fmt", "s16", str(short)], check=True, capture_output=True)
+    short, _fitted, ok_stdout = short_fit
     out = tmp_path / "fitted.mp4"
-    base = [sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(short),
-            "--out", str(out), "--lead-in", "0.5"]
-    over = subprocess.run(base + ["--max-silence", "1.0"], capture_output=True, text=True)
+    over = _tool("fit", "--clip", str(clip), "--narration", str(short), "--out", str(out),
+                 "--lead-in", "0.5", "--max-silence", "1.0")
     assert over.returncode == 4 and "SILENCE=over" in over.stdout, over.stdout + over.stderr
     assert abs(float(_kv(over.stdout)["SILENT_S"]) - 1.1) < 0.15  # 2 s clip - 0.5 lead-in - 0.4 narration
     assert out.exists()  # the file is still written so the author can watch the silent stretch
-    ok = subprocess.run(base + ["--max-silence", "3.0"], capture_output=True, text=True)
-    assert ok.returncode == 0 and "SILENCE=ok" in ok.stdout
+    assert _kv(ok_stdout)["SILENCE"] == "ok"  # the same scene under a limit it fits (5 s)
 
 
-def test_verify_tools_reports_the_card_renderer_the_filters_and_the_font_coverage():
-    if not HAS_FFMPEG:
-        pytest.skip("ffmpeg/ffprobe not on PATH")
-    proc = subprocess.run([sys.executable, str(TOOL), "verify-tools"], capture_output=True, text=True)
-    kv = _kv(proc.stdout)
+def test_verify_tools_reports_the_card_renderer_the_filters_and_the_font_coverage(tool_facts):
+    kv = tool_facts
     assert kv["TITLE_CARD"] in ("drawtext", "libass", "none") and kv["FILTER_loudnorm"] in ("ok", "missing")
     assert kv["FONT_VI_COVERAGE"] in ("ok", "missing", "unknown") or kv["FONT"] == "none"
     assert kv["VERDICT"] in ("pass", "fail")
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_the_title_card_renders_with_whichever_text_filter_this_ffmpeg_has(tmp_path):
+def test_the_title_card_renders_with_whichever_text_filter_this_ffmpeg_has(tmp_path, tool_facts):
     out = tmp_path / "title.mp4"
     proc = subprocess.run([sys.executable, str(TOOL), "title", "--text", "Trợ lý AI của Viindoo", "--out", str(out),
                            "--seconds", "1"], capture_output=True, text=True)
-    tools = _kv(subprocess.run([sys.executable, str(TOOL), "verify-tools"], capture_output=True, text=True).stdout)
+    tools = tool_facts
     if tools["TITLE_CARD"] == "none":
         assert proc.returncode == 1 and "neither" in proc.stderr
         return
@@ -108,7 +132,7 @@ def test_the_title_card_renders_with_whichever_text_filter_this_ffmpeg_has(tmp_p
     assert not (tmp_path / "title.mp4.ass").exists() and not (tmp_path / "title.mp4.txt").exists()
 
 
-def test_two_takes_at_different_levels_come_out_at_one_loudness(media, tmp_path):
+def test_two_takes_at_different_levels_come_out_at_one_loudness(media, fitted_narration, tmp_path):
     """A retake recorded louder or softer than its neighbours is brought to the same level before
     the mix: the fitted clips of a loud and a soft narration measure within 2 LU of each other."""
     import re
@@ -116,12 +140,11 @@ def test_two_takes_at_different_levels_come_out_at_one_loudness(media, tmp_path)
     soft = tmp_path / "soft.wav"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(narr), "-af", "volume=-18dB", "-ac", "1", "-ar", "48000",
                     "-sample_fmt", "s16", str(soft)], check=True, capture_output=True)
+    soft_out = tmp_path / "soft-fitted.mp4"
+    proc = _tool("fit", "--clip", str(clip), "--narration", str(soft), "--out", str(soft_out), "--max-silence", "5")
+    assert proc.returncode == 0, proc.stderr
     levels = []
-    for wav in (narr, soft):
-        out = tmp_path / ("%s-fitted.mp4" % wav.stem)
-        proc = subprocess.run([sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(wav),
-                               "--out", str(out), "--max-silence", "5"], capture_output=True, text=True)
-        assert proc.returncode == 0, proc.stderr
+    for out in (fitted_narration[0], soft_out):
         measured = subprocess.run(["ffmpeg", "-i", str(out), "-af", "ebur128", "-f", "null", "-"],
                                   capture_output=True, text=True).stderr
         m = re.search(r"Integrated loudness:\s+I:\s+(-?\d+\.\d) LUFS", measured)
@@ -162,11 +185,10 @@ def test_pacing_compresses_logged_dead_time_zooms_on_the_focus_and_caps_the_held
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_the_music_bed_rides_under_the_narration_and_the_audition_renders_dry_and_wet_samples(media, tmp_path):
-    clip, narr = media
-    fitted = tmp_path / "fitted.mp4"
-    assert subprocess.run([sys.executable, str(TOOL), "fit", "--clip", str(clip), "--narration", str(narr), "--out", str(fitted),
-                           "--max-silence", "10"], capture_output=True, text=True).returncode == 0
+def test_the_music_bed_rides_under_the_narration_and_the_audition_renders_dry_and_wet_samples(
+        media, fitted_narration, tmp_path):
+    _clip, narr = media
+    fitted = fitted_narration[0]
     bed = tmp_path / "bed.wav"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", "-ac", "2", "-ar", "48000", str(bed)],
                    check=True, capture_output=True)
@@ -189,11 +211,26 @@ def test_the_music_bed_rides_under_the_narration_and_the_audition_renders_dry_an
     assert (tmp_path / "aud" / "narr.dry.wav").exists() and (tmp_path / "aud" / "narr.music.wav").exists()
 
 
-def _pace(tmp_path, spans, *extra):
-    clip = tmp_path / "pace-clip.mp4"
-    if not clip.exists():
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25:duration=6",
-                        "-t", "6", "-pix_fmt", "yuv420p", str(clip)], check=True, capture_output=True)
+@pytest.fixture(scope="module")
+def pace_clip(tmp_path_factory):
+    """The one 6 s clip every pacing test cuts; nothing writes to it."""
+    if not HAS_FFMPEG:
+        pytest.skip("ffmpeg/ffprobe not on PATH")
+    clip = tmp_path_factory.mktemp("pace") / "pace-clip.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25:duration=6",
+                    "-t", "6", "-pix_fmt", "yuv420p", str(clip)], check=True, capture_output=True)
+    return clip
+
+
+@pytest.fixture
+def pace(tmp_path, pace_clip):
+    """`_pace` bound to this test's directory and the shared clip."""
+    def run(spans, *extra):
+        return _pace(tmp_path, pace_clip, spans, *extra)
+    return run
+
+
+def _pace(tmp_path, clip, spans, *extra):
     events = tmp_path / "pace.events.json"
     events.write_text(json.dumps(spans))
     out = tmp_path / "pace-out.mp4"
@@ -211,48 +248,47 @@ WAIT = [{"kind": "wait", "start": 1.0, "end": 5.0}]
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_long_wait_is_squeezed_into_the_squeeze_seconds_and_cut_when_the_squeeze_is_zero(tmp_path):
+def test_a_long_wait_is_squeezed_into_the_squeeze_seconds_and_cut_when_the_squeeze_is_zero(pace):
     # 6 s clip, 4 s wait: 1 s kept + 3 s squeezed into 1 s + 2 s around it = 4 s; cut instead = 3 s
-    proc, out = _pace(tmp_path, WAIT, "--wait-keep", "1", "--wait-squeeze", "1")
+    proc, out = pace(WAIT, "--wait-keep", "1", "--wait-squeeze", "1")
     assert proc.returncode == 0, proc.stderr
     assert _length(out) == pytest.approx(4.0, abs=0.3)
     assert _kv(proc.stdout)["SPANS"] == "1"
-    proc, out = _pace(tmp_path, WAIT, "--wait-keep", "1", "--wait-squeeze", "0")
+    proc, out = pace(WAIT, "--wait-keep", "1", "--wait-squeeze", "0")
     assert proc.returncode == 0, proc.stderr
     assert _length(out) == pytest.approx(3.0, abs=0.3)
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_wait_inside_a_must_see_range_plays_in_full_and_is_counted(tmp_path):
-    proc, out = _pace(tmp_path, WAIT, "--wait-keep", "1", "--wait-squeeze", "0", "--must-see", "2.0,3.0")
+def test_a_wait_inside_a_must_see_range_plays_in_full_and_is_counted(pace):
+    proc, out = pace(WAIT, "--wait-keep", "1", "--wait-squeeze", "0", "--must-see", "2.0,3.0")
     assert proc.returncode == 0, proc.stderr
     assert _length(out) == pytest.approx(6.0, abs=0.3)
     assert _kv(proc.stdout)["MUST_SEE_KEPT"] == "1"
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_voice_span_is_kept_at_normal_speed_and_counted(tmp_path):
-    proc, out = _pace(tmp_path, [{"kind": "voice_out", "start": 1.0, "end": 4.0}])
+def test_a_voice_span_is_kept_at_normal_speed_and_counted(pace):
+    proc, out = pace([{"kind": "voice_out", "start": 1.0, "end": 4.0}])
     assert proc.returncode == 0, proc.stderr
     assert _length(out) == pytest.approx(6.0, abs=0.3)
     assert _kv(proc.stdout)["SPANS"] == "1"
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_take_that_showed_a_key_field_is_refused_and_writes_nothing(tmp_path):
-    proc, out = _pace(tmp_path, WAIT + [{"kind": "key_visible", "start": 5.2, "end": 5.6}])
+def test_a_take_that_showed_a_key_field_is_refused_and_writes_nothing(pace):
+    proc, out = pace(WAIT + [{"kind": "key_visible", "start": 5.2, "end": 5.6}])
     assert proc.returncode == 6 and _kv(proc.stdout)["KEY_VISIBLE"] == "1"
     assert not out.exists()
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_voice_track_is_audible_at_its_offset_in_the_fitted_scene(media, tmp_path):
+def test_a_voice_track_is_audible_at_its_offset_in_the_fitted_scene(media, short_fit, tmp_path):
     clip, _ = media
-    short = tmp_path / "short.wav"  # speaks 0.5-0.9 s, so 1.1-1.9 s holds only the extra voice
+    short, plain, _ = short_fit  # speaks 0.5-0.9 s, so 1.1-1.9 s holds only the extra voice
     voice = tmp_path / "voice.wav"
-    for path, hz, dur in ((short, 440, 0.4), (voice, 880, 1.0)):
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=%d:duration=%s" % (hz, dur),
-                        "-ac", "1", "-ar", "48000", "-sample_fmt", "s16", str(path)], check=True, capture_output=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=880:duration=1.0",
+                    "-ac", "1", "-ar", "48000", "-sample_fmt", "s16", str(voice)], check=True, capture_output=True)
 
     def window_db(out):
         import re
@@ -262,22 +298,32 @@ def test_a_voice_track_is_audible_at_its_offset_in_the_fitted_scene(media, tmp_p
         assert m, err[-300:]
         return float(m.group(1)) if m.group(1) != "-inf" else -120.0
 
-    plain, mixed = tmp_path / "plain.mp4", tmp_path / "mixed.mp4"
-    base = ["fit", "--clip", str(clip), "--narration", str(short), "--max-silence", "5"]
-    assert _tool(*base, "--out", str(plain)).returncode == 0
-    proc = _tool(*base, "--out", str(mixed), "--voice", "%s@1.0" % voice)
+    mixed = tmp_path / "mixed.mp4"
+    proc = _tool("fit", "--clip", str(clip), "--narration", str(short), "--max-silence", "5",
+                 "--out", str(mixed), "--voice", "%s@1.0" % voice)
     assert proc.returncode == 0, proc.stderr
     assert _kv(proc.stdout)["VOICES"] == "1"
     assert window_db(plain) < -60.0 and window_db(mixed) > -40.0
 
 
 # --------------------------------------------------------------------------- silent footage
-def _no_audio_clip(path, seconds=2):
-    """What the recorder writes: a picture and no audio stream at all."""
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
-                    "testsrc=size=1920x1080:rate=25:duration=%s" % seconds, "-t", str(seconds),
-                    "-pix_fmt", "yuv420p", str(path)], check=True, capture_output=True)
-    return path
+@pytest.fixture(scope="module")
+def silent(tmp_path_factory):
+    """`silent(seconds)`: what the recorder writes - a picture and no audio stream at all. One file per
+    length, built on first use and shared: no test writes to it."""
+    if not HAS_FFMPEG:
+        pytest.skip("ffmpeg/ffprobe not on PATH")
+    made = {}
+
+    def get(seconds=2):
+        if seconds not in made:
+            path = tmp_path_factory.mktemp("silent") / ("silent-%s.mp4" % seconds)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                            "testsrc=size=1920x1080:rate=25:duration=%s" % seconds, "-t", str(seconds),
+                            "-pix_fmt", "yuv420p", str(path)], check=True, capture_output=True)
+            made[seconds] = path
+        return made[seconds]
+    return get
 
 
 def _audio_stream(path):
@@ -289,8 +335,8 @@ def _audio_stream(path):
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_silent_clip_goes_through_fit_and_concat_with_a_title_card_and_verifies_as_silent(tmp_path):
-    clip = _no_audio_clip(tmp_path / "scene.mp4")
+def test_a_silent_clip_goes_through_fit_and_concat_with_a_title_card_and_verifies_as_silent(tmp_path, silent, tool_facts):
+    clip = silent()
     fitted = tmp_path / "fitted.mp4"
     fit = _tool("fit", "--clip", str(clip), "--out", str(fitted))
     assert fit.returncode == 0, fit.stderr
@@ -299,8 +345,7 @@ def test_a_silent_clip_goes_through_fit_and_concat_with_a_title_card_and_verifie
     assert float(facts["HOLD_S"]) == 0.0
     assert _audio_stream(fitted)["codec_name"] == "aac"
     card = tmp_path / "title.mp4"
-    tools = _kv(_tool("verify-tools").stdout)
-    if tools["TITLE_CARD"] == "none":
+    if tool_facts["TITLE_CARD"] == "none":
         pytest.skip("this ffmpeg cannot render a title card")
     assert _tool("title", "--text", "Demo", "--out", str(card), "--seconds", "1").returncode == 0
     (tmp_path / "list.txt").write_text("%s\n%s\n" % (card, fitted), encoding="utf-8")
@@ -317,8 +362,8 @@ def test_a_silent_clip_goes_through_fit_and_concat_with_a_title_card_and_verifie
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_concat_of_a_clip_with_no_audio_stream_reports_silent_loudness_instead_of_failing(tmp_path):
-    clip = _no_audio_clip(tmp_path / "scene.mp4")
+def test_concat_of_a_clip_with_no_audio_stream_reports_silent_loudness_instead_of_failing(tmp_path, silent):
+    clip = silent()
     (tmp_path / "list.txt").write_text("%s\n" % clip, encoding="utf-8")
     final = tmp_path / "final.mp4"
     cat = _tool("concat", "--list", str(tmp_path / "list.txt"), "--out", str(final))
@@ -328,10 +373,11 @@ def test_concat_of_a_clip_with_no_audio_stream_reports_silent_loudness_instead_o
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_sidecar_places_chapters_at_the_real_offsets_and_writes_captions_only_with_a_narration_dir(tmp_path):
-    card = _no_audio_clip(tmp_path / "title-card.mp4", 1)
-    one = _no_audio_clip(tmp_path / "s1.mp4", 3)
-    two = _no_audio_clip(tmp_path / "s2.mp4", 2)
+def test_sidecar_places_chapters_at_the_real_offsets_and_writes_captions_only_with_a_narration_dir(tmp_path, silent):
+    card = tmp_path / "title-card.mp4"  # the writer tells a title card by its name
+    card.symlink_to(silent(1))
+    one = silent(3)
+    two = silent(2)
     (tmp_path / "list.txt").write_text("%s\n\n%s\n%s\n" % (card, one, two), encoding="utf-8")
     sb = {"title": "Demo", "languages": ["vi_VN"], "lead_in_s": 0.5,
           "publish": {"vi_VN": {"title": "Trợ lý AI", "description": "Mô tả."}},
@@ -373,8 +419,8 @@ def _cues(srt):
     return out
 
 
-def _sidecar_cues(tmp_path, narration, spoken=4.0):
-    clip = _no_audio_clip(tmp_path / "s1.mp4", 6)
+def _sidecar_cues(tmp_path, silent, narration, spoken=4.0):
+    clip = silent(6)
     (tmp_path / "list.txt").write_text("%s\n" % clip, encoding="utf-8")
     sb = {"title": "Demo", "languages": ["en_US"], "lead_in_s": 0.5,
           "publish": {"en_US": {"title": "T", "description": "D"}},
@@ -392,9 +438,9 @@ def _sidecar_cues(tmp_path, narration, spoken=4.0):
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_two_line_narration_yields_two_cues_that_split_the_spoken_span_by_characters(tmp_path):
+def test_a_two_line_narration_yields_two_cues_that_split_the_spoken_span_by_characters(tmp_path, silent):
     first, second = "Short line.", "A much longer second line of narration."
-    cues = _sidecar_cues(tmp_path, first + "\n" + second, spoken=4.0)
+    cues = _sidecar_cues(tmp_path, silent, first + "\n" + second, spoken=4.0)
     assert [c[2] for c in cues] == [first, second]
     (s1, e1, _), (s2, e2, _) = cues
     assert s1 == pytest.approx(0.5, abs=0.01)          # chapter start (0) plus the lead-in
@@ -405,23 +451,23 @@ def test_a_two_line_narration_yields_two_cues_that_split_the_spoken_span_by_char
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_one_line_narration_still_yields_one_cue_over_the_spoken_span(tmp_path):
-    cues = _sidecar_cues(tmp_path, "Only one line here.", spoken=3.0)
+def test_a_one_line_narration_still_yields_one_cue_over_the_spoken_span(tmp_path, silent):
+    cues = _sidecar_cues(tmp_path, silent, "Only one line here.", spoken=3.0)
     assert len(cues) == 1
     assert cues[0][0] == pytest.approx(0.5, abs=0.01) and cues[0][1] == pytest.approx(3.3, abs=0.05)
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_a_very_short_line_keeps_half_a_second_and_cues_still_do_not_overlap(tmp_path):
-    cues = _sidecar_cues(tmp_path, "Hi.\nThis second line takes nearly all of the spoken time.", spoken=2.0)
+def test_a_very_short_line_keeps_half_a_second_and_cues_still_do_not_overlap(tmp_path, silent):
+    cues = _sidecar_cues(tmp_path, silent, "Hi.\nThis second line takes nearly all of the spoken time.", spoken=2.0)
     assert len(cues) == 2
     assert cues[0][1] - cues[0][0] >= 0.5 - 0.01
     assert cues[1][0] >= cues[0][1] - 0.001
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
-def test_concat_and_sidecar_refuse_a_list_line_that_is_not_an_existing_file_with_one_message(tmp_path):
-    clip = _no_audio_clip(tmp_path / "title.mp4", 1)
+def test_concat_and_sidecar_refuse_a_list_line_that_is_not_an_existing_file_with_one_message(tmp_path, silent):
+    clip = silent(1)
     bad = "file '%s'" % clip   # ffmpeg's own syntax is not the list format
     (tmp_path / "list.txt").write_text("%s\n" % bad, encoding="utf-8")
     (tmp_path / "sb.json").write_text(json.dumps({"scenes": []}), encoding="utf-8")

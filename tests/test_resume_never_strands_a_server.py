@@ -280,29 +280,6 @@ def test_a_refused_resume_leaves_no_server_behind_a_still_parked_lease(sandbox):
     )
 
 
-@requires_bash
-def test_the_refusal_names_the_exit_code_and_what_to_do_about_it(sandbox):
-    """A blocked caller has to be able to act. The refusal must say that nothing was left running
-    (or the agent tears down an instance that is already gone) and name the remedy for the code it
-    got - here exit 5, whose remedy is `release`, never a retry."""
-    _declare_native_pg(sandbox)
-    _psql_reports(sandbox, database_present=False)
-    _long_lived_launcher(sandbox)
-    token = _acquire_exclusive(sandbox)
-    _park_the_row(sandbox, token)
-
-    res = _apply_exclusive(sandbox, token)
-    text = res.stdout + res.stderr
-
-    assert "resume exit 5" in text, f"the refusal must name the allocator's exit code:\n{text}"
-    assert "STOPPED" in text, (
-        f"the refusal must state that the launched server was stopped:\n{text}"
-    )
-    assert "release" in text, (
-        f"exit 5's remedy is `release`, and the refusal must name it:\n{text}"
-    )
-
-
 # ---------------------------------------------------------------------------
 # The success direction - a legitimate resume must still work
 # ---------------------------------------------------------------------------

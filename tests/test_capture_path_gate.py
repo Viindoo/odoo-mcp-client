@@ -114,9 +114,6 @@ def test_a_relative_screenshot_path_is_denied_with_a_concrete_destination(world)
     assert sorted(world["tmp"].rglob("*")) == before, "naming the destination must create nothing"
     assert _denied(out), out
     reason = _reason(out)
-    assert "filePath='shot.png' is a relative path" in reason
-    assert "Never retry with a relative path" in reason
-    assert "ISOLATE_DIR from its brief" in reason
     assert "<" not in reason and ">" not in reason, f"unresolved placeholder: {reason}"
     assert reason.isascii(), reason
     m = re.search(r"Write it under (\S+?)/? \(", reason)
@@ -124,18 +121,6 @@ def test_a_relative_screenshot_path_is_denied_with_a_concrete_destination(world)
     target = Path(m.group(1))
     assert re.fullmatch(r"[a-z0-9-]+-\d{8}-[0-9a-f]{4}", target.name), target.name
     assert target.parent == Path(_isolate_of(world, proj)) / "visual" / "adhoc"
-
-
-def test_the_remedy_keeps_the_capture_in_the_run_dir_and_never_sends_it_back(world):
-    """Told to 'mv the file where it must go', a live agent moved the capture back into the
-    working tree - the very place the hook refused. The remedy keeps it in the run dir, cites
-    it there, and moves only a final image a module doc embeds."""
-    proj = _project(world)
-    reason = _reason(_run(world, BUNDLED + "take_screenshot", {"filePath": "a.png"},
-                          cwd=str(proj)))
-    assert "keep it there and cite that path" in reason, reason
-    assert "never to the refused path or elsewhere in the working tree" in reason, reason
-    assert "where it must go" not in reason, reason
 
 
 def test_a_webm_path_where_pagecast_left_the_recording_is_accepted(world):

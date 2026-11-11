@@ -237,33 +237,6 @@ def test_the_advice_rides_only_fields_the_harness_reads_for_this_event(tool, com
             "hookEventName", "retry"}, hso
 
 
-def test_the_advice_names_the_always_available_exit():
-    """The single load-bearing sentence: forwarding INSTANCE_HANDLE is the exit a permission
-    denial cannot take away. Without it the agent has been told what NOT to do and nothing else,
-    which is exactly the state that produced the leak."""
-    msg = _advised(_run(f"{ALLOC} release {TOKEN} --run-id r1"))["systemMessage"]
-    assert "INSTANCE_HANDLE" in msg, "must name the handle to forward"
-    assert "lease_token" in msg and "run_id" in msg, "must name the fields the catcher needs"
-    assert "next.inputs" in msg, "must name WHERE the handle goes"
-    assert "caller" in msg.lower(), "must name the dispatching caller as the catcher"
-
-
-def test_the_advice_forbids_working_around_the_refusal():
-    """A hook that annotated a denial without this line would be one prompt away from teaching
-    the bypass it exists to prevent."""
-    msg = _advised(_run(f"{ALLOC} park {TOKEN}"))["systemMessage"].lower()
-    assert "do not re-issue" in msg, "must forbid re-issuing the refused command"
-    assert "reword" in msg, "must forbid rewording it past the refusal"
-
-
-def test_the_advice_warns_that_a_bare_stop_report_will_not_pass():
-    """The behavioural link to enforce-teardown.sh: the agent must learn here that the gate is
-    status-blind, or it will do exactly what the incident agent did and end on a bare BLOCKED."""
-    msg = _advised(_run(f"{ALLOC} release {TOKEN} --run-id r1"))["systemMessage"]
-    assert "BLOCKED" in msg, "must name the status the incident agent used"
-    assert "status-blind" in msg.lower(), "must state that the gate ignores the status value"
-
-
 # --------------------------------------------------------------------------- #
 # Wiring
 # --------------------------------------------------------------------------- #

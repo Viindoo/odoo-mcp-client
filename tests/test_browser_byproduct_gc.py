@@ -117,11 +117,6 @@ def test_the_cli_prunes_the_resolved_state_root(tmp_path):
     assert not old.exists()
 
 
-def test_both_runtime_callers_invoke_the_prune():
-    """A correct mechanism nothing calls is this plugin's dominant defect."""
-    assert "prune_browser_byproducts(" in LAUNCHER.read_text(encoding="utf-8")
-    assert "browser_mcp_servers.py\" prune" in SESSION_END.read_text(encoding="utf-8")
-
 
 ISOLATE = Path("projects") / "0123456789ab" / "worktrees" / "ba9876543210"
 

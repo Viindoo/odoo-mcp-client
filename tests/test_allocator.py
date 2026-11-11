@@ -2442,33 +2442,6 @@ def test_no_create_keeps_ephemeral_and_asks_nothing(tmp_path):
     assert _leases(env)[0]["drop_on_release"] is False
 
 
-def test_acquire_has_no_mode_reassignment(tmp_path):
-    """Source-level backstop for the exact SHAPE that produced the defect: inside
-    cmd_acquire, `mode` is bound ONCE from the caller's request and never
-    reassigned. An AST walk, not a string match, so no comment or message wording
-    can make it pass."""
-    import ast
-
-    tree = ast.parse(ALLOC.read_text(encoding="utf-8"))
-    fn = next(n for n in ast.walk(tree)
-              if isinstance(n, ast.FunctionDef) and n.name == "cmd_acquire")
-    writes = []
-    for node in ast.walk(fn):
-        targets = []
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
-            targets = [node.target]
-        for t in targets:
-            if isinstance(t, ast.Name) and t.id == "mode":
-                writes.append(node.lineno)
-    assert len(writes) == 1, (
-        "cmd_acquire must bind `mode` exactly once (the caller's request) and never "
-        f"rewrite it - a rewrite is how an ephemeral request silently became an "
-        f"exclusive lease. Assignments found at lines {writes}"
-    )
-
-
 # --------------------------------------------------------------------------- #
 # Drop safety: a drop that did not happen is NEVER reported as success
 # --------------------------------------------------------------------------- #

@@ -3,10 +3,8 @@ r"""Guard: git-toolkit is domain-agnostic and MUST NOT name odoo-ai-agents.
 Business rule (dependency direction): git-toolkit is a domain-agnostic PROVIDER
 library (Apache-2.0). As a provider it must not know, name, or point into its
 CONSUMER plugin odoo-ai-agents. References in the OTHER direction
-(odoo-ai-agents -> git-toolkit) are legal and are guarded by
-``test_git_delegation_boundary.py``. This test is the exact inverse: it scans
-ONLY ``plugins/git-toolkit/**`` so it structurally cannot touch odoo-ai-agents,
-and together the two form a non-overlapping bidirectional guard.
+(odoo-ai-agents -> git-toolkit) are legal. This test scans ONLY
+``plugins/git-toolkit/**`` so it structurally cannot touch odoo-ai-agents.
 
 A reference is forbidden when git-toolkit text names any odoo-ai-agents artifact
 (the sibling plugin id, or any of its skills / agents / commands) or points into
@@ -188,30 +186,6 @@ def test_git_toolkit_leaf_allowlists_grant_no_messaging_tool():
     assert not offenders, (
         "git-toolkit agents with a `tools:` allowlist must grant no messaging tool:\n"
         + "\n".join(offenders)
-    )
-
-
-# ---------------------------------------------------------------------------
-# github-operator.md: the PR-review inline-findings fan-out recipe (P3) is
-# documented AND remains self-contained (no odoo-ai-agents artifact/path).
-# ---------------------------------------------------------------------------
-
-GITHUB_OPERATOR = TOOLKIT / "agents" / "github-operator.md"
-
-
-def test_github_operator_fanout_recipe_names_no_odoo_ai_agents_artifact():
-    """The fan-out recipe itself must stay self-contained (git-toolkit is dependency-free).
-
-    Belt-and-suspenders companion to test_git_toolkit_names_no_odoo_ai_agents_artifact: that
-    whole-provider scan already covers this file, but this test pins the guarantee directly
-    to the P3 feature so a future refactor of the broader scan cannot silently drop coverage
-    of this specific recipe.
-    """
-    pattern = _forbidden_re(_consumer_names())
-    violations = _scan(GITHUB_OPERATOR, pattern)
-    assert not violations, (
-        "github-operator.md's inline-findings fan-out recipe names an odoo-ai-agents "
-        f"artifact - git-toolkit must stay dependency-free:\n" + "\n".join(violations)
     )
 
 

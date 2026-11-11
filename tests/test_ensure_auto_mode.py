@@ -21,9 +21,8 @@ STEP = PLUGIN / "scripts" / "setup-steps" / "34-auto-mode.sh"
 TAG = "odoo-ai-agents: "
 
 
-@pytest.fixture()
-def machine(tmp_path):
-    repo = tmp_path / "work" / "addons-repo"
+def _build_machine(base):
+    repo = base / "work" / "addons-repo"
     (repo / "addons").mkdir(parents=True)
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
@@ -31,14 +30,38 @@ def machine(tmp_path):
                  ("git", "commit", "-q", "--allow-empty", "-m", "init"),
                  ("git", "remote", "add", "origin", "git@example.org:acme/addons-repo.git")):
         subprocess.run(args, cwd=repo, check=True, capture_output=True, env=env)
-    home = tmp_path / "odoo-ai"
+    home = base / "odoo-ai"
     home.mkdir()
     catalog = home / "instances.toml"
     catalog.write_text('[[instance]]\nseries = "17.0"\naddons_path = ["%s"]\n' % (repo / "addons"),
                        encoding="utf-8")
-    settings = tmp_path / "settings.json"
+    settings = base / "settings.json"
     settings.write_text("{}", encoding="utf-8")
     return {"home": home, "catalog": catalog, "settings": settings}
+
+
+@pytest.fixture(scope="module")
+def approved_machine(tmp_path_factory):
+    """One machine (a repo, its catalog) and the settings the owner's one-time approval leaves
+    behind - built once; every test starts from a copy of that settings file."""
+    m = _build_machine(tmp_path_factory.mktemp("machine"))
+    _approve(m)
+    m["approved_text"] = m["settings"].read_text(encoding="utf-8")
+    return m
+
+
+@pytest.fixture()
+def machine(approved_machine, tmp_path):
+    """The approved machine with its own settings file, set back to `{}` (before approval)."""
+    m = dict(approved_machine, settings=tmp_path / "settings.json")
+    m["settings"].write_text("{}", encoding="utf-8")
+    return m
+
+
+@pytest.fixture()
+def approved(machine, approved_machine):
+    machine["settings"].write_text(approved_machine["approved_text"], encoding="utf-8")
+    return machine
 
 
 def _env(machine, extra=None):
@@ -75,40 +98,37 @@ def test_before_the_owner_approved_nothing_is_written_and_one_advice_line_is_giv
     assert len([line for line in out.stderr.splitlines() if line.strip()]) == 1
 
 
-def test_a_current_approved_setup_is_silent_and_untouched(machine):
-    _approve(machine)
-    before = machine["settings"].read_text()
-    out = _hook(machine)
+def test_a_current_approved_setup_is_silent_and_untouched(approved):
+    before = approved["settings"].read_text()
+    out = _hook(approved)
     assert out.returncode == 0
     assert out.stdout == "" and out.stderr == ""
-    assert machine["settings"].read_text() == before
+    assert approved["settings"].read_text() == before
 
 
-def test_drift_after_approval_is_converged_and_reported_without_touching_user_entries(machine):
-    _approve(machine)
-    data = _data(machine)
+def test_drift_after_approval_is_converged_and_reported_without_touching_user_entries(approved):
+    data = _data(approved)
     data["autoMode"]["allow"] = [TAG + "wording of an older plugin version" if e.startswith(TAG) else e
                                  for e in data["autoMode"]["allow"]]
     data["autoMode"]["allow"].append("user wrote this")
-    machine["settings"].write_text(json.dumps(data))
-    out = _hook(machine)
+    approved["settings"].write_text(json.dumps(data))
+    out = _hook(approved)
     assert out.returncode == 0
     assert "updated" in out.stderr
-    fixed = _data(machine)
+    fixed = _data(approved)
     assert TAG + "wording of an older plugin version" not in fixed["autoMode"]["allow"]
     assert "user wrote this" in fixed["autoMode"]["allow"]
-    assert _hook(machine).stderr == ""
+    assert _hook(approved).stderr == ""
 
 
-def test_the_opt_out_stops_the_hook_from_writing_or_speaking(machine):
-    _approve(machine)
-    data = _data(machine)
+def test_the_opt_out_stops_the_hook_from_writing_or_speaking(approved):
+    data = _data(approved)
     data["autoMode"]["allow"] = ["$defaults"]
-    machine["settings"].write_text(json.dumps(data))
-    before = machine["settings"].read_text()
-    out = _hook(machine, {"ODOO_AI_NO_AUTO_PERMS": "1"})
+    approved["settings"].write_text(json.dumps(data))
+    before = approved["settings"].read_text()
+    out = _hook(approved, {"ODOO_AI_NO_AUTO_PERMS": "1"})
     assert out.returncode == 0 and out.stderr == "" and out.stdout == ""
-    assert machine["settings"].read_text() == before
+    assert approved["settings"].read_text() == before
 
 
 def test_a_settings_file_that_is_not_json_is_never_written(machine):

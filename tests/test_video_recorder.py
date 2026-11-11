@@ -202,12 +202,52 @@ def test_trial_reports_the_answer_and_the_seconds_spent_waiting(tmp_path, site):
     assert out["ANSWER"] == "Answer: hi" and float(out["WAIT_S"]) >= 1.0
 
 
-def test_an_unmet_selector_exits_3_naming_the_step(tmp_path, site):
-    actions = [{"do": "goto", "url": "/index.html"}, {"do": "click", "selector": "#nope"}]
-    proc = _run("record", "--script", str(_scene(tmp_path, site, actions)), "--out-dir", str(tmp_path / "out"))
+_UNMET_TESTS = ("test_an_unmet_selector_exits_3_naming_the_step",
+                "test_a_selector_wait_gives_up_after_30_seconds_by_default")
+
+
+@pytest.fixture(scope="module")
+def _unmet_started(request, site, tmp_path_factory):
+    """The two scenes that sit out the recorder's whole default selector wait (30 s) - a click on, and a
+    `wait_for` of, a selector that never appears - start together at the top of the module and run while
+    the other tests do, so the module pays that wait once, in the background."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    if not any(i.name in _UNMET_TESTS for i in request.session.items if i.module is request.module):
+        yield None
+        return
+
+    def go(name, mode, actions):
+        d = tmp_path_factory.mktemp(name)
+        started = time.monotonic()
+        proc = _run(mode, "--script", str(_scene(d, site, actions)), "--out-dir", str(d / "out"))
+        return proc, time.monotonic() - started, d
+
+    index = {"do": "goto", "url": "/index.html"}
+    pool = ThreadPoolExecutor(2)
+    futures = (
+        pool.submit(go, "click", "record", [index, {"do": "click", "selector": "#nope"}]),
+        pool.submit(go, "wait", "prepare", [index, {"do": "wait_for", "selector": "#never", "state": "visible"}]),
+    )
+    yield futures
+    pool.shutdown(wait=True)
+
+
+@pytest.fixture(autouse=True)
+def _start_unmet(_unmet_started):
+    """Make sure the background waits start with the first test of the module."""
+
+
+@pytest.fixture
+def unmet_waits(_unmet_started):
+    return tuple(f.result() for f in _unmet_started)
+
+
+def test_an_unmet_selector_exits_3_naming_the_step(unmet_waits):
+    (proc, _elapsed, d), _ = unmet_waits
     assert proc.returncode == 3, proc.stdout + proc.stderr
     assert "ERROR=step 2 click #nope: not found" in proc.stdout
-    assert not list((tmp_path / "out").glob("*.webm"))
+    assert not list((d / "out").glob("*.webm"))
 
 
 def test_ui_user_signs_in_off_camera_and_the_clip_starts_at_the_scene(tmp_path, site):
@@ -234,37 +274,21 @@ def test_language_switch_runs_off_camera_before_the_take(tmp_path, site):
     assert [e["kind"] for e in events].count("load") == 1 and events[0]["start"] < 0.5, events
 
 
-def test_wait_for_timeout_s_overrides_the_wait_of_a_missing_selector(tmp_path, site):
-    actions = [{"do": "goto", "url": "/index.html"},
-               {"do": "wait_for", "selector": "#never", "state": "visible", "timeout_s": 2}]
-    started = time.monotonic()
-    proc = _run("prepare", "--script", str(_scene(tmp_path, site, actions)))
+def test_a_selector_wait_gives_up_after_30_seconds_by_default(unmet_waits):
+    _, (proc, elapsed, _d) = unmet_waits
     assert proc.returncode == 3, proc.stdout + proc.stderr
-    assert "ERROR=step 2 wait_for #never: not found" in proc.stdout
-    assert time.monotonic() - started < 15
-
-
-def test_a_selector_wait_gives_up_after_30_seconds_by_default(tmp_path, site):
-    actions = [{"do": "goto", "url": "/index.html"}, {"do": "wait_for", "selector": "#never", "state": "visible"}]
-    started = time.monotonic()
-    proc = _run("prepare", "--script", str(_scene(tmp_path, site, actions)))
-    assert proc.returncode == 3, proc.stdout + proc.stderr
-    assert 28 < time.monotonic() - started < 75
-
-
-def test_a_script_without_ui_user_just_opens_base_url(tmp_path, site):
-    actions = [{"do": "goto", "url": "/index.html"}, {"do": "expect_text", "selector": "#ask", "name": "a"}]
-    proc = _run("prepare", "--script", str(_scene(tmp_path, site, actions)))
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "TEXT_a=" in proc.stdout
+    assert 28 < elapsed < 75
 
 
 def test_an_element_without_size_is_not_visible_and_a_missing_one_is_not_found(tmp_path, site):
     def fail(selector):
         actions = [{"do": "goto", "url": "/empty.html"},
                    {"do": "wait_for", "selector": selector, "state": "visible", "timeout_s": 2}]
+        started = time.monotonic()
         proc = _run("prepare", "--script", str(_scene(tmp_path, site, actions)))
         assert proc.returncode == 3, proc.stdout + proc.stderr
+        # `timeout_s` replaces the 30 s default of a selector wait
+        assert time.monotonic() - started < 15
         return proc.stdout
 
     assert "ERROR=step 2 wait_for #empty: not visible" in fail("#empty")

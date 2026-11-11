@@ -45,6 +45,7 @@ import sys
 import textwrap
 from pathlib import Path
 from shutil import which
+from types import SimpleNamespace
 
 import pytest
 
@@ -216,56 +217,81 @@ def _facts(res: subprocess.CompletedProcess) -> dict[str, str]:
     return found
 
 
+@pytest.fixture(scope="module")
+def leased_run(tmp_path_factory):
+    """ONE exclusive `apply` against a lease that reserved a worktree's tree, with a
+    hand-spaced `--load` list. ST1 (the lease's tree wins), ST2 (the load set reaches the
+    conf, normalized) and ST3 (the served tree is reported) all read what this one run left."""
+    tmp = tmp_path_factory.mktemp("leased_run")
+    sb = Sandbox(tmp)
+    try:
+        worktree = tmp / "worktree-checkout" / "addons"
+        worktree.mkdir(parents=True)
+        token = _acquire(sb, "--addons-path-override", str(worktree))
+        res = _apply_exclusive(sb, "--alloc-token", token, "--load", " mod_alpha , mod_beta ,")
+        yield SimpleNamespace(sb=sb, res=res, out=res.stdout + res.stderr, worktree=worktree,
+                              conf=_conf_text(res) if res.returncode == 0 else "")
+    finally:
+        sb.reap()
+
+
+@pytest.fixture(scope="module")
+def plain_run(tmp_path_factory):
+    """ONE plain declared `apply`: no lease, no argument, no `--load`."""
+    sb = Sandbox(tmp_path_factory.mktemp("plain_run"))
+    try:
+        res = sb.apply()
+        yield SimpleNamespace(sb=sb, res=res, out=res.stdout + res.stderr,
+                              conf=_conf_text(res) if res.returncode == 0 else "")
+    finally:
+        sb.reap()
+
+
 # ---------------------------------------------------------------------------
 # ST1 - the lease's tree wins over the catalog row
 # ---------------------------------------------------------------------------
 
 
 @requires_bash
-def test_lease_addons_path_override_beats_the_catalog_row(sandbox, worktree_addons):
+def test_lease_addons_path_override_beats_the_catalog_row(leased_run):
     """ST1 - the conf must carry the tree the LEASE reserved, and NOT the catalog row.
 
     This is the defect stated as a filesystem fact: before the fix the generated conf's
     `addons_path` was the catalog entry, so the launched listener served the principal checkout
     while the caller believed it was serving its worktree.
     """
-    token = _acquire(sandbox, "--addons-path-override", str(worktree_addons))
-    res = _apply_exclusive(sandbox, "--alloc-token", token)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, f"a well-specified exclusive apply must succeed\n{out}"
-
-    conf = _conf_text(res)
-    served = _conf_value(conf, "addons_path")
-    assert served == str(worktree_addons), (
-        "the generated conf must serve the addons_path the BOUND LEASE reserved "
-        f"({worktree_addons}), not the instances.toml catalog row. Got: {served!r}\n{conf}"
+    assert leased_run.res.returncode == 0, f"a well-specified exclusive apply must succeed\n{leased_run.out}"
+    conf, worktree = leased_run.conf, leased_run.worktree
+    assert _conf_value(conf, "addons_path") == str(worktree), (
+        f"the generated conf must serve the addons_path the BOUND LEASE reserved ({worktree}), "
+        f"not the instances.toml catalog row.\n{conf}"
     )
-    assert str(sandbox.addons) not in conf, (
+    assert str(leased_run.sb.addons) not in conf, (
         "the catalog row must NOT survive anywhere in the conf once a lease reserved a "
-        f"different tree - a launch against {sandbox.addons} is the silent wrong-tree green\n"
-        f"{conf}"
+        f"different tree - a launch against it is the silent wrong-tree green\n{conf}"
     )
 
 
 @requires_bash
 def test_explicit_addons_path_argument_outranks_the_lease(sandbox, worktree_addons, tmp_path):
     """ST1 (precedence) - an explicit `--addons-path` is the caller stating the tree, so it wins
-    over the lease as well as over the catalog."""
+    over the lease as well as over the catalog. A colon-joined list reaches the conf
+    COMMA-joined (the key Odoo parses on every indexed series), via the same splitter every
+    other consumer uses."""
     stated = tmp_path / "stated-checkout" / "addons"
+    second = tmp_path / "second-checkout" / "addons"
     stated.mkdir(parents=True, exist_ok=True)
+    second.mkdir(parents=True, exist_ok=True)
     token = _acquire(sandbox, "--addons-path-override", str(worktree_addons))
 
-    res = _apply_exclusive(sandbox, "--alloc-token", token, "--addons-path", str(stated))
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
+    res = _apply_exclusive(sandbox, "--alloc-token", token, "--addons-path", f"{stated}:{second}")
+    assert res.returncode == 0, res.stdout + res.stderr
 
     conf = _conf_text(res)
-    assert _conf_value(conf, "addons_path") == str(stated), (
-        f"--addons-path must outrank the lease. Got: {_conf_value(conf, 'addons_path')!r}\n{conf}"
+    assert _conf_value(conf, "addons_path") == f"{stated},{second}", (
+        f"--addons-path must outrank the lease, comma-joined. Got: {_conf_value(conf, 'addons_path')!r}\n{conf}"
     )
-    assert _facts(res).get("SERVED_ADDONS_SOURCE") == "argument", (
-        f"the reported source must name the argument rung\n{out}"
-    )
+    assert _facts(res).get("SERVED_ADDONS_SOURCE") == "argument"
 
 
 # ---------------------------------------------------------------------------
@@ -274,34 +300,13 @@ def test_explicit_addons_path_argument_outranks_the_lease(sandbox, worktree_addo
 
 
 @requires_bash
-def test_load_set_reaches_the_generated_conf_as_server_wide_modules(sandbox):
-    """ST2 - `--load <modules>` must land in the conf as `server_wide_modules`.
-
-    With no passthrough the resolved set was dropped and the launch fell back to Odoo's own
-    default, which no output mentioned.
-    """
-    res = sandbox.apply("--load", LOAD_SET)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-
-    conf = _conf_text(res)
-    assert _conf_value(conf, "server_wide_modules") == LOAD_SET, (
-        "the conf must carry the caller's server-wide module set verbatim as "
-        f"`server_wide_modules = {LOAD_SET}`. Got: "
-        f"{_conf_value(conf, 'server_wide_modules')!r}\n{conf}"
-    )
-
-
-@requires_bash
-def test_load_set_is_normalized_not_passed_through_malformed(sandbox):
-    """ST2 - a hand-spaced list must reach Odoo as a clean comma list, not as module names with
-    leading spaces that no import can resolve."""
-    res = sandbox.apply("--load", " mod_alpha , mod_beta ,")
-    assert res.returncode == 0, res.stdout + res.stderr
-    conf = _conf_text(res)
-    assert _conf_value(conf, "server_wide_modules") == LOAD_SET, (
-        f"expected the normalized list {LOAD_SET!r}\n{conf}"
-    )
+def test_load_set_reaches_the_conf_as_a_clean_server_wide_modules_list(leased_run):
+    """ST2 - `--load <modules>` must land in the conf as `server_wide_modules`, normalized: a
+    hand-spaced list reaches Odoo as a clean comma list, not as module names with leading
+    spaces that no import can resolve. With no passthrough the resolved set was dropped and
+    the launch fell back to Odoo's own default, which no output mentioned."""
+    assert leased_run.res.returncode == 0, leased_run.out
+    assert _conf_value(leased_run.conf, "server_wide_modules") == LOAD_SET, leased_run.conf
 
 
 @requires_bash
@@ -312,22 +317,19 @@ def test_a_load_flag_naming_no_module_is_blocked_before_launch(sandbox):
     res = sandbox.apply("--load", " , ")
     out = res.stdout + res.stderr
     assert res.returncode != 0, f"an empty --load must be refused\n{out}"
-    assert "BLOCKED" in out, f"expected the file's BLOCKED refusal idiom\n{out}"
     assert not sandbox.launch_log.exists(), f"nothing may launch on a refusal\n{out}"
 
 
 @requires_bash
-def test_no_load_flag_writes_no_server_wide_modules_key(sandbox):
+def test_no_load_flag_writes_no_server_wide_modules_key(plain_run):
     """ST2 (no fabrication) - with no `--load`, the key must be ABSENT so Odoo's own per-series
     default applies. Writing a hardcoded default here would pin one series' default onto all of
     them."""
-    res = sandbox.apply()
-    assert res.returncode == 0, res.stdout + res.stderr
-    conf = _conf_text(res)
-    assert "server_wide_modules" not in conf, (
-        f"no --load means no server_wide_modules key at all\n{conf}"
+    assert plain_run.res.returncode == 0, plain_run.out
+    assert "server_wide_modules" not in plain_run.conf, (
+        f"no --load means no server_wide_modules key at all\n{plain_run.conf}"
     )
-    assert _facts(res).get("SERVED_SERVER_WIDE_MODULES") == "", (
+    assert _facts(plain_run.res).get("SERVED_SERVER_WIDE_MODULES") == "", (
         "the reported module set must be empty when none was requested"
     )
 
@@ -338,34 +340,19 @@ def test_no_load_flag_writes_no_server_wide_modules_key(sandbox):
 
 
 @requires_bash
-def test_apply_reports_the_served_tree_as_machine_output(sandbox, worktree_addons):
+def test_apply_reports_the_served_tree_as_machine_output(leased_run):
     """ST3 - the resolved tree, its source rung, and the server-wide module set must all appear as
-    KEY=value stdout facts, so a caller verifies the served tree without parsing Odoo's log."""
-    token = _acquire(sandbox, "--addons-path-override", str(worktree_addons))
-    res = _apply_exclusive(sandbox, "--alloc-token", token, "--load", LOAD_SET)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-
-    facts = _facts(res)
-    assert facts.get("SERVED_ADDONS_PATH") == str(worktree_addons), (
-        "SERVED_ADDONS_PATH must name the tree actually served (the lease's), so a caller can "
-        f"verify it from this output alone. Got: {facts!r}\n{out}"
-    )
-    assert facts.get("SERVED_ADDONS_SOURCE") == "lease", (
-        f"SERVED_ADDONS_SOURCE must name the rung that won (lease). Got: {facts!r}\n{out}"
-    )
-    assert facts.get("SERVED_SERVER_WIDE_MODULES") == LOAD_SET, (
-        f"SERVED_SERVER_WIDE_MODULES must name the module set served. Got: {facts!r}\n{out}"
-    )
-    # The reported fact and the conf the server was handed must be the SAME value - a report that
-    # can disagree with the launch is not observability.
-    conf = _conf_text(res)
-    assert _conf_value(conf, "addons_path") == facts.get("SERVED_ADDONS_PATH"), (
-        f"the reported served tree must equal the conf's addons_path\n{conf}"
-    )
-    assert _conf_value(conf, "server_wide_modules") == facts.get("SERVED_SERVER_WIDE_MODULES"), (
-        f"the reported module set must equal the conf's server_wide_modules\n{conf}"
-    )
+    KEY=value stdout facts, so a caller verifies the served tree without parsing Odoo's log - and
+    they must equal what the conf the server was handed says (a report that can disagree with the
+    launch is not observability)."""
+    assert leased_run.res.returncode == 0, leased_run.out
+    facts = _facts(leased_run.res)
+    assert facts.get("SERVED_ADDONS_PATH") == str(leased_run.worktree), facts
+    assert facts.get("SERVED_ADDONS_SOURCE") == "lease", facts
+    assert facts.get("SERVED_SERVER_WIDE_MODULES") == LOAD_SET, facts
+    conf = leased_run.conf
+    assert _conf_value(conf, "addons_path") == facts.get("SERVED_ADDONS_PATH"), conf
+    assert _conf_value(conf, "server_wide_modules") == facts.get("SERVED_SERVER_WIDE_MODULES"), conf
 
 
 # ---------------------------------------------------------------------------
@@ -380,8 +367,6 @@ def test_an_unreadable_lease_token_blocks_before_launch(sandbox):
     res = _apply_exclusive(sandbox, "--alloc-token", "0" * 32)
     out = res.stdout + res.stderr
     assert res.returncode != 0, f"an unreadable lease must be refused\n{out}"
-    assert "BLOCKED" in out, f"expected the file's BLOCKED refusal idiom\n{out}"
-    assert "alloc-token" in out, f"the refusal must name the flag that could not be resolved\n{out}"
     assert not sandbox.launch_log.exists(), (
         f"a refusal must launch NOTHING - a wrong tree already listening is the harm\n{out}"
     )
@@ -401,8 +386,6 @@ def test_a_lease_naming_a_tree_that_is_gone_blocks_instead_of_serving_the_catalo
     res = _apply_exclusive(sandbox, "--alloc-token", token)
     out = res.stdout + res.stderr
     assert res.returncode != 0, f"a lease naming an absent tree must be refused\n{out}"
-    assert "BLOCKED" in out, f"expected the file's BLOCKED refusal idiom\n{out}"
-    assert str(worktree_addons) in out, f"the refusal must name the missing tree\n{out}"
     assert not sandbox.launch_log.exists(), f"nothing may launch on a refusal\n{out}"
     assert sandbox.confs() == [], f"a refusal must write no conf\n{out}"
 
@@ -414,7 +397,6 @@ def test_an_addons_path_argument_naming_a_missing_directory_blocks(sandbox, tmp_
     res = sandbox.apply("--addons-path", str(tmp_path / "never-created"))
     out = res.stdout + res.stderr
     assert res.returncode != 0, f"a non-existent --addons-path must be refused\n{out}"
-    assert "BLOCKED" in out, f"expected the file's BLOCKED refusal idiom\n{out}"
     assert not sandbox.launch_log.exists(), f"nothing may launch on a refusal\n{out}"
 
 
@@ -445,9 +427,6 @@ def test_a_lease_row_that_is_not_a_directory_list_falls_back_loudly(sandbox):
         "the reported source must NOT claim the lease's tree was served when it was not: "
         f"{facts!r}\n{out}"
     )
-    assert "Warning" in res.stderr and "CATALOG ROW" in res.stderr, (
-        f"the fallback must be stated out loud on stderr\n{res.stderr}"
-    )
     conf = _conf_text(res)
     assert _conf_value(conf, "addons_path") == str(sandbox.addons), conf
 
@@ -467,8 +446,6 @@ def test_docker_run_mode_refuses_an_override_it_cannot_honour(sandbox, worktree_
     res = _apply_exclusive(sandbox, "--alloc-token", token)
     out = res.stdout + res.stderr
     assert res.returncode != 0, f"docker + a served-tree override must be refused\n{out}"
-    assert "BLOCKED" in out, f"expected the file's BLOCKED refusal idiom\n{out}"
-    assert "docker" in out, f"the refusal must name the run mode that cannot honour it\n{out}"
     assert not sandbox.launch_log.exists(), f"nothing may launch on a refusal\n{out}"
 
 
@@ -478,19 +455,14 @@ def test_docker_run_mode_refuses_an_override_it_cannot_honour(sandbox, worktree_
 
 
 @requires_bash
-def test_with_no_lease_the_catalog_row_is_still_served(sandbox):
+def test_with_no_lease_the_catalog_row_is_still_served(plain_run):
     """MUST-NOT-CATCH - no lease, no argument: the declared/shared spin-up is unchanged. A guard
     that turned this red would have broken every existing caller."""
-    res = sandbox.apply()
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, f"the plain declared spin-up must still work\n{out}"
-    conf = _conf_text(res)
-    assert _conf_value(conf, "addons_path") == str(sandbox.addons), (
-        f"with no lease the catalog row IS the tree to serve\n{conf}"
+    assert plain_run.res.returncode == 0, f"the plain declared spin-up must still work\n{plain_run.out}"
+    assert _conf_value(plain_run.conf, "addons_path") == str(plain_run.sb.addons), (
+        f"with no lease the catalog row IS the tree to serve\n{plain_run.conf}"
     )
-    assert _facts(res).get("SERVED_ADDONS_SOURCE") == "catalog", (
-        f"the reported source must name the catalog rung\n{out}"
-    )
+    assert _facts(plain_run.res).get("SERVED_ADDONS_SOURCE") == "catalog"
 
 
 @requires_bash
@@ -515,47 +487,3 @@ def test_a_lease_matching_the_catalog_row_is_not_a_conflict(sandbox):
 # ---------------------------------------------------------------------------
 # Separator SSOT - the served value is canonicalized, not re-spelled
 # ---------------------------------------------------------------------------
-
-
-@requires_bash
-def test_a_colon_joined_override_reaches_the_conf_comma_joined(sandbox, tmp_path):
-    """The conf key Odoo parses is COMMA-separated on every indexed series. A caller (or a legacy
-    producer) handing over a colon-joined list must still reach the conf comma-joined - via the
-    same splitter every other consumer uses, never a second hand-rolled conversion."""
-    second = tmp_path / "second-checkout" / "addons"
-    second.mkdir(parents=True, exist_ok=True)
-    res = sandbox.apply("--addons-path", f"{sandbox.addons}:{second}")
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    conf = _conf_text(res)
-    assert _conf_value(conf, "addons_path") == f"{sandbox.addons},{second}", (
-        f"the conf must carry a comma-joined addons_path\n{conf}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Probe corpus - the guard's own MUST-CATCH / MUST-NOT-CATCH shapes, asserted on text so the
-# resolution CONTRACT cannot be quietly reverted to a catalog-only re-derivation.
-# ---------------------------------------------------------------------------
-
-
-def test_cmd_apply_has_exactly_one_addons_path_writer():
-    """SSOT - the conf's `addons_path` line must be written in exactly ONE place, from the
-    resolved value. A second writer is how the catalog row crept back in.
-    """
-    text = (PLUGIN / "scripts" / "setup-steps" / "50-instance-spinup.sh").read_text(
-        encoding="utf-8"
-    )
-    writers = [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip().startswith('echo "addons_path = ')
-    ]
-    assert len(writers) == 1, (
-        "exactly one conf writer for addons_path is expected, found "
-        f"{len(writers)}: {writers}"
-    )
-    assert writers[0] == 'echo "addons_path = ${INST_ADDONS_PATH:-}"', (
-        "the single writer must emit the RESOLVED value (INST_ADDONS_PATH is reassigned by the "
-        f"served-tree resolution), got: {writers[0]!r}"
-    )

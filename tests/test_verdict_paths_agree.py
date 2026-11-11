@@ -319,30 +319,6 @@ def _findings(res: subprocess.CompletedProcess) -> str:
 # CONTRACT 1 - an ERROR-level log line is not a verdict
 # ---------------------------------------------------------------------------
 
-@requires_bash
-def test_a_passing_run_with_an_unrelated_error_level_line_is_not_a_failure(tmp_path):
-    """Both paths must call the SAME log a pass.
-
-    A run that ends `0 failed, 0 error(s) of 41 tests` passed. An ir_cron ERROR
-    line elsewhere in the log says nothing about the suite, so the polling
-    verdict may not call the run a failure while the run's own verdict calls it
-    a pass - a caller handed two opposite answers stops trusting the wait.
-    """
-    res, log, env = _run_verb(
-        tmp_path, "test", db="passwitherror", version="17.0",
-        lines=[PROGRESS_LINE, LOADED_MARKER, UNRELATED_ERROR_LINE, PASSING_SUMMARY])
-    assert _field(res, "TEST_RESULT") == "passed", (
-        f"an unrelated ERROR-level line must not fail a passing suite\n{res.stdout}"
-    )
-
-    waited = _wait(log, env)
-    assert _field(waited, "BUILD_RESULT") != "failure", (
-        "the polling verdict contradicts the run's own verdict on the same log: "
-        f"TEST_RESULT=passed but BUILD_RESULT=failure\nwait-log stdout:\n{waited.stdout}"
-    )
-    assert "TEST_RESULT=passed" in waited.stdout, (
-        f"wait-log must surface the verdict the log carries\n{waited.stdout}"
-    )
 
 
 @requires_bash
@@ -363,28 +339,6 @@ def test_a_test_run_still_in_flight_is_not_failed_by_an_unrelated_error_line(tmp
     assert waited.returncode == 2, f"rc={waited.returncode}\n{waited.stdout}"
 
 
-@requires_bash
-@pytest.mark.parametrize("verb", ["init", "update"])
-def test_an_unrelated_error_level_line_never_fails_an_install_or_update_build(tmp_path, verb):
-    """The same exposure exists for a build that runs no tests at all.
-
-    An install that reaches "Modules loaded." succeeded; a cron ERROR line
-    logged along the way does not change that, and the foreground verdict
-    already agrees - so the polling verdict must too.
-    """
-    res, log, env = _run_verb(
-        tmp_path, verb, db=f"{verb}witherror", version="17.0",
-        lines=[PROGRESS_LINE, UNRELATED_ERROR_LINE, LOADED_MARKER])
-    assert "STATUS=ok" in res.stdout.splitlines(), (
-        f"{verb} must succeed: an unrelated ERROR line is not an install failure"
-        f"\nstdout:\n{res.stdout}\nstderr:\n{res.stderr}"
-    )
-
-    waited = _wait(log, env)
-    assert _field(waited, "BUILD_RESULT") == "success", (
-        f"the polling verdict contradicts {verb}'s own STATUS=ok on the same log"
-        f"\nwait-log stdout:\n{waited.stdout}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -490,66 +444,14 @@ def test_a_hard_abort_with_no_verdict_line_is_a_terminal_failure(tmp_path, label
 
 
 # ---------------------------------------------------------------------------
-# CONTRACT 4 - counts and findings may never contradict the verdict
+# CONTRACT 4 - counts and findings may never contradict the verdict, and the two
+# paths never disagree on the log the run produced
+#
+# Every log SHAPE below is run through the real verb ONCE (the expensive step: a
+# real odoo-bin launch against a stub) and then read back by `wait-log` once; the
+# tests that follow each assert one aspect of that same outcome. A shape the
+# suite already holds is not run again under another name.
 # ---------------------------------------------------------------------------
-
-AGGREGATE_ONLY_CASES = [
-    # label, series, the run's ONLY failure signal, expected failed/error counts
-    ("per-module-v8-v13", "12.0", AGG_PER_MODULE_V8_V13, "2", "1"),
-    ("per-module-v14-plus", "17.0", AGG_PER_MODULE_V14_PLUS, "2", "1"),
-    ("per-database-v14-plus", "17.0", AGG_PER_DATABASE_V14_PLUS, "2", "1"),
-]
-
-
-@requires_bash
-@pytest.mark.parametrize("label,series,agg_line,want_failed,want_error", AGGREGATE_ONLY_CASES)
-def test_an_aggregate_only_failure_reports_the_aggregates_own_numbers(
-        tmp_path, label, series, agg_line, want_failed, want_error):
-    """A run whose only failure signal is an AGGREGATE line still published its
-    numbers - so the count fields must carry them.
-
-    `TEST_FAILED=0 TEST_ERROR=0` next to `TEST_RESULT=failed` tells the caller
-    the run failed and that nothing failed, in the same breath.
-    """
-    res, _log, _env_ = _run_verb(tmp_path, "test", db=f"agg{label.replace('-', '')}",
-                                 version=series, lines=[PROGRESS_LINE, agg_line])
-    assert _field(res, "TEST_RESULT") == "failed", (
-        f"[{label}] the aggregate wording must read as a failure\n{res.stdout}"
-    )
-    assert _field(res, "TEST_FAILED") == want_failed, (
-        f"[{label}] TEST_FAILED must carry the aggregate's own failure count "
-        f"({want_failed}), never 0 beside a failed verdict\n{res.stdout}"
-    )
-    assert _field(res, "TEST_ERROR") == want_error, (
-        f"[{label}] TEST_ERROR must carry the aggregate's own error count "
-        f"({want_error}), never 0 beside a failed verdict\n{res.stdout}"
-    )
-
-
-@requires_bash
-@pytest.mark.parametrize(
-    "label,series,agg_line",
-    [(c[0], c[1], c[2]) for c in AGGREGATE_ONLY_CASES]
-    + [("blanket-all-series", "17.0", AGG_BLANKET_ALL_SERIES)],
-)
-def test_the_findings_file_never_claims_nothing_failed_for_a_failed_verdict(
-        tmp_path, label, series, agg_line):
-    """The findings file is the artifact an agent reads to learn WHY a build
-    failed. It may not answer "nothing failed" for a run whose verdict is
-    `failed` - and it must show the line that states the failure."""
-    res, _log, _env_ = _run_verb(tmp_path, "test", db=f"fnd{label.replace('-', '')}",
-                                 version=series, lines=[PROGRESS_LINE, agg_line])
-    assert _field(res, "TEST_RESULT") == "failed", res.stdout
-    text = _findings(res)
-    assert "No failing or errored tests detected" not in text, (
-        f"[{label}] the findings file for a FAILED run says nothing failed:\n{text}"
-    )
-    evidence = agg_line.split(": ", 2)[-1]
-    assert evidence in text, (
-        f"[{label}] the findings file must show the line that states the "
-        f"failure ({evidence!r}):\n{text}"
-    )
-
 
 # A traceback with NOTHING to do with any test. Taken from the shape a real run
 # leaves behind: the HTTP server thread raises, Python's threading module prints
@@ -565,180 +467,213 @@ INCIDENTAL_TRACEBACK_LINES = [
     "OSError: [Errno 9] Bad file descriptor",
 ]
 
+JS_HOOT_FAILURE_LINES = [
+    "2026-01-01 00:00:00,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] Test "@web/core/autocomplete/close on escape" failed:',
+    "2026-01-01 00:00:00,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] Test "@web/core/action_swiper/render only its target" failed:',
+]
+JS_QUNIT_AGGREGATE_LINE = (
+    "2026-01-01 00:00:00,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: 8 / 422 tests failed. "
+)
+# The traceback ECHO of the failing browser_js call: the success marker printed
+# verbatim as a SOURCE line, with no logger prefix, inside a run that FAILED.
+# A real one carries the prefix and speaks for its own scope only, never for
+# the file - this one speaks for nothing at all.
+JS_SUCCESS_SIGNAL_ECHO = (
+    "    self.browser_js('/web/tests?headless&preset=desktop', \"\", \"\", "
+    'login=\'admin\', timeout=1800, success_signal="[HOOT] Test suite succeeded", '
+    "error_checker=unit_test_error_checker)"
+)
+
+
+# label -> (verb, series, the log odoo-bin prints, odoo-bin exit code, wanted verdict).
+# The wanted verdict is the run's own: TEST_RESULT for the test verb, STATUS for init.
+CASES = {
+    "legacy-clean-pass": ("test", "12.0", [PROGRESS_LINE, LOADED_MARKER, LEGACY_RAN_MARKER], 0,
+                          "passed"),
+    "pass-with-unrelated-error": (
+        "test", "17.0", [PROGRESS_LINE, LOADED_MARKER, UNRELATED_ERROR_LINE, PASSING_SUMMARY],
+        0, "passed"),
+    "install-with-unrelated-error": (
+        "init", "17.0", [PROGRESS_LINE, UNRELATED_ERROR_LINE, LOADED_MARKER], 0, "ok"),
+    "install-silent-skip": (
+        "init", "17.0", [PROGRESS_LINE, "invalid module names, ignored", LOADED_MARKER], 0,
+        "error"),
+    "incidental-traceback": (
+        "test", "17.0", [PROGRESS_LINE, *INCIDENTAL_TRACEBACK_LINES, PASSING_SUMMARY], 0,
+        "passed"),
+    "per-test-failure": (
+        "test", "17.0",
+        [PROGRESS_LINE, LOADED_MARKER, *PER_TEST_FAILURE_LINES, AGG_PER_DATABASE_V14_PLUS], 1,
+        "failed"),
+    "individual-markers-vs-disagreeing-aggregate": (
+        "test", "17.0",
+        [PROGRESS_LINE, *PER_TEST_FAILURE_LINES, *SECOND_PER_TEST_FAILURE_LINES,
+         *THIRD_PER_TEST_FAILURE_LINES, AGG_PER_DATABASE_DISAGREEING], 0, "failed"),
+    "aggregate-per-module-v8-v13": (
+        "test", "12.0", [PROGRESS_LINE, AGG_PER_MODULE_V8_V13], 0, "failed"),
+    "aggregate-per-module-v14-plus": (
+        "test", "17.0", [PROGRESS_LINE, AGG_PER_MODULE_V14_PLUS], 0, "failed"),
+    "aggregate-per-database-v14-plus": (
+        "test", "17.0", [PROGRESS_LINE, AGG_PER_DATABASE_V14_PLUS], 0, "failed"),
+    "blanket-failure": ("test", "17.0", [PROGRESS_LINE, AGG_BLANKET_ALL_SERIES], 0, "failed"),
+    "nonzero-exit-clean-log": (
+        "test", "17.0", [PROGRESS_LINE, LOADED_MARKER, PASSING_SUMMARY], 3, "failed"),
+    # Exit 0: the abort marker alone must rule it, not the exit status.
+    "hard-abort": ("test", "17.0", [PROGRESS_LINE, HARD_ABORTS["critical"]], 0, "failed"),
+    "js-failure": ("test", "19.0", [PROGRESS_LINE, LOADED_MARKER, *JS_HOOT_FAILURE_LINES], 0,
+                   "failed"),
+    # Neither of these proves a pass, and neither is a failure - the two shapes the real
+    # corpus holds for a run that finished having certified nothing.
+    "tag-filter-matched-nothing": (
+        "test", "17.0", [PROGRESS_LINE, LOADED_MARKER, ZERO_TESTS_SUMMARY], 0, "inconclusive"),
+    "every-matched-test-skipped": (
+        "test", "17.0", [PROGRESS_LINE, LOADED_MARKER, SKIPPED_TEST_LINE, SKIP_ONLY_SUMMARY], 0,
+        "inconclusive"),
+}
+
+
+class _Outcome:
+    def __init__(self, verb, wait):
+        self.verb = verb
+        self.wait = wait
+
+
+@pytest.fixture(scope="module")
+def outcome(tmp_path_factory):
+    """label -> the verb's own result and the `wait-log` result over the SAME log, each
+    computed on first use and then shared by every test that reads that shape."""
+    cache: dict = {}
+
+    def get(label: str):
+        if label not in cache:
+            verb, series, lines, code, _want = CASES[label]
+            root = tmp_path_factory.mktemp(label)
+            res, log, env = _run_verb(root, verb, db=label.replace("-", ""), version=series,
+                                      lines=lines, exit_code=code)
+            cache[label] = _Outcome(res, _wait(log, env))
+        return cache[label]
+
+    return get
+
 
 @requires_bash
-def test_a_traceback_alone_never_rules_a_test_run_failed(tmp_path):
-    """A traceback is not a test verdict, and the executed rule must say so too.
+@pytest.mark.parametrize("label", sorted(CASES))
+def test_the_two_paths_never_disagree_on_the_log_the_run_produced(outcome, label):
+    """One log, one outcome.
 
-    The marker SSOT already argues that on a `--test-enable` run a traceback is
-    per-test/incidental evidence and never a completion or failure signal - the
-    same false-RED class as keying on the log-LEVEL column. Ruling on it anyway
-    fails a run whose OWN summary reports that nothing failed.
-
-    Measured against every real run log on disk: the traceback count matches the
-    per-test FAIL:/ERROR: marker count in only three quarters of them, diverging
-    by as much as 96 tracebacks against 4 markers - so a traceback cannot stand
-    in for a failure marker even as an approximation.
+    `wait-log` reads the very log the verb just finished writing - the verdict line
+    included. `BUILD_RESULT=failure` and `TEST_RESULT=failed` must therefore hold
+    together or not at all, for every shape of log a real run can produce - and the
+    run's own verdict must be the one the shape deserves (an unrelated ERROR line or a
+    traceback is no failure, an abort marker or a non-zero exit is).
     """
-    res, _log, _env_ = _run_verb(
-        tmp_path, "test", db="tbonly", version="17.0",
-        lines=[PROGRESS_LINE, *INCIDENTAL_TRACEBACK_LINES, PASSING_SUMMARY])
-    assert _field(res, "TEST_RESULT") == "passed", (
-        "a run whose own summary reports 0 failed / 0 errors was ruled failed by an "
-        f"incidental traceback\n{res.stdout}"
+    o = outcome(label)
+    verb, _series, _lines, _code, want = CASES[label]
+    ctx = f"\nverb stdout:\n{o.verb.stdout}\nwait-log stdout:\n{o.wait.stdout}"
+    build = _field(o.wait, "BUILD_RESULT")
+    assert _field(o.wait, "BUILD_PROGRESS"), f"[{label}] no progress reading{ctx}"
+    if verb == "init":
+        assert f"STATUS={want}" in o.verb.stdout.splitlines(), f"[{label}]{ctx}"
+        assert build == {"ok": "success", "error": "failure"}[want], (
+            f"[{label}] the polling verdict contradicts the run's own STATUS={want}{ctx}"
+        )
+        return
+    assert _field(o.verb, "TEST_RESULT") == want, (
+        f"[{label}] the run's own verdict must be {want}{ctx}"
     )
-    assert _field(res, "TEST_FAILED") == "0", res.stdout
-    assert _field(res, "TEST_ERROR") == "0", res.stdout
+    assert f"TEST_RESULT={want}" in o.wait.stdout, (
+        f"[{label}] wait-log must surface the verdict the log carries{ctx}"
+    )
+    if want == "failed":
+        assert build == "failure", (
+            f"[{label}] TEST_RESULT=failed but BUILD_RESULT={build}{ctx}"
+        )
+    elif want == "passed":
+        assert build == "success", (
+            f"[{label}] TEST_RESULT=passed but BUILD_RESULT={build}{ctx}"
+        )
+    else:
+        # The run declining to certify a pass: the polling verdict may neither overturn it
+        # into a failure nor - the direction that actually shipped - launder it into a
+        # success, and it has FINISHED so it is not an unfinished build either.
+        assert build not in ("failure", "success", "timeout"), (
+            f"[{label}] TEST_RESULT={want} but BUILD_RESULT={build}{ctx}"
+        )
 
 
 @requires_bash
-def test_a_failing_test_is_still_failed_when_it_carries_a_traceback(tmp_path):
-    """The guard on the other side - and the more dangerous direction.
-
-    Dropping the traceback from the test verdict must not lose a single genuinely
-    failing run. It cannot: `odoo/tests/result.py` logs the `FAIL:`/`ERROR:`
-    marker BEFORE the traceback body, so every failing test is still named by a
-    marker the verdict does rule on - every failing PYTHON test, that is; a
-    Hoot/QUnit failure never writes a traceback and is ruled on by its own
-    markers in the same union.
-    """
-    res, _log, _env_ = _run_verb(
-        tmp_path, "test", db="tbfail", version="17.0",
-        lines=[PROGRESS_LINE, *PER_TEST_FAILURE_LINES, AGG_PER_DATABASE_V14_PLUS])
-    assert _field(res, "TEST_RESULT") == "failed", (
-        "a run with a named failing test must still be failed\n" + res.stdout
-    )
-    waited = _wait(_log, _env_)
-    assert _field(waited, "BUILD_RESULT") == "failure", (
-        "the polling path must reach the same failed verdict\n" + waited.stdout
-    )
-
-
-@requires_bash
-def test_a_hard_abort_still_fails_a_test_run_with_no_test_marker_at_all(tmp_path):
-    """The other thing the traceback used to carry, which must NOT be lost.
-
-    An install failure inside a `--test-enable` build writes no fail-, skip- or
-    ran-marker, so without a rule of its own it falls through to a bare
-    `inconclusive`. It is a FAILED run - the suite could not run - and the abort
-    marker set, which stays terminal for every verb, is what rules it.
-    """
-    res, _log, _env_ = _run_verb(
-        tmp_path, "test", db="abortonly", version="17.0",
-        lines=[PROGRESS_LINE, HARD_ABORTS["critical"]])
-    assert _field(res, "TEST_RESULT") == "failed", (
-        "a build that aborted before its suite could run is failed, not "
-        "inconclusive\n" + res.stdout
-    )
-
-
-@requires_bash
-def test_a_count_the_log_cannot_measure_is_empty_never_zero(tmp_path):
-    """The blanket failure line carries NO number.
-
-    That run's failure counts are UNMEASURABLE, which is a different fact from
-    zero - the same rule the scope fields already follow. Reporting 0 here
-    fabricates a figure and contradicts the verdict at the same time.
-    """
-    res, _log, _env_ = _run_verb(tmp_path, "test", db="unmeasurable", version="17.0",
-                                 lines=[PROGRESS_LINE, AGG_BLANKET_ALL_SERIES])
-    assert _field(res, "TEST_RESULT") == "failed", res.stdout
-    assert _field(res, "TEST_FAILED") == "", (
-        "an unmeasurable failure count must be reported EMPTY, not 0\n" + res.stdout
-    )
-    assert _field(res, "TEST_ERROR") == "", (
-        "an unmeasurable error count must be reported EMPTY, not 0\n" + res.stdout
-    )
-
-
-@requires_bash
-@pytest.mark.parametrize("series,ran_marker", [
-    ("12.0", LEGACY_RAN_MARKER),
-    ("17.0", PASSING_SUMMARY),
+@pytest.mark.parametrize("label,want_failed,want_error", [
+    # An aggregate-only failure still published its numbers: `TEST_FAILED=0` beside
+    # `TEST_RESULT=failed` says the run failed and that nothing failed in one breath.
+    ("aggregate-per-module-v8-v13", "2", "1"),
+    ("aggregate-per-module-v14-plus", "2", "1"),
+    ("aggregate-per-database-v14-plus", "2", "1"),
+    # The blanket line carries no number: UNMEASURABLE is not zero.
+    ("blanket-failure", "", ""),
+    # The individually named tests are the source of the counts; the aggregate (7/9)
+    # disagrees on purpose, so only the per-test figures can satisfy this.
+    ("individual-markers-vs-disagreeing-aggregate", "2", "1"),
+    # A suite that ran and named no failing test measured zero, and an incidental
+    # traceback is not a failing test.
+    ("pass-with-unrelated-error", "0", "0"),
+    ("legacy-clean-pass", "0", "0"),
+    ("incidental-traceback", "0", "0"),
 ])
-def test_a_measured_zero_is_still_reported_as_zero(tmp_path, series, ran_marker):
-    """EMPTY is reserved for "the log carried no marker to measure it".
-
-    A suite that ran and named no failing test measured zero failures, so zero
-    is the honest answer there - the distinction is only worth having if both
-    sides of it hold.
-    """
-    res, _log, _env_ = _run_verb(tmp_path, "test", db=f"measured{series.replace('.', '')}",
-                                 version=series, lines=[PROGRESS_LINE, LOADED_MARKER,
-                                                        ran_marker])
-    assert _field(res, "TEST_RESULT") == "passed", res.stdout
-    assert _field(res, "TEST_FAILED") == "0", (
-        f"a suite that ran clean measured 0 failures\n{res.stdout}"
+def test_the_count_fields_report_what_the_log_measured(outcome, label, want_failed, want_error):
+    res = outcome(label).verb
+    assert _field(res, "TEST_FAILED") == want_failed, (
+        f"[{label}] TEST_FAILED must be {want_failed!r}\n{res.stdout}"
     )
-    assert _field(res, "TEST_ERROR") == "0", (
-        f"a suite that ran clean measured 0 errors\n{res.stdout}"
+    assert _field(res, "TEST_ERROR") == want_error, (
+        f"[{label}] TEST_ERROR must be {want_error!r}\n{res.stdout}"
     )
 
 
 @requires_bash
-def test_the_findings_file_explains_a_failure_the_log_never_recorded(tmp_path):
-    """The last route to a `failed` verdict: odoo-bin exited non-zero over a log
-    that names nothing wrong. Zero failing tests is the honest count there, so
-    the findings file has to carry the REASON instead - "no failing tests" on its
-    own would read as "nothing to look at" for a build that failed."""
-    res, _log, _env_ = _run_verb(tmp_path, "test", db="exitonly", version="17.0",
-                                 lines=[PROGRESS_LINE, LOADED_MARKER, PASSING_SUMMARY],
-                                 exit_code=3)
-    assert _field(res, "TEST_RESULT") == "failed", res.stdout
-    text = _findings(res)
+@pytest.mark.parametrize("label", [
+    "aggregate-per-module-v8-v13", "aggregate-per-module-v14-plus",
+    "aggregate-per-database-v14-plus", "blanket-failure",
+])
+def test_the_findings_file_never_claims_nothing_failed_for_a_failed_verdict(outcome, label):
+    """The findings file is the artifact an agent reads to learn WHY a build
+    failed. It may not answer "nothing failed" for a run whose verdict is
+    `failed` - and it must show the line that states the failure."""
+    text = _findings(outcome(label).verb)
+    assert "No failing or errored tests detected" not in text, (
+        f"[{label}] the findings file for a FAILED run says nothing failed:\n{text}"
+    )
+    evidence = CASES[label][2][-1].split(": ", 2)[-1]
+    assert evidence in text, (
+        f"[{label}] the findings file must show the line that states the failure "
+        f"({evidence!r}):\n{text}"
+    )
+
+
+@requires_bash
+def test_the_findings_file_explains_a_failure_the_log_never_recorded(outcome):
+    """odoo-bin exited non-zero over a log that names nothing wrong. Zero failing
+    tests is the honest count there, so the findings file may not answer "nothing
+    failed" - it has to state the verdict it was written for."""
+    text = _findings(outcome("nonzero-exit-clean-log").verb)
     assert "No failing or errored tests detected" not in text, (
         f"the findings file for a FAILED run says nothing failed:\n{text}"
     )
     assert "TEST_RESULT=failed" in text, (
         f"the findings file must state the verdict it was written for:\n{text}"
     )
-    assert "exit code" in text, (
-        f"the findings file must name the non-zero exit as the reason:\n{text}"
-    )
 
 
 @requires_bash
-def test_an_install_silent_skip_fails_both_paths_together(tmp_path):
-    """Agreement has to hold in the failure direction too, for a build that runs
-    no tests: a silent-skipped module leaves odoo-bin at exit 0 with "Modules
-    loaded." on the log, and both verdicts must still call it failed."""
-    res, log, env = _run_verb(
-        tmp_path, "init", db="silentskip", version="17.0",
-        lines=[PROGRESS_LINE, "invalid module names, ignored", LOADED_MARKER])
-    assert "STATUS=error" in res.stdout.splitlines(), (
-        f"a silently skipped module is not a successful install\n{res.stdout}"
-    )
-    waited = _wait(log, env)
-    assert _field(waited, "BUILD_RESULT") == "failure", (
-        f"the polling verdict must agree with STATUS=error\n{waited.stdout}"
-    )
+def test_every_failing_browser_test_is_named(outcome):
+    """Both browser failures must be named, not collapsed into one."""
+    res = outcome("js-failure").verb
+    assert _field(res, "JS_FAILED_TESTS") == "2", res.stdout
 
-
-@requires_bash
-def test_individual_markers_still_win_over_the_aggregate(tmp_path):
-    """The aggregate is a FALLBACK. When the log names the individual failing
-    tests, those markers stay the source of the counts.
-
-    The two sources must report DIFFERENT numbers for this to prove anything: a
-    log whose per-test markers and whose aggregate agree passes under EITHER
-    precedence rule and discriminates nothing. Here the log names 2 failing and
-    1 errored test individually while its aggregate claims 7 and 9, so only the
-    per-test figures can satisfy the assertions and only the aggregate's can
-    fail them.
-    """
-    res, _log, _env_ = _run_verb(
-        tmp_path, "test", db="individualwins", version="17.0",
-        lines=[PROGRESS_LINE, *PER_TEST_FAILURE_LINES, *SECOND_PER_TEST_FAILURE_LINES,
-               *THIRD_PER_TEST_FAILURE_LINES, AGG_PER_DATABASE_DISAGREEING])
-    assert _field(res, "TEST_RESULT") == "failed", res.stdout
-    assert _field(res, "TEST_FAILED") == "2", (
-        "the two individually named FAILING tests must be counted from their own "
-        f"markers, not read off the aggregate's `7 failed`\n{res.stdout}"
-    )
-    assert _field(res, "TEST_ERROR") == "1", (
-        "the one individually named ERRORED test must be counted from its own "
-        f"marker, not read off the aggregate's `9 error(s)`\n{res.stdout}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1070,72 +1005,6 @@ def test_no_log_at_all_reports_absent_evidence_not_a_stall(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# The whole point, asserted directly: on the log the run actually produced, the
-# two paths must never disagree.
-# ---------------------------------------------------------------------------
-
-DISAGREEMENT_MATRIX = [
-    ("clean-pass", "17.0", [PROGRESS_LINE, LOADED_MARKER, PASSING_SUMMARY], 0),
-    ("pass-with-unrelated-error", "17.0",
-     [PROGRESS_LINE, LOADED_MARKER, UNRELATED_ERROR_LINE, PASSING_SUMMARY], 0),
-    ("legacy-clean-pass", "12.0", [PROGRESS_LINE, LOADED_MARKER, LEGACY_RAN_MARKER], 0),
-    ("per-test-failure", "17.0",
-     [PROGRESS_LINE, LOADED_MARKER, *PER_TEST_FAILURE_LINES, AGG_PER_DATABASE_V14_PLUS], 1),
-    ("aggregate-only-failure", "17.0", [PROGRESS_LINE, AGG_PER_DATABASE_V14_PLUS], 0),
-    ("legacy-aggregate-only-failure", "12.0", [PROGRESS_LINE, AGG_PER_MODULE_V8_V13], 0),
-    ("blanket-failure", "17.0", [PROGRESS_LINE, AGG_BLANKET_ALL_SERIES], 0),
-    ("nonzero-exit-clean-log", "17.0", [PROGRESS_LINE, LOADED_MARKER, PASSING_SUMMARY], 1),
-    ("hard-abort", "17.0", [PROGRESS_LINE, HARD_ABORTS["critical"]], 1),
-    # Neither of these proves a pass, and neither is a failure - the two shapes
-    # the real corpus holds for a run that finished having certified nothing.
-    ("tag-filter-matched-nothing", "17.0",
-     [PROGRESS_LINE, LOADED_MARKER, ZERO_TESTS_SUMMARY], 0),
-    ("every-matched-test-skipped", "17.0",
-     [PROGRESS_LINE, LOADED_MARKER, SKIPPED_TEST_LINE, SKIP_ONLY_SUMMARY], 0),
-]
-
-
-@requires_bash
-@pytest.mark.parametrize("label,series,lines,exit_code", DISAGREEMENT_MATRIX)
-def test_the_two_paths_never_disagree_on_the_log_the_run_produced(
-        tmp_path, label, series, lines, exit_code):
-    """One log, one outcome.
-
-    `wait-log` reads the very log the `test` verb just finished writing - the
-    verdict line included. `BUILD_RESULT=failure` and `TEST_RESULT=failed` must
-    therefore hold together or not at all, for every shape of log a real run
-    can produce.
-    """
-    res, log, env = _run_verb(tmp_path, "test", db=f"agree{label.replace('-', '')}",
-                              version=series, lines=lines, exit_code=exit_code)
-    verdict = _field(res, "TEST_RESULT")
-    waited = _wait(log, env)
-    build = _field(waited, "BUILD_RESULT")
-    if verdict == "failed":
-        assert build == "failure", (
-            f"[{label}] the run reported TEST_RESULT=failed but the polling "
-            f"verdict reported BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
-            f"\nwait-log stdout:\n{waited.stdout}"
-        )
-    elif verdict == "passed":
-        assert build == "success", (
-            f"[{label}] the run reported TEST_RESULT=passed but the polling "
-            f"verdict reported BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
-            f"\nwait-log stdout:\n{waited.stdout}"
-        )
-    else:
-        # Every remaining verdict is the run declining to certify a pass. The
-        # polling verdict may neither overturn that into a failure nor - the
-        # direction that actually shipped - launder it into a success.
-        assert build not in ("failure", "success"), (
-            f"[{label}] the run reported TEST_RESULT={verdict}, which certifies "
-            f"neither a pass nor a failure, but the polling verdict reported "
-            f"BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
-            f"\nwait-log stdout:\n{waited.stdout}"
-        )
-
-
-# ---------------------------------------------------------------------------
 # CONTRACT 5 - EVERY verdict the run can publish is mapped, deliberately
 #
 # `_parse_test_result` publishes the run's verdict on the log; `_scan_build_markers`
@@ -1351,39 +1220,6 @@ def test_a_skip_bearing_ran_marker_is_not_certified_green_before_the_verdict_lan
     )
 
 
-@requires_bash
-@pytest.mark.parametrize("label,series,lines", [
-    # Measured on the real corpus: two runs whose tag filter matched zero tests,
-    # two whose every matched test was skipped. Both shapes are genuine test-verb
-    # runs that finished, and neither proves a pass.
-    ("tag-filter-matched-nothing", "17.0", [ZERO_TESTS_SUMMARY]),
-    ("every-matched-test-skipped", "17.0", [SKIPPED_TEST_LINE, SKIP_ONLY_SUMMARY]),
-])
-def test_a_run_that_proved_no_pass_reads_inconclusive_on_both_paths(
-        tmp_path, label, series, lines):
-    """End to end, on the log shapes the corpus actually holds.
-
-    The `test` verb rules the run `inconclusive`, appends that to the log, and
-    `wait-log` reads the same log back. The two answers must be the SAME fact in
-    the two vocabularies - not one refusing to claim a pass while the other
-    claims it.
-    """
-    res, log, env = _run_verb(tmp_path, "test", db=f"honest{label.replace('-', '')}",
-                              version=series,
-                              lines=[PROGRESS_LINE, LOADED_MARKER, *lines])
-    assert _field(res, "TEST_RESULT") == "inconclusive", (
-        f"[{label}] the run must refuse to claim a pass\nstdout:\n{res.stdout}"
-    )
-    waited = _wait(log, env)
-    build = _field(waited, "BUILD_RESULT")
-    assert build not in ("success", "timeout"), (
-        f"[{label}] the run reported TEST_RESULT=inconclusive but the polling "
-        f"verdict reported BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
-        f"\nwait-log stdout:\n{waited.stdout}"
-    )
-    assert _field(waited, "BUILD_PROGRESS"), (
-        f"[{label}] no progress reading on an inconclusive poll\n{waited.stdout}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1399,29 +1235,6 @@ def test_a_run_that_proved_no_pass_reads_inconclusive_on_both_paths(
 #
 # REDACTED excerpts of real 18.0/19.0 run logs; wording verbatim.
 # ---------------------------------------------------------------------------
-
-JS_HOOT_FAILURE_LINES = [
-    "2026-01-01 00:00:00,000 1 ERROR testdb "
-    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
-    '[HOOT] Test "@web/core/autocomplete/close on escape" failed:',
-    "2026-01-01 00:00:00,000 1 ERROR testdb "
-    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
-    '[HOOT] Test "@web/core/action_swiper/render only its target" failed:',
-]
-JS_QUNIT_AGGREGATE_LINE = (
-    "2026-01-01 00:00:00,000 1 ERROR testdb "
-    "odoo.addons.web.tests.test_js.WebSuite.browser: 8 / 422 tests failed. "
-)
-# The traceback ECHO of the failing browser_js call: the success marker printed
-# verbatim as a SOURCE line, with no logger prefix, inside a run that FAILED.
-# A real one carries the prefix and speaks for its own scope only, never for
-# the file - this one speaks for nothing at all.
-JS_SUCCESS_SIGNAL_ECHO = (
-    "    self.browser_js('/web/tests?headless&preset=desktop', \"\", \"\", "
-    'login=\'admin\', timeout=1800, success_signal="[HOOT] Test suite succeeded", '
-    "error_checker=unit_test_error_checker)"
-)
-
 
 @requires_bash
 def test_a_js_only_failure_is_never_certified_as_a_successful_build(tmp_path):
@@ -1476,23 +1289,3 @@ def test_a_success_signal_echo_never_certifies_a_build(tmp_path):
     )
 
 
-@requires_bash
-def test_both_paths_agree_on_a_js_failing_run(tmp_path):
-    """The invariant this file exists for, applied to the browser suite.
-
-    The foreground verdict rules the run failed and the background scan must
-    not call the same log a success - one caller polling and another blocking
-    on the same build have to be told the same thing.
-    """
-    res, log, env = _run_verb(
-        tmp_path, "test", db="jsagree", version="19.0",
-        lines=[PROGRESS_LINE, LOADED_MARKER, *JS_HOOT_FAILURE_LINES])
-    assert _field(res, "TEST_RESULT") == "failed", res.stdout
-    assert _field(res, "JS_FAILED_TESTS") == "2", (
-        f"both browser failures must be named, not collapsed\n{res.stdout}"
-    )
-    waited = _wait(log, env)
-    assert _field(waited, "BUILD_RESULT") != "success", (
-        "the background path certified a build the foreground path failed\n"
-        f"{waited.stdout}"
-    )

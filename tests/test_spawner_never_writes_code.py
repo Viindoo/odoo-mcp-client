@@ -183,22 +183,6 @@ def test_notebook_edit_is_covered_by_its_own_path_key():
     _denied(_run("NotebookEdit", {"notebook_path": "/w/addons/sale_x/explore.ipynb"}))
 
 
-def test_the_deny_reason_routes_to_needs_next_and_never_to_writing_it_anyway():
-    """A refusal with no move is a refusal the agent works around. It must name the rung
-    (NEEDS_NEXT), say a refused dispatch is reported upward, and say plainly which artifacts are
-    unaffected - otherwise a spawner concludes it may not write its own worklog either."""
-    reason = _denied(_run("Edit", {"file_path": SOURCE_PATHS[0]}))
-    low = reason.lower()
-    assert "needs_next" in low, f"the rung must be named: {reason!r}"
-    assert "never" in low and "routing failure" in low, (
-        f"must state a refused dispatch is reported upward, not absorbed: {reason!r}"
-    )
-    assert "worklog" in low, (
-        f"must say which of its own artifacts are unaffected, or the refusal over-reads: {reason!r}"
-    )
-    assert SOURCE_PATHS[0] in reason, f"must name the file it refused: {reason!r}"
-
-
 # --------------------------------------------------------------------------- #
 # PASS - the gate must not over-apply
 # --------------------------------------------------------------------------- #

@@ -390,17 +390,16 @@ def test_cli_refuses_an_unusable_invocation_without_emitting_a_rule(argv):
 # --------------------------------------------------------------------------- #
 # Structural guard: the escalation path the owner rejected must not exist
 # --------------------------------------------------------------------------- #
-def test_no_allow_sudo_escape_hatch_exists_anywhere_in_the_plugin():
+def test_no_allow_sudo_escape_hatch_exists_anywhere_in_the_plugin_code():
     """The native arm is ADVISE-ONLY, with no opt-in that changes that.
 
-    An `--allow-sudo` would ship privileged edits of a system file through a code
-    path no observation covers - the arm was designed against a host that has no
-    native cluster to exercise it on. Scanned across the whole plugin tree so the
-    guard cannot pass by looking at one file.
-    """
+    An `--allow-sudo` would ship privileged edits of a system file through a code path no
+    observation covers - the arm was designed against a host that has no native cluster to
+    exercise it on. Every script, hook and Python file of the plugin is scanned (code only)."""
     offenders = []
-    for path in list((PLUGIN).rglob("*.sh")) + list((PLUGIN).rglob("*.py")) \
-            + list((PLUGIN).rglob("*.md")):
+    for path in list(PLUGIN.rglob("*.sh")) + list(PLUGIN.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):

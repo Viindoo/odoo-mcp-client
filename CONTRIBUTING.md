@@ -71,7 +71,7 @@ on `PATH`. To share one venv between worktrees, pass `make test VENV=/path/to/.v
 
 ```bash
 make validate    # plugin schema check + tests/test_plugin_schema.py + test_skill_format.py + workflow schema
-make test        # full pytest suite (tests/) - same command CI runs
+make test        # full pytest suite (tests/): a parallel pass, then the timing-sensitive tests alone - CI runs the same two passes
 make gen-check   # regenerate SSOT artifacts, then fail if any diff remains
 ```
 
@@ -82,6 +82,17 @@ What each gate enforces:
 | `make validate` | Malformed plugin.json, bad skill frontmatter, a skill listing over its budget or a non-English description, workflow schema violations |
 | `make test` | All pytest tests including `test_version_consistency.py` (VERSION == plugin.json), naming rules, routing-sync checks, disambiguation contract |
 | `make gen-check` | Generated artifacts (gemini-extension.json, skill `## MCP tools` sections, IDE snippets, orchestration map) not committed after a change to their SSOT |
+
+`make test` exits non-zero when either pass fails; `make test TEST_WORKERS=4` lowers the worker
+count. When you write a test:
+
+- a test that asserts elapsed time against a bound, or drives a real browser, gets one line in
+  `SERIAL_TESTS` in `tests/conftest.py`, so it runs alone;
+- tests that share a module-scoped fixture live in one file (the parallel pass hands out whole
+  files);
+- a test never binds a fixed port another file also uses.
+
+`requirements.txt` serves `make setup` and CI only - nothing in it reaches a plugin user's machine.
 
 Run all three together before every push:
 
@@ -220,7 +231,7 @@ duplicates the `description` and pollutes the system prompt with text the runnin
 act on. Genuine runtime constraints (read-only, one SHA per instance, never spawn subagents)
 belong in the role intro or a dedicated constraints section of the body, not in a routing
 heading. Worked "when to dispatch" scenarios belong in the `description` (inline or as
-`<example>` blocks). Guard: `tests/test_agent_body_convention.py`.
+`<example>` blocks).
 
 This mirrors Anthropic's subagent contract - the frontmatter `description` is the selection
 signal and the body is the system prompt: see

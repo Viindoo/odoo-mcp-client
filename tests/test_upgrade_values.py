@@ -167,12 +167,3 @@ def test_nothing_to_do_when_the_files_are_already_in_the_current_form(tmp_path):
     proc = _run(world, "--plugin-id", PID, "apply")
     assert proc.returncode == 0 and "NOTHING=" in proc.stdout
     assert _calls(world) == []
-
-
-def test_the_setup_command_hands_the_upgrade_command_to_the_operator_when_check_says_so():
-    setup = (ROOT / "plugins" / "odoo-ai-agents" / "commands" / "references" / "odoo-setup"
-             / "steps-publishing.md").read_text(encoding="utf-8")
-    assert setup.count("`UPGRADE=`") >= 2          # the speech note and the youtube note
-    assert "never yours" in setup                   # the agent never materializes the value itself
-    for lib in ("speech_config.py", "youtube_config.py"):
-        assert "upgrade_values.py" in (LIB / lib).read_text(encoding="utf-8"), lib

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -155,9 +156,11 @@ def world(tmp_path):
     anchor = session_anchor.format_anchor(anchor_proc.pid, session_anchor.fingerprint(anchor_proc.pid))
 
     def env(**extra):
-        return hermetic_env(home, ODOO_AI_SESSION_ANCHOR=anchor, CLAUDE_CODE_SESSION_ID="sess-inst",
-                            ODOO_BIN=str(odoo_bin), PATH="%s:%s" % (bindir, os.environ.get("PATH", "")),
-                            SPINUP_TIMEOUT="10", **extra)
+        values = dict(ODOO_AI_SESSION_ANCHOR=anchor, CLAUDE_CODE_SESSION_ID="sess-inst",
+                      ODOO_BIN=str(odoo_bin), PATH="%s:%s" % (bindir, os.environ.get("PATH", "")),
+                      SPINUP_TIMEOUT="10")
+        values.update(extra)
+        return hermetic_env(home, **values)
 
     w = {"home": home, "work": tmp_path, "addons": addons, "behavior": behavior, "calls": calls,
          "confs": confs, "rc_env": rc_env,
@@ -244,50 +247,53 @@ def test_build_runs_against_the_leases_coordinates_and_succeeds(client, world):
     assert "--addons-path %s" % world["addons"] in argv
     assert "--log-level=debug" in argv
     assert "--without-demo=True" in argv, "demo off on 17.0 is spelled --without-demo=True by the tool"
+    assert _odoo_bin_port_flags(world) == [], "a port-less install passes no port flag"
 
 
-def test_build_that_silently_skips_a_module_is_a_failure(client, world):
+def test_a_builds_verdict_is_its_exit_code_and_the_markers_the_script_reads(client, world):
+    """One lease, three builds: a module Odoo silently skipped is a failure; a failing test run is a
+    failure that carries the test verdict; a running build answers a short wait with its state and
+    the next wait with the verdict."""
+    lease = _lease(client, world, ports=1)
+
     world["behavior"].write_text(
         'echo "odoo.modules.loading: invalid module names, ignored: my_mod"\n'
         'echo "odoo.modules.loading: Modules loaded."\nexit 0\n', encoding="utf-8")
-    lease = _lease(client, world)
     done = _wait(client, _ok(_build(client, world, lease["token"]))["job_id"])
-    assert done["result"] == "failure", done
-    assert done["exit_code"] != 0
+    assert done["result"] == "failure" and done["exit_code"] != 0, ("a skipped module", done)
 
-
-def test_failing_test_run_reports_failure_and_the_test_verdict(client, world):
     world["behavior"].write_text(
         'echo "odoo.modules.loading: Modules loaded."\n'
         'echo "odoo.tests.result: 1 failed, 0 error(s) of 3 tests when loading database"\nexit 1\n',
         encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    job = _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod"))
-    done = _wait(client, job["job_id"])
-    assert done["result"] == "failure"
-    assert done["test_result"] == "failed"
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod"))["job_id"])
+    assert done["result"] == "failure" and done["test_result"] == "failed", ("a failing test run", done)
     assert done["summary"].get("TEST_TAGS_USED") == "/my_mod"
     assert "--test-tags /my_mod" in world["calls"].read_text()
 
-
-def test_wait_times_out_while_running_then_reports_the_verdict(client, world):
-    world["behavior"].write_text('sleep 4\necho "odoo.modules.loading: Modules loaded."\nexit 0\n',
+    gate = world["work"] / "build-gate"
+    world["behavior"].write_text('while [[ ! -f "%s" ]]; do sleep 0.1; done\n'
+                                 'echo "odoo.modules.loading: Modules loaded."\nexit 0\n' % gate,
                                  encoding="utf-8")
-    lease = _lease(client, world)
     job_id = _ok(_build(client, world, lease["token"]))["job_id"]
     first = _wait(client, job_id, timeout_s=1)
-    assert first["result"] == "timeout" and first["state"] == "running"
+    assert first["result"] == "timeout" and first["state"] == "running", ("a running build", first)
+    gate.write_text("go", encoding="utf-8")
     assert _wait(client, job_id)["result"] == "success"
 
 
 def test_job_survives_a_server_restart(world):
-    world["behavior"].write_text('sleep 3\necho "odoo.modules.loading: Modules loaded."\nexit 0\n',
+    gate = world["work"] / "build-gate"
+    world["behavior"].write_text('while [[ ! -f "%s" ]]; do sleep 0.1; done\n'
+                                 'echo "odoo.modules.loading: Modules loaded."\nexit 0\n' % gate,
                                  encoding="utf-8")
     with McpClient(world["env"](), world["work"]) as first:
         first.initialize()
         lease = _lease(first, world)
         job_id = _ok(_build(first, world, lease["token"]))["job_id"]
-    # The first server is gone; a fresh one knows the job from its record on disk.
+    # The first server is gone and the build still runs; a fresh one knows the job from its record
+    # on disk.
+    gate.write_text("go", encoding="utf-8")
     with McpClient(world["env"](), world["work"]) as second:
         second.initialize()
         done = _wait(second, job_id)
@@ -298,7 +304,9 @@ def test_release_stops_a_build_still_running_on_the_lease(client, world):
     world["behavior"].write_text("sleep 120\nexit 0\n", encoding="utf-8")
     lease = _lease(client, world)
     job = _ok(_build(client, world, lease["token"]))
-    time.sleep(1)
+    deadline = time.monotonic() + 30
+    while not world["calls"].exists() and time.monotonic() < deadline:
+        time.sleep(0.1)  # the build is running once odoo-bin has been launched
     out = _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
     assert [j["job_id"] for j in out["stopped_jobs"] if j["stopped"]] == [job["job_id"]]
     done = _wait(client, job["job_id"], timeout_s=5)
@@ -318,6 +326,20 @@ def test_build_argument_contract(client, world):
     for over, needle in cases:
         err = _err(_build(client, world, token, **over))
         assert err["code"] == "INVALID_ARGUMENTS" and needle in err["message"], (over, err)
+    # An extra arg that sets what the tool controls is refused through the tool, naming the flag
+    # (which tokens count is decided by refused_extra_flag, held to the full table below): a long
+    # option, a short-option cluster and a build fact.
+    for extra in ("--database=other", "-sdother_db", "--load=base,web"):
+        err = _err(_build(client, world, token, extra_args=["--log-level=debug", extra]))
+        assert err["code"] == "INVALID_ARGUMENTS" and "arguments.extra_args" in err["message"], extra
+        assert err["diagnostics"]["token"] == extra and err["diagnostics"]["flag"] in err["message"], extra
+    # A test build binds a port, so a lease without one is refused by name.
+    err = _err(_build(client, world, token, op="test", test_tags="/my_mod"))
+    assert err["code"] == "LEASE_HAS_NO_PORT" and "ports 1" in err["remedy"]
+    assert "instance_build" in err["remedy"]
+    jobs_dir = world["home"] / "runtime" / "jobs"
+    assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json")), "no refused build started a job"
+    assert not world["calls"].exists() or "--test-enable" not in world["calls"].read_text()
     assert _err(_build(client, world, "f" * 32))["code"] == "LEASE_NOT_FOUND"
     assert _err(client.call("job_wait", {"job_id": "job-unknown"}))["code"] == "JOB_NOT_FOUND"
     assert _err(client.call("job_wait", {"job_id": "x", "timeout_s": 541}))["code"] == "INVALID_ARGUMENTS"
@@ -338,60 +360,86 @@ def _ops_recorder(tmp_path):
     return stand_in, record
 
 
-def test_build_hands_the_script_every_lease_fact_via_the_ops_script_override(world, tmp_path):
+def test_the_tool_hands_the_script_the_leases_facts_not_the_agents(world, tmp_path):
     """ODOO_AI_OPS_SCRIPT (test-only) replaces the 55 script with a recorder, so the exact argv the
-    tool builds from the lease row - not from the agent - is observable."""
+    tool builds from the lease row - not from the agent - is observable: every connection fact of
+    the row, the declared odoo_root only when there is one, and the checkout's own second-port key."""
     stand_in, record = _ops_recorder(tmp_path)
+
+    def last_pairs():
+        argv = json.loads(record.read_text())["argv"]
+        return argv, dict(zip(argv[1::2], argv[2::2]))
+
     with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
         c.initialize()
         lease = _lease(c, world, ports=1)
         job = _ok(_build(c, world, lease["token"], op="test", modules=["a", "b"], test_mode="reuse",
                          log_mode="debug", extra_args=["--log-level=warn", "--workers=0"]))
         done = _wait(c, job["job_id"])
-    seen = json.loads(record.read_text())
-    argv = seen["argv"]
-    assert argv[0] == "test"
-    pairs = dict(zip(argv[1::2], argv[2::2]))
-    assert pairs["--db"] == lease["db_name"]
-    assert pairs["--python"] == str(world["python"])
-    assert pairs["--addons"] == str(world["addons"])
-    assert pairs["--modules"] == "a,b"
-    assert pairs["--version"] == SERIES
-    assert pairs["--db-host"] == "localhost" and pairs["--db-user"] == "odoo"
-    assert pairs["--mode"] == "reuse" and pairs["--log-mode"] == "debug"
-    assert pairs["--extra"] == "--log-level=warn --workers=0"
-    # A test build takes no demo argument: the tool hands the script the series default it read
-    # from the lease's checkout (SERIES loads demo by default).
-    assert pairs["--demo"] == "on" and pairs["--languages"] == "en_US"
-    assert "--load" not in argv, "nothing declared server-wide and no readable core: no --load"
-    assert "--db-port" not in argv, "an undeclared db_port is omitted, never invented"
-    assert pairs["--http-port"] == str(lease["ports"][0]), "the build binds the lease's own port"
-    assert seen["log"] == job["log_path"]
-    assert done["result"] == "success"
-
-
-def test_build_hands_the_script_the_declared_odoo_root(world, tmp_path):
-    """The build script locates the Odoo launcher on the served addons_path and falls back to the
-    instance's declared odoo_root - but only when it is handed that root. A lease whose
-    addons_path names only a worktree of custom modules failed every build ("Could not locate the
-    Odoo server launcher") because instance_build never passed it; an undeclared root is omitted."""
-    stand_in, record = _ops_recorder(tmp_path)
-    with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world)
-        _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
+        seen = json.loads(record.read_text())
+        argv, pairs = last_pairs()
+        assert argv[0] == "test"
+        assert pairs["--db"] == lease["db_name"]
+        assert pairs["--python"] == str(world["python"])
+        assert pairs["--addons"] == str(world["addons"])
+        assert pairs["--modules"] == "a,b"
+        assert pairs["--version"] == SERIES
+        assert pairs["--db-host"] == "localhost" and pairs["--db-user"] == "odoo"
+        assert pairs["--mode"] == "reuse" and pairs["--log-mode"] == "debug"
+        assert pairs["--extra"] == "--log-level=warn --workers=0"
+        # A test build takes no demo argument: the tool hands the script the series default it read
+        # from the lease's checkout (SERIES loads demo by default).
+        assert pairs["--demo"] == "on" and pairs["--languages"] == "en_US"
+        assert "--load" not in argv, "nothing declared server-wide and no readable core: no --load"
+        assert "--db-port" not in argv, "an undeclared db_port is omitted, never invented"
+        assert pairs["--http-port"] == str(lease["ports"][0]), "the build binds the lease's own port"
+        assert "--odoo-root" not in argv, "an undeclared odoo_root is omitted"
+        assert seen["log"] == job["log_path"]
+        assert done["result"] == "success"
         _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-    assert "--odoo-root" not in json.loads(record.read_text())["argv"]
 
-    core = world["addons"].parent
-    toml = world["home"] / "instances.toml"
-    toml.write_text(toml.read_text() + 'odoo_root = "%s"\n' % core, encoding="utf-8")
-    with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
-        c.initialize()
+        # The build script locates the Odoo launcher on the served addons_path and falls back to the
+        # instance's declared odoo_root - but only when it is handed that root: a lease whose
+        # addons_path names only a worktree of custom modules failed every build otherwise.
+        core = world["addons"].parent
+        toml = world["home"] / "instances.toml"
+        toml.write_text(toml.read_text() + 'odoo_root = "%s"\n' % core, encoding="utf-8")
         lease = _lease(c, world)
         _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
-    argv = json.loads(record.read_text())["argv"]
-    assert dict(zip(argv[1::2], argv[2::2])).get("--odoo-root") == str(core), argv
+        assert last_pairs()[1].get("--odoo-root") == str(core)
+        _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+        # With two ports the second one is spelled with the key the lease's checkout declares (its
+        # config.py option dest), so a series number can never pick a key the checkout lacks.
+        for checkout, key in (("8.0", "longpolling_port"), ("10.0", "longpolling_port"),
+                              ("15.0", "longpolling_port"), ("16.0", "gevent_port"),
+                              ("19.0", "gevent_port")):
+            _declare_series(world, SERIES, checkout=checkout)
+            lease = _lease(c, world, ports=2)
+            _wait(c, _ok(_build(c, world, lease["token"], op="test", test_tags="/x"))["job_id"])
+            pairs = last_pairs()[1]
+            assert pairs["--gevent-port"] == str(lease["ports"][1]), checkout
+            assert pairs["--gevent-port-key"] == key, checkout
+            _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
+def test_what_the_checkout_cannot_state_refuses_the_build_before_anything_starts(client, world):
+    """A second port the checkout cannot name, and a short extra arg with no readable checkout (what
+    a short option sets depends on the checkout), are refused rather than guessed."""
+    config = world["addons"].parent / "odoo" / "tools" / "config.py"
+    original = config.read_text()
+    config.write_text("\n".join(ln for ln in original.splitlines()
+                                if "--gevent-port" not in ln and "--longpolling-port" not in ln),
+                      encoding="utf-8")
+    lease = _lease(client, world, ports=2)
+    err = _err(_build(client, world, lease["token"], op="test", test_tags="/x"))
+    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN"
+    assert "odoo_root" in err["remedy"]
+    config.unlink()
+    err = _err(_build(client, world, lease["token"], demo=None, op="update", extra_args=["-t/x"]))
+    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN"
+    jobs_dir = world["home"] / "runtime" / "jobs"
+    assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json"))
 
 
 # --------------------------------------------------------------------------- #
@@ -404,34 +452,6 @@ def _odoo_bin_port_flags(world):
             if w in ("--http-port", "--xmlrpc-port", "--gevent-port", "--longpolling-port")]
 
 
-def _declare_series(world, series, checkout=None):
-    """Re-declare the stubbed world's single catalog row under another series, and make its core
-    dir a checkout of `checkout` (default: the same series)."""
-    toml = world["home"] / "instances.toml"
-    toml.write_text(toml.read_text().replace('series = "%s"' % SERIES, 'series = "%s"' % series),
-                    encoding="utf-8")
-    trees.write_checkout(world["addons"].parent, checkout or series, with_addons=False)
-
-
-@pytest.mark.parametrize("series,flag", [("17.0", "--http-port"), ("11.0", "--http-port"),
-                                         ("10.0", "--xmlrpc-port"), ("8.0", "--xmlrpc-port")])
-def test_a_test_build_binds_the_leases_port_with_its_series_flag(world, series, flag):
-    """Odoo starts its HTTP server whenever test mode is on, even with --stop-after-init. A test
-    build that does not pass the leased port binds the default 8069 and collides with whatever
-    already listens there - so odoo-bin must receive the lease's port, spelled for the series."""
-    _declare_series(world, series)
-    world["behavior"].write_text(
-        'echo "odoo.modules.loading: Modules loaded."\n'
-        'echo "odoo.tests.result: 0 failed, 0 error(s) of 2 tests when loading database"\nexit 0\n',
-        encoding="utf-8")
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series=series, ports=1)
-        job = _ok(_build(c, world, lease["token"], op="test", test_tags="/my_mod"))
-        _wait(c, job["job_id"])
-    assert _odoo_bin_port_flags(world) == [(flag, str(lease["ports"][0]))]
-
-
 def _interface_flags(world):
     """The (flag, value) pairs for the listen address in the recorded odoo-bin calls."""
     words = world["calls"].read_text().split()
@@ -439,91 +459,72 @@ def _interface_flags(world):
             if w in ("--http-interface", "--xmlrpc-interface")]
 
 
-@pytest.mark.parametrize("series,expected", [
-    ("19.0", [("--http-interface", "127.0.0.1")]),  # defaults to the wildcard and warns about it
-    ("17.0", []),   # defaults to empty = all interfaces, no warning: nothing to state
-    ("20.0", []),   # already defaults to loopback
-    ("10.0", []),
-])
-def test_a_build_states_loopback_only_on_a_series_that_warns_about_the_wildcard_default(
-        world, series, expected):
-    """A series that logs "missing --http-interface, using 0.0.0.0" on every start turns every
-    clean run into tests-passed-with-warnings; the build states the loopback address itself."""
+def _declare_series(world, series, checkout=None):
+    """Re-declare the stubbed world's single catalog row under another series, and make its core
+    dir a checkout of `checkout` (default: the same series)."""
+    toml = world["home"] / "instances.toml"
+    toml.write_text(re.sub(r'(?m)^series = ".*"$', 'series = "%s"' % series, toml.read_text(), count=1),
+                    encoding="utf-8")
+    trees.write_checkout(world["addons"].parent, checkout or series, with_addons=False)
+
+
+@pytest.mark.parametrize("series,flag", [("17.0", "--http-port"), ("11.0", "--http-port"),
+                                         ("10.0", "--xmlrpc-port"), ("8.0", "--xmlrpc-port"),
+                                         ("19.0", "--http-port"), ("20.0", "--http-port")])
+def test_a_test_build_binds_the_leases_port_and_states_loopback_as_its_series_spells_them(
+        world, series, flag):
+    """Odoo starts its HTTP server whenever test mode is on, even with --stop-after-init. A test
+    build that does not pass the leased port binds the default 8069 and collides with whatever
+    already listens there - so odoo-bin must receive the lease's port, spelled for the series. A
+    series that logs "missing --http-interface, using 0.0.0.0" on every start turns every clean run
+    into tests-passed-with-warnings; the build states the loopback address itself (19.0 only: the
+    others default to all interfaces without a warning or to loopback already)."""
     _declare_series(world, series)
     with McpClient(world["env"](), world["work"]) as c:
         c.initialize()
         lease = _lease(c, world, series=series, ports=1)
-        assert _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])["result"] == "success"
-    assert _interface_flags(world) == expected
-
-
-def test_a_caller_chosen_listen_address_comes_after_the_loopback_the_build_states(world):
-    """Odoo's option parser keeps the last value, so an explicit --http-interface in extra_args
-    (a caller who wants another address) still wins over the tool's loopback."""
-    _declare_series(world, "19.0")
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series="19.0", ports=1)
-        job = _ok(_build(c, world, lease["token"], extra_args=["--http-interface=0.0.0.0"]))
+        job = _ok(_build(c, world, lease["token"], op="test", test_tags="/my_mod"))
         _wait(c, job["job_id"])
-    words = world["calls"].read_text().split()
-    assert words.index("127.0.0.1") < words.index("--http-interface=0.0.0.0")
+    assert _odoo_bin_port_flags(world) == [(flag, str(lease["ports"][0]))]
+    assert _interface_flags(world) == ([("--http-interface", "127.0.0.1")] if series == "19.0" else [])
 
 
-@pytest.mark.parametrize("series,line", [("19.0", "http_interface = 127.0.0.1"), ("17.0", None)])
-def test_a_served_instance_states_loopback_only_on_a_series_that_warns_about_the_wildcard_default(
-        world, series, line):
-    _declare_series(world, series)
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, series=series, ports=1)
-        out = _ok(c.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                         timeout=120))
-        assert out["server_pid"]
-        conf = "\n".join(p.read_text() for p in (world["home"] / "conf").glob("*.conf"))
-        if line:
-            assert line in conf.splitlines(), conf
-        else:
-            assert "interface" not in conf, conf
-        _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-def test_a_two_port_lease_builds_with_both_ports_under_their_series_flags(client, world):
-    lease = _lease(client, world, ports=2)
-    job = _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod"))
+def test_a_two_port_lease_builds_with_both_ports_and_a_caller_chosen_listen_address_wins(client, world):
+    """Odoo's option parser keeps the last value, so an explicit --http-interface in extra_args (a
+    caller who wants another address) comes after the loopback the build states and wins."""
+    _declare_series(world, "19.0")
+    lease = _lease(client, world, series="19.0", ports=2)
+    job = _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod",
+                     extra_args=["--http-interface=0.0.0.0"]))
     _wait(client, job["job_id"])
     assert _odoo_bin_port_flags(world) == [("--http-port", str(lease["ports"][0])),
                                            ("--gevent-port", str(lease["ports"][1]))]
-
-
-def test_an_install_on_a_lease_with_a_port_binds_that_port_and_without_one_binds_none(client, world):
-    with_port = _lease(client, world, ports=1)
-    assert _wait(client, _ok(_build(client, world, with_port["token"]))["job_id"])["result"] == "success"
-    assert _odoo_bin_port_flags(world) == [("--http-port", str(with_port["ports"][0]))]
-    world["calls"].write_text("", encoding="utf-8")
-    no_port = _lease(client, world)
-    assert _wait(client, _ok(_build(client, world, no_port["token"]))["job_id"])["result"] == "success"
-    assert _odoo_bin_port_flags(world) == [], "a port-less install passes no port flag"
-
-
-def test_a_test_build_on_a_lease_without_a_port_is_refused_by_name_before_anything_starts(client, world):
-    lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"], op="test", test_tags="/my_mod"))
-    assert err["code"] == "LEASE_HAS_NO_PORT" and "ports 1" in err["remedy"]
-    assert "instance_build" in err["remedy"]
-    jobs_dir = world["home"] / "runtime" / "jobs"
-    assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json"))
-    assert not world["calls"].exists() or "--test-enable" not in world["calls"].read_text()
+    words = world["calls"].read_text().split()
+    assert words.index("127.0.0.1") < words.index("--http-interface=0.0.0.0")
 
 
 # --------------------------------------------------------------------------- #
 # instance_serve / instance_status
 # --------------------------------------------------------------------------- #
-def test_serve_launches_the_leased_database_and_binds_its_server(client, world):
+def _conf_text(world):
+    return "\n".join(p.read_text() for p in (world["home"] / "conf").glob("*.conf"))
+
+
+def test_a_leases_server_is_launched_bound_reported_and_stopped_by_the_release(client, world):
+    port_base = world["port_base"]
+    world["curl_mode"].write_text("000", encoding="utf-8")  # nothing answers the declared port
     lease = _lease(client, world, ports=1)
+    port = lease["ports"][0]
+    # Before the serve: the series (its declared instance, not running) and the lease agree on "down".
+    by_series = _ok(client.call("instance_status", {"series": SERIES, "cwd": str(world["work"])}))
+    assert by_series["up"] is False and by_series["lease"] is None
+    before = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
+    assert before["up"] is False and before["lease"]["served"] is False and before["series"] == SERIES
+
+    world["curl_mode"].write_text("boot", encoding="utf-8")  # nothing listens yet, then the server does
+    (world["curl_mode"].parent / "curl-count").unlink(missing_ok=True)
     out = _ok(client.call("instance_serve", {"lease_token": lease["token"],
                                              "cwd": str(world["work"])}, timeout=120))
-    port = lease["ports"][0]
     assert out["state"] == "launched" and out["resumed"] is False
     assert out["http_port"] == port and out["url"] == "http://localhost:%d" % port
     assert out["served_addons_path"] == [str(world["addons"])]
@@ -534,6 +535,34 @@ def test_serve_launches_the_leased_database_and_binds_its_server(client, world):
     handle = out["instance_handle"]
     assert handle["server_pid"] == pid and handle["http_port"] == port
     assert handle["lease_token"] == lease["token"] and handle["db_name"] == lease["db_name"]
+    # A first launch is not a resume: no refusal to resume lands in the allocator log.
+    log_text = "".join(p.read_text(errors="replace") for p in world["home"].rglob("allocator-stderr.log"))
+    assert "REFUSING to resume" not in log_text, log_text
+
+    # Status of the served lease reports that lease's own port, not the declared instance's.
+    after = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
+    assert after["up"] is True and after["http_port"] == port
+    assert after["url"] == "http://localhost:%d" % port and after["lease"]["served"] is True
+    assert after["http_port"] != port_base - 1, "the lease's port, not the declared one"
+    listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
+    assert listed["served"] is True and listed["http_port"] == port and listed["url"] == out["url"]
+
+    # scripts/lib/allocator.py PID_OWNER_KEYS: an OLDER allocator's `bind`/`resume` rewrites
+    # owner.pid + owner.pid_started but knows nothing of owner.pid_fp, so a pid_fp recorded for a
+    # PREVIOUS pid is left behind - trustworthy only while owner.pid_fp_pid still equals owner.pid.
+    # Reading pid_fp by hand would prove a MISMATCH against a server that is genuinely running and
+    # `served` would wrongly read False.
+    reg_path = world["home"] / "runtime" / "leases.json"
+    doc = json.loads(reg_path.read_text())
+    owner = next(lz for lz in doc["leases"] if lz["token"] == lease["token"])["owner"]
+    assert owner.get("pid_fp") and owner.get("pid_started")
+    owner["pid_fp"] = _stale_fingerprint(pid)
+    owner["pid_fp_pid"] = pid + 424242
+    reg_path.write_text(json.dumps(doc), encoding="utf-8")
+    listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
+    assert listed["served"] is True, "a stale pid_fp (pid_fp_pid != pid) must fall back to pid_started"
+    assert listed["http_port"] == port and listed["url"] == out["url"]
+
     # Releasing the lease stops that server.
     _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
     deadline = time.monotonic() + 15
@@ -556,7 +585,6 @@ def test_serve_with_an_addons_path_that_drops_the_core_addons_is_refused_before_
                                               "cwd": str(world["work"])}, timeout=120))
     assert err["code"] == "ADDONS_PATH_OVERRIDE_INVALID"
     assert err["diagnostics"]["fields"]["reason"] == "core-addons-missing"
-    assert "replace only the entry that covers this repo" in err["remedy"]
     assert not world["calls"].exists() or "-c " not in world["calls"].read_text(), "nothing launched"
     row = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
     assert not (row.get("owner") or {}).get("pid"), "no server was bound onto the lease"
@@ -568,25 +596,56 @@ def test_serve_with_an_addons_path_that_drops_the_core_addons_is_refused_before_
     _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
-def test_serve_a_lease_without_a_port_is_refused_by_name(client, world):
+def test_serve_and_status_refuse_what_cannot_be_served_or_asked_by_name(client, world):
     lease = _lease(client, world)
     err = _err(client.call("instance_serve", {"lease_token": lease["token"]}))
-    assert err["code"] == "LEASE_HAS_NO_PORT" and "ports 1" in err["remedy"]
-
-
-def test_serve_needs_exactly_one_of_token_or_series(client, world):
-    assert _err(client.call("instance_serve", {}))["code"] == "INVALID_ARGUMENTS"
-    lease = _lease(client, world, ports=1)
+    assert err["code"] == "LEASE_HAS_NO_PORT" and "ports 1" in err["remedy"], "serve, no port"
+    assert _err(client.call("instance_serve", {}))["code"] == "INVALID_ARGUMENTS", "serve, neither"
     both = client.call("instance_serve", {"lease_token": lease["token"], "series": SERIES})
-    assert _err(both)["code"] == "INVALID_ARGUMENTS"
+    assert _err(both)["code"] == "INVALID_ARGUMENTS", "serve, both"
+    err = _err(client.call("instance_serve", {"series": "99.0", "run_id": RUN, "cwd": str(world["work"])},
+                           timeout=120))
+    assert err["code"] == "NO_INSTANCE" and "catalog_read" in err["remedy"], "serve, undeclared series"
+
+    assert _err(client.call("instance_status", {"cwd": str(world["work"])}))["code"] == "INVALID_ARGUMENTS"
+    ported = _lease(client, world, ports=1)
+    err = _err(client.call("instance_status", {"lease_token": ported["token"], "series": "16.0",
+                                               "cwd": str(world["work"])}))
+    assert err["code"] == "INVALID_ARGUMENTS"
+    world["curl_mode"].write_text("000", encoding="utf-8")
+    out = _ok(client.call("instance_status", {"series": SERIES, "cwd": str(world["work"])}))
+    assert out == {"series": SERIES, "up": False, "http_port": None, "url": None, "lease": None,
+                   "shared_lease": None, "parked_lease": None}, "status, nothing running"
+
+    # The allocator matches `--series ""` against rows that record no series, so asking it for the
+    # shared / parked lease of an empty series answers with whichever such row exists - here the
+    # very lease being asked about, reported as the shared render lease of no series at all.
+    path = world["home"] / "runtime" / "leases.json"
+    data = json.loads(path.read_text())
+    for row in data["leases"]:
+        if row["token"] == ported["token"]:
+            row["series"], row["mode"] = "", "shared"
+    path.write_text(json.dumps(data))
+    out = _ok(client.call("instance_status", {"lease_token": ported["token"], "cwd": str(world["work"])}))
+    assert out["series"] == "" and out["lease"]["token"] == ported["token"]
+    assert out["shared_lease"] is None and out["parked_lease"] is None, "no series: no borrowed answer"
+
+    (world["home"] / "instances.toml").unlink()
+    err = _err(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
+                           timeout=120))
+    assert err["code"] == "NO_INSTANCE_CATALOG" and "odoo-setup" in err["remedy"], "serve, no catalog"
 
 
-def test_serve_by_series_registers_the_shared_render_lease(client, world):
+def test_serve_by_series_registers_the_shared_render_lease_and_a_foreign_attach_never_obtains_it(
+        client, world):
+    """instance_serve(series) that ATTACHES to a server another run launched hands back the URL - a
+    reader needs nothing else - but never the owner's token or run id: with both, the reader
+    could lease_release the render server out from under every other reader."""
     out = _ok(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
                           timeout=120))
     assert out["shared_lease_error"] is None
     token = out["lease_token"]
-    assert token and out["state"] == "launched"
+    assert token and out["state"] == "launched" and out["instance_handle"]["lease_token"] == token
     shared = [lz for lz in _registry(world) if lz["mode"] == "shared"]
     assert [lz["token"] for lz in shared] == [token]
     assert shared[0]["owner"]["run_id"] == RUN
@@ -600,69 +659,47 @@ def test_serve_by_series_registers_the_shared_render_lease(client, world):
     assert reader["http_port"] == out["http_port"] and reader["url"] == out["url"]
     assert status["shared_lease"]["url"] == out["url"]
 
-
-def test_status_of_a_series_with_nothing_running(client, world):
-    world["curl_mode"].write_text("000", encoding="utf-8")
-    out = _ok(client.call("instance_status", {"series": SERIES, "cwd": str(world["work"])}))
-    assert out == {"series": SERIES, "up": False, "http_port": None, "url": None, "lease": None,
-                   "shared_lease": None, "parked_lease": None}
-
-
-def test_status_of_a_served_lease_reports_that_leases_own_port_not_the_declared_instance(client, world):
-    """A handle's lease is served on its own reserved port. The declared instance of the series is
-    another database that may not run at all, so asking by series said up:false for a lease that
-    was serving; asking with the handle's lease_token reports the lease."""
-    world["curl_mode"].write_text("000", encoding="utf-8")  # nothing answers the declared port
-    lease = _lease(client, world, ports=1)
-    by_series = _ok(client.call("instance_status", {"series": SERIES, "cwd": str(world["work"])}))
-    assert by_series["up"] is False and by_series["lease"] is None
-    before = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
-    assert before["up"] is False and before["lease"]["served"] is False and before["series"] == SERIES
-    world["curl_mode"].write_text("boot", encoding="utf-8")  # nothing listens yet, then the server does
-    (world["curl_mode"].parent / "curl-count").unlink(missing_ok=True)
-    _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                    timeout=120))
-    after = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
-    port = lease["ports"][0]
-    assert after["up"] is True and after["http_port"] == port
-    assert after["url"] == "http://localhost:%d" % port and after["lease"]["served"] is True
-    assert after["http_port"] != world["port_base"] - 1, "the lease's port, not the declared one"
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+    env, proc = _other_session(world)
+    try:
+        with McpClient(env, world["work"]) as foreign:
+            foreign.initialize()
+            for run_id in ("run-reader", RUN):  # naming the owner's run from a live foreign session
+                att = _ok(foreign.call("instance_serve", {"series": SERIES, "run_id": run_id,
+                                                          "cwd": str(world["work"])}, timeout=120))
+                assert att["state"] == "attached" and att["url"] == out["url"], run_id
+                assert att["http_port"] == out["http_port"]
+                assert att["lease_token"] is None and att["instance_handle"]["lease_token"] is None, run_id
+                assert att["instance_handle"]["run_id"] == "", run_id
+                assert token not in json.dumps(att) and RUN not in json.dumps(att["instance_handle"]), run_id
+    finally:
+        proc.kill()
+        proc.wait()
+    # The owner's own session re-attaching is still handed its lease.
+    again = _ok(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
+                            timeout=120))
+    assert again["state"] == "attached" and again["lease_token"] == token
+    assert [lz["token"] for lz in _registry(world) if lz["mode"] == "shared"] == [token]
 
 
-def test_status_needs_a_series_or_a_lease_and_the_two_must_agree(client, world):
-    assert _err(client.call("instance_status", {"cwd": str(world["work"])}))["code"] == "INVALID_ARGUMENTS"
-    lease = _lease(client, world, ports=1)
-    err = _err(client.call("instance_status", {"lease_token": lease["token"], "series": "16.0",
-                                               "cwd": str(world["work"])}))
-    assert err["code"] == "INVALID_ARGUMENTS" and "belongs to series" in err["message"]
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+def test_a_serve_that_cannot_become_ready_or_attaches_to_a_stranger_is_a_failure(world):
+    with McpClient(world["env"](SPINUP_TIMEOUT="3"), world["work"]) as client:
+        client.initialize()
+        # Something answers the lease's port, so the spin-up 'attaches' - but no server is bound to
+        # the lease. Reporting success would hand out a URL served by nobody this lease owns.
+        world["curl_mode"].write_text("200", encoding="utf-8")
+        lease = _lease(client, world, ports=1)
+        err = _err(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                               timeout=120))
+        assert err["code"] == "SERVE_FAILED" and err["diagnostics"]["serve_state"] == "attached"
+        assert err["diagnostics"]["bound_pid"] is None
+        row = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
+        assert (row.get("owner") or {}).get("pid") is None
 
-
-def test_status_of_a_lease_row_that_records_no_series_never_borrows_another_leases_answer(client, world):
-    """The allocator matches `--series ""` against rows that record no series, so asking it for the
-    shared / parked lease of an empty series answers with whichever such row exists - here the
-    very lease being asked about, reported as the shared render lease of no series at all."""
-    lease = _lease(client, world, ports=1)
-    path = world["home"] / "runtime" / "leases.json"
-    data = json.loads(path.read_text())
-    for row in data["leases"]:
-        if row["token"] == lease["token"]:
-            row["series"], row["mode"] = "", "shared"
-    path.write_text(json.dumps(data))
-    out = _ok(client.call("instance_status", {"lease_token": lease["token"], "cwd": str(world["work"])}))
-    assert out["series"] == "" and out["lease"]["token"] == lease["token"]
-    assert out["shared_lease"] is None and out["parked_lease"] is None
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-def test_serve_failure_is_named_and_carries_the_scripts_reason(client, world):
-    world["curl_mode"].write_text("000", encoding="utf-8")  # never becomes ready
-    lease = _lease(client, world, ports=1)
-    err = _err(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                           timeout=120))
-    assert err["code"] == "SERVE_FAILED"
-    assert "did not become ready" in err["diagnostics"]["stderr"]
+        world["curl_mode"].write_text("000", encoding="utf-8")  # never becomes ready
+        err = _err(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                               timeout=120))
+        assert err["code"] == "SERVE_FAILED"
+        assert err["diagnostics"]["stderr"].strip(), "the script's own reason is carried"
 
 
 # --------------------------------------------------------------------------- #
@@ -693,7 +730,7 @@ def test_spinup_reports_a_refused_shared_registration(world, tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# serving a lease: the lease's venv, derived port keys, a verified bound server
+# serving a lease: the lease's venv, derived port keys, the loopback its series needs
 # --------------------------------------------------------------------------- #
 def test_serve_on_a_multi_profile_series_runs_the_leases_own_venv(client, world, tmp_path):
     """The catalog's FIRST row for the series is profile alpha; the lease is profile beta, whose
@@ -722,84 +759,27 @@ def test_serve_on_a_multi_profile_series_runs_the_leases_own_venv(client, world,
     _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
-def test_a_two_port_lease_is_served_with_the_series_second_port_key(client, world):
-    lease = _lease(client, world, ports=2)
-    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                          timeout=120))
-    assert out["server_pid"]
-    conf = "\n".join(p.read_text() for p in (world["home"] / "conf").glob("*.conf"))
-    assert "gevent_port = %d" % lease["ports"][1] in conf, conf
-    assert "http_port = %d" % lease["ports"][0] in conf, conf
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-@pytest.mark.parametrize("checkout,key", [("8.0", "longpolling_port"), ("10.0", "longpolling_port"),
-                                          ("15.0", "longpolling_port"), ("16.0", "gevent_port"),
-                                          ("19.0", "gevent_port")])
-def test_the_second_port_key_is_the_option_the_leases_checkout_declares(world, tmp_path, checkout, key):
-    """The catalog says 17.0 throughout; the checkout the lease builds decides the key (its
-    config.py option dest), so a series number can never pick a key the checkout lacks."""
-    _declare_series(world, SERIES, checkout=checkout)
-    stand_in, record = _ops_recorder(tmp_path)
-    with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world, ports=2)
-        _wait(c, _ok(_build(c, world, lease["token"], op="test", test_tags="/x"))["job_id"])
-    argv = json.loads(record.read_text())["argv"]
-    pairs = dict(zip(argv[1::2], argv[2::2]))
-    assert pairs["--gevent-port"] == str(lease["ports"][1]) and pairs["--gevent-port-key"] == key
-
-
-def test_a_second_port_the_checkout_cannot_name_is_refused_before_anything_starts(world, tmp_path):
-    config = world["addons"].parent / "odoo" / "tools" / "config.py"
-    config.write_text("\n".join(ln for ln in config.read_text().splitlines()
-                                 if "--gevent-port" not in ln and "--longpolling-port" not in ln),
-                      encoding="utf-8")
+@pytest.mark.parametrize("series,line", [("19.0", "http_interface = 127.0.0.1"), ("17.0", None)])
+def test_a_two_port_lease_is_served_with_the_series_second_port_key_and_the_loopback_it_needs(
+        world, series, line):
+    """The second port is written under the key the series spells (gevent_port here); a series
+    that warns about the wildcard listen-address default is served with the loopback address stated,
+    one that does not is served with no interface key at all."""
+    _declare_series(world, series)
     with McpClient(world["env"](), world["work"]) as c:
         c.initialize()
-        lease = _lease(c, world, ports=2)
-        err = _err(_build(c, world, lease["token"], op="test", test_tags="/x"))
-    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "second port" in err["message"]
-    assert "odoo_root" in err["remedy"]
-    jobs_dir = world["home"] / "runtime" / "jobs"
-    assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json"))
-
-
-def test_serve_that_attaches_to_a_port_no_server_of_the_lease_holds_is_a_failure(client, world):
-    """Something answers the lease's port, so the spin-up 'attaches' - but no server is bound to the
-    lease. Reporting success would hand out a URL served by nobody this lease owns."""
-    world["curl_mode"].write_text("200", encoding="utf-8")
-    lease = _lease(client, world, ports=1)
-    err = _err(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                           timeout=120))
-    assert err["code"] == "SERVE_FAILED" and err["diagnostics"]["serve_state"] == "attached"
-    assert err["diagnostics"]["bound_pid"] is None
-    row = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
-    assert (row.get("owner") or {}).get("pid") is None
-
-
-def test_a_served_lease_reports_its_url_and_once_parked_is_found_with_a_token_by_its_owner_only(client, world):
-    """(Resuming is 50-instance-spinup.sh + allocator `resume` territory, exercised with a real
-    listening stub in tests/test_resume_never_strands_a_server.py; this stub world's server is a
-    bare `sleep`, which `resume` rightly refuses to adopt.)"""
-    lease = _lease(client, world, ports=1)
-    first = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                            timeout=120))
-    port = lease["ports"][0]
-    listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
-    assert listed["served"] is True and listed["http_port"] == port and listed["url"] == first["url"]
-    _ok(client.call("lease_park", {"lease_token": lease["token"], "run_id": RUN}))
-    deadline = time.monotonic() + 15
-    while _alive(first["server_pid"]) and time.monotonic() < deadline:
-        time.sleep(0.2)
-    stranger = _ok(client.call("lease_find", {"series": SERIES, "state": "parked", "cwd": str(world["work"])}))
-    assert stranger["found"] is True and stranger["lease"]["token"] is None
-    assert stranger["lease"]["run_id"] is None and stranger["lease"]["token_prefix"] == lease["token"][:8]
-    assert stranger["lease"]["served"] is False and stranger["lease"]["url"] is None
-    owner = _ok(client.call("lease_find", {"series": SERIES, "state": "parked", "run_id": RUN,
-                                           "cwd": str(world["work"])}))["lease"]
-    assert owner["token"] == lease["token"] and owner["yours"] is True and owner["run_id"] == RUN
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+        lease = _lease(c, world, series=series, ports=2)
+        out = _ok(c.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                         timeout=120))
+        assert out["server_pid"]
+        conf = _conf_text(world)
+        assert "gevent_port = %d" % lease["ports"][1] in conf, conf
+        assert "http_port = %d" % lease["ports"][0] in conf, conf
+        if line:
+            assert line in conf.splitlines(), conf
+        else:
+            assert "interface" not in conf, conf
+        _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
 def _stale_fingerprint(pid):
@@ -811,35 +791,6 @@ def _stale_fingerprint(pid):
     boot, _sep, start = real[len("proc:"):].rpartition(":")
     assert boot and start
     return "proc:%s:%s" % (boot, str(int(start) + 1))
-
-
-def test_served_survives_a_stale_pid_fp_left_by_an_older_allocators_bind(client, world):
-    """scripts/lib/allocator.py PID_OWNER_KEYS: an OLDER allocator's `bind`/`resume` rewrites
-    owner.pid + owner.pid_started but knows nothing of owner.pid_fp, so a pid_fp recorded for a
-    PREVIOUS pid is left behind - trustworthy only while owner.pid_fp_pid still equals owner.pid
-    (`_recorded_fingerprint`). Reading `pid_fp or pid_started` by hand (ignoring pid_fp_pid) treats
-    that stale fingerprint as though it named the CURRENT pid: fp_verdict proves a MISMATCH against
-    a server that is genuinely running, and `served` would wrongly read False."""
-    lease = _lease(client, world, ports=1)
-    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                          timeout=120))
-    pid = out["server_pid"]
-    reg_path = world["home"] / "runtime" / "leases.json"
-    doc = json.loads(reg_path.read_text())
-    row = next(lz for lz in doc["leases"] if lz["token"] == lease["token"])
-    owner = row["owner"]
-    assert owner["pid"] == pid and owner.get("pid_fp") and owner.get("pid_started")
-    # Simulate the older allocator's partial rewrite: pid_fp_pid still names a PID OTHER than the
-    # one pid/pid_started now record, and pid_fp is a fingerprint that does not match THIS pid.
-    owner["pid_fp"] = _stale_fingerprint(pid)
-    owner["pid_fp_pid"] = pid + 424242
-    reg_path.write_text(json.dumps(doc), encoding="utf-8")
-
-    listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
-    assert listed["served"] is True, "a stale pid_fp (pid_fp_pid != pid) must fall back to pid_started"
-    assert listed["http_port"] == lease["ports"][0] and listed["url"] == out["url"]
-
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
 # --------------------------------------------------------------------------- #
@@ -871,16 +822,6 @@ ALLOWED_EXTRA = ["--log-level=debug", "--dev=xml", "--log-handler=odoo.sql_db:DE
                  "--skip-auto-install", "debug"]
 
 
-@pytest.mark.parametrize("token", REFUSED_EXTRA)
-def test_an_extra_arg_setting_a_tool_controlled_flag_is_refused_before_anything_starts(client, world, token):
-    lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"], extra_args=["--log-level=debug", token]))
-    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.extra_args" in err["message"]
-    assert err["diagnostics"]["token"] == token and err["diagnostics"]["flag"] in err["message"]
-    jobs_dir = world["home"] / "runtime" / "jobs"
-    assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json"))
-
-
 def _shorts(tmp_path, series):
     """The short-option map a checkout of `series` declares (fixture tree, see odoo_tree_fixtures)."""
     from odoo_local_mcp_harness import import_package
@@ -889,9 +830,10 @@ def _shorts(tmp_path, series):
     return cli.load_lib("odoo_source_facts").short_options(trees.write_checkout(tmp_path / series, series))
 
 
-def test_ordinary_extra_args_are_not_refused(tmp_path):
+def test_extra_args_setting_a_tool_controlled_flag_are_refused_and_ordinary_ones_are_not(tmp_path):
     shorts = _shorts(tmp_path, SERIES)
     from odoo_local import tools_instance
+    assert [t for t in REFUSED_EXTRA if not tools_instance.refused_extra_flag(t, shorts)] == []
     assert [t for t in ALLOWED_EXTRA if tools_instance.refused_extra_flag(t, shorts)] == []
 
 
@@ -913,20 +855,8 @@ def test_short_option_meaning_follows_the_checkout(tmp_path, token, series, flag
         tools_instance.refused_extra_flag(token, None)
 
 
-def test_a_short_extra_arg_with_no_readable_checkout_is_refused_before_anything_starts(world):
-    """What a short option sets depends on the checkout (-t is --timezone or --test-tags or
-    nothing); with no checkout to read, it is refused rather than guessed."""
-    config = world["addons"].parent / "odoo" / "tools" / "config.py"
-    config.unlink()
-    with McpClient(world["env"](), world["work"]) as c:
-        c.initialize()
-        lease = _lease(c, world)
-        err = _err(_build(c, world, lease["token"], demo=None, op="update", extra_args=["-t/x"]))
-    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "short options" in err["message"]
-
-
 # --------------------------------------------------------------------------- #
-# token + owner run disclosure across sessions
+# a parked lease: who may see its token, who may serve it
 # --------------------------------------------------------------------------- #
 def _other_session(world, session_id="sess-other"):
     """(env, anchor process) of a second, LIVE Claude Code session on the same machine."""
@@ -935,36 +865,6 @@ def _other_session(world, session_id="sess-other"):
     env["ODOO_AI_SESSION_ANCHOR"] = session_anchor.format_anchor(proc.pid, session_anchor.fingerprint(proc.pid))
     env["CLAUDE_CODE_SESSION_ID"] = session_id
     return env, proc
-
-
-def test_attaching_to_another_runs_render_server_is_not_obtaining_it(client, world):
-    """instance_serve(series) that ATTACHES to a server another run launched hands back the URL - a
-    reader needs nothing else - but never the owner's token or run id: with both, the reader
-    could lease_release the render server out from under every other reader."""
-    owner = _ok(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
-                            timeout=120))
-    token = owner["lease_token"]
-    assert owner["state"] == "launched" and token and owner["instance_handle"]["lease_token"] == token
-    env, proc = _other_session(world)
-    try:
-        with McpClient(env, world["work"]) as reader:
-            reader.initialize()
-            for run_id in ("run-reader", RUN):  # naming the owner's run from a live foreign session
-                out = _ok(reader.call("instance_serve", {"series": SERIES, "run_id": run_id,
-                                                         "cwd": str(world["work"])}, timeout=120))
-                assert out["state"] == "attached" and out["url"] == owner["url"], run_id
-                assert out["http_port"] == owner["http_port"]
-                assert out["lease_token"] is None and out["instance_handle"]["lease_token"] is None, run_id
-                assert out["instance_handle"]["run_id"] == "", run_id
-                assert token not in json.dumps(out) and RUN not in json.dumps(out["instance_handle"]), run_id
-    finally:
-        proc.kill()
-        proc.wait()
-    # The owner's own session re-attaching is still handed its lease.
-    again = _ok(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
-                            timeout=120))
-    assert again["state"] == "attached" and again["lease_token"] == token
-    assert [lz["token"] for lz in _registry(world) if lz["mode"] == "shared"] == [token]
 
 
 def _serve_and_park(client, world):
@@ -978,11 +878,28 @@ def _serve_and_park(client, world):
     return lease
 
 
-def test_a_foreign_session_cannot_list_find_and_take_a_parked_lease(client, world):
-    """The live repro: another session lists every lease, then asks lease_find for the parked one -
+def test_a_parked_lease_is_found_with_its_token_by_its_owner_only_and_served_by_its_owner_only(
+        client, world):
+    """(Resuming is 50-instance-spinup.sh + allocator `resume` territory, exercised with a real
+    listening stub in tests/test_resume_never_strands_a_server.py; this stub world's server is a
+    bare `sleep`, which `resume` rightly refuses to adopt.)
+
+    The live repro: another session lists every lease, then asks lease_find for the parked one -
     guessing the owner's run - and would adopt + release it with what came back. Neither listing
-    nor finding may hand it the token or the owner run while the owning session lives."""
+    nor finding may hand it the token or the owner run while the owning session lives, and serving
+    re-anchors a parked lease onto the server that serves it, so a parked lease recorded by another
+    session is refused by name until the owner run lease_adopt-s it (which checks the run)."""
     lease = _serve_and_park(client, world)
+    # No run named: the token is not handed out; the owner's run gets it.
+    stranger = _ok(client.call("lease_find", {"series": SERIES, "state": "parked", "cwd": str(world["work"])}))
+    assert stranger["found"] is True and stranger["lease"]["token"] is None
+    assert stranger["lease"]["run_id"] is None and stranger["lease"]["token_prefix"] == lease["token"][:8]
+    assert stranger["lease"]["served"] is False and stranger["lease"]["url"] is None
+    owner = _ok(client.call("lease_find", {"series": SERIES, "state": "parked", "run_id": RUN,
+                                           "cwd": str(world["work"])}))["lease"]
+    assert owner["token"] == lease["token"] and owner["yours"] is True and owner["run_id"] == RUN
+
+    before = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
     env, proc = _other_session(world)
     try:
         with McpClient(env, world["work"]) as foreign:
@@ -997,10 +914,28 @@ def test_a_foreign_session_cannot_list_find_and_take_a_parked_lease(client, worl
                 assert found["lease"]["session_alive"] is True, "the owning session is measured, parked or not"
                 assert found["lease"]["run_id"] is None and found["lease"]["yours"] is False, args
                 assert lease["token"] not in json.dumps(found), args
+            err = _err(foreign.call("instance_serve", {"lease_token": lease["token"],
+                                                       "cwd": str(world["work"])}, timeout=120))
+            assert err["code"] == "LEASE_NOT_ADOPTED"
+            assert "lease_adopt" in err["remedy"] and "instance_serve" in err["remedy"]
+            after = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
+            assert after == before, "a refused serve must not touch the lease"
+
+            # The owning session serves its own parked lease without adopting.
+            res = client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                              timeout=120)
+            assert res["isError"] is False or structured(res)["error"]["code"] != "LEASE_NOT_ADOPTED"
+
+            # Once the owner run adopts it, serving is past the gate: whatever the (stub) resume
+            # says, it is no longer LEASE_NOT_ADOPTED.
+            _ok(foreign.call("lease_adopt", {"lease_token": lease["token"], "run_id": RUN}))
+            res = foreign.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                               timeout=120)
+            assert res["isError"] is False or structured(res)["error"]["code"] != "LEASE_NOT_ADOPTED"
+            _ok(foreign.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
     finally:
         proc.kill()
         proc.wait()
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
 def test_an_owner_resuming_from_a_new_session_sees_the_ended_session_and_gets_the_token(client, world):
@@ -1026,71 +961,3 @@ def test_an_owner_resuming_from_a_new_session_sees_the_ended_session_and_gets_th
     adopted = _ok(client.call("lease_adopt", {"lease_token": found["token"], "run_id": RUN}))
     assert adopted["lease"]["session_alive"] is True
     _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-def test_serving_a_parked_lease_of_another_session_needs_lease_adopt_first(client, world):
-    """Serving re-anchors a parked lease onto the server that serves it, and instance_serve takes no
-    run id - so a parked lease recorded by another session is refused by name until the owner run
-    lease_adopt-s it (which checks the run). The lease is left exactly as it was."""
-    lease = _serve_and_park(client, world)
-    before = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
-    env, proc = _other_session(world)
-    try:
-        with McpClient(env, world["work"]) as other:
-            other.initialize()
-            err = _err(other.call("instance_serve", {"lease_token": lease["token"],
-                                                     "cwd": str(world["work"])}, timeout=120))
-            assert err["code"] == "LEASE_NOT_ADOPTED"
-            assert "lease_adopt" in err["remedy"] and "instance_serve" in err["remedy"]
-            after = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
-            assert after == before, "a refused serve must not touch the lease"
-            _ok(other.call("lease_adopt", {"lease_token": lease["token"], "run_id": RUN}))
-            # Past the gate now: whatever the (stub) resume says, it is no longer LEASE_NOT_ADOPTED.
-            res = other.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                             timeout=120)
-            assert res["isError"] is False or structured(res)["error"]["code"] != "LEASE_NOT_ADOPTED"
-            _ok(other.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-    finally:
-        proc.kill()
-        proc.wait()
-
-
-def test_the_owning_session_serves_its_own_parked_lease_without_adopting(client, world):
-    lease = _serve_and_park(client, world)
-    res = client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])}, timeout=120)
-    assert res["isError"] is False or structured(res)["error"]["code"] != "LEASE_NOT_ADOPTED"
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-# --------------------------------------------------------------------------- #
-# a first launch leaves no resume refusal in the allocator log
-# --------------------------------------------------------------------------- #
-def test_a_first_launch_logs_no_resume_refusal(client, world):
-    """A never-served lease is not parked: `resume` could only refuse it (and log that it refused)
-    before the spin-up falls back to `bind`. Every ordinary serve used to write that refusal into
-    the allocator stderr log, burying the refusals that matter."""
-    lease = _lease(client, world, ports=1)
-    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
-                          timeout=120))
-    row = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
-    assert row["owner"]["pid"] == out["server_pid"], "the launched server is still bound"
-    logs = list(world["home"].rglob("allocator-stderr.log"))
-    text = "".join(p.read_text(errors="replace") for p in logs)
-    assert "REFUSING to resume" not in text, text
-    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
-
-
-# --------------------------------------------------------------------------- #
-# instance_serve(series) against a catalog that declares nothing for it
-# --------------------------------------------------------------------------- #
-def test_serving_an_undeclared_series_is_no_instance(client, world):
-    err = _err(client.call("instance_serve", {"series": "99.0", "run_id": RUN, "cwd": str(world["work"])},
-                           timeout=120))
-    assert err["code"] == "NO_INSTANCE" and "catalog_read" in err["remedy"]
-
-
-def test_serving_with_no_catalog_at_all_is_no_instance_catalog(client, world):
-    (world["home"] / "instances.toml").unlink()
-    err = _err(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"])},
-                           timeout=120))
-    assert err["code"] == "NO_INSTANCE_CATALOG" and "odoo-setup" in err["remedy"]

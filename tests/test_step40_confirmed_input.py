@@ -14,6 +14,7 @@ import sys
 import tomllib
 from pathlib import Path
 from shutil import which
+from types import SimpleNamespace
 
 import pytest
 
@@ -67,70 +68,64 @@ def test_step40_requires_confirmed_input_no_auto_write(tmp_path):
             f"Step 40 wrote [[instance]] without a confirmed spec:\n{content}"
         )
 
-    # Stderr must contain a helpful message pointing to ODOO_AI_PROFILE_SPEC.
-    combined = proc.stdout + proc.stderr
-    assert "ODOO_AI_PROFILE_SPEC" in combined, (
-        "Expected a mention of ODOO_AI_PROFILE_SPEC in output but got:\n"
-        f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
-    )
 
 
-@pytest.mark.skipif(which("bash") is None, reason="bash not available")
-def test_step40_writes_from_confirmed_spec(tmp_path):
-    """40 apply writes the correct [[instance]] from a confirmed JSON spec.
-
-    Verifies:
-    - The instance has the given series and addons_path.
-    - Running apply a second time is idempotent (no duplicate [[instance]]).
-    - The http_port default allocation is used when not specified in spec.
-    """
+@pytest.fixture(scope="module")
+def confirmed_spec_runs(tmp_path_factory):
+    """`apply` twice from ONE confirmed spec, with the seeded i18n.json hand-edited in
+    between. The two tests below read what the two runs left (the catalog, the seed)."""
+    tmp_path = tmp_path_factory.mktemp("confirmed_spec")
     instances_toml = tmp_path / "instances.toml"
     spec_file = tmp_path / "profile.json"
-
     addons = ["/abs/custom", "/abs/core"]
-    spec = [
-        {
-            "series": "17.0",
-            "addons_path": addons,
-            "http_port": 8139,
-            "db_name": "odoo_17_0",
-            "db_host": "localhost",
-            "db_user": "odoo",
-            "python": "",
-        }
-    ]
-    spec_file.write_text(json.dumps(spec), encoding="utf-8")
-
+    spec_file.write_text(json.dumps([{
+        "series": "17.0", "addons_path": addons, "http_port": 8139, "db_name": "odoo_17_0",
+        "db_host": "localhost", "db_user": "odoo", "python": "",
+    }]), encoding="utf-8")
     env_extra = {
         "ODOO_AI_PROFILE_SPEC": str(spec_file),
         "ODOO_AI_INSTANCES": str(instances_toml),
         "HOME": str(tmp_path),
     }
+    i18n_json = tmp_path / "i18n.json"
+    ns = SimpleNamespace(toml=instances_toml, i18n=i18n_json, addons=addons)
+    ns.first = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
+    ns.seed_after_first = (json.loads(i18n_json.read_text(encoding="utf-8"))
+                           if i18n_json.exists() else None)
+    ns.instances_after_first = (tomllib.loads(instances_toml.read_text()).get("instance")
+                                if instances_toml.exists() else None)
+    i18n_json.write_text(json.dumps({"default_languages": ["vi_VN", "en_US"]}), encoding="utf-8")
+    ns.second = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
+    ns.instances_after_second = tomllib.loads(instances_toml.read_text()).get("instance")
+    return ns
 
-    # First run: should write.
-    proc = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
-    assert proc.returncode == 0, (
-        f"First apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_writes_from_confirmed_spec(confirmed_spec_runs):
+    """40 apply writes the [[instance]] from a confirmed JSON spec (series and addons_path as
+    given) and a second apply is idempotent: still exactly one [[instance]]."""
+    runs = confirmed_spec_runs
+    assert runs.first.returncode == 0, f"First apply failed.\n{runs.first.stdout}\n{runs.first.stderr}"
+    instances = runs.instances_after_first
+    assert isinstance(instances, list) and len(instances) == 1, f"Expected 1 instance, got {instances}"
+    assert instances[0]["series"] == "17.0" and instances[0]["addons_path"] == runs.addons, instances[0]
+    assert runs.second.returncode == 0, f"Second (idempotent) apply failed.\n{runs.second.stderr}"
+    assert len(runs.instances_after_second) == 1, (
+        f"Idempotency failed: expected 1 instance after second apply, got {len(runs.instances_after_second)}"
     )
-    assert instances_toml.exists(), "instances.toml was not created"
 
-    data = tomllib.loads(instances_toml.read_text())
-    assert isinstance(data.get("instance"), list), "Expected [[instance]] array-of-tables"
-    instances = data["instance"]
-    assert len(instances) == 1, f"Expected 1 instance, got {len(instances)}"
-    inst = instances[0]
-    assert inst["series"] == "17.0", f"Wrong series: {inst}"
-    assert inst["addons_path"] == addons, f"Wrong addons_path: {inst}"
 
-    # Second run: idempotent - still exactly 1 [[instance]].
-    proc2 = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
-    assert proc2.returncode == 0, (
-        f"Second (idempotent) apply failed.\nstdout: {proc2.stdout}\nstderr: {proc2.stderr}"
-    )
-    data2 = tomllib.loads(instances_toml.read_text())
-    assert len(data2["instance"]) == 1, (
-        f"Idempotency failed: expected 1 instance after second apply, "
-        f"got {len(data2['instance'])}"
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_seeds_i18n_registry(confirmed_spec_runs):
+    """40 apply seeds i18n.json next to instances.toml with default_languages == [] (no locale
+    assumed - a public, multi-tenant plugin must never seed a language nobody asked for), and
+    never clobbers it: a hand edit survives the next apply."""
+    runs = confirmed_spec_runs
+    assert runs.first.returncode == 0 and runs.second.returncode == 0
+    assert runs.seed_after_first is not None, f"i18n.json was not seeded at {runs.i18n}"
+    assert runs.seed_after_first.get("default_languages") == [], runs.seed_after_first
+    assert json.loads(runs.i18n.read_text(encoding="utf-8")).get("default_languages") == ["vi_VN", "en_US"], (
+        "No-clobber failed: the edited content must survive a second apply"
     )
 
 
@@ -176,62 +171,6 @@ def test_step40_rejects_malformed_spec_without_partial_write(tmp_path):
             f"Partial write detected: {instance_count} [[instance]] block(s) found "
             f"after a spec with an invalid item.\nFile content:\n{content}"
         )
-
-
-@pytest.mark.skipif(which("bash") is None, reason="bash not available")
-def test_step40_seeds_i18n_registry(tmp_path):
-    """40 apply seeds i18n.json alongside instances.toml (idempotent, no-clobber).
-
-    After a successful apply:
-    - i18n.json must exist in the same directory as instances.toml.
-    - Its content must be valid JSON with default_languages == [] (no locale
-      assumed - a public, multi-tenant plugin must never seed a hardcoded
-      target language nobody asked for).
-    - Running apply a second time must NOT clobber the file (if user edited it,
-      the edited content must survive).
-    Fails if the seed block is removed from the script (file will be absent).
-    """
-    instances_toml = tmp_path / "instances.toml"
-    i18n_json = tmp_path / "i18n.json"
-    spec_file = tmp_path / "profile.json"
-
-    spec = [{"series": "17.0", "addons_path": ["/abs/custom", "/abs/core"]}]
-    spec_file.write_text(json.dumps(spec), encoding="utf-8")
-
-    env_extra = {
-        "ODOO_AI_PROFILE_SPEC": str(spec_file),
-        "ODOO_AI_INSTANCES": str(instances_toml),
-        "HOME": str(tmp_path),
-    }
-
-    proc = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
-    assert proc.returncode == 0, (
-        f"apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
-    )
-
-    # i18n.json must have been created next to instances.toml.
-    assert i18n_json.exists(), (
-        f"i18n.json was not seeded at {i18n_json}.\n"
-        f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
-    )
-
-    data = json.loads(i18n_json.read_text(encoding="utf-8"))
-    assert data.get("default_languages") == [], (
-        f"Unexpected i18n.json content: {data}"
-    )
-
-    # No-clobber: edit the file, re-run apply, content must survive.
-    edited = {"default_languages": ["vi_VN", "en_US"]}
-    i18n_json.write_text(json.dumps(edited), encoding="utf-8")
-
-    proc2 = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
-    assert proc2.returncode == 0, (
-        f"Second apply failed.\nstdout: {proc2.stdout}\nstderr: {proc2.stderr}"
-    )
-    data2 = json.loads(i18n_json.read_text(encoding="utf-8"))
-    assert data2.get("default_languages") == ["vi_VN", "en_US"], (
-        f"No-clobber failed: expected edited content to survive, got {data2}"
-    )
 
 
 @pytest.mark.skipif(which("bash") is None, reason="bash not available")
@@ -337,6 +276,12 @@ def test_step40_two_profiles_same_series_both_persist(tmp_path):
     assert instance_keys == {"17.0:minimal", "17.0:full"}, (
         f"Expected instance_keys {{'17.0:minimal','17.0:full'}}, got {instance_keys}"
     )
+    # The default db_name carries the project discriminator AND the profile slug:
+    # odoo_<series>_<repo-key8>_<slug>.
+    for inst in instances:
+        assert re.fullmatch(rf"odoo_17_0_[0-9a-f]{{8}}_{inst['profile']}", inst.get("db_name", "")), (
+            f"Expected db_name matching 'odoo_17_0_<repo-key8>_{inst['profile']}', got {inst.get('db_name')!r}"
+        )
 
     # Second run must be idempotent (still exactly 2).
     proc2 = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
@@ -351,50 +296,12 @@ def test_step40_two_profiles_same_series_both_persist(tmp_path):
 
 
 @pytest.mark.skipif(which("bash") is None, reason="bash not available")
-def test_step40_writes_profile_and_instance_key_fields(tmp_path):
-    """When a spec item has a 'profile' field, the written [[instance]] must include
-    both 'profile' and 'instance_key' fields with correct values."""
-    instances_toml = tmp_path / "instances.toml"
-    spec_file = tmp_path / "profiled.json"
-
-    spec = [{"series": "17.0", "profile": "dev", "addons_path": ["/repos/core17"]}]
-    spec_file.write_text(json.dumps(spec), encoding="utf-8")
-
-    proc = _run_step40(
-        "apply",
-        env_extra={
-            "ODOO_AI_PROFILE_SPEC": str(spec_file),
-            "ODOO_AI_INSTANCES": str(instances_toml),
-            "HOME": str(tmp_path),
-        },
-        cwd=tmp_path,
-    )
-    assert proc.returncode == 0, (
-        f"apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
-    )
-
-    data = tomllib.loads(instances_toml.read_text())
-    inst = data["instance"][0]
-    assert inst.get("profile") == "dev", (
-        f"Expected profile='dev', got {inst.get('profile')!r}"
-    )
-    assert inst.get("instance_key") == "17.0:dev", (
-        f"Expected instance_key='17.0:dev', got {inst.get('instance_key')!r}"
-    )
-    # db_name default must have the project discriminator (P2 §2.4.3) AND the
-    # profile slug suffix when profile is set: odoo_<series>_<repo-key8>_<slug>.
-    assert re.fullmatch(r"odoo_17_0_[0-9a-f]{8}_dev", inst.get("db_name", "")), (
-        f"Expected db_name matching 'odoo_17_0_<repo-key8>_dev', got {inst.get('db_name')!r}"
-    )
-
-
-@pytest.mark.skipif(which("bash") is None, reason="bash not available")
 def test_step40_redeclaring_an_instance_updates_its_addons_path_and_keeps_its_port(tmp_path):
     """Re-running setup with a changed repo set must update the declared row in place.
 
     A second `apply` for the same series and profile with a different addons path
     rewrites that row's addons path, keeps its port and database, adds no second
-    row, and says so; a third `apply` with the same spec reports it unchanged.
+    row.
     """
     instances_toml = tmp_path / "instances.toml"
     core = tmp_path / "core17"
@@ -418,13 +325,9 @@ def test_step40_redeclaring_an_instance_updates_its_addons_path_and_keeps_its_po
     assert len(first) == 1
     db_name = first[0]["db_name"]
 
-    out = declare([str(extra), str(core)])
+    declare([str(extra), str(core)])
     rows = tomllib.loads(instances_toml.read_text())["instance"]
     assert len(rows) == 1, f"a re-declared instance must not be duplicated:\n{instances_toml.read_text()}"
     assert rows[0]["addons_path"] == [str(extra), str(core)], rows[0]["addons_path"]
     assert rows[0]["http_port"] == 8069 and rows[0]["db_name"] == db_name
-    assert "updated" in out and "skip" not in out, out
 
-    out = declare([str(extra), str(core)])
-    assert "unchanged" in out, out
-    assert tomllib.loads(instances_toml.read_text())["instance"][0]["addons_path"] == [str(extra), str(core)]

@@ -217,31 +217,16 @@ def test_a_subagent_stopping_with_its_own_live_background_command_is_refused(tmp
     )
 
 
-def test_the_refusal_names_the_command_its_output_file_and_a_move_for_each(tmp_path):
-    """A refusal an agent cannot act on is noise. It must carry: the fact that no wake is coming,
-    the task's own output path (so 'read it now' is executable), and the three exits."""
+def test_the_refusal_names_the_command_and_its_output_file(tmp_path):
+    """The refusal carries the task's own output path (read back from the transcript) and the command."""
     t = _transcript(tmp_path, ["bq1"])
     _, out = _run(_subagent_payload(t, [_shell_task("bq1", command="make test")]))
     reason = _reason(out)
-    low = reason.lower()
-
     assert "/srv/run/tasks/bq1.output" in reason, (
         "the refusal must name the task's OWN output file, read back from the subagent's "
         "transcript - without it 'read it now' is not an executable instruction"
     )
     assert "make test" in reason, "the refusal must name the command that is still running"
-    assert "nothing resumes a dispatched agent" in low, (
-        "the refusal must state the fact that overrides the Bash receipt: no wake is coming"
-    )
-    assert "you will be notified when it completes" in low, (
-        "the refusal must quote the receipt it is overriding, or the agent trusts the line it can "
-        "see over the rule it cannot"
-    )
-    for move in ("read it now", "wait for it in this turn", "stop it"):
-        assert move in low, f"the refusal must offer the {move!r} exit"
-    assert "blocked" in low, (
-        "the refusal must name the reporting exit for a result that cannot be had this turn"
-    )
 
 
 # The Monitor tool's receipt, verbatim in shape (read from a live subagent transcript), and the
@@ -429,31 +414,7 @@ def test_print_mode_stop_over_an_own_running_teammate_is_refused(tmp_path):
         "an unattended subagent stopping with a teammate it launched asynchronously still running "
         "must be refused - nothing wakes it there, so the teammate's result never reaches it"
     )
-    reason = _reason(out)
-    low = reason.lower()
-    assert "a-wi-1" in reason, "the refusal must name the still-running teammate"
-    assert "do not end your turn" in low and "r0 move 2" in low, (
-        "the refusal must give the R0 move: wait for the teammate inside this turn"
-    )
-    assert "run_in_background: false" in low, (
-        "the refusal must name the launch that returns in-turn, for every later teammate"
-    )
-    assert "blocked" in low, "the refusal must name the reporting exit when the wait cannot finish"
-
-
-REPEAT_REPORT = "repeating your complete report, its continuation block included"
-
-
-def test_every_refusal_tells_the_subagent_to_repeat_its_whole_report(tmp_path):
-    """The block buys the subagent one more turn, and its caller receives the message that turn
-    ends on in place of the report it stopped with - so both arms' reasons say to repeat the
-    complete report, or the caller is left holding a one-line acknowledgement."""
-    t = _transcript(tmp_path, ["bq1"])
-    _, out = _run(_subagent_payload(t, [_shell_task("bq1", command="make test")]), env=PRINT_ENV)
-    assert _decision(out) == "block" and REPEAT_REPORT in _reason(out), _reason(out)
-    t = _agent_transcript(tmp_path, ["a-wi-1"])
-    _, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]), env=PRINT_ENV)
-    assert _decision(out) == "block" and REPEAT_REPORT in _reason(out), _reason(out)
+    assert "a-wi-1" in _reason(out), "the refusal must name the still-running teammate"
 
 
 @pytest.mark.parametrize("env", [

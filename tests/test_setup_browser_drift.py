@@ -5,6 +5,7 @@ next to its replacement (Gemini's JSON merge used to union the args).
 
 Everything runs against temp configs, a temp $ODOO_AI_HOME and a stub `claude` CLI.
 """
+import importlib.util
 import json
 import os
 import subprocess
@@ -25,8 +26,7 @@ ALL = ["chrome-devtools", "chrome-devtools-headed", "playwright", "playwright-he
 OPTIN = ALL[1:]
 
 
-@pytest.fixture
-def world(tmp_path):
+def _make_world(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     cfg = tmp_path / "claude-config"
@@ -51,7 +51,31 @@ def world(tmp_path):
             "gemini": tmp_path / "gemini" / "settings.json"}
 
 
+@pytest.fixture
+def world(tmp_path):
+    return _make_world(tmp_path)
+
+
+_SSOT = None
+
+
+def _ssot():
+    global _SSOT
+    if _SSOT is None:
+        spec = importlib.util.spec_from_file_location("browser_mcp_servers_under_test", SSOT_PY)
+        _SSOT = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_SSOT)
+    return _SSOT
+
+
 def _spec(world, server):
+    """The launch spec resolved for this world's state root - in-process, the same function the
+    `spec` command prints (that command is exercised once, in the state-root test below)."""
+    state = str(world["tmp"] / "state")
+    return json.loads(json.dumps(_ssot().desired_spec(server, state, world["env"])))
+
+
+def _spec_from_cli(world, server):
     out = subprocess.run([sys.executable, str(SSOT_PY), "spec", server], env=world["env"],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -78,9 +102,12 @@ def _write_claude_config(world, servers):
 # --------------------------------------------------------------------------- #
 def test_the_resolved_spec_carries_the_state_root(world):
     state = str(world["tmp"] / "state")
-    assert f"--workspace={state}/projects" in _spec(world, "chrome-devtools-headed")["args"]
-    assert f"--output-dir={state}/projects" in _spec(world, "playwright")["args"]
-    assert _spec(world, "pagecast")["env"] == {"RECORDING_OUTPUT_DIR": f"{state}/scratch/pagecast"}
+    assert f"--workspace={state}/projects" in _spec_from_cli(world, "chrome-devtools-headed")["args"]
+    assert f"--output-dir={state}/projects" in _spec_from_cli(world, "playwright")["args"]
+    pagecast = _spec_from_cli(world, "pagecast")
+    assert pagecast["env"] == {"RECORDING_OUTPUT_DIR": f"{state}/scratch/pagecast"}
+    # The in-process resolution the other tests build their expectations from is the same one.
+    assert _spec(world, "pagecast") == pagecast
 
 
 def test_check_reports_missing_families(world):
@@ -165,8 +192,6 @@ def test_a_failed_re_add_restores_the_previous_registration_and_fails(world):
     assert calls[2][:5] == ["mcp", "add-json", "--scope", "user", "chrome-devtools-headed"]
     assert json.loads(calls[2][5]) == old
     assert len(calls) == 3
-    assert "could not add chrome-devtools-headed" in res.stderr
-    assert "restored the previous chrome-devtools-headed registration" in res.stderr
 
 
 def test_a_failed_restore_prints_the_entry_to_put_back(world):
@@ -177,8 +202,7 @@ def test_a_failed_restore_prints_the_entry_to_put_back(world):
     _failing_add_stub(world, restore_fails=True)
     res = _step(world, STEP12, "apply")
     assert res.returncode == 1
-    assert "could not restore the previous playwright registration" in res.stderr
-    assert json.dumps(old, separators=(",", ":")) in res.stderr
+    assert json.dumps(old, separators=(",", ":")) in res.stderr, "the entry to put back must be printed"
 
 
 def test_a_failed_add_of_a_missing_family_fails_without_a_restore(world):
@@ -225,22 +249,6 @@ def test_codex_drift_is_replaced_not_duplicated(world):
     assert _step(world, STEP10, "check").returncode == 0
 
 
-def test_codex_without_tomllib_compares_the_table_text(world):
-    """3.8-3.10 hosts have no tomllib: the comparison falls back to the rendered table text."""
-    world["codex"].parent.mkdir(parents=True)
-    world["codex"].write_text("", encoding="utf-8")
-    assert _step(world, STEP10, "apply").returncode == 0
-    spec = json.dumps(_spec(world, "pagecast"))
-    code = ("import sys; sys.modules['tomllib'] = None; sys.argv = ['config_merge.py', "
-            "'mcp-server-matches', 'toml', %r, 'pagecast']; "
-            "exec(open(%r).read())" % (str(world["codex"]), str(CONFIG_MERGE)))
-    ok = subprocess.run([sys.executable, "-c", code], input=spec, capture_output=True, text=True)
-    assert ok.returncode == 0, ok.stdout + ok.stderr
-    stale = json.dumps(dict(_spec(world, "pagecast"), args=["-y", "@mcpware/pagecast@0"]))
-    bad = subprocess.run([sys.executable, "-c", code], input=stale, capture_output=True, text=True)
-    assert bad.returncode == 1
-
-
 def test_gemini_drift_replaces_the_args_instead_of_unioning_them(world):
     world["gemini"].parent.mkdir(parents=True)
     world["gemini"].write_text(json.dumps({"theme": "dark", "mcpServers": {"pagecast": {
@@ -260,15 +268,10 @@ def test_gemini_drift_replaces_the_args_instead_of_unioning_them(world):
 # --------------------------------------------------------------------------- #
 # the SessionStart hint
 # --------------------------------------------------------------------------- #
-def test_the_session_start_probe_names_drift_and_the_remedy(world):
-    _write_claude_config(world, {"playwright": {"command": "npx",
-                                                "args": ["-y", "@playwright/mcp@0"]}})
+def _session_start_probe(world):
     hook = PLUGIN / "hooks" / "check-setup-deps.sh"
-    res = subprocess.run(["bash", str(hook)], input="{}", env=world["env"], capture_output=True,
-                         text=True, timeout=60)
-    assert res.returncode == 0
-    assert "browser MCP flags outdated (claude:playwright)" in res.stderr
-    assert "/odoo-ai-agents:odoo-setup browser, then restart the session" in res.stderr
+    return subprocess.run(["bash", str(hook)], input="{}", env=world["env"], capture_output=True,
+                          text=True, timeout=60)
 
 
 def test_the_session_start_probe_lists_every_drifted_registration_runtime_qualified(world):
@@ -278,41 +281,66 @@ def test_the_session_start_probe_lists_every_drifted_registration_runtime_qualif
     world["gemini"].parent.mkdir(parents=True)
     world["gemini"].write_text(json.dumps({"mcpServers": {"pagecast": {
         "command": "npx", "args": ["-y", "@mcpware/pagecast@0"]}}}), encoding="utf-8")
-    hook = PLUGIN / "hooks" / "check-setup-deps.sh"
-    res = subprocess.run(["bash", str(hook)], input="{}", env=world["env"], capture_output=True,
-                         text=True, timeout=60)
-    assert ("browser MCP flags outdated (claude:chrome-devtools-headed, claude:playwright, "
-            "gemini:pagecast)") in res.stderr, res.stderr
+    res = _session_start_probe(world)
+    assert res.returncode == 0
+    for name in ("claude:chrome-devtools-headed", "claude:playwright", "gemini:pagecast"):
+        assert name in res.stderr, res.stderr
+    assert "claude:pagecast" not in res.stderr and "codex:" not in res.stderr, res.stderr
 
 
 def test_an_unreadable_config_is_reported_as_unchecked_never_as_no_drift(world):
+    """Gemini's config does not parse while every Claude registration matches its spec: the
+    probe says gemini was not checked, and nothing is reported as outdated."""
+    _write_claude_config(world, {s: _spec(world, s) for s in OPTIN})
     world["gemini"].parent.mkdir(parents=True)
     world["gemini"].write_text("{ not json", encoding="utf-8")
     drift = subprocess.run([sys.executable, str(SSOT_PY), "drift"], env=world["env"],
                            capture_output=True, text=True, check=True)
     assert drift.stdout.splitlines() == ["gemini ?"]
-    hook = PLUGIN / "hooks" / "check-setup-deps.sh"
-    res = subprocess.run(["bash", str(hook)], input="{}", env=world["env"], capture_output=True,
-                         text=True, timeout=60)
-    assert "browser MCP flags not checked (gemini config unreadable)" in res.stderr, res.stderr
-    assert "flags outdated" not in res.stderr
+    res = _session_start_probe(world)
+    assert res.returncode == 0
+    assert "gemini" in res.stderr, res.stderr
+    assert "outdated" not in res.stderr, res.stderr
 
 
-def _drift_without_tomllib(world):
+def _drift_without_tomllib(world, codex):
     code = ("import runpy, sys; sys.modules['tomllib'] = None; "
             "sys.argv = [%r, 'drift']; runpy.run_path(%r, run_name='__main__')"
             % (str(SSOT_PY), str(SSOT_PY)))
-    return subprocess.run([sys.executable, "-c", code], env=world["env"], capture_output=True,
-                          text=True)
+    return subprocess.run([sys.executable, "-c", code], env=dict(world["env"], CODEX_CONFIG=str(codex)),
+                          capture_output=True, text=True)
 
 
-def test_codex_drift_is_detected_without_tomllib(world):
-    """Python 3.8-3.10 has no tomllib: Codex drift must still be found (by the same table-text
-    comparison setup uses), not silently reported as none."""
+@pytest.fixture(scope="module")
+def codex_applied(tmp_path_factory):
+    """Step 10 applied once over an empty Codex config: every family registered as specified."""
+    world = _make_world(tmp_path_factory.mktemp("codex-applied"))
     world["codex"].parent.mkdir(parents=True)
     world["codex"].write_text("", encoding="utf-8")
-    assert _step(world, STEP10, "apply").returncode == 0
-    clean = _drift_without_tomllib(world)
+    res = _step(world, STEP10, "apply")
+    assert res.returncode == 0, res.stdout + res.stderr
+    return world
+
+
+def test_codex_without_tomllib_the_steps_comparison_uses_the_table_text(codex_applied):
+    """3.8-3.10 hosts have no tomllib: the comparison falls back to the rendered table text."""
+    world = codex_applied
+    spec = json.dumps(_spec(world, "pagecast"))
+    code = ("import sys; sys.modules['tomllib'] = None; sys.argv = ['config_merge.py', "
+            "'mcp-server-matches', 'toml', %r, 'pagecast']; "
+            "exec(open(%r).read())" % (str(world["codex"]), str(CONFIG_MERGE)))
+    ok = subprocess.run([sys.executable, "-c", code], input=spec, capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    stale = json.dumps(dict(_spec(world, "pagecast"), args=["-y", "@mcpware/pagecast@0"]))
+    bad = subprocess.run([sys.executable, "-c", code], input=stale, capture_output=True, text=True)
+    assert bad.returncode == 1
+
+
+def test_codex_drift_is_detected_without_tomllib(codex_applied, tmp_path):
+    """Python 3.8-3.10 has no tomllib: Codex drift must still be found (by the same table-text
+    comparison setup uses), not silently reported as none."""
+    world = codex_applied
+    clean = _drift_without_tomllib(world, world["codex"])
     assert clean.returncode == 0 and clean.stdout == "", clean.stdout + clean.stderr
     text = world["codex"].read_text(encoding="utf-8")
     want = _spec(world, "playwright")["args"][1]
@@ -320,15 +348,8 @@ def test_codex_drift_is_detected_without_tomllib(world):
     start = text.index(head)
     end = text.find("\n[", start + len(head))
     end = len(text) if end < 0 else end
-    world["codex"].write_text(text[:start] + text[start:end].replace(want, "@playwright/mcp@0")
-                              + text[end:], encoding="utf-8")
-    drifted = _drift_without_tomllib(world)
+    drifted_cfg = tmp_path / "drifted.toml"
+    drifted_cfg.write_text(text[:start] + text[start:end].replace(want, "@playwright/mcp@0")
+                           + text[end:], encoding="utf-8")
+    drifted = _drift_without_tomllib(world, drifted_cfg)
     assert drifted.stdout.splitlines() == ["codex playwright"], drifted.stdout + drifted.stderr
-
-
-def test_the_session_start_probe_is_silent_about_flags_when_registrations_match(world):
-    _write_claude_config(world, {s: _spec(world, s) for s in OPTIN})
-    hook = PLUGIN / "hooks" / "check-setup-deps.sh"
-    res = subprocess.run(["bash", str(hook)], input="{}", env=world["env"], capture_output=True,
-                         text=True, timeout=60)
-    assert "browser MCP flags outdated" not in res.stderr

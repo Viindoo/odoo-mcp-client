@@ -12,6 +12,7 @@ stale registration, apply removes and re-adds it) is in test_setup_browser_drift
 
 Stdlib + bash only.
 """
+import functools
 import os
 import re
 import shutil
@@ -23,8 +24,6 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 LIB = PLUGIN / "scripts" / "lib" / "browser-mcp-servers.sh"
-STEP10 = PLUGIN / "scripts" / "setup-steps" / "10-browser-mcp.sh"
-STEP12 = PLUGIN / "scripts" / "setup-steps" / "12-browser-mcp-optin.sh"
 STEP32 = PLUGIN / "scripts" / "setup-steps" / "32-permissions-state-root.sh"
 STEP48 = PLUGIN / "scripts" / "setup-steps" / "48-db-local-auth.sh"
 ODOO_SETUP_CMD = PLUGIN / "commands" / "odoo-setup.md"
@@ -37,13 +36,10 @@ OPTIN_SERVERS = [
     "playwright", "playwright-headed",
     "pagecast", "pagecast-headed",
 ]
-# Opt-in families that still run headless (must pass --headless) vs headed
-# (must omit --headless).
+# Opt-in families that still run headless (must pass --headless); the headed ones omit it.
 HEADLESS_OPTIN = {"playwright", "pagecast"}
-HEADED_OPTIN = {"chrome-devtools-headed", "playwright-headed", "pagecast-headed"}
 # chrome-devtools/playwright pass --isolated; pagecast never does.
 ISOLATED_OPTIN = {"chrome-devtools-headed", "playwright", "playwright-headed"}
-NO_ISOLATED_OPTIN = {"pagecast", "pagecast-headed"}
 # Expected package per family; the version is checked separately (exact, never a range).
 EXPECTED_PKG = {
     "chrome-devtools-headed": "chrome-devtools-mcp",
@@ -59,43 +55,39 @@ def _clean_env():
     return {k: v for k, v in os.environ.items() if not k.startswith("BROWSER_MCP_")}
 
 
-def _npx_args(server: str) -> list[str]:
-    """Return `browser_mcp_npx_args <server>` output (the SSOT the steps consume)."""
+@functools.lru_cache(maxsize=None)
+def _npx_args(server: str) -> tuple[str, ...]:
+    """Return `browser_mcp_npx_args <server>` output (the SSOT the steps consume). Cached: the
+    answer is a pure function of the SSOT, and each call is a bash + python launch."""
     assert LIB.is_file(), f"missing SSOT lib: {LIB}"
     res = subprocess.run(
         ["bash", "-c", f'. "{LIB}"; browser_mcp_npx_args "$1"', "_", server],
         capture_output=True, text=True, env=_clean_env(),
     )
     assert res.returncode == 0, f"browser_mcp_npx_args {server} failed: {res.stderr}"
-    return [ln for ln in res.stdout.splitlines() if ln != ""]
+    return tuple(ln for ln in res.stdout.splitlines() if ln != "")
 
 
 @requires_bash
-def test_lib_declares_five_optin_families():
+def test_lib_declares_the_five_optin_families_and_the_eager_one_outside_them():
     res = subprocess.run(
-        ["bash", "-c", f'. "{LIB}"; printf "%s\\n" "${{BROWSER_MCP_OPTIN_SERVERS[@]}}"'],
+        ["bash", "-c", f'. "{LIB}"; printf "%s\\n" "${{BROWSER_MCP_OPTIN_SERVERS[@]}}"; '
+                       'echo "eager=$BROWSER_MCP_EAGER_SERVER"'],
         capture_output=True, text=True,
     )
     assert res.returncode == 0, res.stderr
-    got = [ln for ln in res.stdout.splitlines() if ln]
-    assert got == OPTIN_SERVERS, f"opt-in family list drifted: {got}"
-
-
-@requires_bash
-def test_eager_family_not_in_optin_list():
-    res = subprocess.run(
-        ["bash", "-c", f'. "{LIB}"; echo "$BROWSER_MCP_EAGER_SERVER"'],
-        capture_output=True, text=True,
-    )
-    assert res.returncode == 0, res.stderr
-    assert res.stdout.strip() == "chrome-devtools"
+    lines = [ln for ln in res.stdout.splitlines() if ln]
+    assert lines[:-1] == OPTIN_SERVERS, f"opt-in family list drifted: {lines[:-1]}"
+    assert lines[-1] == "eager=chrome-devtools"
 
 
 @requires_bash
 @pytest.mark.parametrize("server", OPTIN_SERVERS)
-def test_optin_family_package_is_pinned_to_an_exact_version(server):
+def test_optin_family_launches_an_exactly_pinned_package_with_its_headless_and_isolated_flags(server):
     """`npx -y pkg@1` reuses whatever 1.x the machine's npm cache holds; only an exact version
-    makes the file-write rules the same on every machine."""
+    makes the file-write rules the same on every machine. Headless families pass --headless and
+    headed ones omit it; chrome-devtools/playwright pass --isolated (concurrent-session safety)
+    and pagecast does not (unsupported)."""
     args = _npx_args(server)
     first = args[1] if args[0] == "-p" else args[0]
     m = EXACT.match(first)
@@ -104,30 +96,8 @@ def test_optin_family_package_is_pinned_to_an_exact_version(server):
     for i, a in enumerate(args[:-1]):
         if a == "-p":
             assert EXACT.match(args[i + 1]), f"{server}: an unpinned package {args[i + 1]!r}"
-
-
-@requires_bash
-@pytest.mark.parametrize("server", sorted(HEADLESS_OPTIN))
-def test_headless_optin_passes_headless(server):
-    assert "--headless" in _npx_args(server), f"{server} is a headless family and must pass --headless"
-
-
-@requires_bash
-@pytest.mark.parametrize("server", sorted(HEADED_OPTIN))
-def test_headed_optin_omits_headless(server):
-    assert "--headless" not in _npx_args(server), f"{server} is headed and must NOT pass --headless"
-
-
-@requires_bash
-@pytest.mark.parametrize("server", sorted(ISOLATED_OPTIN))
-def test_isolated_optin_passes_isolated(server):
-    assert "--isolated" in _npx_args(server), f"{server} must pass --isolated (concurrent-session safety)"
-
-
-@requires_bash
-@pytest.mark.parametrize("server", sorted(NO_ISOLATED_OPTIN))
-def test_pagecast_optin_omits_isolated(server):
-    assert "--isolated" not in _npx_args(server), f"{server} must not pass --isolated (unsupported)"
+    assert ("--headless" in args) == (server in HEADLESS_OPTIN), f"{server}: wrong --headless"
+    assert ("--isolated" in args) == (server in ISOLATED_OPTIN), f"{server}: wrong --isolated"
 
 
 @requires_bash
@@ -137,50 +107,10 @@ def test_headed_variant_shares_package_with_headless_default():
         assert _npx_args(backend)[0] == _npx_args(f"{backend}-headed")[0], backend
 
 
-def test_claude_optin_step_registers_the_resolved_spec_at_user_scope():
-    """The Claude opt-in step registers each family with `claude mcp add --scope user`, from the
-    resolved launch spec (state-root flags included), and replaces a drifted entry."""
-    text = STEP12.read_text(encoding="utf-8")
-    assert "mcp add --scope user" in text, "step 12 must wire families at user scope"
-    assert "mcp remove --scope user" in text, "step 12 must remove a drifted entry before re-adding"
-    assert "BROWSER_MCP_OPTIN_SERVERS" in text, "step 12 must iterate the opt-in family SSOT"
-    assert "browser_mcp_spec" in text, "step 12 must register the SSOT's resolved launch spec"
-
-
-def test_claude_optin_step_documents_disabled_optout():
-    """The opt-out for a browser-free host is documented in the step."""
-    text = STEP12.read_text(encoding="utf-8")
-    assert "disabledMcpjsonServers" in text, "step 12 must document the disabledMcpjsonServers opt-out"
-
-
-def test_both_steps_source_the_shared_ssot():
-    """Codex/Gemini (step 10) and Claude (step 12) share ONE launch SSOT."""
-    for step in (STEP10, STEP12):
-        assert "browser-mcp-servers.sh" in step.read_text(encoding="utf-8"), (
-            f"{step.name} must source the shared browser-mcp-servers.sh SSOT"
-        )
-
-
-# --------------------------------------------------------------------------- #
-# P3: step 32 (state-root permissions) is wired into odoo-setup.md            #
-# --------------------------------------------------------------------------- #
-
-def test_step32_file_exists_and_executable():
-    assert STEP32.is_file(), f"missing step script: {STEP32}"
-    assert os.access(STEP32, os.X_OK), f"step script must be executable: {STEP32}"
-
-
-# --------------------------------------------------------------------------- #
-# Step 48 (local passwordless DB auth) is wired into odoo-setup.md             #
-#                                                                             #
-# Without this, the step's own 52 behaviour tests all stay green while the step #
-# becomes unreachable dead code: nothing else asserts that the setup command    #
-# runs it, or that it is executable at all. Modelled on step 32's pair above.   #
-# --------------------------------------------------------------------------- #
-
-def test_step48_file_exists_and_executable():
-    assert STEP48.is_file(), f"missing step script: {STEP48}"
-    assert os.access(STEP48, os.X_OK), f"step script must be executable: {STEP48}"
+@pytest.mark.parametrize("step", [STEP32, STEP48], ids=lambda p: p.stem)
+def test_a_setup_step_script_is_executable(step):
+    assert step.is_file(), f"missing step script: {step}"
+    assert os.access(step, os.X_OK), f"step script must be executable: {step}"
 
 
 # --------------------------------------------------------------------------- #

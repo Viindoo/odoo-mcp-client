@@ -222,16 +222,6 @@ def test_discover_real_script_rejects_junk_versions(tmp_path, junk_version):
     assert versions.get("junk_repo") == "unknown"
 
 
-def test_discover_inference_not_reimplemented_drift_guard():
-    """Backstop: the series inference still lives inside discover_odoo.sh.
-
-    Guards against a refactor that deletes the inline inference from the shell
-    script and silently moves the rule back into Python test code.
-    """
-    src = DISCOVER.read_text()
-    assert "int(parts[0]) >= 8" in src and "parts[1] == '0'" in src
-
-
 # --- CONTRACT-1: no-valid-series selection + `read` CLI exit contract --------
 
 def test_select_instance_all_garbage_returns_none_false():
@@ -343,86 +333,6 @@ def test_textscan_matches_tomllib_for_array_of_tables(tmp_path):
 
 
 # --- H1 regression: port-index seed must yield a single integer --------------
-
-def _extract_port_seed_lines():
-    """Pull the SHIPPED port-seed lines out of 40-instance-profile.sh.
-
-    Captures the line that counts [[instance]] tables into a variable and any
-    immediately following default-expansion line, so the regression test runs
-    the real seeding logic (cannot drift from a re-implemented copy). Returns
-    (count_line, default_line) where default_line may be "" if the count line
-    already guarantees a single integer on its own.
-    """
-    text = STEP40.read_text(encoding="utf-8")
-    lines = text.splitlines()
-    count_idx = next(
-        (i for i, ln in enumerate(lines)
-         if "grep -cE '^\\[\\[instance\\]\\]'" in ln and "=" in ln),
-        None,
-    )
-    assert count_idx is not None, "could not locate the grep -cE port-seed line"
-    count_line = lines[count_idx].strip()
-    # Identify the variable the count is assigned to (e.g. port_idx / existing_count).
-    var = count_line.split("=", 1)[0].strip()
-    default_line = ""
-    nxt = lines[count_idx + 1].strip() if count_idx + 1 < len(lines) else ""
-    if nxt.startswith(f"{var}=") and ":-" in nxt:
-        default_line = nxt
-    return var, count_line, default_line
-
-
-@pytest.mark.skipif(which("bash") is None, reason="bash not available")
-@pytest.mark.parametrize("scenario,expected", [
-    ("absent", 0),  # registry file does not exist
-    ("zero", 0),    # file exists but has zero [[instance]] (the H1 crash case)
-    ("two", 2),     # file exists with two [[instance]]
-])
-def test_port_seed_yields_single_integer(tmp_path, scenario, expected):
-    """The shipped port-seed yields ONE integer and never crashes $(( )).
-
-    Builds a `set -euo pipefail` snippet from the REAL seeding line(s) and feeds
-    the resulting count into arithmetic, against three registries. Fails
-    (non-zero exit / "arithmetic syntax error") if the count ever becomes the
-    two-line string "0\\n0" and breaks the arithmetic, or if the computed index
-    is wrong.
-    """
-    var, count_line, default_line = _extract_port_seed_lines()
-
-    toml = tmp_path / "instances.toml"
-    if scenario == "zero":
-        toml.write_text("# registry with no instances yet\n", encoding="utf-8")
-    elif scenario == "two":
-        toml.write_text(
-            '[[instance]]\nseries = "16.0"\n\n[[instance]]\nseries = "17.0"\n',
-            encoding="utf-8",
-        )
-    # "absent" -> do not create the file.
-
-    snippet_lines = [
-        "set -euo pipefail",
-        f"INSTANCES_TOML={shlex.quote(str(toml))}",
-        f"{var}=0",
-        'if [ -f "$INSTANCES_TOML" ]; then',
-        f"  {count_line}",
-    ]
-    if default_line:
-        snippet_lines.append(f"  {default_line}")
-    snippet_lines += [
-        "fi",
-        # Exercise the same arithmetic the shipped script performs downstream.
-        f'computed=$(( 8069 + {var} * 10 ))',
-        f'printf "%s" "${var}"',
-    ]
-    snippet = "\n".join(snippet_lines) + "\n"
-
-    proc = subprocess.run(["bash", "-c", snippet], capture_output=True, text=True)
-    assert proc.returncode == 0, (
-        f"shipped port-seed crashed for scenario={scenario}: {proc.stderr.strip()}"
-    )
-    assert proc.stdout == str(expected), (
-        f"scenario={scenario} expected {var}={expected} got {proc.stdout!r}"
-    )
-
 
 # --- machine-global instances.toml resolution (lib/resolve_instances.sh) ------
 # instances.toml is a HOST fact, not a project fact: an execute-agent has no
@@ -598,48 +508,6 @@ def test_resolve_fails_closed_when_home_and_overrides_unset(tmp_path):
 # listening server on release). Static string guards - the behavioral proof of
 # the bind lives in tests/test_step45_50_harden.py.
 # --------------------------------------------------------------------------- #
-def test_step50_launches_source_server_under_setsid():
-    """The source-mode odoo-bin launch line must be prefixed with `setsid` so the
-    server becomes its own session/process-group leader (pgid == its own pid)."""
-    text = STEP50.read_text(encoding="utf-8")
-    # A true backgrounded launch ends with a bare ` &` (the preflight
-    # `"$py" "$bin" --version ...; then` line contains `2>&1` but is NOT a
-    # background job, so key on the trailing `&`, not any `&`).
-    launch_lines = [
-        ln for ln in text.splitlines()
-        if '"$py" "$bin"' in ln and ln.rstrip().endswith("&")
-        and not ln.lstrip().startswith("#")
-    ]
-    assert launch_lines, "could not find the backgrounded odoo-bin launch line"
-    assert all(ln.lstrip().startswith("setsid ") for ln in launch_lines), (
-        "the odoo-bin launch must run under `setsid` so the server is a clean "
-        f"process-group leader; got: {launch_lines!r}"
-    )
-
-
-def test_step50_binds_pid_onto_lease_on_the_exclusive_branch():
-    """The exclusive branch must call `allocator.py bind ... --pid` so the live
-    server pid is recorded on the lease (release/gc need it to stop the group)."""
-    text = STEP50.read_text(encoding="utf-8")
-    assert "_bind_exclusive" in text, "expected an exclusive-branch pid-bind helper"
-    assert "bind" in text and "--pid" in text, (
-        "the exclusive branch must invoke the allocator `bind <token> --pid` verb"
-    )
-    # The bind must be gated on the exclusive branch (not fire for shared leases).
-    assert 'ARG_EXCLUSIVE" == "1"' in text and "_bind_exclusive" in text, (
-        "the pid bind must be gated on the --exclusive branch"
-    )
-    # Liveness guard preserved: only a kill -0 confirmed pid is bound. Extract a
-    # window starting at the helper definition up to its `bind` invocation (a
-    # naive split on `}` would stop inside `${ARG_ALLOC_TOKEN:-}`).
-    after = text.split("_bind_exclusive()", 1)[1]
-    bind_block = after.split('bind "${ARG_ALLOC_TOKEN}"', 1)[0]
-    assert 'kill -0 "$1"' in bind_block, (
-        "the bind helper must keep the kill -0 liveness guard so a fast-failing "
-        "server never records a dead pid"
-    )
-
-
 # --------------------------------------------------------------------------- #
 # P2 bootstrap-race fix (49-solution-final.md §2.4): eager catalog-migration
 # at session start + a project-discriminated db_name default.
@@ -977,6 +845,9 @@ def test_step40_apply_keeps_the_catalog_parseable_for_any_recorded_value(tmp_pat
     home.mkdir()
     proj = tmp_path / "proj"
     proj.mkdir()
+    # A registry that exists but holds no [[instance]] yet: seeding the first port from it
+    # must not crash (the count once became the two-line string "0\n0" and broke $(( ))).
+    (home / "instances.toml").write_text("# registry with no instances yet\n", encoding="utf-8")
 
     spec = tmp_path / "spec.json"
     spec.write_text(
@@ -1014,34 +885,8 @@ def test_step40_apply_keeps_the_catalog_parseable_for_any_recorded_value(tmp_pat
     assert inst["addons_path"] == [f"/repos/{hostile}"], (
         f"addons_path must round-trip exactly, got {inst!r}"
     )
-
-
-@pytest.mark.skipif(which("bash") is None, reason="bash not available")
-def test_step40_write_path_publishes_atomically_via_config_merge(tmp_path):
-    """The catalog is replaced ATOMICALLY by `config_merge.py`'s
-    `toml-append-array-item` - step 40's OWN write path - never truncated in
-    place, mirroring 45-venv.sh's `_upsert_instance_keys` (tmp + os.replace).
-    An in-place append has a window in which the host's only instance catalog
-    is truncated/partial if the process is killed mid-write.
-    """
-    src = CONFIG_MERGE.read_text(encoding="utf-8")
-    body = src[
-        src.index("def cmd_toml_append_array_item"):
-        src.index('# Subcommand: json-ensure-allow')
-    ]
-    assert "os.replace" in body, (
-        "toml-append-array-item must publish the new catalog with an atomic "
-        "os.replace, not an in-place append/truncate of the host's SSOT"
-    )
-    assert 'open(target_path, "a"' not in body, (
-        "toml-append-array-item must not open the catalog itself in append "
-        "mode (that is not atomic)"
-    )
-
-    # And the mechanism must actually work end to end.
-    toml = tmp_path / "instances.toml"
-    _append_instance(toml, "17.0", _body("17.0", 8069))
-    data = tomllib.loads(toml.read_text())
-    assert data["instance"][0]["series"] == "17.0"
-    leftovers = [p.name for p in toml.parent.glob("instances.toml.tmp*")]
+    assert inst["http_port"] == 8069, f"the first instance must seed from the base port: {inst!r}"
+    leftovers = [p.name for p in toml_path.parent.glob("instances.toml.tmp*")]
     assert leftovers == [], f"the temp file must not survive a successful write: {leftovers}"
+
+

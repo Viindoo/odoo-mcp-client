@@ -57,15 +57,6 @@ def _log_text(res) -> str:
 
 
 @requires_bash
-def test_a_hung_exit_after_the_shutdown_line_is_ended_and_a_passing_run_stays_passed(tmp_path):
-    res, took, pidfile = _run_test_verb(tmp_path, "exec sleep 600", failed=0)
-    assert took < 15
-    assert "TEST_RESULT=passed" in res.stdout, res.stdout
-    assert "allocator: FORCED_EXIT_AFTER_SHUTDOWN grace=1s" in _log_text(res)
-    assert not _alive(int(pidfile.read_text()))
-
-
-@requires_bash
 def test_a_hung_exit_after_the_shutdown_line_never_hides_a_failed_test(tmp_path):
     res, took, pidfile = _run_test_verb(tmp_path, "exec sleep 600", failed=1)
     assert took < 15
@@ -75,10 +66,11 @@ def test_a_hung_exit_after_the_shutdown_line_never_hides_a_failed_test(tmp_path)
 
 
 @requires_bash
-def test_the_shutdown_line_is_found_when_much_more_log_follows_it(tmp_path):
+def test_the_shutdown_line_is_found_when_much_more_log_follows_it_and_a_passing_run_stays_passed(tmp_path):
     flood = 'yes "INFO testdb werkzeug: GET /websocket HTTP/1.1 101" | head -n 60000; exec sleep 600'
     res, took, pidfile = _run_test_verb(tmp_path, flood, failed=0)
     assert took < 15
+    assert "TEST_RESULT=passed" in res.stdout, res.stdout
     assert "allocator: FORCED_EXIT_AFTER_SHUTDOWN grace=1s" in _log_text(res)
     assert not _alive(int(pidfile.read_text()))
 

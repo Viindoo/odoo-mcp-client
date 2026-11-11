@@ -156,7 +156,8 @@ def _seed_ended_session_lease(harness: Harness, home: Path, *, token=STALE_TOKEN
     past = int(time.time()) - 100000
     return harness.seed_lease(
         home, None, token=token, db_name=db, drop_on_release=False,
-        owner={"session": {"pid": DEAD_PID, "started": "proc:seeded:1", "session_id": "ended",
+        owner={"run_id": "",  # a lease that belongs to a run is parked, not reclaimed
+               "session": {"pid": DEAD_PID, "started": "proc:seeded:1", "session_id": "ended",
                            "source": "env", "seen_at": past}},
     )
 

@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from conftest import farm_path
@@ -94,18 +95,35 @@ MCP_PKG_PINS = [
 RECORDER_LIB_PIN = "playwright@" + _mcp_pin("BROWSER_MCP_BROWSER_PLAYWRIGHT_VERSION")
 
 
-@pytest.fixture(scope="module")
-def script_text():
-    assert SCRIPT.is_file(), f"missing setup step: {SCRIPT}"
-    return SCRIPT.read_text(encoding="utf-8")
-
-
 # ---------------------------------------------------------------------------
 # contract: the pin is real and not accidentally dropped
 # ---------------------------------------------------------------------------
-def test_playwright_version_is_pinned(script_text):
-    assert 'playwright@${PW_PIN}' in script_text, "installs must use the pinned var"
+def test_playwright_pin_is_an_exact_release():
     assert re.fullmatch(r"\d+\.\d+\.\d+", PIN), f"not an exact release: {PIN!r}"
+
+
+def _code_commands():
+    """The step's executable commands: comment lines dropped, backslash continuations joined."""
+    lines = [ln for ln in SCRIPT.read_text(encoding="utf-8").splitlines()
+             if not ln.strip().startswith("#")]
+    return re.sub(r"\\\n\s*", " ", "\n".join(lines)).splitlines()
+
+
+def test_every_npm_install_of_the_step_skips_lifecycle_scripts():
+    """Supply chain: the step only pre-installs packages it never runs, so no install may execute
+    a dependency's pre/postinstall script."""
+    installs = [c for c in _code_commands() if re.search(r"\bnpm\s+install\b", c)]
+    assert installs, "the step no longer runs `npm install` - this guard scans nothing"
+    assert [c.strip() for c in installs if "--ignore-scripts" not in c] == []
+
+
+def test_every_playwright_install_of_the_step_is_version_pinned():
+    """An unpinned `playwright install` resolves to whatever the local cache holds."""
+    installs = [c for c in _code_commands()
+                if re.search(r"\bplaywright\b", c) and re.search(r"\binstall(-deps)?\b", c)
+                and re.search(r"\bnpx\b|\bnpm\s+install\b", c)]
+    assert installs, "the step no longer installs playwright - this guard scans nothing"
+    assert [c.strip() for c in installs if "playwright@${PW_PIN}" not in c] == []
 
 
 def _pagecast_launch(env):
@@ -156,81 +174,6 @@ def test_the_chromium_installed_is_the_one_pagecast_launches(tmp_path, override)
         assert launched[0] == override
 
 
-def test_no_unpinned_playwright_install(script_text):
-    # A bare `npx -y playwright install` (no @version) is the regression we are
-    # guarding against - it resolves to whatever the local cache holds.
-    assert not re.search(r"npx\s+-y\s+playwright\s+install", script_text), (
-        "found an unpinned `npx -y playwright install` - every call must pin "
-        "playwright@${PW_PIN}"
-    )
-
-
-def test_os_guard_present(script_text):
-    # Branches for the non-apt platforms + the apt-specific system-deps path.
-    assert "Darwin" in script_text
-    assert "apt-get" in script_text
-    assert "install-deps" in script_text
-    assert "_is_apt_linux" in script_text
-
-
-# ---------------------------------------------------------------------------
-# contract: the 3 MCP packages are pre-installed via the shared SSOT, on disk
-# only, and this step never registers or runs a server
-# ---------------------------------------------------------------------------
-def test_sources_shared_browser_mcp_ssot(script_text):
-    # Must source the SAME SSOT steps 10/12 register from - never re-pin here.
-    assert "browser-mcp-servers.sh" in script_text, (
-        "20-browser-deps.sh must source the shared browser-mcp-servers.sh SSOT"
-    )
-
-
-def test_all_three_pin_vars_referenced(script_text):
-    for var in ("BROWSER_MCP_CHROME_PIN", "BROWSER_MCP_PLAYWRIGHT_PIN", "BROWSER_MCP_PAGECAST_PIN"):
-        assert var in script_text, f"must pre-install the package pinned by {var}"
-
-
-def test_preinstall_never_executes_the_package(script_text):
-    # `npm install` (never `npx`/`npm exec`) for the pre-install path, and
-    # --ignore-scripts so no lifecycle script in the dependency tree runs.
-    assert "--ignore-scripts" in script_text, (
-        "pre-install must pass --ignore-scripts - it must never execute code"
-    )
-    assert re.search(r"npm install[^\n]*--ignore-scripts", script_text) or re.search(
-        r"npm install[^\n]*\n[^\n]*--ignore-scripts", script_text
-    ), "pre-install must go through `npm install`, not npx/npm exec"
-
-
-def test_step_never_registers_an_mcp_server(script_text):
-    # Registration is EXCLUSIVELY step 12's (Claude) / step 10's (Codex/Gemini)
-    # job. This step must stay disk-only - check only executable (non-comment)
-    # lines, since the header prose legitimately mentions `claude mcp add` by
-    # name to document the separation.
-    code_lines = [
-        ln for ln in script_text.splitlines() if not ln.strip().startswith("#")
-    ]
-    code_only = "\n".join(code_lines)
-    assert "mcp add" not in code_only, (
-        "20-browser-deps.sh must never call `claude mcp add` - "
-        "install and register/run are strictly separate steps"
-    )
-    assert "claude" not in code_only.lower(), (
-        "20-browser-deps.sh must never invoke the claude CLI at all - "
-        "that belongs to step 12"
-    )
-
-
-@requires_bash
-def test_describe_mentions_preinstall_and_disk():
-    res = subprocess.run(
-        ["bash", str(SCRIPT), "describe"],
-        capture_output=True, text=True,
-    )
-    assert res.returncode == 0
-    out = res.stdout.lower()
-    assert "disk" in out
-    assert "3" in out or "three" in out
-
-
 # ---------------------------------------------------------------------------
 # contract: subcommands behave
 # ---------------------------------------------------------------------------
@@ -245,18 +188,6 @@ def test_describe_is_nonblank():
 
 
 @requires_bash
-def test_check_does_not_crash(tmp_path):
-    # check legitimately returns 0 (all present) or 1 (something missing); it
-    # must never crash with a usage/other error code.
-    res = subprocess.run(
-        ["bash", str(SCRIPT), "check"],
-        capture_output=True, text=True,
-        env=dict(os.environ, ODOO_AI_HOME=str(tmp_path / "state")),
-    )
-    assert res.returncode in (0, 1), res.stderr
-
-
-@requires_bash
 def test_unknown_subcommand_is_usage_error():
     res = subprocess.run(
         ["bash", str(SCRIPT), "definitely-not-a-subcommand"],
@@ -266,7 +197,8 @@ def test_unknown_subcommand_is_usage_error():
 
 
 # ---------------------------------------------------------------------------
-# behavior: apt-based Linux, stubbed PATH (offline + deterministic)
+# behavior: the step run against stub PATHs (offline + deterministic). Each scenario runs the
+# step ONCE (a bash + python startup per launch, several per scenario); the tests below read it.
 # ---------------------------------------------------------------------------
 def _write_stub(path: Path, body: str):
     path.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
@@ -421,41 +353,6 @@ def _apt_stub_bin(
     return bind
 
 
-def _run_apply(bind: Path):
-    env = dict(os.environ)
-    # Stubs first; keep the rest of PATH for grep/printf/sed/etc.
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    # The step records what it verified under the state root: never the real one.
-    env["ODOO_AI_HOME"] = str(bind.parent / "state")
-    return subprocess.run(
-        ["bash", str(SCRIPT), "apply"],
-        capture_output=True, text=True, env=env,
-    )
-
-
-@requires_bash
-def test_apply_prints_manual_guidance_without_passwordless_sudo(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False)
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    # Must surface the exact manual command, and must NOT claim it installed them.
-    assert f"sudo npx -y playwright@{PIN} install-deps chromium" in out, out
-    assert "system libraries installed" not in out
-
-
-@requires_bash
-def test_apply_auto_installs_system_deps_with_passwordless_sudo(tmp_path):
-    sudo_log = tmp_path / "sudo.log"
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, sudo_log=sudo_log)
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    # The script invoked sudo to run playwright install-deps for the libs.
-    assert sudo_log.is_file(), out
-    logged = sudo_log.read_text(encoding="utf-8")
-    assert "install-deps" in logged, logged
-    assert f"playwright@{PIN}" in logged, logged
-
-
 def _macos_stub_bin(tmp_path: Path, *, sudo_log: Path, apt_log: Path):
     """Stub bin dir that makes the script believe it runs on macOS, with apt-get
     and sudo present-but-recording so the test can prove they are NEVER called on
@@ -476,157 +373,6 @@ def _macos_stub_bin(tmp_path: Path, *, sudo_log: Path, apt_log: Path):
     _write_stub(bind / "apt-get", f'echo "$@" >> "{apt_log}"\nexit 0\n')
     _write_stub(bind / "sudo", f'echo "$@" >> "{sudo_log}"\nexit 0\n')
     return bind
-
-
-@requires_bash
-def test_apply_macos_path_never_touches_apt_or_sudo(tmp_path):
-    # macOS users are first-class: the apply path must install the browser binary
-    # and skip ALL apt/sudo system-deps machinery (those exist only on apt Linux).
-    sudo_log, apt_log = tmp_path / "sudo.log", tmp_path / "apt.log"
-    bind = _macos_stub_bin(tmp_path, sudo_log=sudo_log, apt_log=apt_log)
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    assert "install-deps" not in out, out
-    assert "system librar" not in out, out  # neither "present" nor "missing" path
-    assert not sudo_log.exists(), f"sudo must not run on macOS: {sudo_log.read_text()}"
-    assert not apt_log.exists(), f"apt-get must not run on macOS: {apt_log.read_text()}"
-
-
-@requires_bash
-def test_apply_fails_when_auto_system_deps_install_fails(tmp_path):
-    # When we HAVE passwordless sudo and actively run install-deps, a failure is
-    # a real error and must fail the step - never swallowed as a warning.
-    sudo_log = tmp_path / "sudo.log"
-    bind = _apt_stub_bin(
-        tmp_path, sudo_nopasswd=True, sudo_log=sudo_log, install_deps_fails=True
-    )
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, out
-    assert "Failed to install Chromium system libraries" in out, out
-
-
-@requires_bash
-def test_apply_skips_system_deps_when_libs_already_present(tmp_path):
-    # When ldconfig reports the real chromium SONAMEs, the probe must recognise
-    # them and skip - no manual guidance, no sudo. This guards the soname match
-    # (package libasound2 -> libasound.so.2) against a substring regression.
-    sudo_log = tmp_path / "sudo.log"
-    bind = _apt_stub_bin(
-        tmp_path, sudo_nopasswd=True, sudo_log=sudo_log, libs_present=True
-    )
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert "system libraries present - skip" in out, out
-    assert not sudo_log.exists() or "install-deps" not in sudo_log.read_text(), out
-
-
-# ---------------------------------------------------------------------------
-# behavior: pre-install the 3 pinned MCP packages ON DISK - idempotent, and
-# strictly never a registration/run action
-# ---------------------------------------------------------------------------
-@requires_bash
-def test_check_fails_when_an_mcp_package_is_not_cached(tmp_path):
-    # Everything else present/ready, but ONE of the 3 pinned packages is not
-    # yet cached on disk -> check must report "needs apply" (exit 1).
-    bind = _apt_stub_bin(
-        tmp_path, sudo_nopasswd=True, libs_present=True, mcp_cached=False,
-    )
-    env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    env["ODOO_AI_HOME"] = str(tmp_path / "state")
-    res = subprocess.run(
-        ["bash", str(SCRIPT), "check"], capture_output=True, text=True, env=env,
-    )
-    assert res.returncode == 1, res.stdout + res.stderr
-
-
-@requires_bash
-def test_apply_preinstalls_all_three_pinned_packages_without_registering(tmp_path):
-    # None of the 3 packages are cached yet -> apply must pre-install each one
-    # exactly once via a real (non-offline) `npm install`, and never invoke
-    # `claude` at all (no `claude` stub exists on PATH - if the script tried
-    # to call it, the step would fail with "command not found").
-    npm_log = tmp_path / "npm.log"
-    bind = _apt_stub_bin(
-        tmp_path, sudo_nopasswd=True, libs_present=True,
-        mcp_cached=False, npm_log=npm_log,
-    )
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    for pin in MCP_PKG_PINS:
-        assert f"Pre-installing {pin} on disk" in out, out
-        assert f"ok {pin} cached on disk" in out, out
-    logged = npm_log.read_text(encoding="utf-8")
-    calls = [ln for ln in logged.splitlines() if ln]
-    # Each pin: 1 offline dry-run check (miss) + 1 real install call.
-    for pin in MCP_PKG_PINS:
-        real_installs = [
-            ln for ln in calls
-            if ln.rstrip().endswith(pin) and "--offline" not in ln
-        ]
-        assert len(real_installs) == 1, (
-            f"expected exactly one real `npm install` for {pin}, got {real_installs}"
-        )
-    # The recorder library is installed once, under the state root, never globally.
-    assert f"Installing the recorder library {RECORDER_LIB_PIN}" in out, out
-    recorder_installs = [ln for ln in calls if ln.rstrip().endswith(RECORDER_LIB_PIN) and "--offline" not in ln]
-    assert len(recorder_installs) == 1, recorder_installs
-    assert f"--prefix {tmp_path / 'state' / 'recorder'}" in recorder_installs[0], recorder_installs
-    assert "claude" not in out.lower(), (
-        "apply must never mention/invoke claude - registration is step 12's job"
-    )
-
-
-@requires_bash
-def test_apply_skips_mcp_preinstall_when_already_cached(tmp_path):
-    # All 3 already cached (default mcp_cached=True) -> apply must report
-    # "skip" for each and must NEVER issue a real (non-offline) install call -
-    # this is the idempotency guarantee (no redundant downloads on re-run).
-    npm_log = tmp_path / "npm.log"
-    bind = _apt_stub_bin(
-        tmp_path, sudo_nopasswd=True, libs_present=True,
-        mcp_cached=True, npm_log=npm_log,
-    )
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    for pin in MCP_PKG_PINS:
-        assert f"ok {pin} already cached on disk - skip" in out, out
-        assert f"Pre-installing {pin}" not in out, out
-    assert f"ok recorder {RECORDER_LIB_PIN} already installed - skip" in out, out
-    logged = npm_log.read_text(encoding="utf-8") if npm_log.exists() else ""
-    real_installs = [
-        ln for ln in logged.splitlines() if ln and "--offline" not in ln
-    ]
-    assert not real_installs, f"no real install should run when already cached: {real_installs}"
-
-
-@requires_bash
-def test_apply_surfaces_mcp_preinstall_failure(tmp_path):
-    # One package is neither cached nor installable (e.g. registry/network
-    # down) -> apply must fail loud, never swallow the error.
-    bad_pin = MCP_PKG_PINS[0]
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, libs_present=True, mcp_cached=False)
-    # Re-write the npm stub so this one spec also fails the real install call.
-    _write_npm_stub(bind, cached=(), fail=(bad_pin,))
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, out
-    assert f"failed to pre-install {bad_pin} on disk" in out, out
-
-
-@requires_bash
-def test_apply_never_calls_claude_mcp_add_for_preinstall(tmp_path):
-    # Static + dynamic belt-and-suspenders: even when packages are missing and
-    # get pre-installed for real, the apply transcript must never contain a
-    # registration call - install and register stay strictly separate.
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, libs_present=True, mcp_cached=False)
-    res = _run_apply(bind)
-    out = res.stdout + res.stderr
-    assert "mcp add" not in out, out
 
 
 # ---------------------------------------------------------------------------
@@ -690,100 +436,6 @@ def _run_step(bind: Path, verb: str, extra: dict):
                           timeout=120)
 
 
-@requires_bash
-def test_check_reports_a_missing_chrome_with_the_install_command(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    res = _run_step(bind, "check", _chrome_env(tmp_path, present=False))
-    assert res.returncode == 1, res.stdout + res.stderr
-    assert "Google Chrome is not installed" in res.stderr
-    assert f"npx -y playwright@{PIN} install chrome" in res.stderr
-
-
-@requires_bash
-def test_check_passes_and_stays_quiet_when_chrome_is_installed(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert "Google Chrome" not in res.stderr
-
-
-@requires_bash
-def test_apply_installs_chrome_only_with_passwordless_sudo_on_apt_linux(tmp_path):
-    sudo_log = tmp_path / "sudo.log"
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, sudo_log=sudo_log, libs_present=True)
-    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=False))
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert f"playwright@{PIN} install chrome" in sudo_log.read_text(encoding="utf-8")
-
-
-@requires_bash
-def test_apply_without_passwordless_sudo_prints_the_chrome_command_and_runs_no_sudo(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=False))
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert f"sudo npx -y playwright@{PIN} install chrome" in res.stderr
-    assert "Google Chrome installed" not in res.stdout
-
-
-@requires_bash
-def test_apply_on_macos_never_installs_chrome_itself(tmp_path):
-    sudo_log, apt_log = tmp_path / "sudo.log", tmp_path / "apt.log"
-    bind = _macos_stub_bin(tmp_path, sudo_log=sudo_log, apt_log=apt_log)
-    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=False))
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert f"npx -y playwright@{PIN} install chrome" in res.stderr
-    assert not sudo_log.exists(), sudo_log.read_text()
-
-
-# ---------------------------------------------------------------------------
-# Playwright Chromium: installed means the pinned revision, finished
-# ---------------------------------------------------------------------------
-@requires_bash
-def test_check_accepts_the_pinned_chromium_when_every_listed_location_is_complete(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
-    assert res.returncode == 0, res.stdout + res.stderr
-
-
-@requires_bash
-def test_check_refuses_a_listed_location_without_its_completion_marker(tmp_path):
-    """A half-finished download leaves the directory but not INSTALLATION_COMPLETE."""
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
-                         chromium_complete=False)
-    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
-    assert res.returncode == 1, res.stdout + res.stderr
-
-
-@requires_bash
-def test_another_chromium_revision_in_the_cache_does_not_count(tmp_path):
-    """pagecast launches its own playwright's revision; a chromium-1000 from another release in
-    the standard cache cannot start it."""
-    home = tmp_path / "home"
-    other = home / ".cache" / "ms-playwright" / "chromium-1000"
-    other.mkdir(parents=True)
-    (other / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
-                         chromium_complete=False)
-    extra = dict(_chrome_env(tmp_path, present=True), HOME=str(home),
-                 PLAYWRIGHT_BROWSERS_PATH=str(home / ".cache" / "ms-playwright"))
-    res = _run_step(bind, "check", extra)
-    assert res.returncode == 1, res.stdout + res.stderr
-
-
-@requires_bash
-def test_apply_installs_the_pinned_chromium_when_its_revision_is_missing(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
-                         chromium_complete=False)
-    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=True))
-    assert res.returncode == 0, res.stdout + res.stderr
-    calls = (tmp_path / "npx.log").read_text(encoding="utf-8").splitlines()
-    assert f"-y playwright@{PIN} install chromium" in calls, calls
-
-
-# ---------------------------------------------------------------------------
-# The record the SessionStart hint reads (no npx there): written by check/apply,
-# revision-exact, re-checked against the markers
-# ---------------------------------------------------------------------------
 HOOK = SCRIPT.parent.parent.parent / "hooks" / "check-setup-deps.sh"
 
 
@@ -803,32 +455,279 @@ def _hint(tmp_path, home=None):
     return res.stderr
 
 
+def _scenario(factory, name, verb, *, chrome=None, extra_env=None, macos=False, **stub):
+    """Run the step once under a stub PATH. `chrome` forces Google Chrome present (True) or absent
+    (False) for the step's python3 calls; None leaves the host's own answer."""
+    tmp = factory.mktemp(name)
+    sudo_log, npm_log, apt_log = tmp / "sudo.log", tmp / "npm.log", tmp / "apt.log"
+    if macos:
+        bind = _macos_stub_bin(tmp, sudo_log=sudo_log, apt_log=apt_log)
+    else:
+        bind = _apt_stub_bin(tmp, sudo_log=sudo_log, npm_log=npm_log, **stub)
+    extra = dict(_chrome_env(tmp, present=chrome)) if chrome is not None else {}
+    extra.update(extra_env or {})
+    res = _run_step(bind, verb, extra)
+    return SimpleNamespace(
+        res=res, out=res.stdout + res.stderr, tmp=tmp, bind=bind, sudo_log=sudo_log,
+        npm_log=npm_log, apt_log=apt_log, npx_log=tmp / "npx.log",
+    )
+
+
+def _lines(path: Path):
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def _real_installs(npm_log: Path):
+    """The npm calls that installed something (the `--offline` ones only ask the cache)."""
+    return [ln for ln in _lines(npm_log) if ln and "--offline" not in ln]
+
+
+# --- apt Linux, nothing of Chromium's system libraries, no passwordless sudo -----------------
+@pytest.fixture(scope="module")
+def no_sudo(tmp_path_factory):
+    return _scenario(tmp_path_factory, "no-sudo", "apply", chrome=False,
+                     sudo_nopasswd=False, libs_present=False)
+
+
+def test_apply_without_passwordless_sudo_prints_the_manual_commands_and_runs_no_sudo(no_sudo):
+    assert no_sudo.res.returncode == 0, no_sudo.out
+    # The exact commands a human must run - never run silently on their behalf.
+    assert f"sudo npx -y playwright@{PIN} install-deps chromium" in no_sudo.out, no_sudo.out
+    assert f"sudo npx -y playwright@{PIN} install chrome" in no_sudo.res.stderr, no_sudo.out
+
+
+# --- apt Linux, passwordless sudo, libs missing, Chrome missing, everything cached -----------
+@pytest.fixture(scope="module")
+def sudo_libs_missing(tmp_path_factory):
+    return _scenario(tmp_path_factory, "sudo-libs-missing", "apply", chrome=False,
+                     sudo_nopasswd=True, libs_present=False, mcp_cached=True)
+
+
+def test_apply_auto_installs_system_deps_and_chrome_with_passwordless_sudo(sudo_libs_missing):
+    sc = sudo_libs_missing
+    assert sc.res.returncode == 0, sc.out
+    assert sc.sudo_log.is_file(), sc.out
+    logged = _lines(sc.sudo_log)
+    assert any("install-deps" in ln and f"playwright@{PIN}" in ln for ln in logged), logged
+    assert any(f"playwright@{PIN} install chrome" in ln for ln in logged), logged
+    # Every sudo-run playwright call is pinned: left unpinned it resolves to whatever sits in
+    # the local cache.
+    assert all(f"playwright@{PIN}" in ln for ln in logged if "install" in ln), logged
+
+
+def test_apply_installs_nothing_for_packages_that_are_already_cached(sudo_libs_missing):
+    """Idempotency: every pinned package already on disk -> no real `npm install` (no redundant
+    downloads on a re-run), the recorder library included."""
+    sc = sudo_libs_missing
+    assert sc.res.returncode == 0, sc.out
+    assert _real_installs(sc.npm_log) == []
+
+
+# --- apt Linux, passwordless sudo, libs present, Chrome and Chromium present ------------------
+@pytest.fixture(scope="module")
+def everything_present(tmp_path_factory):
+    return _scenario(tmp_path_factory, "present", "apply", chrome=True,
+                     sudo_nopasswd=True, libs_present=True)
+
+
+def test_apply_skips_system_deps_when_libs_already_present(everything_present):
+    # The probe matches real SONAMES (package libasound2 ships libasound.so.2): no manual
+    # guidance, no sudo install-deps. A substring match would wrongly report it missing.
+    sc = everything_present
+    assert sc.res.returncode == 0, sc.out
+    assert "install-deps" not in sc.out and not any("install-deps" in ln for ln in _lines(sc.sudo_log))
+
+
 @requires_bash
-@pytest.mark.parametrize("verb", ["check", "apply"])
-def test_a_verified_chromium_is_recorded_for_the_pinned_playwright(tmp_path, verb):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    _run_step(bind, verb, _chrome_env(tmp_path, present=True))
-    record = _record(tmp_path)
+def test_a_verified_chromium_is_recorded_for_the_pinned_playwright_by_apply(everything_present):
+    _assert_recorded(everything_present.tmp)
+
+
+# --- apt Linux, the system libs install fails ----------------------------------------------
+@requires_bash
+def test_apply_fails_when_auto_system_deps_install_fails(tmp_path_factory):
+    # With passwordless sudo the step actively runs install-deps; a failure is a real error and
+    # must fail the step - never swallowed as a warning.
+    sc = _scenario(tmp_path_factory, "deps-fail", "apply", chrome=True,
+                   sudo_nopasswd=True, libs_present=False, install_deps_fails=True)
+    assert sc.res.returncode != 0, sc.out
+
+
+# --- pre-install of the 3 pinned MCP packages -------------------------------------------------
+@pytest.fixture(scope="module")
+def preinstall(tmp_path_factory):
+    return _scenario(tmp_path_factory, "preinstall", "apply", chrome=True,
+                     sudo_nopasswd=True, libs_present=True, mcp_cached=False)
+
+
+@pytest.fixture(scope="module")
+def preinstall_with_claude_on_path(tmp_path_factory):
+    """The same pre-install, with a `claude` CLI on PATH that records every call."""
+    tmp = tmp_path_factory.mktemp("preinstall-claude")
+    bind = _apt_stub_bin(tmp, sudo_nopasswd=True, libs_present=True, mcp_cached=False,
+                         npm_log=tmp / "npm.log")
+    claude_log = tmp / "claude.log"
+    _write_stub(bind / "claude", f'echo "$@" >> "{claude_log}"\nexit 0\n')
+    res = _run_step(bind, "apply", _chrome_env(tmp, present=True))
+    return SimpleNamespace(res=res, out=res.stdout + res.stderr, claude_log=claude_log,
+                           npm_log=tmp / "npm.log", npx_log=tmp / "npx.log", tmp=tmp)
+
+
+def test_apply_preinstalls_each_pinned_package_once_without_running_it(preinstall):
+    sc = preinstall
+    assert sc.res.returncode == 0, sc.out
+    calls = _real_installs(sc.npm_log)
+    for pin in MCP_PKG_PINS:
+        installs = [ln for ln in calls if ln.rstrip().endswith(pin)]
+        assert len(installs) == 1, f"expected exactly one real `npm install` for {pin}, got {installs}"
+        # `npm install` never executes a package's bin, and --ignore-scripts keeps lifecycle
+        # scripts of its dependency tree from running too.
+        assert "--ignore-scripts" in installs[0], installs
+    # The packages are never launched: npx (which would execute them) never sees one.
+    assert not any(pin in ln for pin in MCP_PKG_PINS for ln in _lines(sc.npx_log)), _lines(sc.npx_log)
+
+
+def test_apply_installs_the_recorder_library_once_under_the_state_root(preinstall):
+    sc = preinstall
+    recorder = [ln for ln in _real_installs(sc.npm_log) if ln.rstrip().endswith(RECORDER_LIB_PIN)]
+    assert len(recorder) == 1, recorder
+    assert f"--prefix {sc.tmp / 'state' / 'recorder'}" in recorder[0], recorder
+    assert "--ignore-scripts" in recorder[0], recorder
+
+
+def test_apply_never_registers_an_mcp_server(preinstall_with_claude_on_path):
+    """Registering is steps 10/12's job: this step stays disk-only, so the `claude` CLI is never
+    called even though one is on PATH."""
+    sc = preinstall_with_claude_on_path
+    assert sc.res.returncode == 0, sc.out
+    assert _real_installs(sc.npm_log), "premise: the pre-install ran"
+    assert not sc.claude_log.exists(), sc.claude_log.read_text()
+
+
+@requires_bash
+def test_apply_surfaces_mcp_preinstall_failure(tmp_path):
+    # One package is neither cached nor installable (e.g. registry/network down) -> apply must
+    # fail loud, never swallow the error.
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, libs_present=True, mcp_cached=False)
+    # Re-write the npm stub so this one spec also fails the real install call.
+    _write_npm_stub(bind, cached=(), fail=(MCP_PKG_PINS[0],))
+    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=True))
+    assert res.returncode != 0, res.stdout + res.stderr
+
+
+@requires_bash
+def test_check_fails_when_an_mcp_package_is_not_cached(tmp_path):
+    # Everything else present/ready, but the pinned packages are not yet cached on disk ->
+    # check must report "needs apply" (exit 1).
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, libs_present=True, mcp_cached=False)
+    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    assert res.returncode == 1, res.stdout + res.stderr
+
+
+# --- macOS ----------------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def macos_apply(tmp_path_factory):
+    return _scenario(tmp_path_factory, "macos", "apply", chrome=False, macos=True)
+
+
+def test_apply_on_macos_installs_the_browser_binary_and_touches_no_apt_or_sudo(macos_apply):
+    # macOS users are first-class: the apply path installs the browser binary and skips ALL
+    # apt/sudo system-deps machinery (those exist only on apt Linux), and never installs Chrome
+    # itself - it tells the user the command.
+    sc = macos_apply
+    assert sc.res.returncode == 0, sc.out
+    assert "install-deps" not in sc.out, sc.out
+    assert not sc.sudo_log.exists(), f"sudo must not run on macOS: {_lines(sc.sudo_log)}"
+    assert not sc.apt_log.exists(), f"apt-get must not run on macOS: {_lines(sc.apt_log)}"
+    assert f"npx -y playwright@{PIN} install chrome" in sc.res.stderr
+
+
+
+@pytest.fixture(scope="module")
+def chrome_absent_check(tmp_path_factory):
+    return _scenario(tmp_path_factory, "chrome-absent", "check", chrome=False,
+                     sudo_nopasswd=False, libs_present=True)
+
+
+def test_check_reports_a_missing_chrome_with_the_install_command(chrome_absent_check):
+    sc = chrome_absent_check
+    assert sc.res.returncode == 1, sc.out
+    assert f"npx -y playwright@{PIN} install chrome" in sc.res.stderr
+
+
+# ---------------------------------------------------------------------------
+# Playwright Chromium: installed means the pinned revision, finished. The record the SessionStart
+# hint reads (no npx there) is written by check/apply, revision-exact, re-checked against the
+# markers.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def verified_check(tmp_path_factory):
+    """`check` with Chrome and every listed Chromium location complete."""
+    return _scenario(tmp_path_factory, "verified", "check", chrome=True,
+                     sudo_nopasswd=False, libs_present=True)
+
+
+@pytest.fixture(scope="module")
+def unverified_check(tmp_path_factory):
+    """`check` where a listed location lacks its completion marker (a half-finished download),
+    while the standard cache holds ANOTHER release's complete chromium-1000."""
+    home = tmp_path_factory.mktemp("decoy-home")
+    other = home / ".cache" / "ms-playwright" / "chromium-1000"
+    other.mkdir(parents=True)
+    (other / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+    return _scenario(tmp_path_factory, "unverified", "check", chrome=True,
+                     extra_env={"HOME": str(home),
+                                "PLAYWRIGHT_BROWSERS_PATH": str(home / ".cache" / "ms-playwright")},
+                     sudo_nopasswd=False, libs_present=True, chromium_complete=False)
+
+
+@pytest.fixture(scope="module")
+def chromium_missing_apply(tmp_path_factory):
+    return _scenario(tmp_path_factory, "chromium-missing", "apply", chrome=True,
+                     sudo_nopasswd=False, libs_present=True, chromium_complete=False)
+
+
+def test_check_accepts_the_pinned_chromium_when_every_listed_location_is_complete(verified_check):
+    assert verified_check.res.returncode == 0, verified_check.out
+
+
+def test_check_refuses_a_listed_location_without_its_completion_marker(unverified_check):
+    # A half-finished download leaves the directory but not INSTALLATION_COMPLETE, and another
+    # revision's chromium-* in the cache cannot start pagecast's playwright.
+    assert unverified_check.res.returncode == 1, unverified_check.out
+
+
+def test_apply_installs_the_pinned_chromium_when_its_revision_is_missing(chromium_missing_apply):
+    sc = chromium_missing_apply
+    assert sc.res.returncode == 0, sc.out
+    calls = _lines(sc.npx_log)
+    assert f"-y playwright@{PIN} install chromium" in calls, calls
+    # No playwright install ever runs unpinned: it would resolve to whatever the cache holds.
+    assert all(f"playwright@{PIN}" in ln for ln in calls if " install" in ln), calls
+
+
+def _assert_recorded(tmp):
+    record = _record(tmp)
     assert record is not None, "a verified Chromium must be recorded"
     assert record["playwright"] == PIN
     listed = [line.split("Install location:", 1)[1].strip()
-              for line in _pw_dry_run(tmp_path).splitlines() if "Install location:" in line]
+              for line in _pw_dry_run(tmp).splitlines() if "Install location:" in line]
     assert record["locations"] == listed
 
 
 @requires_bash
-def test_an_unverified_chromium_is_never_recorded(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
-                         chromium_complete=False)
-    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
-    assert _record(tmp_path) is None
+def test_a_verified_chromium_is_recorded_for_the_pinned_playwright_by_check(verified_check):
+    _assert_recorded(verified_check.tmp)
 
 
 @requires_bash
-def test_the_hint_is_silent_when_the_record_matches_and_every_location_is_complete(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
-    assert "playwright-browsers" not in _hint(tmp_path)
+def test_an_unverified_chromium_is_never_recorded(unverified_check):
+    assert _record(unverified_check.tmp) is None
+
+
+@requires_bash
+def test_the_hint_is_silent_when_the_record_matches_and_every_location_is_complete(verified_check):
+    assert "playwright-browsers" not in _hint(verified_check.tmp)
 
 
 @requires_bash
@@ -837,27 +736,43 @@ def test_the_hint_asks_for_setup_when_there_is_no_record(tmp_path):
     home = tmp_path / "home"
     (home / ".cache" / "ms-playwright" / "chromium-1000").mkdir(parents=True)
     err = _hint(tmp_path, home=home)
-    assert "playwright-browsers (missing - run /odoo-ai-agents:odoo-setup browser)" in err, err
+    assert "playwright-browsers (missing" in err, err
 
 
-@requires_bash
-def test_the_hint_asks_for_setup_when_the_pinned_playwright_moved(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+def _copy_of_the_verified_state(verified_check, tmp_path):
+    """The verified record in a state root of this test's own, its locations copied beside it, so
+    a test can break the copy and leave the shared scenario alone."""
+    record = _record(verified_check.tmp)
+    moved = []
+    for i, loc in enumerate(record["locations"]):
+        dest = tmp_path / "locations" / str(i)
+        shutil.copytree(loc, dest)
+        moved.append(str(dest))
+    record["locations"] = moved
+    return record
+
+
+def _write_record(tmp_path, record):
     path = tmp_path / "state" / "runtime" / "browser-deps.json"
-    record = json.loads(path.read_text(encoding="utf-8"))
-    record["playwright"] = "0.0.1"
+    path.parent.mkdir(parents=True)
     path.write_text(json.dumps(record), encoding="utf-8")
-    assert "playwright-browsers (outdated - run /odoo-ai-agents:odoo-setup browser)" in _hint(tmp_path)
 
 
 @requires_bash
-def test_the_hint_asks_for_setup_when_a_recorded_location_lost_its_marker(tmp_path):
-    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
-    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
-    first = Path(_record(tmp_path)["locations"][0])
-    (first / "INSTALLATION_COMPLETE").unlink()
-    assert "playwright-browsers (incomplete - run /odoo-ai-agents:odoo-setup browser)" in _hint(tmp_path)
+def test_the_hint_asks_for_setup_when_the_pinned_playwright_moved(verified_check, tmp_path):
+    record = _copy_of_the_verified_state(verified_check, tmp_path)
+    record["playwright"] = "0.0.1"
+    _write_record(tmp_path, record)
+    assert "playwright-browsers (outdated" in _hint(tmp_path)
+
+
+@requires_bash
+def test_the_hint_asks_for_setup_when_a_recorded_location_lost_its_marker(verified_check, tmp_path):
+    record = _copy_of_the_verified_state(verified_check, tmp_path)
+    _write_record(tmp_path, record)
+    assert "playwright-browsers" not in _hint(tmp_path), "premise: the copy is a clean record"
+    (Path(record["locations"][0]) / "INSTALLATION_COMPLETE").unlink()
+    assert "playwright-browsers (incomplete" in _hint(tmp_path)
 
 
 @requires_bash

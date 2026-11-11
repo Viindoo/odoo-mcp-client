@@ -28,11 +28,16 @@ from test_odoo_local_mcp_instance import (RUN, SERIES, _build, _declare_series, 
 
 
 def _slow_builds(world):
-    """Every build sleeps before it finishes (exports stay governed by the i18n fixture)."""
+    """Every build sleeps while the flag file exists (exports stay governed by the i18n fixture).
+    Returns the flag: unlink it and builds are fast again."""
+    flag = world["work"] / "builds-are-slow"
     text = world["behavior"].read_text()
-    world["behavior"].write_text(text.replace("for l in ${langs//,/ }; do",
-                                              "sleep 30\nfor l in ${langs//,/ }; do", 1),
-                                 encoding="utf-8")
+    if "builds-are-slow" not in text:
+        world["behavior"].write_text(text.replace(
+            "for l in ${langs//,/ }; do",
+            'if [[ -f "%s" ]]; then sleep 30; fi\nfor l in ${langs//,/ }; do' % flag, 1), encoding="utf-8")
+    flag.write_text("1", encoding="utf-8")
+    return flag
 
 
 def _busy(err, blocking_job):
@@ -45,31 +50,37 @@ def _release(c, token):
     _ok(c.call("lease_release", {"lease_token": token, "run_id": RUN}, timeout=120))
 
 
-def test_a_second_build_on_the_same_lease_waits_for_the_first(i18n):
+def test_a_build_blocks_every_other_job_on_its_database_and_never_another_database(i18n):
+    """On 19.0, where a test build refuses a demo database: the state of a database while a job
+    runs on it is a moment of that job - e.g. no demo data yet - so a second build or an export
+    must answer DATABASE_BUSY (wait, then retry) instead of reading that moment and refusing for
+    what the first job has not loaded yet, which would send the agent to rebuild a database that
+    is fine."""
+    _declare_series(i18n, "19.0")
     with McpClient(i18n["env"](), i18n["work"]) as c:
         c.initialize()
-        lease = _ready_lease(c, i18n)
-        _slow_builds(i18n)
-        first = _ok(_build(c, i18n, lease["token"], op="update"))["job_id"]
-        err = _err(_build(c, i18n, lease["token"], op="update"))
-        _busy(err, first)
-        _release(c, lease["token"])
-
-
-def test_a_build_on_another_lease_of_the_same_database_is_refused_while_one_runs(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        provider = _ready_lease(c, i18n)
-        consumer = _lease(c, i18n, mode="exclusive", db_name=provider["db_name"])
+        provider = _ready_lease(c, i18n, series="19.0", ports=1)
+        consumer = _lease(c, i18n, series="19.0", mode="exclusive", db_name=provider["db_name"], ports=1)
+        other = _lease(c, i18n, series="19.0")
         _slow_builds(i18n)
         first = _ok(_build(c, i18n, provider["token"], op="update"))["job_id"]
+        # the same lease, and another lease of the same database
+        _busy(_err(_build(c, i18n, provider["token"], op="update")), first)
         _busy(_err(_build(c, i18n, consumer["token"], op="update")), first)
         _busy(_err(_export(c, i18n, consumer["token"])), first)
-        _release(c, consumer["token"])
-        _release(c, provider["token"])
+        # an export while the database holds no demo yet, a test build while it holds some
+        i18n["db_facts"].write_text("DB_EXISTS=1\nDEMO=0\nLANGUAGES=en_US\n", encoding="utf-8")
+        _busy(_err(_export(c, i18n, provider["token"])), first)
+        i18n["db_facts"].write_text("DB_EXISTS=1\nDEMO=1\nLANGUAGES=en_US\n", encoding="utf-8")
+        _busy(_err(_build(c, i18n, consumer["token"], op="test", test_mode="reuse", test_tags="/my_mod")),
+              first)
+        # another database is never blocked
+        _ok(_build(c, i18n, other["token"], op="update"))
+        for token in (other["token"], consumer["token"], provider["token"]):
+            _release(c, token)
 
 
-def test_a_build_is_refused_while_an_export_runs_on_the_database(i18n):
+def test_an_export_blocks_a_build_and_neither_a_finished_nor_a_dead_job_blocks(i18n):
     with McpClient(i18n["env"](), i18n["work"]) as c:
         c.initialize()
         lease = _ready_lease(c, i18n)
@@ -77,63 +88,14 @@ def test_a_build_is_refused_while_an_export_runs_on_the_database(i18n):
         export = _ok(_export(c, i18n, lease["token"]))["job_id"]
         _busy(_err(_build(c, i18n, lease["token"], op="update")), export)
         _release(c, lease["token"])
+        i18n["slow"].unlink()
 
-
-def test_an_export_during_a_build_is_busy_not_refused_for_what_the_build_has_not_loaded_yet(i18n):
-    """While a build runs, the database holds a moment of that build - e.g. no demo data yet. The
-    export must answer DATABASE_BUSY (wait, then retry) instead of reading that moment and
-    refusing I18N_EXPORT_NEEDS_DEMO, which would send the agent to rebuild a database that is
-    fine."""
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        _slow_builds(i18n)
-        build = _ok(_build(c, i18n, lease["token"], op="update"))["job_id"]
-        i18n["db_facts"].write_text("DB_EXISTS=1\nDEMO=0\nLANGUAGES=en_US\n", encoding="utf-8")
-        _busy(_err(_export(c, i18n, lease["token"])), build)
-        _release(c, lease["token"])
-
-
-def test_a_test_build_during_another_build_is_busy_not_refused_for_demo(i18n):
-    """Where demo is opt-in a test build refuses a demo database (TEST_DB_HAS_DEMO) - but while
-    another job runs on it, the database is not in its final state, and the answer is BUSY."""
-    _declare_series(i18n, "19.0")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _lease(c, i18n, series="19.0", ports=1)
-        _slow_builds(i18n)
-        build = _ok(_build(c, i18n, lease["token"], demo="off"))["job_id"]
-        i18n["db_facts"].write_text("DB_EXISTS=1\nDEMO=1\nLANGUAGES=en_US\n", encoding="utf-8")
-        _busy(_err(_build(c, i18n, lease["token"], op="test", test_mode="reuse",
-                          test_tags="/my_mod")), build)
-        _release(c, lease["token"])
-
-
-def test_another_database_is_never_blocked(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        a = _ready_lease(c, i18n)
-        b = _lease(c, i18n)
-        _slow_builds(i18n)
-        _ok(_build(c, i18n, a["token"], op="update"))
-        _ok(_build(c, i18n, b["token"], op="update"))
-        _release(c, a["token"])
-        _release(c, b["token"])
-
-
-def test_a_finished_job_never_blocks(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
+        # A finished job never blocks.
         lease = _ready_lease(c, i18n)
         _wait(c, _ok(_build(c, i18n, lease["token"], op="update"))["job_id"])
         _wait(c, _ok(_build(c, i18n, lease["token"], op="update"))["job_id"])
 
-
-def test_a_dead_job_never_blocks(i18n):
-    """A job whose process died without an exit record (its wrapper was killed) is not live."""
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
+        # A job whose process died without an exit record (its wrapper was killed) is not live.
         _slow_builds(i18n)
         job = _ok(_build(c, i18n, lease["token"], op="update"))
         os.killpg(job["pid"], signal.SIGKILL)
