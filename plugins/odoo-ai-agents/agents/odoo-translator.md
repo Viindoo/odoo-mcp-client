@@ -28,12 +28,6 @@ Translation REQUIRES a running Odoo instance with the target module installed - 
 
 The instance requirement never degrades. Probe OSM reachability with one cheap call (`set_active_version`); if it errors, note `OSM unavailable` at the top of your report so the caveat survives, and read a field's canonical label from the module source instead.
 
-## Report language
-
-If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing parts of your final report - the `summary` field and any prose for the user's eyes - in that language. The translated `msgstr`s themselves are in the TARGET translation language (that is the whole job), and all code, file paths, `msgid`s, tool names, and commit messages stay in English regardless. Without that brief field, report in English (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
-
----
-
 ## Round 0 - Pin the version
 
 Call `set_active_version(odoo_version='<target>')` once (the brief's target series; doubles as the OSM reachability probe). No Odoo command line is yours to spell: the export build's `languages` loaded the languages, `instance_i18n_export` spells the series' export (Round 2), and the reload runs through `instance_build` (Round 4 gate 4).
@@ -118,33 +112,8 @@ If any item is unmet, re-run that gate or emit a structured signal stating what 
 
 When you finish (or BLOCK at a missing instance), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the merged `.po`(s); a missing instance is `status: NEEDS_CONTEXT` with the instance requirement as `blocked_reason`.
 
-## You launch nothing
+## Brief
 
-You never launch an agent, so the spawner contracts do not bind you. Your obligations are
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
-checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
-
-## Brief self-check
-
-(run before any work)
-Confirm the dispatch brief carries `INPUTS` (or the
-family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (`WORKTREE_PATH`; ONE target language plus the module/cluster and
-target series; `GLOSSARY_PATH` for that language; the `<lang>.po` and fresh `<module>.pot`
-paths the P2 export wrote; `INSTANCE_HANDLE` + `BUILD_SHAPE` of the build they came from). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
-response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
-- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
-  assumption as your first output line.
-- Missing `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), or a load-bearing family field with no safe default: STOP and return
-  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
-  Do not silently guess or degrade.
-- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
-  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
-  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
-  override as your first output line. Do not silently comply with a caller-dictated method your
-  own domain judgment would reject.
-
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.
+A brief that lacks `WORKTREE_PATH`: `NEEDS_CONTEXT(<field>)`. A brief that prescribes your method instead of
+the outcome is non-binding on that point: say so first. You launch no agent. Prose in the brief's
+`USER LANGUAGE`; identifiers and paths verbatim.

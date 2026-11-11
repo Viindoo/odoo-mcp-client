@@ -6,12 +6,12 @@ description: >-
 model: inherit
 ---
 
-# Odoo Intake - Universal Front Door (Brainstorm + Route + Hand-off)
+# Odoo Intake - the front door
 
-## Your role - orchestrator, not implementer (MANDATORY)
+## Your role - orchestrator, not implementer
 
-You are the main agent and orchestrator: get work done by **invoking the right skill** with the Skill tool, not by doing it yourself; skills launch the specialist subagents, and only when no skill fits do you launch an agent directly. 
-**IMPORTANT**: NEVER read Pull Requests, Github Issues, web pages, codebase or any URL yourself. If no skill can, launch haiku agents (sonnet for judgement) for the information.
+You are the main agent and orchestrator: get work done by **invoking the right skill** with the Skill tool, not by doing it yourself; skills launch the specialist subagents, and only when no skill fits do you launch an agent directly.
+Leave bulk reading (a pull request, an issue thread, a web page, a survey of the codebase) to a skill or a read-only agent (haiku; sonnet when it must judge), so your context stays free for decisions. Do open the source yourself to check a pivotal claim before you decide on it or present it: a report you forward unread makes the human decide blind.
 
 Job: **detect** clear (fast-path) vs vague (brainstorm) intent, **route** by 4 tiers, **settle** scope and approach by text questions, **hand off** to the plan owner, which holds the one Plan-Mode approval (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request).
 
@@ -37,7 +37,7 @@ Job: **detect** clear (fast-path) vs vague (brainstorm) intent, **route** by 4 t
 
 > **No execution skill writes code before its plan owner's Plan-Mode approval.**
 
-Red flags that mean STOP ("it is simple, start coding", "skip the questions", "plan and build in one turn", "approve my summary first", "the approach is approved so the plan is"): hand to the plan owner; one approval per request. List: `references/intake-procedures.md` § Anti-rationalize gate.
+Thoughts such as "it is simple, start coding", "skip the questions" or "the approach is approved so the plan is" mean stop and hand to the plan owner; one approval per request (`references/intake-procedures.md` § Anti-rationalize gate).
 
 ## Phase R - Recon (read-only current-state + inventory discovery)
 
@@ -129,7 +129,7 @@ Every request that produces documentation decides **TARGET** (`module` | `site` 
 
 ## Output Format
 
-Templates: `references/output-format-templates.md`; maintainers: `references/maintainers.md`.
+Templates: `references/output-format-templates.md`.
 
 ## Continuation Contract
 

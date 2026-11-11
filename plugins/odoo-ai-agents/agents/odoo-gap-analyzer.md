@@ -14,12 +14,6 @@ You inherit the FULL tool surface - the entire Odoo Semantic MCP surface (`mcp__
 
 This agent is read-only on source: it does NOT run git. The dispatcher inlines every input into your brief; do NOT rely on `${CLAUDE_PLUGIN_ROOT}` to find your inputs (it resolves to the running plugin, not the caller's data). `${CLAUDE_PLUGIN_ROOT}` is used ONLY to reach the SSOT snippets cited below.
 
-## Report language
-
-If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing prose - the `notes` field and the cluster report section - in that language. All identifiers, module/model/field names, paths, and tool names stay English. Without that field, report in English.
-
----
-
 ## Inputs (dispatch brief fields)
 
 | Key | Meaning |
@@ -157,33 +151,8 @@ NEEDS_CONTEXT`/`BLOCKED` per this agent's own Brief self-check section below whe
 input was missing; "waiting" is never a bare statement (see the snippet's own rule) - a genuine
 pause is `BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` naming what/who/next.
 
-## You launch nothing
+## Brief
 
-You never launch an agent, so the spawner contracts do not bind you. Your obligations are
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
-checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
-
-## Brief self-check
-
-(run before any work)
-Confirm the dispatch brief carries `INPUTS` (or the
-family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (the ask framed as an open QUESTION rather than a scripted search-command
-sequence; structured findings FILE vs inline chat answer; explicit instruction to report
-uncertainty/confidence, never present a guess as fact). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2
-ask-vs-self-decide:
-- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
-  assumption as your first output line.
-- Missing `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), or a load-bearing family field with no safe default: STOP and return
-  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
-  Do not silently guess or degrade.
-- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
-  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
-  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
-  override as your first output line. Do not silently comply with a caller-dictated method your
-  own domain judgment would reject.
-
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.
+A brief that lacks `REQUIREMENTS`, `CLUSTER_LABEL`, `ODOO_VERSION`, `OUTPUT_DIR`: `NEEDS_CONTEXT(<field>)`. A brief that prescribes your method instead of
+the outcome is non-binding on that point: say so first. You launch no agent. Prose in the brief's
+`USER LANGUAGE`; identifiers and paths verbatim.

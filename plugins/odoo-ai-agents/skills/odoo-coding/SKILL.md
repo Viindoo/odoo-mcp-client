@@ -18,7 +18,7 @@ cross-run module-coordination ledger.
   criteria met goes there first; a small change without them is coded directly)
 - **Ordering several nodes** -> `odoo-planning`
 - **Reviewing the result** -> `odoo-code-review` (a plan node, or the caller's next step)
-- **Version bumps and migration scripts** -> the plan's `migration` node (`odoo-data-migration`, which launches `odoo-coder` in `MODE: migration`)
+- **The version bump of each changed module, and migration scripts** -> the plan's `migration` node (`odoo-data-migration`, which launches `odoo-coder` in `MODE: migration`)
 - **Finding one hook location** -> `odoo-override-finding`
 
 ## MCP tools
@@ -43,7 +43,7 @@ cross-run module-coordination ledger.
 | `ODOO VERSION`, `PROFILE` | concrete; absent version -> the ladder of `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, never a default |
 | `INSTANCE_HANDLE` + `ADDONS_PATH` or `SELF_PROVISION: worktree-addons` | one of them; a per-node dispatch with a `WORKTREE_PATH` gets `SELF_PROVISION` |
 | `COMMIT: caller`, `CONSTRAINTS`, `SERVER_WIDE`, `MODE: adapt` fields, `TEST LEG: deferred - <phase>` | forwarded verbatim from a porting or upgrade caller; never set here |
-| `AUTONOMOUS FIX (review-driven | debug-driven)` + the findings or root cause | resume the node's coder with them (§ Fix rounds) |
+| `AUTONOMOUS FIX (review-driven | debug-driven)` + the findings or the diagnosis report | resume the node's coder with them (§ Fix rounds) |
 
 ## Steps
 
@@ -67,10 +67,9 @@ cross-run module-coordination ledger.
    it in `<SHARE_DIR>/coordination/modules` per
    `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` before launching; a lost claim
    re-queues the node behind the bounded barrier of that contract.
-5. **Launch** `odoo-coder` with the brief below (fill the universal skeleton of
-   `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton read by path, plus the
-   Coder delta). Several independent nodes launch in one message within the Mode B budget of the
-   guard.
+5. **Launch** `odoo-coder` with the brief below, written per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § What a brief carries. Several independent
+   nodes launch in one message within the Mode B budget of the guard.
 6. **Collect.** A `DONE` carries a commit range (or a file list under `COMMIT: caller`), both test
    verdicts, the web-client boot evidence when the node touched `static/src/**`, the impact-map
    path and the mapping of every `REQUEST` item to its files; a return missing one of them is not
@@ -86,7 +85,6 @@ cross-run module-coordination ledger.
 ## Brief to `odoo-coder`
 
 ```
-DISPATCH MODEL: <tier>
 NODE: <id>
 REQUEST: <the change in business terms; "Done when:" + the acceptance criteria or their pointer>
 MODULES: <m1 @ path>, <m2 @ path> (dependency order)
@@ -97,19 +95,24 @@ DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>   SRS: <path | none
 SELF_PROVISION: worktree-addons | INSTANCE_HANDLE: <handle> + ADDONS_PATH: <dirs>
 COMMIT: caller            (only when the caller sent it)
 CONSTRAINTS / SERVER_WIDE / MODE: adapt + INTENT, BUCKET, SOURCE TESTS, BROKEN TEST-SYMBOLS, TARGET TEST EXAMPLES / CHANGE KIND / TEST LEG   (verbatim from the caller, when sent)
-PRIOR ATTEMPT: <relaunch only>
+PRIOR ATTEMPT: <relaunch only: what the earlier attempt returned, and the evidence of what is wrong now>
 USER LANGUAGE: <lang | omit>
 ```
 
-The brief carries inputs only. Paths handed down (design, recon, worklog, state dirs, worktree)
-never appear in shipped code.
+The brief carries inputs only: the request, the criteria and resolved values - no design or fix
+direction of yours. Paths handed down (design, recon, worklog, state dirs, worktree) never appear
+in shipped code.
 
 ## Fix rounds
 
-Findings from review or acceptance, or a proven root cause from debug, go back to the coder that
-built the node with `SendMessage`, never to a new launch. Three rounds per
-node; a fourth finding of the same kind stops the loop and returns the evidence to the caller.
-Review itself is a plan node or the caller's next step, never driven from here.
+Findings from review or acceptance, or a diagnosis from debug, go back to the coder that built the
+node with `SendMessage`, never to a new launch. Send the report path, the finding ids and the
+evidence; the coder decides the fix, and a cause you suspect travels as `HYPOTHESIS:` or not at
+all. At most three rounds per node; two consecutive rounds with a new HIGH finding in the same
+area stop the loop and return the evidence to the caller, because the design, not the patch, is
+then in question. A finding about how a screen looks is fixed like any other; the before and after
+screenshots go in the node's report so the human sees them without being asked to approve. Review
+itself is a plan node or the caller's next step, never driven from here.
 
 ## Standalone-first fallback
 

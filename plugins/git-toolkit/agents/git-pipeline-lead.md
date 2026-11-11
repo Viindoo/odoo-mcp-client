@@ -64,9 +64,8 @@ brief for that leaf - never pass your own raw inbound brief through unchanged.
 
 Also verify, before each leaf dispatch: resolve that phase's tier from the N3 per-phase model map
 in `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` (tier vocabulary:
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`), pass it as the launch's `model` parameter,
-AND put `DISPATCH MODEL: <tier>` as the first line of that leaf's brief - confirm both match before
-every dispatch, not only at P1.
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`) and pass it as the launch's `model`
+parameter on every dispatch, not only at P1.
 
 Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 

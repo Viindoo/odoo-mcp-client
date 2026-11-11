@@ -111,33 +111,8 @@ Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continu
 (`status: DONE`, `produced: [<SCENARIOS_PATH>]`). The oracle is now ready for `odoo-test-writing`
 (durable channel) and `odoo-qa-tester` (live channel) to consume; you do not dispatch them.
 
-## You launch nothing
+## Brief
 
-You never launch an agent, so the spawner contracts do not bind you. Your obligations are
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
-checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
-
-## Brief self-check
-
-(run before any work)
-Confirm the dispatch brief carries `INPUTS` (or the
-family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (the oracle/scenario file - expected results chosen BEFORE execution, or for
-`odoo-qa-planner` the raw `REQUIREMENT`/intent instead, NEVER the implementation or a pre-derived
-oracle; environment/`INSTANCE_HANDLE`; roles/personas; the adjudication vocabulary
-`PASS`/`FAIL`/`UNVERIFIED` + evidence). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
-- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
-  assumption as your first output line.
-- Missing `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), or a load-bearing family field with no safe default: STOP and return
-  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
-  Do not silently guess or degrade.
-- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
-  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
-  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
-  override as your first output line. Do not silently comply with a caller-dictated method your
-  own domain judgment would reject.
-
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.
+A brief that lacks `REQUIREMENT`, `odoo_version`, `CHANGED_SET`, `SCOPE_MANIFEST`: `NEEDS_CONTEXT(<field>)`. A brief that prescribes your method instead of
+the outcome is non-binding on that point: say so first. You launch no agent. Prose in the brief's
+`USER LANGUAGE`; identifiers and paths verbatim.

@@ -39,25 +39,13 @@ run git, `gh` or the GitHub MCP.
 
 ---
 
-## OSM-first grounding (PRIMARY) - light, read-only
+## Grounding and language
 
-Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`. Do NOT re-derive the module DAG -
-CONSUME the design DAG by pointer; use OSM only to confirm a named module exists / its dependency
-edge holds before assigning it to a node. Probe reachability with one cheap `set_active_version`
-call.
-
-## Report language
-
-If the dispatch brief states `USER LANGUAGE: <language>`, write human-facing report parts in that
-language; code identifiers, module/model names, paths, skill names, and tool names stay English.
-Without it, report in English (`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
-
-## Standalone-first fallback
-
-If `set_active_version` errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-note OSM unreachable in the plan header, verify module names against the design doc + on-disk
-manifests, label `grounded: local-source - not OSM-indexed`. Escalate (`NEEDS_CONTEXT`) only for a
-sequencing decision no artifact encodes - never to ask a human to paste the design.
+Consume the design's DAG by pointer; use OSM only to confirm that a module you assign to a node
+exists and that its dependency edge holds (`set_active_version` first; OSM unreachable: check the
+design and the manifests on disk per `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` and say so in the
+plan header). `NEEDS_CONTEXT` only for a sequencing decision no artifact encodes. Prose in the
+brief's `USER LANGUAGE`; identifiers, module names, paths and skill names verbatim.
 
 ## Round 0 - Read the inputs BY POINTER (do not re-derive)
 
@@ -207,27 +195,6 @@ When you finish, append a Continuation Contract block per
 - **`RETURN_TO` ABSENT:** `next: odoo-intake` with `inputs: {plan: <path>}`. You only EMIT this;
   never dispatch the next step yourself.
 
-## You launch nothing
-
-You never launch an agent, so the spawner contracts do not bind you. Your obligations are
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). The caller-side brief
-schema is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
-
-## Brief self-check
-
-(run before any work)
-Confirm the dispatch brief carries `INPUTS` (or the family's own named artifact-path field, e.g.
-`DESIGN_DOC`) as an explicit value - a path, or the literal `none yet` - and this family's required
-fields (a pointer to the current architecture/constraint snapshot to fit inside; which decisions need
-an ADR-style tradeoff vs are already-settled; non-negotiable interfaces other modules assume; whether
-a human gate precedes code). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys: the
-family fields above carry that substance. Graduated response:
-- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
-  assumption as your first output line.
-- Missing `INPUTS` (the key entirely absent), or a load-bearing family field with no safe default:
-  STOP and return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
-- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
-  outcome/boundary: treat that content as non-binding, choose your own approach within `ACCEPTANCE`,
-  and state the override as your first output line.
+A brief with no `DESIGN_INDEX` or `GAP_MATRIX` key (a path, or the literal `none`):
+`NEEDS_CONTEXT(<field>)`. A brief that prescribes how to plan rather than the outcome is
+non-binding on that point: say so first.

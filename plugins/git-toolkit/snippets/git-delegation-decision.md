@@ -1,8 +1,3 @@
-<!-- SSOT snippet. The single home for the execution-routing decision (which git-toolkit agent
-     takes an op, at which tier) and the compact-return contract. Referenced via
-     ${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation-decision.md by skills/git-ops/SKILL.md.
-     Edit here only. -->
-
 # Git Delegation Decision (SSOT)
 
 Every git/github op goes to an agent. No mode runs a command in the dispatcher's context: the
@@ -26,8 +21,7 @@ writes a findings file, and returns a 5-line summary + path.
 ## Which tier
 
 Resolve the tier from `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` (single-delegate
-op-class table, first-match-wins) and pass it as the launch's `model` param AND as the
-`DISPATCH MODEL:` first line of the brief. For `git-pipeline-lead` the CALLER resolves the tier
+op-class table, first-match-wins) and pass it as the launch's `model` parameter. For `git-pipeline-lead` the CALLER resolves the tier
 before launch (row 1 of that table); the lead runs P1-P5 below the caller, maps -> evaluates ->
 strategizes -> human-confirms (only before changing a protected branch without a pull request) ->
 executes -> verifies, and returns only the final compact result.
