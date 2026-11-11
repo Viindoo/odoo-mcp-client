@@ -96,11 +96,32 @@ fi
 # no machine-specific data. SSOT: docs/reference/orchestration-digest.txt (generated).
 _plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
 _digest_file="${_plugin_root}/docs/reference/orchestration-digest.txt"
+_ctx=""
 if [ -f "${_digest_file}" ]; then
   _ctx="$(cat "${_digest_file}")"
   # The digest names files as ${CLAUDE_PLUGIN_ROOT}/...; the hook knows the real root, so resolve
   # it here and the main agent receives paths it can open directly.
   _ctx="${_ctx//\$\{CLAUDE_PLUGIN_ROOT\}/${_plugin_root}}"
+fi
+
+# One line naming the response language the user configured in Claude Code (settings key
+# `language`, which hooks are not given): written documents fall back to it when the user's own
+# messages do not reveal a language. Added on every SessionStart source; nothing when unset.
+_project_dir="${CLAUDE_PROJECT_DIR:-}"
+if [ -z "${_project_dir}" ] && [ ! -t 0 ] && command -v jq >/dev/null 2>&1; then
+  # bounded read: a caller that leaves stdin open must not stall the session
+  # shellcheck source=../scripts/lib/run_bounded.sh
+  . "${_plugin_lib}/run_bounded.sh" 2>/dev/null || run_bounded() { shift; "$@"; }
+  _project_dir="$(run_bounded 2 cat 2>/dev/null | jq -r '.cwd // empty' 2>/dev/null || true)"
+fi
+if command -v python3 >/dev/null 2>&1 && [ -f "${_plugin_lib}/response_language.py" ]; then
+  _lang="$(python3 "${_plugin_lib}/response_language.py" "${_project_dir:-$PWD}" 2>/dev/null | head -n 1 || true)"
+  if [ -n "${_lang}" ]; then
+    _ctx="${_ctx:+${_ctx}$'\n'}Configured response language: ${_lang}."
+  fi
+fi
+
+if [ -n "${_ctx}" ]; then
   if command -v jq >/dev/null 2>&1; then
     jq -cn --arg ctx "${_ctx}" \
       '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'

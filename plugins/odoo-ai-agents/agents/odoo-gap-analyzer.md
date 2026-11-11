@@ -154,5 +154,5 @@ pause is `BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` naming what/who/next.
 ## Brief
 
 A brief that lacks `REQUIREMENTS`, `CLUSTER_LABEL`, `ODOO_VERSION`, `OUTPUT_DIR`: `NEEDS_CONTEXT(<field>)`. A brief that prescribes your method instead of
-the outcome is non-binding on that point: say so first. You launch no agent. Prose in the brief's
-`USER LANGUAGE`; identifiers and paths verbatim.
+the outcome is non-binding on that point: say so first. You launch no agent. The human-facing columns of the matrix
+and your report are written in the brief's `USER LANGUAGE`; keys, identifiers and paths verbatim.
