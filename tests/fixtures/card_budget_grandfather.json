@@ -44,7 +44,7 @@
     "snippets/resource-teardown-contract.md": 5621,
     "skills/_shared/concurrency-guard.md": 9438,
     "snippets/worker-brief.md": 2876,
-    "snippets/spawner-completion-contract.md": 9191,
+    "snippets/spawner-completion-contract.md": 10102,
     "snippets/continuation-contract.md": 2761,
     "snippets/worklog-contract.md": 2300,
     "snippets/state-root-resolution.md": 8280,

@@ -51,7 +51,8 @@ _hook_last_message() {
 
 # Shared jq prelude: every record of the transcript, in order, as {i, role, meta, content, tur}.
 # Both on-disk shapes are read: the harness's {"type", "message": {"role", "content"}} and the bare
-# {"role", "content"}. `tur` is the record's toolUseResult (the structured tool result).
+# {"role", "content"}. `tur` is the record's toolUseResult (the structured tool result); `origin` is the
+# record's origin object (who sent a message), on a user record or on a queued-command attachment.
 _FR_JQ_RECORDS='
   def blocktext: if type == "string" then .
                  elif type == "array" then (map(select(type == "object" and .type == "text") | (.text // "")) | join("\n"))
@@ -59,7 +60,8 @@ _FR_JQ_RECORDS='
   [split("\n")[] | fromjson? | objects] as $L
   | [ $L | to_entries[] | .key as $i | .value as $r | ($r.message // $r) as $m
       | {i: $i, role: ((($m.role // $r.type) // "") | tostring), meta: ($r.isMeta == true),
-         content: ($m.content // []), tur: ($r.toolUseResult // null)} ] as $R
+         content: ($m.content // []), tur: ($r.toolUseResult // null),
+         origin: ($r.origin // ($r.attachment | objects | .origin) // null)} ] as $R
   # The FINAL TURN: every assistant record after the last non-meta user record (a tool_result
   # carrier or a real prompt). A meta record (a system reminder, hook feedback) does not end it.
   | ([ $R[] | select(.role == "user" and (.meta | not)) | .i ] | max // -1) as $last_user
@@ -67,9 +69,23 @@ _FR_JQ_RECORDS='
 '
 
 # Shared jq fragment (after $_FR_JQ_RECORDS): $sends = every SubagentHandback call with its
-# message, $delivered = the SubagentHandback calls the harness DELIVERED - their
+# message, $delivered_all = the SubagentHandback calls the harness DELIVERED - their
 # tool_result is neither an error (a PreToolUse deny comes back as one) nor `success: false` (how a
-# second handback is refused, since one report per dispatch is delivered).
+# second handback is refused, since one report per dispatch is delivered) - and $delivered = those of
+# the CURRENT DISPATCH.
+#
+# A DISPATCH is the work done for one request of the agent's launcher. The first starts at the
+# agent's brief; a launcher that resumes the agent with a new request starts the next, and the
+# harness delivers one report per dispatch. $disp is the record index of the latest LAUNCHER REQUEST
+# (-1 = none: the first dispatch). A launcher request is a user (or queued-command) record whose
+# `origin` says who sent it:
+#   - kind `coordinator`: the main conversation resuming the agent;
+#   - kind `peer` WITHOUT `handback`: another agent's message - a nested launcher's request - unless
+#     the sender is an agent THIS agent launched ($kids: an `agentId` in an Agent call's result),
+#     whose message is that child's answer, not a request.
+# Not requests: a peer message with `handback` (a child's delivered report), a `task-notification`
+# (the agent's own background task), a hook's feedback (a user string with no origin) and any
+# tool_result.
 _FR_JQ_DELIVERED='
   | [ $R[] | select(.role == "assistant") | .i as $i | .content
       | (if type == "array" then .[] else empty end)
@@ -79,18 +95,48 @@ _FR_JQ_DELIVERED='
          msg: ((.input.message // "") | if type == "string" then . else tojson end)} ] as $sends
   | [ $R[] | .tur as $tur | .content | (if type == "array" then .[] else empty end)
       | select(type == "object" and .type == "tool_result")
+      | ((.content | blocktext) + " " + ($tur | if type == "object" then tojson else "" end)) as $txt
       | {id: (.tool_use_id // ""),
+         already: ($txt | test("already delivered")),
          bad: ((.is_error == true)
                or ((($tur | type) == "object") and ($tur.success == false))
-               or ((.content | blocktext) | test("\"success\"[[:space:]]*:[[:space:]]*false")))} ] as $res
+               or ($txt | test("\"success\"[[:space:]]*:[[:space:]]*false")))} ] as $res
   | [ $sends[] | select(.name == "SubagentHandback") | . as $s
       | select(($res | map(select(.id == $s.id and $s.id != ""))) as $m
-               | ($m | length) > 0 and ($m | map(.bad) | any | not)) ] as $delivered
+               | ($m | length) > 0 and ($m | map(.bad) | any | not)) ] as $delivered_all
+  | [ $R[] | (.tur | objects | (.agentId? // empty) | strings),
+      (.content | (if type == "array" then .[] else empty end)
+       | select(type == "object" and .type == "tool_result")
+       | (.content | blocktext) | (scan("agentId: ([A-Za-z0-9_-]+)") | .[0])) ] as $kids
+  | ([ $R[] | select((.origin | type) == "object") | select(
+         .origin.kind == "coordinator"
+         or (.origin.kind == "peer" and (.origin.handback != true)
+             and ((((.origin.from // "") | tostring) as $f | $kids | any(. == $f)) | not)))
+       | .i ] | max // -1) as $disp
+  | [ $delivered_all[] | select(.i > $disp) ] as $delivered
 '
 
+# The transcript lines the dispatch/delivery questions need, and nothing else: the SubagentHandback
+# calls and their results, the SendMessage calls, the results that name an `agentId` (the agents this
+# agent launched) and the records that carry a message origin (kind coordinator or peer; the
+# harness writes compact JSON, a hand-built record may carry spaces). A transcript with no such
+# origin record has had no launcher request, so only the SubagentHandback lines are read: a long
+# first dispatch (tens of MB) is scanned for one key, as before.
+_dispatch_lines() {
+  local transcript="$1"
+  if grep -qF -e '"kind":"coordinator"' -e '"kind": "coordinator"' -e '"kind":"peer"' -e '"kind": "peer"' \
+       -- "$transcript" 2>/dev/null; then
+    _tool_call_lines "$transcript" SubagentHandback SendMessage agentId \
+      '"kind":"coordinator"' '"kind": "coordinator"' '"kind":"peer"' '"kind": "peer"'
+  else
+    _tool_call_lines "$transcript" SubagentHandback
+  fi
+}
+
 # The report this agent delivered to its caller, as one text:
-#   - When a `SubagentHandback` call was DELIVERED ($delivered above), the first one's
-#     `input.message` - the one report the harness hands over.
+#   - When a `SubagentHandback` call was DELIVERED in the CURRENT DISPATCH ($delivered above: after
+#     the launcher's latest request), the first one's `input.message` - the one report the harness
+#     hands over for that dispatch. A report delivered for an earlier request is not this one.
 #   - Otherwise the agent's final message - what the caller receives when no handback was
 #     delivered: $2 (the payload's last_assistant_message, _hook_last_message) when given, since
 #     the file may not hold that record yet; else the text blocks of the FINAL TURN in the file
@@ -101,7 +147,7 @@ _final_report_text() {
   [[ -n "$transcript" && -r "$transcript" ]] || { printf '%s' "$last"; return 0; }
   delivered="$(jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"'
     | if ($delivered | length) > 0 then "1" + $delivered[0].msg + "." else "" end
-  ' < <(_tool_call_lines "$transcript" SubagentHandback) 2>/dev/null || true)"
+  ' < <(_dispatch_lines "$transcript") 2>/dev/null || true)"
   # "1" marks a delivered report (an empty message included); "." keeps its trailing newlines.
   if [[ -n "$delivered" ]]; then delivered="${delivered#1}"; printf '%s\n' "${delivered%.}"; return 0; fi
   if [[ -n "$last" ]]; then printf '%s\n' "$last"; return 0; fi
@@ -265,25 +311,57 @@ _continuation_unforwarded_tokens() {
   done <<< "$tokens"
 }
 
-# rc 0 when this agent's report was already DELIVERED through SubagentHandback - the harness then
-# refuses a second handback.
+# rc 0 when this agent's report was already DELIVERED through SubagentHandback for the CURRENT
+# dispatch (the work since its launcher's latest request) - the harness then refuses a second
+# handback. A report delivered for an earlier request does not count.
 _handback_delivered() {
   local transcript="$1" n
   command -v jq >/dev/null 2>&1 || return 1
   [[ -n "$transcript" && -r "$transcript" ]] || return 1
   n="$(jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"' | $delivered | length' \
-    < <(_tool_call_lines "$transcript" SubagentHandback) 2>/dev/null || true)"
+    < <(_dispatch_lines "$transcript") 2>/dev/null || true)"
   [[ "$n" =~ ^[0-9]+$ && "$n" -gt 0 ]]
+}
+
+# Prints who sent the request an agent is answering without a report, and nothing otherwise: the
+# agent was RESUMED - its launcher sent a new request after a report it had delivered through
+# SubagentHandback - and no report has been delivered since. Output is `coordinator` (the main
+# conversation) or `peer <sender agent id>` (a nested launcher). Nothing is printed for:
+#   - a first dispatch (no launcher request), or a request with no delivered report before it (the
+#     agent is not known to report through SubagentHandback);
+#   - a report delivered since the latest request, or a handback call with no result recorded yet;
+#   - a handback refused as already delivered since the request AND a SendMessage after it (the
+#     refusal says to send the answer with the messaging tool);
+#   - a wake that is not a request (task notification, a child's hand-back, hook feedback).
+_resumed_without_report() {
+  local transcript="$1"
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -n "$transcript" && -r "$transcript" ]] || return 0
+  jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"'
+  | ([ $R[] | select(.role == "assistant") | .i as $i | .content
+       | (if type == "array" then .[] else empty end)
+       | select(type == "object" and .type == "tool_use" and (((.name // "") | tostring) == "SendMessage"))
+       | $i ]) as $messaged
+  | ([ $sends[] | select(.i > $disp) | . as $s
+       | select($res | any(.id == $s.id and $s.id != "" and .bad and .already)) | .i ]) as $refused
+  | if $disp < 0 then empty
+    elif ($delivered_all | any(.i < $disp) | not) then empty
+    elif ($delivered | length) > 0 then empty
+    elif ([ $sends[] | select(.i > $disp) | . as $s | select($res | any(.id == $s.id) | not) ] | length) > 0 then empty
+    elif ($refused | any(. as $r | $messaged | any(. > $r))) then empty
+    else ($R[] | select(.i == $disp) | .origin) | if .kind == "peer" then "peer " + ((.from // "") | tostring) else "coordinator" end
+    end
+  ' < <(_dispatch_lines "$transcript") 2>/dev/null || true
 }
 
 # The sentence every SubagentStop text addressed to the subagent ends with - a note sent through
 # additionalContext AND a decision:block reason alike. Both make the subagent run ONE more turn, and
 # when its report travels as its final message (no SubagentHandback) the caller receives the
 # message that turn ENDS on, not the report it stopped with - so a text that does not say so costs
-# the caller the report. A report already delivered through SubagentHandback is final: nothing the
-# extra turn writes reaches the caller. A spawner that stopped only to WAIT for a teammate it
-# launched (any surface but the unattended one wakes it for that teammate - hooks/teammate-wait.sh)
-# has not written its report yet, so it is told to keep waiting instead; that branch needs the
+# the caller the report. A report already delivered through SubagentHandback for the CURRENT
+# dispatch (since the launcher's latest request) is final: nothing the extra turn writes reaches
+# the caller. A spawner that stopped only to WAIT for a teammate it launched (any surface but the
+# unattended one wakes it for that teammate - hooks/teammate-wait.sh) has not written its report yet, so it is told to keep waiting instead; that branch needs the
 # caller to have sourced teammate-wait.sh and to pass the payload.
 # $1 = the subagent's own transcript, $2 = the SubagentStop payload (optional).
 _subagent_note_tail() {

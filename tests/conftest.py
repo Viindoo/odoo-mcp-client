@@ -455,6 +455,7 @@ SERIAL_TESTS = (
     # A hook or tool refusal that must land well inside its timeout on a long input.
     "tests/test_unowned_lease_mutation_gate.py::test_a_forwarded_lease_release_is_refused_well_inside_the_timeout_on_a_long_dispatch",
     "tests/test_enforce_teardown.py::test_a_live_lease_on_a_long_transcript_is_blocked_well_inside_the_timeout",
+    "tests/test_job_wait_hook.py::test_a_long_transcript_that_holds_a_collected_job_is_cleared_well_inside_the_timeout",
     # Port and row timing of the two-phase release; failed once each under five-way load.
     "tests/test_allocator_release_two_phase.py::*",
     "tests/test_report_terminal_status.py::*",
