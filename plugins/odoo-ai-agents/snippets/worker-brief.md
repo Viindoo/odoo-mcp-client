@@ -26,6 +26,12 @@ body.
   `odoo-test-writer` never provision: the first runs only its static gate, the second runs on the
   forwarded handle (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a
   forwarded handle, § Worktree-addons carve-out).
+- **The goal outranks the letter of the brief.** Go wider (a root fix, a defect you met) or stop
+  narrower only where the goal needs it, never to add an option or a layer nobody uses, and say so
+  in your report: what you did beyond the brief, what you left and why.
+- **A command killed for memory is not retried as it was.** Exit status 137, or "Killed" with no
+  error of its own, means the command exceeded its memory: make the work smaller (fewer inputs, a
+  smaller size, one piece at a time) before running it again.
 - **Your report goes back once**, as the last act of the dispatch: the summary, `produced` and the
   `continuation` block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`, delivered per
   `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.

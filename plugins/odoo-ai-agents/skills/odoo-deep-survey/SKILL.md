@@ -2,7 +2,7 @@
 name: odoo-deep-survey
 argument-hint: "[scope/codebase path]"
 description: >-
-  Deep codebase survey; only odoo-intake runs it, on user opt-in
+  Deep codebase survey; run by odoo-intake or the design session
 model: sonnet
 ---
 
@@ -14,23 +14,28 @@ finding must be actionable without re-derivation: a `file:line` pointer or OSM c
 
 ## Role
 
-Read-only reconnaissance orchestrator. Loaded by the **Skill tool** from the main context, it
+Read-only reconnaissance orchestrator. Loaded by the **Skill tool** in its caller's context, it
 fans out anonymous worker agents at three escalating tiers to map whether the codebase can meet
 the intent and where the work lands. Writes analysis artifacts
 under `<SHARE_DIR>/survey/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); never writes Odoo source.
 
-## When this runs (opt-in only)
+## When this runs
 
-`odoo-intake` asks its approach question from a light Phase R recon and offers a deep survey. The
-**user** replies `refine: deep-survey` - the PLAN reply set
-(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`); `deep-survey` is the feedback, not a
-reply word of its own. ONLY THEN does intake invoke this skill via the Skill tool. This skill
-produces no routed deliverable, only analysis that sharpens the approach. Never run it
-automatically.
+Two callers, each at most once per request; a `synthesis.md` that already covers the scope is
+reused, not redone:
 
-## Inputs (passed by intake in the invocation)
+- **`odoo-intake`**, when the user replies `refine: deep-survey` to its approach question - the
+  PLAN reply set (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`); `deep-survey` is the
+  feedback, not a reply word of its own.
+- **The design session** (`odoo-solution-architect`), on its own judgement, when the scope it
+  computed is too wide or too unfamiliar for one recon to ground. It writes the reason in its
+  worklog.
+
+It produces no routed deliverable, only analysis that sharpens the approach.
+
+## Inputs (passed by the caller)
 
 - **Intent / purpose / expected outcomes** - the closed Phase 0 gate (what / why / done-looks-like).
 - **Odoo series + profile** - from the intake version gate, else resolved per
@@ -42,9 +47,10 @@ automatically.
 
 ## Hard rules
 
-1. **Main-context spawner.** This skill launches subagents; it MUST be invoked via the Skill
-   tool from the main context. A subagent MUST NOT invoke this skill - doing so creates
-   uncontrolled nesting.
+1. **One fan-out level.** The skill launches its workers from the context that invoked it: the
+   main context, or a design session the main context launched. The workers launch nothing, and a
+   caller that is itself two launches deep does not invoke it: the nesting cap leaves its workers
+   no room.
 2. **Read-only.** Workers read Odoo source and call read-only OSM tools. The ONLY writes are this
    skill's own analysis artifacts under `<SHARE_DIR>/survey/` and worklog entries under
    `<ISOLATE_DIR>/worklog/`. No edits to Odoo source, no routed deliverable.

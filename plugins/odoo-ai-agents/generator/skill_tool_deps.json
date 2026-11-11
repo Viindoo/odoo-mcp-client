@@ -789,7 +789,7 @@
       "spawns_agents": [
         "odoo-impact-recon"
       ],
-      "notes": "Design-session owner: writes the SRS, launches ONE odoo-impact-recon (haiku) for the dependency and blast-radius facts, decides the design depth, writes the light or full design with a build_tier_hint per node, and stops at the srs and design gates for the caller to resume it with SendMessage. May invoke a grounding skill (odoo-feature-check, odoo-gap-analysis, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory) or launch a read-only research worker for a fact recon did not give; launches odoo-gap-analyzer directly only when the Skill tool is absent. Never launches a coder, reviewer or executor; never writes production source.",
+      "notes": "Design-session owner: writes the SRS, computes the scope and grounds it by reading it, by ONE odoo-impact-recon (haiku) or by invoking odoo-deep-survey when the scope is too wide for one recon, decides the design depth, writes the light or full design with a build_tier_hint per node, and stops at the srs and design gates for the caller to resume it with SendMessage. May invoke a grounding skill (odoo-feature-check, odoo-gap-analysis, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory) or launch a read-only research worker for a fact recon did not give; launches odoo-gap-analyzer directly only when the Skill tool is absent. Never launches a coder, reviewer or executor; never writes production source.",
       "brief": {
         "required": [
           "REQUEST",
@@ -1918,7 +1918,7 @@
     }
   },
   "vocabulary": {
-    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by tests/test_status_vocabulary.py; rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses). reserved_tokens lists the ODOO-AI-ETHOS #10 completion token: it is NOT a continuation_status or node_status value here, and the teardown gate treats a turn ending on it as ended (hooks/enforce-teardown.sh).",
+    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by the hook tests (tests/test_handback_gate.py, tests/test_enforce_teardown.py); rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses). reserved_tokens lists the ODOO-AI-ETHOS #10 completion token: it is NOT a continuation_status or node_status value here, and the teardown gate treats a turn ending on it as ended (hooks/enforce-teardown.sh).",
     "continuation_status": [
       "DONE",
       "NEEDS_NEXT",
