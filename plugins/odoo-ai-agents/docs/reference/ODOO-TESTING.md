@@ -182,7 +182,7 @@ method; that section is the build-time enforcement point.
   assertions, Hoot reports failed tests), and one build drives several browser suites, each
   under its own logger scope. The counting mechanism is implemented once, in the `_JS_*` marker
   SSOT and `_js_fail_counts` of `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`,
-  and surfaced as the `JS_RUNS`/`JS_SCOPE`/`JS_FAILED_REPORTED`/`JS_FAILED_TESTS` fields the
+  and surfaced as the `JS_RESULT`/`JS_RUNS`/`JS_SCOPE`/`JS_FAILED_REPORTED`/`JS_FAILED_TESTS` fields the
   `run-tests` operation emits. Read those fields; do not hand-roll a grep over a run log.
 
 ## Expected-log handling per layer (deny-path / guard tests)

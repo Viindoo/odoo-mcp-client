@@ -141,7 +141,9 @@ Never trust that an edit "took" - read the computed value:
 
 1. Read computed styles on `:root` + representative elements -> list RESOLVE vs EMPTY; detect
    self-ref cycles and transparent surfaces.
-2. Edit SCSS -> recompile the asset bundle (`--dev=assets` or restart) -> screenshot (destination:
+2. Edit SCSS -> make the bundle new (`instance_build` `update` of the module on the same lease, or a
+   restart; `?debug=assets` plus a refresh for a file already in the bundle - a plain refresh
+   shows the old bundle) -> screenshot (destination:
    state-root-resolution.md § Where a captured artifact goes) + re-read computed styles.
 3. Iterate until tokens resolve and the layout and behaviour match the mockup.
 

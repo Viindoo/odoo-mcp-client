@@ -2830,6 +2830,67 @@ def test_text_that_is_not_a_js_run_leaves_the_js_fields_unmeasured(tmp_path):
         )
 
 
+# Lines in the shape a `--test-tags /<module>` run logs (tours and Python tests only, no
+# Hoot/QUnit suite selected): Odoo's three different totals, and a tour under a `.browser` logger.
+TOUR_STEP_LINE = (
+    "2026-11-11 08:56:00,804 2512561 INFO odoo_17_0_x odoo.addons.my_module.tests."
+    "test_tour_checkout.TestCheckoutTours.browser: Tour checkout_flow on step: "
+    "'They open the cart (trigger: .o_my_module_cart_toggle)' "
+)
+POST_TESTS_LINE = ("2026-11-11 08:56:46,298 2512561 INFO odoo_17_0_x odoo.service.server: "
+                   "1366 post-tests in 977.14s, 380231 queries ")
+MODULE_STATS_LINE = ("2026-11-11 08:56:46,313 2512561 INFO odoo_17_0_x odoo.tests.stats: "
+                     "my_module: 2409 tests 907.85s 380231 queries ")
+DB_RESULT_LINE = ("2026-11-11 08:56:46,313 2512561 INFO odoo_17_0_x odoo.tests.result: "
+                  "0 failed, 0 error(s) of 1369 tests when loading database 'odoo_17_0_x' ")
+QUNIT_DONE_LINE = ("2026-11-10 14:12:45,229 167816 INFO odoo_17_0_x "
+                   "odoo.addons.web.tests.test_js.WebSuite.browser: QUnit test suite done. ")
+
+
+@requires_bash
+def test_a_run_whose_tags_select_no_browser_suite_says_the_js_suite_is_absent(tmp_path):
+    """A module's tours and Python tests ran green and the tag filter left out the module that
+    drives the Hoot/QUnit suite: the numeric JS fields are empty (nothing measured), and JS_RESULT
+    says `absent` - a reader must not take the missing failure line for a pass."""
+    res = _run_test_verb_lines(tmp_path, "tourgreen", [
+        TOUR_STEP_LINE, POST_TESTS_LINE, MODULE_STATS_LINE, DB_RESULT_LINE,
+    ], exit_code=0)
+    assert _verdict(res) == "passed", res.stdout
+    assert _field(res, "JS_RESULT") == "absent", res.stdout
+    for name in ("JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS"):
+        assert _field(res, name) == "", res.stdout
+
+
+@requires_bash
+def test_a_browser_suite_that_ran_without_a_failure_is_a_measured_pass(tmp_path):
+    res = _run_test_verb_lines(tmp_path, "qunitgreen", [QUNIT_DONE_LINE, DB_RESULT_LINE], exit_code=0)
+    assert _verdict(res) == "passed", res.stdout
+    assert _field(res, "JS_RESULT") == "passed", res.stdout
+    assert _field(res, "JS_RUNS") == "1" and _field(res, "JS_FAILED_REPORTED") == "0", res.stdout
+
+
+@requires_bash
+def test_a_browser_suite_that_published_a_failure_is_a_js_failure(tmp_path):
+    scoped = _run_test_verb_lines(tmp_path, "hootred", [JS_HOOT_FAIL_A, JS_HOOT_GREEN_OTHER_SCOPE])
+    assert _field(scoped, "JS_RESULT") == "failed", scoped.stdout
+    bare_dir = tmp_path / "bare"
+    bare_dir.mkdir()
+    bare = _run_test_verb_lines(bare_dir, "unscopedred", [JS_QUNIT_AGG_BARE])
+    assert _field(bare, "JS_RESULT") == "failed", bare.stdout
+
+
+@requires_bash
+def test_the_tests_run_total_is_the_databases_total_not_another_figure_of_the_same_log(tmp_path):
+    """The same log carries three counts: the post-install phase (1366), the database total
+    (1369: at-install + post-install) and the per-module timing entries (2409 = 1369 tests + 2 x 520
+    test classes: setUpClass and tearDownClass are timed like tests). TESTS_RUN is the database
+    total and only that, so adding the stats or the phase line would change it."""
+    res = _run_test_verb_lines(tmp_path, "totals", [
+        POST_TESTS_LINE, MODULE_STATS_LINE, DB_RESULT_LINE,
+    ], exit_code=0)
+    assert _field(res, "TESTS_RUN") == "1369", res.stdout
+
+
 @requires_bash
 def test_every_scope_is_its_own_run_whatever_its_module_and_test_names(tmp_path):
     """THE de-duplication bug: the run boundary is the logger scope, not the file. Desktop and

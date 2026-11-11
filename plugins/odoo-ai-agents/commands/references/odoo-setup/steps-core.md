@@ -181,7 +181,7 @@ session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Th
   (b) Odoo's OWN connection through the instance's `python`; `pg_isready` is only a note and never
   makes the launch green. On a refused connection it prints the refusal and
   launches NOTHING. On pass: generates a temp `odoo.conf`, launches Odoo
-  (`odoo-bin --dev=all` or `docker compose up -d`), polls the instance's start page
+  (`odoo-bin` with no developer option, or `docker compose up -d`), polls the instance's start page
   until it answers HTTP 200, prints the URL. The series comes from CONFIRM #7 (never silently
   defaulted). The Python interpreter comes from the instance `python` field /
   `$ODOO_PYTHON` / `python3`.

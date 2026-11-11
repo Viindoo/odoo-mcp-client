@@ -92,7 +92,7 @@ A refused resume leaves the lease unchanged and still parked: follow the error c
 
 ### Restart on the same lease
 
-A running instance on a lease THIS dispatch obtained keeps its database, filestore and ports across a restart. Python-only change: `lease_park(lease_token, run_id)`, then `instance_serve(lease_token)`. Manifest, data or field change: `instance_build` operation `update` on the same lease. Never kill or relaunch `odoo-bin` by hand - the lease tracks only the server its tools start. A handle that only arrived in your brief is not yours to park: ask its owner.
+A running instance on a lease THIS dispatch obtained keeps its database, filestore and ports across a restart. Python-only change: `lease_park(lease_token, run_id)`, then `instance_serve(lease_token)` - a served instance never restarts on a saved file. Manifest, data or field change: `instance_build` operation `update` on the same lease. Never kill or relaunch `odoo-bin` by hand - the lease tracks only the server its tools start. A handle that only arrived in your brief is not yours to park: ask its owner.
 
 ### Doc-context provision (demo + languages + the auto-install shape)
 
@@ -144,7 +144,7 @@ A module Odoo says must be loaded server-wide means the catalog row (or the brie
 
 ## Run-tests counters
 
-Extra detail to the agent's Counters rule: JS suite classes to tag: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § JavaScript unit tests. With `JS_SCOPE=unscoped`, `JS_FAILED_TESTS` is unavailable - say so. An EMPTY count is reported as not measurable. `TEST_WARNING` / `TEST_SKIPPED` are always numeric.
+Extra detail to the agent's Counters rule: JS suite classes to tag: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § JavaScript unit tests. With `JS_SCOPE=unscoped`, `JS_FAILED_TESTS` is unavailable - say so. An EMPTY count is reported as not measurable. `JS_RESULT` (`passed`, `failed`, `absent`) is always present: `absent` means the tags selected no browser unit suite and is never a pass - no JS pass is inferred from a missing failure line. Tours are Python tests, counted in `TESTS_RUN`, which is the database total Odoo prints, not the per-module stats figure (that one also counts class setup and teardown). `TEST_WARNING` / `TEST_SKIPPED` are always numeric.
 
 ## Step D detail
 

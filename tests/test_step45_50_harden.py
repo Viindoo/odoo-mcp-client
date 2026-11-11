@@ -1400,15 +1400,136 @@ def test_step50_conf_main_port_key_comes_from_the_checkout(series_runs):
     assert "http_port" in conf17 and "xmlrpc_port" not in conf17, conf17
 
 
+_DEV_BARE = re.compile(r"(^|\s)--dev(\s|$)")
+
+
+def _states_dev_option(line: str) -> bool:
+    """True when a launch line carries a --dev argument in any spelling."""
+    return "--dev" in line
+
+
 @requires_bash
-def test_step50_dev_all_is_gated_by_the_checkouts_own_dev_option(series_runs):
-    """--dev=all needs a value-taking --dev (v10+); v9 has only a boolean --dev and
-    v8 none, so passing it there would stop Odoo from starting. The gate is the
-    checkout's own option, not the series label."""
-    for label in ("8.0", "9.0", "9.0-as-17.0"):
-        assert "--dev=all" not in series_runs[label][1], f"{label}: {series_runs[label][1]!r}"
-    for label in ("10.0", "17.0"):
-        assert "--dev=all" in series_runs[label][1], f"{label}: {series_runs[label][1]!r}"
+def test_step50_a_default_launch_states_no_developer_option_on_any_checkout(series_runs):
+    """A server the plugin launches serves the views and assets installed in its database and
+    does not restart when a source file changes: no checkout shape (value-taking --dev, a
+    boolean --dev, none) gets a --dev argument unless the caller asked for a developer server."""
+    for label, (conf, launching) in series_runs.items():
+        assert not _states_dev_option(launching), f"{label}: {launching!r}"
+        assert "developer_server" not in conf, f"{label}:\n{conf}"
+
+
+def _dev_server_args():
+    return ("--exclusive", "--db-name", "odoo_dev", "--http-port", "18271", "--port-key", "http_port",
+            "--dev-server")
+
+
+@pytest.fixture(scope="module")
+def dev_server_runs(tmp_path_factory):
+    """One `apply --dev-server` per checkout shape (label -> (returncode, stdout+stderr)); the
+    checkout declared under another series label proves the shape comes from its config.py."""
+    runs = {}
+    for label, series, checkout in (
+        ("8.0", "8.0", None), ("9.0", "9.0", None), ("17.0", "17.0", None),
+        ("10.0-as-17.0", "17.0", "10.0"), ("9.0-as-17.0", "17.0", "9.0"),
+        ("8.0-as-17.0", "17.0", "8.0"),
+    ):
+        series_tmp = tmp_path_factory.mktemp("dev_" + label.replace(".", "_"))
+        _, _, env = _make_step50_toml_for_series(series_tmp, series, checkout=checkout)
+        bind = series_tmp / f"bin-{series.replace('.', '_')}"
+        cnt = series_tmp / "curl.count"
+        _write_stub(bind / "curl", textwrap.dedent(f"""\
+            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+            echo $((n + 1)) > "{cnt}"
+            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+        """))
+        res = subprocess.run(
+            ["bash", str(STEP50), "apply", "--version", series, *_dev_server_args()],
+            capture_output=True, text=True, env=env, timeout=30,
+        )
+        runs[label] = (res.returncode, res.stdout + res.stderr, res.stdout)
+    return runs
+
+
+@requires_bash
+def test_step50_a_developer_server_uses_the_spelling_the_checkout_declares(dev_server_runs):
+    """Where --dev takes a value the request names the three features every such series has
+    (never `all`: before 16.0 it adds an interactive debugger a server without a terminal cannot
+    answer); where --dev is a boolean switch it is the bare switch. The gate is the checkout's
+    own option, not the series label."""
+    for label in ("17.0", "10.0-as-17.0"):
+        rc, out, stdout = dev_server_runs[label]
+        assert rc == 0, f"{label}\n{out}"
+        launching = [l for l in out.splitlines() if "Launching:" in l][0]
+        assert "--dev=reload,qweb,xml" in launching and "--dev=all" not in launching, f"{label}: {launching!r}"
+        assert "SERVE_DEVELOPER_SERVER=1" in stdout, f"{label}\n{stdout}"
+        assert "# developer_server = 1" in _generated_conf_text(out), label
+    for label in ("9.0", "9.0-as-17.0"):
+        rc, out, stdout = dev_server_runs[label]
+        assert rc == 0, f"{label}\n{out}"
+        launching = [l for l in out.splitlines() if "Launching:" in l][0]
+        assert _DEV_BARE.search(launching) and "--dev=" not in launching, f"{label}: {launching!r}"
+        assert "SERVE_DEVELOPER_SERVER=1" in stdout, f"{label}\n{stdout}"
+
+
+@requires_bash
+def test_step50_a_developer_server_is_refused_where_the_checkout_declares_no_dev_option(dev_server_runs):
+    for label in ("8.0", "8.0-as-17.0"):
+        rc, out, stdout = dev_server_runs[label]
+        assert rc != 0, f"{label}\n{out}"
+        assert "SERVE_REFUSED=DEV_SERVER_UNSUPPORTED" in stdout, f"{label}\n{stdout}"
+        assert "Launching:" not in out, f"{label}: nothing may launch\n{out}"
+
+
+@requires_bash
+def test_step50_a_developer_server_is_never_the_shared_declared_instance(tmp_path):
+    """The shared declared instance serves every reader: asking it for developer features is a
+    usage error, and nothing launches."""
+    _, _, env = _make_step50_toml_for_series(tmp_path, "17.0")
+    res = subprocess.run(["bash", str(STEP50), "apply", "--version", "17.0", "--dev-server"],
+                         capture_output=True, text=True, env=env, timeout=30)
+    assert res.returncode == 2, res.stdout + res.stderr
+    assert "Launching:" not in res.stdout + res.stderr
+
+
+@requires_bash
+def test_step50_the_environments_dev_setting_never_reaches_a_server_it_launches(tmp_path):
+    """From 19.0 Odoo's --dev also reads $ODOO_DEV; a developer's shell must not turn the
+    developer features on in a server this plugin launches."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    fake_py = tmp_path / "fake-py-bin" / "python"
+    fake_py.write_text(fake_py.read_text(encoding="utf-8").replace(
+        'echo "odoo-bin launched $*"', 'echo "ODOO_DEV=${ODOO_DEV-<unset>}" >> "%s"\n'
+        'echo "odoo-bin launched $*"' % launch_log), encoding="utf-8")
+    env["ODOO_DEV"] = "all"
+    res = _run_step50(env)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert _wait_exists(launch_log)
+    deadline = time.monotonic() + 10
+    while "odoo-bin launched" not in launch_log.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert "ODOO_DEV=<unset>" in launch_log.read_text(encoding="utf-8"), launch_log.read_text(encoding="utf-8")
+    _stop_servers(home)
+
+
+@requires_bash
+def test_step50_an_attach_reports_whether_the_running_server_is_a_developer_server(tmp_path):
+    """An attach launches nothing, so what the running server was started with is read back from
+    the conf its launch wrote: SERVE_DEVELOPER_SERVER names it for the next caller."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch", lifetime=300)
+    args = ("--exclusive", "--db-name", "odoo_dev", "--http-port", "18271", "--port-key", "http_port")
+    try:
+        for extra, expected in (("--dev-server", "1"), (None, "0")):
+            launch_log.unlink(missing_ok=True)
+            (tmp_path / "curl.count").unlink(missing_ok=True)
+            first = _run_step50_args(env, *args, *([extra] if extra else []))
+            assert first.returncode == 0, first.stdout + first.stderr
+            assert f"SERVE_STATE=launched" in first.stdout and f"SERVE_DEVELOPER_SERVER={expected}" in first.stdout
+            second = _run_step50_args(env, *args)  # the probe now answers: an attach
+            assert second.returncode == 0, second.stdout + second.stderr
+            assert "SERVE_STATE=attached" in second.stdout, second.stdout
+            assert f"SERVE_DEVELOPER_SERVER={expected}" in second.stdout, second.stdout
+    finally:
+        _stop_servers(home)
 
 
 # ---------------------------------------------------------------------------

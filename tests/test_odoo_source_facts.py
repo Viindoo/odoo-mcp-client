@@ -538,6 +538,9 @@ def test_dev_value_and_short_options_and_core_package_are_read_from_the_checkout
     assert facts.dev_takes_value(old) is False, "no --dev option at all: nothing to pass a value to"
     _config(tmp_path / "flag", "openerp", "group.add_option('--dev', dest='dev_mode', action='store_true')\n")
     assert facts.dev_takes_value(tmp_path / "flag") is False, "a boolean --dev takes no =all"
+    assert facts.dev_option_shape(new) == "value"
+    assert facts.dev_option_shape(old) == "none", "no --dev option at all"
+    assert facts.dev_option_shape(tmp_path / "flag") == "flag", "a boolean --dev is a switch, not absent"
     shorts = facts.short_options(new)
     assert shorts["t"] == {"long": "test-tags", "takes_value": True}
     assert shorts["s"] == {"long": "save", "takes_value": False}
@@ -548,7 +551,7 @@ def test_dev_value_and_short_options_and_core_package_are_read_from_the_checkout
     assert legacy["s"] == {"long": "save", "takes_value": False}, "a callback with nargs=0 takes no value"
     assert "p" not in legacy
     assert facts.core_package(new) == "odoo" and facts.core_package(old) == "openerp"
-    for fn in (facts.dev_takes_value, facts.short_options, facts.core_package):
+    for fn in (facts.dev_option_shape, facts.dev_takes_value, facts.short_options, facts.core_package):
         assert fn(tmp_path / "absent") is None
 
 
@@ -558,12 +561,12 @@ def test_cli_option_facts_prints_every_fact_and_exits_3_when_unreadable(tmp_path
     assert r.returncode == 0, r.stderr
     assert _kv(r.stdout) == {"CORE_PACKAGE": "odoo", "DEMO_OPT_IN": "1", "WITHOUT_DEMO": "1",
                              "HTTP_PORT_KEY": "http_port", "SECOND_PORT_KEY": "gevent_port",
-                             "DEV_TAKES_VALUE": "1", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
+                             "DEV_SHAPE": "value", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
     old = _config(tmp_path / "old", "openerp", OPTS_LEGACY)
     assert _kv(_cli("cli-facts", str(old)).stdout) == {
         "CORE_PACKAGE": "openerp", "DEMO_OPT_IN": "0", "WITHOUT_DEMO": "1",
         "HTTP_PORT_KEY": "xmlrpc_port", "SECOND_PORT_KEY": "longpolling_port",
-        "DEV_TAKES_VALUE": "0", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
+        "DEV_SHAPE": "none", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
     r = _cli("cli-facts", str(tmp_path / "absent"))
     assert r.returncode == 3 and r.stdout == "" and "tools/config.py" in r.stderr
     assert _cli("cli-facts").returncode == 2
@@ -626,6 +629,9 @@ OPTION_SURVEY = {
     "19.0": (True, "http_port", "gevent_port", True, "odoo", "test-tags", "http-port"),
     "20.0": (True, "http_port", "gevent_port", True, "odoo", "test-tags", "http-port"),
 }
+# How each series declares --dev (read from the 8.0-20.0 checkouts' config.py): every series that
+# declares it takes a value except 9.0, whose --dev is a boolean switch; 8.0 has none.
+DEV_SHAPE_SURVEY = {"8.0": "none", "9.0": "flag"}
 # What each series' own config.py says about the HTTP listen address (read from 17.0-20.0 checkouts;
 # 8.0-16.0 from the indexed CLI catalogue, which lists an empty default there): the declared
 # default and so the loopback address a launch must state. Only 19.0 defaults to the wildcard.
@@ -648,6 +654,7 @@ def test_real_checkout_option_facts(series):
     assert facts.http_port_key(root) == main
     assert facts.second_port_key(root) == second
     assert facts.dev_takes_value(root) is dev
+    assert facts.dev_option_shape(root) == DEV_SHAPE_SURVEY.get(series, "value"), series
     assert facts.core_package(root) == pkg
     assert facts.http_interface_pin(root) == INTERFACE_PIN.get(series), series
     shorts = facts.short_options(root)
@@ -671,7 +678,8 @@ def test_fixture_checkouts_state_the_facts_their_real_series_states(tmp_path, se
     real = _checkout(series)
     assert facts.http_interface_pin(fixture) == INTERFACE_PIN.get(series), series
     for fn in (facts.demo_opt_in, facts.without_demo_declared, facts.http_port_key,
-               facts.http_interface_key, facts.second_port_key, facts.dev_takes_value, facts.core_package,
+               facts.http_interface_key, facts.second_port_key, facts.dev_takes_value, facts.dev_option_shape,
+               facts.core_package,
                facts.core_server_wide_modules):
         assert fn(fixture) == fn(real), (series, fn.__name__)
     assert facts.locate_odoo_root(None, [str(fixture / "addons")]) == str(fixture)

@@ -51,9 +51,14 @@ Public API (stable - other scripts import it):
       already a loopback address needs none, and one that declares no such
       option has nothing to pin.
 
+  dev_option_shape(odoo_root) -> "value" | "flag" | "none" | None
+      How the checkout declares `--dev`: "value" (`--dev=FEATURE,...`), "flag"
+      (a boolean `--dev`), "none" (not declared). None when config.py is
+      unreadable.
+
   dev_takes_value(odoo_root) -> bool | None
-      True when `--dev` takes a value (`--dev=all` is valid), False when it is
-      a boolean flag or absent.
+      True when `--dev` takes a value (`--dev=FEATURE,...` is valid), False
+      when it is a boolean flag or absent.
 
   short_options(odoo_root) -> dict | None
       {char: {"long", "takes_value"}} for every declared short option plus
@@ -158,7 +163,7 @@ CLI (for shell setup steps; every fact prints as KEY=value on stdout):
       CORE_SERVER_WIDE_MODULES=base,web            exit 0; exit 3 when unreadable
   python3 odoo_source_facts.py cli-facts <odoo_root>
       CORE_PACKAGE=odoo / DEMO_OPT_IN=1|0 (empty when undeclared) /
-      WITHOUT_DEMO=1|0 (--without-demo declared) / HTTP_PORT_KEY=http_port / SECOND_PORT_KEY=gevent_port / DEV_TAKES_VALUE=1|0 /
+      WITHOUT_DEMO=1|0 (--without-demo declared) / HTTP_PORT_KEY=http_port / SECOND_PORT_KEY=gevent_port / DEV_SHAPE=value|flag|none /
       HTTP_INTERFACE_KEY=http_interface (empty when undeclared) / HTTP_INTERFACE_PIN=127.0.0.1 (empty when none is needed)
                                                    exit 0; exit 3 when config.py is unreadable
   python3 odoo_source_facts.py i18n-facts <odoo_root>
@@ -202,6 +207,7 @@ __all__ = [
     "core_package",
     "core_server_wide_modules",
     "demo_opt_in",
+    "dev_option_shape",
     "dev_takes_value",
     "http_interface_key",
     "http_interface_pin",
@@ -628,14 +634,24 @@ def http_interface_pin(odoo_root) -> str | None:
     return None
 
 
-def dev_takes_value(odoo_root) -> bool | None:
-    """True when the checkout's `--dev` option takes a value (so `--dev=all` is valid), False
-    when `--dev` is a boolean flag or absent, None when config.py is unreadable."""
+def dev_option_shape(odoo_root) -> str | None:
+    """How the checkout declares `--dev`: "value" when it takes a value (`--dev=FEATURE,...`),
+    "flag" when it is a boolean switch, "none" when it is not declared; None when config.py is
+    unreadable."""
     options = cli_options(odoo_root)
     if options is None:
         return None
     entry = options.get("--dev")
-    return bool(entry and entry["takes_value"])
+    if not entry:
+        return "none"
+    return "value" if entry["takes_value"] else "flag"
+
+
+def dev_takes_value(odoo_root) -> bool | None:
+    """True when the checkout's `--dev` option takes a value (so `--dev=FEATURE,...` is valid),
+    False when `--dev` is a boolean flag or absent, None when config.py is unreadable."""
+    shape = dev_option_shape(odoo_root)
+    return None if shape is None else shape == "value"
 
 
 def short_options(odoo_root) -> dict | None:
@@ -1024,13 +1040,13 @@ def main(argv) -> int:
             sys.stderr.write("no readable odoo/tools/config.py (openerp/tools/config.py on the "
                              "oldest series) under %s\n" % args[0])
             return 3
-        demo, dev = demo_opt_in(args[0]), dev_takes_value(args[0])
+        demo = demo_opt_in(args[0])
         _emit("CORE_PACKAGE", core_package(args[0]) or "")
         _emit("DEMO_OPT_IN", "" if demo is None else ("1" if demo else "0"))
         _emit("WITHOUT_DEMO", "1" if without_demo_declared(args[0]) else "0")
         _emit("HTTP_PORT_KEY", http_port_key(args[0]) or "")
         _emit("SECOND_PORT_KEY", second_port_key(args[0]) or "")
-        _emit("DEV_TAKES_VALUE", "1" if dev else "0")
+        _emit("DEV_SHAPE", dev_option_shape(args[0]) or "none")
         _emit("HTTP_INTERFACE_KEY", http_interface_key(args[0]) or "")
         _emit("HTTP_INTERFACE_PIN", http_interface_pin(args[0]) or "")
         return 0

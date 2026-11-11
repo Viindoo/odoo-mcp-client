@@ -73,11 +73,22 @@ verdict: the UI moved records out of the state the tests expect. A suite or a br
 decides a verdict there runs on an `ephemeral` lease of its own; a red seen on a driven database
 is re-run on a clean one before any code or data is touched.
 
+Evidence comes from the installed build: a capture, an acceptance, a review or a recording never
+asks `instance_serve` for a developer server, and one whose serve result says
+`developer_server: true` (it restarts on a saved file and reads views from files) is parked and
+served again by its owner before anything is captured or ruled on it.
+
 ## One build or export per database
 
 Workers sharing one database never build or export on it at the same time. When a tool reports
 the database busy, `job_wait` the job it names, then retry. Never release or park a lease you do
 not own to free the database.
+
+A job you started (`instance_build`, `instance_i18n_export`) is collected in the turn that
+started it: `job_wait` until its result is not `timeout`. A finished job notifies no one, the
+main conversation included. A turn that must end first says the job is still running and that
+nothing will wake the session; a dispatched agent reports `BLOCKED` with the `job_id`. A gate
+stops such a turn end once.
 
 ## Prefork (`--workers>0`) needs a second port
 

@@ -332,8 +332,26 @@
 #               published only an aggregate with no logger prefix, so
 #               JS_FAILED_TESTS is unavailable. All four EMPTY together when the
 #               log carries no JS marker - unmeasured, never 0)
+# JS verdict:   JS_RESULT=passed|failed|absent  (`test` verb only; ALWAYS present)
+#               failed = a Hoot/QUnit run published a failure; passed = at least one
+#               Hoot/QUnit run is in the log and none failed; absent = the log carries
+#               NO Hoot/QUnit run, which is the case whenever the --test-tags selection
+#               leaves out the module that drives the browser suite (core's web
+#               WebSuite): "no failure line" is then not a pass. Tours are Python
+#               tests (counted in TESTS_RUN) and never make JS_RESULT anything but
+#               absent on their own.
 # TEST scope:   MODULES_LOADED=<n> TESTS_RUN=<n>  (parseable; `test` verb only;
 #               EMPTY when the log carries no marker for it - unmeasured, not zero)
+#               TESTS_RUN is the tests STARTED over the whole run, at-install and
+#               post-install together - the total of Odoo's own
+#               `odoo.tests.result: <F> failed, <E> error(s) of <T> tests` line (the
+#               `Ran <N> tests in` line before 14.0) and nothing else. Two other
+#               figures in the same log count other things and are never added or
+#               compared to it: `odoo.service.server: <N> post-tests in` is the
+#               post-install phase alone, and `odoo.tests.stats: <module>: <K> tests`
+#               is a per-module count of timing entries - every test plus the
+#               setUpClass and tearDownClass of every test class (K = tests + 2 x
+#               classes), so it always exceeds the tests that ran.
 #               TEST_TAGS_USED=<tags|(untagged)>  (`test` verb only; the SELECTION
 #               side of the scope - the --test-tags value this run was given, or
 #               the literal (untagged) when none was. Never EMPTY: it is a fact
@@ -1417,6 +1435,14 @@ _parse_test_result() {
         _js_summary="$(printf '%s\n' "$js_report" | awk -F'\t' '$1=="SUMMARY"{print $2"\t"$3"\t"$4"\t"$5; exit}')"
         IFS=$'\t' read -r js_mode js_runs js_reported js_tests <<<"$_js_summary"
     fi
+    local js_result="absent"
+    if [[ -n "$js_runs" ]]; then
+        if (( ${js_reported:-0} > 0 || ${js_tests:-0} > 0 )); then
+            js_result="failed"
+        else
+            js_result="passed"
+        fi
+    fi
 
     # --- Skip detection -----------------------------------------------------
     # Bug: exit 0 + "0 failed, 0 error(s) of 1 tests" reads as green even when
@@ -1688,6 +1714,10 @@ _parse_test_result() {
     echo "JS_SCOPE=$js_mode"
     echo "JS_FAILED_REPORTED=$js_reported"
     echo "JS_FAILED_TESTS=$js_tests"
+    # The JS verdict, always present: EMPTY counts above cannot tell a suite that
+    # was never selected from one that ran green, and a reader must not have to
+    # infer a pass from the absence of a failure line.
+    echo "JS_RESULT=$js_result"
 
     # The verdict is resolved above, alongside the findings file it has to agree
     # with. Emitted LAST so it stays the final line of the summary block that

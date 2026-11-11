@@ -98,6 +98,18 @@
 #              SERVED_ADDONS_PATH / SERVED_ADDONS_SOURCE /
 #              SERVED_SERVER_WIDE_MODULES - so a caller can verify the served
 #              tree without parsing Odoo's own startup log.
+#              DEVELOPER FEATURES are OFF unless asked for: a launch states no
+#              --dev, so the server serves the views and assets installed in
+#              its database and does not restart when a source file changes
+#              (odoo_cli_facts.sh odoo_developer_flag says what the flag turns
+#              on). --dev-server (only with --exclusive, source run mode) asks
+#              for them: auto-restart on a saved source file, views and
+#              templates read from the files. A checkout that declares no --dev
+#              refuses (SERVE_REFUSED=DEV_SERVER_UNSUPPORTED). The generated
+#              conf carries the marker comment `# developer_server = 1` of such
+#              a launch; SERVE_DEVELOPER_SERVER=1|0 reports it from the conf,
+#              for a launch and for an attach alike (absent when no conf is
+#              found).
 #              A successful apply ends with its RESULT as stdout facts too:
 #              SERVE_STATE=attached|launched, SERVE_HTTP_PORT, SERVE_URL,
 #              SERVER_PID (empty on attach / docker), SERVE_RESUMED=0|1 (1 when
@@ -203,6 +215,8 @@ ARG_ADDONS_PATH=""
 # Server-wide module set (Odoo's --load / `server_wide_modules`). Empty ->
 # the conf key is not written and Odoo's own per-series default applies.
 ARG_LOAD=""
+# 1 = launch with Odoo's developer features (--dev-server). Default 0: no --dev.
+ARG_DEV_SERVER=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)
@@ -245,6 +259,8 @@ while [[ $# -gt 0 ]]; do
         --load)
             [[ $# -ge 2 ]] || { echo "$(basename "$0") --load requires a value" >&2; exit 2; }
             ARG_LOAD="$2"; shift 2 ;;
+        --dev-server)
+            ARG_DEV_SERVER=1; shift ;;
         --run-id)
             # REFUSED, never accepted-and-ignored. This script records ownership
             # on NO path: the --exclusive path's lease was already owner-stamped
@@ -260,6 +276,11 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
+
+if [[ "$ARG_DEV_SERVER" == "1" && "$ARG_EXCLUSIVE" != "1" ]]; then
+    echo "$(basename "$0") --dev-server needs --exclusive: the shared declared instance serves every reader and never runs with developer features" >&2
+    exit 2
+fi
 
 # ---------------------------------------------------------------------------
 # describe
@@ -905,7 +926,7 @@ cmd_apply() {
         # already acquired by the caller (odoo-instance-ops) and its token
         # forwarded via --alloc-token; bind the just-launched server pid onto THAT
         # lease so `allocator.py release`/`gc` can stop the whole process group
-        # (master + workers + gevent/longpolling + --dev watchdog) BEFORE dropping
+        # (master + workers + gevent/longpolling + the reload watcher of a developer server) BEFORE dropping
         # the DB, instead of leaking a listening server against a dropped DB.
         # Same liveness guard as _register_shared: only record a pid that kill -0
         # confirms alive, so a fast-failing server never binds a dead pid.
@@ -985,6 +1006,17 @@ cmd_apply() {
         echo "SERVE_URL=http://localhost:$port"
         echo "SERVER_PID=${2:-}"
         echo "SERVE_RESUMED=${_serve_resumed}"
+        # Whether the server runs with developer features, from the conf its
+        # launch wrote (the marker is the ONE record; absent conf = unknown).
+        local _sf_conf
+        _sf_conf="$(_served_conf_path "$db_name" "$port")"
+        if [[ -f "$_sf_conf" ]]; then
+            if grep -q '^# developer_server = 1$' "$_sf_conf" 2>/dev/null; then
+                echo "SERVE_DEVELOPER_SERVER=1"
+            else
+                echo "SERVE_DEVELOPER_SERVER=0"
+            fi
+        fi
     }
 
     _stop_group_local() {
@@ -1185,6 +1217,14 @@ cmd_apply() {
         fi
     fi
 
+    if [[ "$ARG_DEV_SERVER" == "1" && "${INST_RUN_MODE:-source}" == "docker" ]]; then
+        echo "SERVE_REFUSED=DEV_SERVER_UNSUPPORTED"
+        echo "" >&2
+        echo "x BLOCKED: --dev-server cannot be honoured with run_mode=docker: a compose-launched" >&2
+        echo "  server runs the command line of its compose file. Nothing was launched." >&2
+        return 1
+    fi
+
     # run_mode=docker cannot honour EITHER of the two facts above: the conf this
     # script generates is only handed to odoo-bin on the source path, so a
     # compose-launched server serves whatever its own compose file mounts and
@@ -1313,6 +1353,18 @@ cmd_apply() {
                      "the conf cannot be written. Nothing was launched. Point ODOO_BIN / the" \
                      "addons_path at a complete Odoo checkout." >&2
                 return 1
+            fi
+            # Developer features: stated only when asked for, and only in the
+            # spelling the checkout's own --dev option takes.
+            local _dev_flag=""
+            if [[ "$ARG_DEV_SERVER" == "1" ]]; then
+                if ! _dev_flag="$(odoo_developer_flag)"; then
+                    echo "SERVE_REFUSED=DEV_SERVER_UNSUPPORTED"
+                    echo "x BLOCKED: the Odoo checkout at '$(dirname "$bin")' declares no --dev option" \
+                         "in its tools/config.py, so a developer server cannot be started. Nothing" \
+                         "was launched." >&2
+                    return 1
+                fi
             fi
             local _port_key
             if [[ -n "$ARG_PORT_KEY" ]]; then
@@ -1452,6 +1504,11 @@ cmd_apply() {
             conf="$(_served_conf_path "$db_name" "$port")"
             {
                 echo "[options]"
+                # The record of a developer-server launch (read back by
+                # _emit_serve_facts for an attach); Odoo ignores a comment.
+                if [[ -n "$_dev_flag" ]]; then
+                    echo "# developer_server = 1"
+                fi
                 # The tree this launch SERVES: resolved once above (argument >
                 # bound lease > catalog row) and already canonicalized onto the
                 # SSOT separator by _addons_csv - no conversion here, and no
@@ -1522,14 +1579,6 @@ cmd_apply() {
                 # immediately before setsid below). Nothing is written, so there is
                 # nothing to clean up.
             } >"$conf"
-            # --dev=all only where the checkout's --dev option takes a value
-            # (odoo_cli_facts, read above): a boolean --dev or no --dev at all
-            # would reject it.
-            local _dev_flag=""
-            if [[ "$ODOO_CLI_DEV_TAKES_VALUE" == "1" ]]; then
-                _dev_flag="--dev=all"
-            fi
-
             echo "  Generated conf: $conf"
             echo "  Launching: $py '$bin' -c '$conf' -d '$db_name' ${_dev_flag}"
             # Run in background so we can poll. Logs to the named path below.
