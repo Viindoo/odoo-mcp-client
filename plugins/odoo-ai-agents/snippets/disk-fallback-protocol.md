@@ -1,87 +1,46 @@
-<!-- SSOT snippet. The single home for the "what do I do when OSM is unreachable" answer.
-     Referenced (not copy-pasted) by every skill/agent needing OSM-unreachable fallback guidance.
-     Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md. Pairs with osm-first-contract.md. -->
+# Disk-fallback protocol (three-tier grounding)
 
-# Disk-Fallback Protocol (three-tier grounding)
+When the Odoo Semantic index (OSM) cannot answer, read the source yourself: that is a legitimate
+grounding path, and asking a human to paste data you can fetch is not. Resolve every input in this
+order and stop at the first hit. Never build a step on an optional integration (a live ERP or CRM
+MCP, an email connector) that another machine may lack; use one only as a bonus.
 
-**Your consumer is another AI agent, not a human.** Every agent running this plugin has the
-universal tools - `Read`, `Grep`, `Glob`, `Bash`, `WebFetch`/`WebSearch` - plus the OSM index
-and its own namespaced `.odoo-ai/`-rooted state (Tier-1/SHARE/ISOLATE per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, never a project-relative
-`./.odoo-ai/`). When OSM (the `odoo-semantic` index) is unreachable,
-**reading the source yourself is a legitimate grounding path, not a degraded one.** Asking a
-human to paste data you can fetch is the worst possible fallback for an agent. Resolve every
-input in this order and stop at the first hit. Do not build a step on any optional, non-default
-integration (a live ERP/CRM MCP, an email connector) - those may be absent on another machine;
-use them only as a bonus when present.
+## Tier 1 - OSM
 
-## Detecting "unreachable" (incl. hangs) - the circuit-breaker
+Use it whenever it is reachable.
 
-"Unreachable" is **not** only a clean connection-refused. A tool call that **times out, hangs,
-or returns a transport error** is a Tier-1 failure too - drop straight to Tier 2 and do not
-re-wait on the stalled call. (The server now bounds each query (~30 s) and rejects fast under
-load, so it will not hang on its own; a well-configured client still carries `"timeout": 90000`
-(90 s) on the `odoo-semantic` entry as a backstop - see `docs/setup.md` - because the default
-Claude Code `MCP_TOOL_TIMEOUT` is ~28 h, so the client cap is what catches a transport-level
-stall that slips past the server bound.)
+**Unreachable** covers a refusal, a timeout, a hang and a transport error alike: drop to Tier 2
+and do not wait on the stalled call. After two consecutive OSM timeouts in a session, treat OSM as
+down for the rest of it. That keeps you at `grounded: local-source`, not `ungrounded`.
 
-**Circuit-breaker:** after **2 consecutive OSM timeouts in a session**, treat OSM as down for
-the **rest of the session** - skip all further OSM calls and go straight to Tier 2. This avoids
-paying the ~90 s stall on every subsequent call against a server that is clearly not answering.
-Tripping the breaker keeps you at `grounded: local-source` - it does **not** drop you to
-`ungrounded` (that is Tier 3 only).
+**A miss is not absence.** OSM indexes Odoo core and the configured repos, not every local addon.
+A not-found for a specific module, model or field the request says exists: keep OSM for what it
+covers, read the local source for the missed entity, and label `grounded: hybrid`. Never conclude
+"does not exist" from an index miss while a local repo is readable.
 
-## Tier 1 - OSM-backed (gold standard)
+## Tier 2 - the source, before any question to a human
 
-The `odoo-semantic` index. `set_active_version` → `model_inspect` / `entity_lookup` /
-`check_module_exists` / `find_examples` / `lookup_core_api`, etc. Use whenever reachable.
+- **Local Odoo source**: the module descriptors (`__manifest__.py`, and `__openerp__.py` on the
+  series that use it) for version, `depends` and summary; the model classes, fields, method
+  signatures, views, menus and SCSS tokens by search.
+- **Official upstream**: the raw source of the target series, release notes, or a public page, by
+  web fetch or search.
+- **The declared instance catalog** for series, profile, addons path and instance
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2), and, when the caller set
+  `$ODOO_AI_VAULT_HOME` (an optional pointer to a private notes vault with no assumed layout), a
+  note there matching the entity's name. Unset or nothing found: skip it silently.
 
-**Tier-1 MISS (reachable but the entity is not in the index).** OSM indexes Odoo core and
-the configured repos/profiles - it does NOT index every customer-local addon. When OSM is
-reachable but returns not-found/empty for a SPECIFIC module, model, or field that the
-request says exists (typically a customer-local custom module), that is a MISS, not proof
-of absence: keep using Tier 1 for everything it does cover, and drop to Tier 2 ONLY for the
-missed entities - `Read`/`Grep` the local addons to get their fields, methods, manifest
-`depends`, and views. Label the artifact `grounded: hybrid`. Never
-conclude "module does not exist" from an index miss alone when a local repo is available to
-check.
+Label the result `grounded: local-source - not OSM-indexed`, one notch of confidence below Tier 1:
+it is verified against real source.
 
-## Tier 2 - Disk- / live-grounded (use BEFORE ever asking a human)
+## Tier 3 - memory, flagged
 
-When Tier 1 is unreachable - or for the specific entities a Tier-1 MISS could not cover -
-self-serve from real sources you already have access to:
-
-- **Local Odoo source** - discover modules with `Bash`: `find . -maxdepth 4 -name __manifest__.py`;
-  `Read` each manifest for `version` / `depends` / `summary`; `Grep` model classes
-  (`grep -rn "class .*models.Model" --include=*.py`), fields, method signatures, deprecated
-  patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`), view/menu ids, SCSS tokens.
-- **Official upstream** - `WebFetch` the raw source for the target version, e.g.
-  `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`,
-  release notes, or `WebSearch` for public changelog / competitor / pricing pages.
-- **Declared instance catalog + optional local vault** - match the working repo against this host's
-  `instances.toml` per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2 for
-  series, profile, addons path, and instance. If the caller has set
-  `$ODOO_AI_VAULT_HOME` - an OPTIONAL pointer to their own private notes vault, unset by default,
-  with NO assumed internal folder layout - `Bash: find "$ODOO_AI_VAULT_HOME" -iname "<name>*.md"`
-  for a note matching the entity name and `Read` the first hit instead of asking for it. Skip this
-  source entirely (never block, never ask a human) when the variable is unset or the search finds
-  nothing - it degrades gracefully, the same way an absent optional live-ERP/CRM integration does.
-
-Label any artifact built this way `grounded: local-source - not OSM-indexed` and lower
-confidence one notch versus Tier 1 - it is **verified against real source**, just not the
-index. This is NOT `ungrounded`.
-
-## Tier 3 - Training-memory (last resort, must be flagged)
-
-Only if Tiers 1 and 2 both fail (no index, no readable repo, no live instance, no network).
-State `grounded: ungrounded - OSM unavailable` at the top of your output, lower confidence, and make the
-caveat survive into the final artifact your orchestrator returns (per `osm-first-contract.md` §4).
+Only when there is no index, no readable repo, no live instance and no network. State
+`grounded: ungrounded - OSM unavailable` at the top, lower the confidence, and carry the caveat
+into the final artifact.
 
 ## Asking a human
 
-Escalate to the caller (`NEEDS_CONTEXT`) **only** for inputs that are genuinely unobtainable
-by any tier above: a business decision that no source encodes. Never
-ask a human to re-supply code, field lists, manifests, module lists, changelogs, CRM data, or
-email threads - those are Tier-2 fetches. If the repo/instance is truly inaccessible, say so
-and return `BLOCKED(<reason>)` rather than soliciting a paste.
+`NEEDS_CONTEXT` only for what no tier can supply: a business decision no source encodes. Never ask
+for code, field lists, manifests, module lists, changelogs, CRM data or email threads. A repo or
+instance that is truly inaccessible is `BLOCKED(<reason>)`, not a request to paste.

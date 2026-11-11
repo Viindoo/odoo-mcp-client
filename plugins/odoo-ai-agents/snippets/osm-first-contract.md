@@ -1,158 +1,84 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by every skill/agent that writes Odoo
-     code or makes an Odoo capability claim, and injected verbatim into every spawned
-     worker brief (odoo-coder, odoo-frontend-coder, workflow-chaining fan-out workers, the
-     conflict resolver).
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md. -->
+# OSM-first grounding contract
 
-# OSM-First Grounding Contract
+In Odoo work the ground truth is the Odoo Semantic index (OSM) and the running instance, not
+memory: models, fields, methods, CLI flags, asset bundles and design tokens differ per series.
 
-You are working in an Odoo context. **OSM (the `odoo-semantic` MCP server) and the live
-runtime are the ground truth - your training memory is not.** Each Odoo version differs
-(models, fields, CLI flags, asset bundles, Bootstrap version, design tokens), so a fact
-that is true for one version may be false for another. Obey this contract for any Odoo
-code you write or any claim you make about what Odoo does.
+## 1. Verify before you claim
 
-## 1. Verify before you claim (every stack)
+A statement that an Odoo model, field, method, module, edition, CLI flag or design token exists,
+has a signature or behaves a certain way is backed by an OSM answer or a source read at the target
+version and profile; otherwise it is written as an assumption. Pin the version (and the profile
+when known) and pass both on every call under concurrency
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). Which tool
+answers a question is yours to choose from the tools' own descriptions.
 
-Any statement that an Odoo model / field / method / module / edition / CLI flag / design
-token *exists*, *has a given signature*, or *behaves a certain way* MUST be backed by an
-OSM call OR a direct source read - never asserted from memory:
+- **Existence is not currency.** A symbol can be present and deprecated. Before you write or
+  approve code that calls a core symbol (decorator, mixin, ORM helper, base class, core method),
+  confirm its status at the pinned version; a "not found" from the core-API table proves nothing
+  either way - cross-check (`${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`).
+- **Presence in the index is not presence at runtime.** Field or method presence that depends on
+  another module is resolved through the dependency closure, never probed at runtime with
+  `hasattr`, a `getattr` default or `try/except AttributeError`
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`).
+- An entity the index does not hold (a local custom module) is read from the local source; the
+  rest stays on OSM (`grounded: hybrid`).
 
-- `set_active_version` first (pin the target version), then `set_active_profile` when a
-  tenant/profile scope is known (both are per-MCP-session pins; pass the concrete value on
-  every call under concurrency - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-  § OSM session-pin race), then
-- `model_inspect`, `entity_lookup`, `check_module_exists`, `lookup_core_api`,
-  `module_inspect` - as appropriate to the claim.
-- **Existence is not currency.** Confirming a symbol is PRESENT (`model_inspect`/`entity_lookup`)
-  does NOT confirm it is still the RIGHT symbol at the pinned version - a symbol can be present
-  AND deprecated. Before you WRITE code that calls a core symbol (decorator, mixin/ORM helper,
-  base class, core method), or APPROVE a diff that calls one, confirm it is not
-  deprecated/removed at the pinned version via `lookup_core_api` (status + replacement). A
-  `not found` result is not proof of currency (the core-symbol table is partial) - cross-check,
-  do not hard-stop. Per-phase recipe + tiering: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`.
-- When OSM is reachable but the SPECIFIC entity is not in the index (a customer-local
-  custom module/model), `Read`/`Grep` the local source for that entity instead - a
-  Tier-1 MISS per `disk-fallback-protocol.md` - and keep OSM for everything it does
-  cover (`grounded: hybrid`). An index miss is not proof of
-  absence when a local repo is available to check - and, per the next rule, an index
-  HIT is not proof that what you read is what the tree under review contains.
-- **The tree under edit is the truth for every module in it.** OSM indexes repos at a BRANCH and
-  reports no SHA, so its copy cannot hold an unpushed commit, an uncommitted edit, or the change
-  you are writing or reviewing. Define `W` = the modules whose directory is in the run's worktree
-  and that the diff touches, plus every module the run creates or renames. Answer each question by
-  its subject, with the table below; write the source of every recorded fact as `worktree` or
-  `index`. When OSM and the disk disagree about a module in `W`, the disk is right and it is not
-  a finding; when they disagree about a module outside `W`, the index lags the branch: record
-  `UNKNOWN` and read the checkout when one is available. A behavior observed on an instance
-  built from the worktree outranks both.
+### The tree under edit
 
-  | Question | Subject in `W` | Subject outside `W` |
-  |---|---|---|
-  | Module exists, technical name, `installable` | read the manifest on disk; `check_module_exists` carries no weight | `check_module_exists`, then disk on a MISS |
-  | `depends` and the upstream closure | read the manifest on disk, recursively: modules in `W` from disk, modules outside `W` with `module_inspect` (`dependencies`); never `validate_depends` for an edge that starts in `W` | `module_inspect` (`dependencies`), `validate_depends` |
-  | Fields, methods, views, ACL, record rules, data of the module | read the files on disk; OSM only for the indexed baseline, labelled `baseline` | `model_inspect`, `entity_lookup`, `module_inspect` |
-  | Override chain and `super()` position of a method the change touches | `find_override_point` for the part outside `W` plus the overrides on disk in `W`; you assemble the chain and record both sources | `find_override_point` |
-  | Dependents (downstream) | `impact_analysis` is a lower bound labelled `index`, plus a grep of every manifest in the repo for `depends` naming the module; dependents inside `W` from disk | `impact_analysis`, plus the manifest grep when the repo is available |
-  | Module that owns a symbol (the modularity check) | symbol defined in a module in `W`: disk; otherwise `entity_lookup` | `entity_lookup` |
-  | Validity of a domain, relation or ORM path through a new or changed field | not `validate_domain`, `validate_relation`, `resolve_orm_chain`; check against the definitions on disk and by a test on an instance | `validate_domain`, `validate_relation`, `resolve_orm_chain` |
-  | Tests that guard a symbol | `tests_covering` is a lower bound labelled `index`, plus a grep of `tests/` on disk in the module and its dependents | `tests_covering`, `test_coverage_audit` |
-  | Field labels, translatable strings, msgids | `.po`, `.pot` and the source on disk | OSM |
-  | Deprecated API, canonical patterns, examples, series conventions | `find_deprecated_usage`, `suggest_pattern`, `find_examples`, `lookup_core_api` (independent of `W`) | the same |
+OSM indexes a branch, not your worktree: it cannot hold an unpushed commit, an uncommitted edit or
+the change under review. Let `W` be the modules whose directory is in the run's worktree and that
+the diff touches, plus every module the run creates or renames.
 
-An unverifiable claim is flagged as an assumption, not stated as fact.
+| Subject | Source of truth |
+|---|---|
+| A module in `W`: its manifest, `depends`, fields, methods, views, access rules, data, strings | the files on disk; an OSM answer about it is a baseline at most |
+| A module outside `W` | OSM; the checkout on a miss |
+| A chain or closure that crosses the boundary (an override chain, an upstream closure, an ORM path through a new field) | assembled by you: disk for the part in `W`, OSM for the rest; a path through a changed field is proven on disk and by a test on an instance, not by the index validators |
+| Dependents of a symbol and the tests guarding it | the index gives a lower bound; add a search of the repository's manifests and `tests/` |
+| Deprecations, canonical patterns, examples, series conventions | OSM, independent of `W` |
 
-Having verified existence (above), do not re-probe field/method PRESENCE at runtime with `hasattr`/`getattr`-default/`try...except AttributeError` - resolve it via dep closure; full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
+Record the source of each fact as `worktree` or `index`. OSM and disk disagree about a module in
+`W`: disk is right and it is not a finding. They disagree about a module outside `W`: the index
+lags the branch - record `UNKNOWN` and read the checkout when one is available. Behaviour observed
+on an instance built from the worktree outranks both.
 
 ## 2. Reuse before you write
 
-Before generating any non-trivial Odoo artifact, find what already exists and prefer it:
-
-- **Backend (Python/XML/ORM):** call `suggest_pattern(intent=…)` **and**
-  `find_examples(query=…)` *before* writing. Prefer the indexed pattern/snippet over
-  hand-written code. `find_override_point` when hooking into existing behavior.
-- **Frontend (JS/OWL/SCSS/QWeb):** call `find_examples(query=…)` for real widget/
-  component patterns, and `resolve_stylesheet` / `find_style_override` to discover the
-  **real design tokens and style origins for the target version** (see
-  `skills/_shared/odoo-frontend-fidelity.md`). Never invent token or selector names.
-
-If the index genuinely has nothing relevant, say so explicitly - then write.
+Before a non-trivial artifact, find what the series already offers and prefer it: an indexed
+pattern or example for backend code, the override point when hooking into existing behaviour, real
+component patterns and the series' real design tokens and style origins for frontend
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`). When the index has nothing
+relevant, say so, then write.
 
 ## 3. Validate before you declare done
 
-- **Backend:** any generated `@api.depends`, `domain=`, `related=` chain, or relational
-  assumption MUST pass `validate_depends` / `validate_domain` / `resolve_orm_chain` /
-  `validate_relation`. Any BROKEN/MISMATCH is a blocker, not a warning. Then run the static
-  code-quality gate: include the lint-class modules (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) in
-  `--test-tags` to reproduce the authoritative backend lint CI (see `ODOO-TESTING.md`).
-  Note: OSM `lint_check` is a V0.5 hybrid matcher: security-rule-class patterns (e.g.
-  sql-injection) fire deterministically and come back labeled `[pattern]` (trust these);
-  other findings are `[fuzzy]` heuristic hints. Either way it is a hint, **not** the gate -
-  a clean `lint_check` is NOT a passing quality gate; the gate is the lint-class module set
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`). Treat a `[pattern]` security hit as a real finding to act on, not noise.
-- **Frontend:** verify against the running instance - read `getComputedStyle` to confirm
-  tokens resolve (not empty/cyclic) and the UI matches the mockup; recompile assets and
-  re-read, never trust that an edit "took" (see `skills/_shared/odoo-frontend-fidelity.md`).
-- **Instance / CLI:** before emitting any `odoo-bin` command, resolve the target version's
-  real CLI with `cli_help` - do not assume one version's flags apply to another (see
-  `INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 2, `ODOO-TESTING.md`).
+- **Backend:** every `@api.depends` path, domain, `related` chain and relational assumption you
+  generated passes the index validators for symbols outside `W`; a broken or mismatched result is
+  a blocker. The quality gate is the lint-class module set run with the tests
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`); `lint_check` is a hint, except that a
+  `[pattern]` security hit is a finding.
+- **Frontend:** verified on the running instance after the assets are rebuilt - tokens resolve and
+  the screen matches the mockup (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`).
+- **CLI:** the flags of an `odoo-bin` command come from the target series (`cli_help`), never from
+  another series.
 
-## 4. Standalone fallback: read the source, don't ask the human
+## 4. Fallback: read the source, do not ask the human
 
-If OSM is unreachable, you are **not** reduced to generating from memory, and you do **not**
-ask a human to paste data you can fetch yourself. Reading the real source is a legitimate
-grounding path. **"Unreachable" includes a tool call that times out, hangs, or returns a
-transport error - not only a clean connection-refused.** A timed-out OSM call counts as a
-Tier-1 failure: drop to Tier 2 (read the source) immediately; never sit and re-wait on a
-stalled server, and never treat a hang as a reason to ask the human. After repeated OSM
-timeouts in a session, trip the circuit-breaker (see `disk-fallback-protocol.md`) and stop
-calling OSM for the rest of the session. Follow the three-tier order in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+OSM unreachable - a refusal, a timeout, a hang or a transport error alike - drops you to the source
+at once (`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`): the local addons, or the
+official source of the target series, labelled `grounded: local-source`. After repeated timeouts
+in a session, stop calling OSM for the rest of it. Memory alone is the last resort, labelled
+`grounded: ungrounded`, with the caveat carried into the final artifact. A human is asked only for
+a business decision no source encodes.
 
-1. **Tier 2 - disk first.** `Read`/`Grep`/`Bash` the local addons, or `WebFetch` the official
-   Odoo source for the target version (and, only if this environment happens to expose a live
-   ERP MCP, enrich from it as a bonus - never assume one exists). Output built this way is
-   **grounded against real source** (label `grounded: local-source - not OSM-indexed`), one
-   notch below OSM - it is NOT `ungrounded`.
-2. **Tier 3 - training-memory only as a last resort**, when no index, no readable repo, no live
-   instance, and no network are available. Then do not generate silently: label it
-   `grounded: ungrounded - OSM unavailable`, lower confidence, and make that caveat survive
-   into the final artifact your orchestrator returns.
+## 5. The grounding label
 
-Grounded-by-default (Tier 1 or Tier 2); ungrounded-but-flagged (Tier 3) only as a true last
-resort. Escalate to a human (`NEEDS_CONTEXT`) solely for business decisions no
-source encodes - never to re-supply code, fields, manifests, changelogs, or CRM data.
-
-## 5. This contract is enforced (not just advisory)
-
-**Your grounding claim is the label line of your report:** one line of its own, outside any code
-fence, in the report your caller receives (a return block that carries it is sent as plain lines):
+Your report carries one line of its own, outside any code fence, for its own work:
 
     grounded: <value> - <explanation>
 
-- The `grounded:` key may follow a list or blockquote marker; bold or backticks may wrap the key.
-- `<value>` is the FIRST word after the key - words split at every character other than a
-  letter, digit, `_`, `-` or `=`, so `(osm)` and `osm+local-source` read `osm` - one of: `osm` (checked through OSM), `hybrid` (OSM
-  plus local source), `local-source` (read from the source, not OSM-indexed), `ungrounded`
-  (nothing checked), `unknown`; or a tally of `<key>=<n>` words over those keys, in any order
-  (`osm=3 local-source=1`).
-- Everything after the value is explanation for people - the gate never reads it.
-- `osm`, `hybrid`, or a tally with an osm or hybrid count above zero claims OSM grounding; every
-  other value is honest. A value outside the set is malformed and states nothing.
-
-Your report carries one label line, for its own work - describe an earlier label in prose. Every
-artifact you write uses the same key and values. The label anywhere else - quoted whole,
-mid-sentence, in a table or JSON, in a code fence, describing another agent's output - is a
-mention, not a claim.
-
-For **spawned workers** (odoo-coder, odoo-frontend-coder, workflow-chaining fan-out, code/UI agents), a
-`SubagentStop` hook (`hooks/enforce-grounding.sh`) reads the worker's own transcript and makes
-§1/§4 a checkable invariant: if your label line claims OSM but you made **zero** Odoo Semantic
-tool calls, the stop is **blocked** and you are asked to either actually
-verify or relabel honestly (`grounded: local-source - <why>` or `grounded: ungrounded - <why>`).
-The label must be *earned* from real calls, not asserted. A malformed label line, and two softer
-gaps, raise a **non-blocking note** (not a block): backend code written with OSM reachable but
-the ORM validators skipped; and backend `.py` written with zero OSM calls and no grounding label at
-all (the silent case) - the note asks you to ground it, or to label it honestly (pure Python with
-no ORM is `grounded: ungrounded - pure Python, no ORM`). Only the provable lie (an OSM label line
-with zero calls) is blocked. Honest grounding is cheaper than a blocked stop - make the calls.
+`<value>` is the first word after the key: `osm`, `hybrid`, `local-source`, `ungrounded` or
+`unknown`, or a tally of `<key>=<n>` over those keys (`osm=3 local-source=1`). `osm`, `hybrid` or
+a tally with either above zero claims OSM grounding. Every artifact you write uses the same key
+and values. A hook reads the label against your own tool calls: a claim of OSM grounding with no
+OSM call blocks your stop until you verify or relabel honestly.
