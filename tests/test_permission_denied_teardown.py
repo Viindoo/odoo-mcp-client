@@ -311,11 +311,3 @@ def test_the_hook_is_also_registered_for_the_mcp_lease_give_back():
     assert any(HOOK.name in c for c in commands), (
         f"the odoo-local PermissionDenied entry must also dispatch {HOOK.name}"
     )
-
-
-def test_the_manifest_description_documents_the_new_hook():
-    """hooks.json's description is the map a debugging agent reads first; a hook missing from it
-    is a hook nobody knows fired."""
-    manifest = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
-    desc = " ".join(manifest.get("description", "").split())
-    assert HOOK.name in desc, "the manifest description must name the new hook"

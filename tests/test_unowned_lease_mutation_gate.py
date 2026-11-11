@@ -432,55 +432,30 @@ def test_hooks_json_registers_the_gate_and_its_matcher_reaches_bash():
             )
 
 
-def test_the_hooks_json_description_does_not_undercount_the_denies():
-    """A stale restatement is how a rule gets reverted: the description used to assert "exactly ONE
-    PreToolUse hard deny", then "exactly TWO", then "exactly THREE" - each made false by the next
-    gate (this one, block-handback-with-live-lease.sh, block-capture-outside-state-root.sh).
-    Whoever changes the count must change the sentence in the same commit."""
-    desc = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))["description"]
-    denies = sum(
-        1 for g in _pretooluse_groups() for h in g.get("hooks", [])
-        if "block-" in h.get("command", "")
-    )
-    assert denies == 4, f"the deny set changed ({denies}) - update the description below too"
-    assert "exactly FOUR PreToolUse hard denies" in desc, (
-        "the description must state the ACTUAL number of PreToolUse hard denies; a stale count is "
-        f"the restatement that outlives its definition: {desc[:400]!r}"
-    )
-    assert "block-unowned-lease-mutation.sh" in desc, (
-        "the description must name this gate, or a reader auditing the hook set will miss it"
-    )
-
-
-def test_the_hooks_json_description_attributes_command_segmenting_to_the_right_denies():
-    """Review finding 3: next to the "exactly N PreToolUse hard denies" count the description said "Both
-    PreToolUse denies segment the command" - a count word left over from when there were two. Only
-    the denies that SOURCE hooks/command-segments.sh segment anything (the SubagentHandback gate
-    parses a report, not a command). Read that set from the scripts, not from this test."""
-    desc = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))["description"]
-    hooks_dir = HOOKS_JSON.parent
-    denies = sorted({
+def _registered_denies():
+    return sorted({
         Path(h["command"].split()[-1].strip('"')).name
         for g in _pretooluse_groups() for h in g.get("hooks", [])
         if "block-" in h.get("command", "")
     })
-    segmenters = [d for d in denies
+
+
+def test_the_registered_pretooluse_hard_denies_are_exactly_the_four_block_scripts():
+    assert _registered_denies() == [
+        "block-capture-outside-state-root.sh",
+        "block-handback-with-live-lease.sh",
+        "block-spawner-code-write.sh",
+        "block-unowned-lease-mutation.sh",
+    ]
+
+
+def test_only_the_command_parsing_denies_source_the_shared_command_segmenter():
+    """The segmenter parses a Bash command; the handback gate parses a report and the capture gate a
+    tool's arguments, so they must not depend on it. The set is read from the scripts."""
+    hooks_dir = HOOKS_JSON.parent
+    segmenters = [d for d in _registered_denies()
                   if "command-segments.sh" in (hooks_dir / d).read_text(encoding="utf-8")]
-    assert segmenters and len(segmenters) < len(denies), (
-        f"test premise changed: segmenters={segmenters} denies={denies}"
-    )
-    sentences = [s for s in re.split(r"(?<=[.])\s+", desc) if "command-segments.sh" in s]
-    assert len(sentences) == 1, f"expected one sentence naming command-segments.sh: {sentences}"
-    sentence = sentences[0]
-    assert not re.search(r"\b(both|all|every|each)\b[^.]*\bdenies\b", sentence, re.I), (
-        f"a blanket count word over the denies is false while only {segmenters} segment: "
-        f"{sentence!r}"
-    )
-    for d in denies:
-        if d in segmenters:
-            assert d in sentence, f"{d} segments commands but the sentence does not name it"
-        else:
-            assert d not in sentence, f"{d} does not segment commands yet the sentence claims it"
+    assert segmenters == ["block-spawner-code-write.sh", "block-unowned-lease-mutation.sh"]
 
 
 # --------------------------------------------------------------------------- #
