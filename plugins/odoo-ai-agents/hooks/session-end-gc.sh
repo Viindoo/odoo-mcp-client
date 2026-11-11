@@ -17,7 +17,12 @@
 #      itself and refuses a live one (ANCHOR_ALIVE), so a session that did not actually end -
 #      `/clear` (skipped outright: the process carries on), or a wait that ran out - loses
 #      nothing. A lease the session PARKED survives its end by design: park is how a session
-#      keeps a database for a later one.
+#      keeps a database for a later one. So does a lease that belongs to a RUN (it records a
+#      run id): gc PARKS it instead of reclaiming it - server stopped, database, filestore and
+#      ports kept - because the run may be resumed (a killed or OOM-ed session leaves exactly
+#      this shape) and the resumed run finds it by run id, adopts it and serves it with no
+#      rebuild; the park budget reclaims it later if nobody does. Step 1 follows the same
+#      rule for a crashed session's leases. A lease with no run id is reclaimed as before.
 #   3. `reap-orphans` in its DEFAULT list-only mode - see "Discovery half" below.
 #   4. Files the browser MCP servers wrote on their own under the state root, past their age
 #      limit (`browser_mcp_servers.py prune`; never a per-repo state dir).

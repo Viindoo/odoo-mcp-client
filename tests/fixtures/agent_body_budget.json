@@ -6,6 +6,15 @@
     "plugins/odoo-ai-agents/agents/odoo-coder.md": {
       "bytes": 14822
     },
+    "plugins/odoo-ai-agents/agents/odoo-instance-ops.md": {
+      "bytes": 15922
+    },
+    "plugins/odoo-ai-agents/agents/odoo-planner.md": {
+      "bytes": 13280
+    },
+    "plugins/odoo-ai-agents/agents/odoo-translator.md": {
+      "bytes": 16805
+    },
     "plugins/odoo-ai-agents/agents/odoo-diff-comparator.md": {
       "lines": 225
     },
@@ -13,18 +22,9 @@
       "lines": 212,
       "bytes": 14575
     },
-    "plugins/odoo-ai-agents/agents/odoo-instance-ops.md": {
-      "bytes": 15922
-    },
     "plugins/odoo-ai-agents/agents/odoo-marketer.md": {
       "lines": 219,
       "bytes": 16937
-    },
-    "plugins/odoo-ai-agents/agents/odoo-planner.md": {
-      "bytes": 13280
-    },
-    "plugins/odoo-ai-agents/agents/odoo-translator.md": {
-      "bytes": 16805
     }
   }
 }

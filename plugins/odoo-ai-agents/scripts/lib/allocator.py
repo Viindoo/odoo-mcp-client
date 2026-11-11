@@ -107,12 +107,18 @@ RECLAMATION - who may destroy what:
              binds them (SO_REUSEADDR + bind + listen), so a port in TIME_WAIT
              is usable and a LISTENING one is not.
     gc       the only verb that drops a lease it does not own: stop group ->
-             drop through Odoo -> delete row. EXCEPT a lease that was resumed or
-             adopted out of a deliberate park (`owner.return_to_park`): when its
-             new owner is provably gone (session ended, server dead/recycled) gc
-             PARKS it again - stops the group, keeps the database, the filestore
-             and the ports, restores the park budget it had
-             (`owner.return_park_ttl_s`) - instead of dropping it.
+             drop through Odoo -> delete row. EXCEPT a lease that belongs to a
+             run (`owner.run_id`) AND records a build (`built`), or was
+             resumed/adopted out of a deliberate park (`owner.return_to_park`):
+             when its owner is provably gone
+             (session ended, server dead/recycled) gc PARKS it - stops the
+             group, keeps the database, the filestore and the ports, stamps the
+             park budget (`owner.return_park_ttl_s` when it had one, else
+             DEFAULT_PARK_TTL_S) - instead of dropping it, so the run that comes
+             back finds it by run id (`query --state parked`), adopts it and
+             serves it. A lease with no run id, a run-owned lease that was never
+             built, a shared lease, and a park whose budget ran out are still
+             reclaimed.
     release  the owner's teardown: the same stop -> drop -> delete.
     All three are TWO-PHASE on one primitive: the rows are marked `reclaiming`
     under the registry lock, the servers are stopped (and, for gc/release, the
@@ -2316,7 +2322,8 @@ GC_SCOPE_ANCHOR = "anchor"
 GC_SCOPES = (GC_SCOPE_ALL, GC_SCOPE_DEAD_SESSIONS, GC_SCOPE_ANCHOR)
 
 # What gc does to a target (`_gc_action`): reclaim it (stop, drop, delete), or
-# return a lease resumed out of a deliberate park to that park.
+# park it - a lease that belongs to a run, or was resumed out of a deliberate
+# park, whose owner is gone keeps its database.
 GC_ACTION_RECLAIM = "reclaim"
 GC_ACTION_PARK = "park"
 
@@ -2535,7 +2542,7 @@ def _verdict(lease):
         "condemn_auto": auto_reason,
         # True when a gc that condemns this lease for its owner being gone would
         # PARK it again instead of reclaiming it (see `_gc_action`).
-        "return_to_park": bool((lease.get("owner") or {}).get("return_to_park")),
+        "return_to_park": _outlives_its_owner(lease),
         "anchor_state": anchor_state or "none",
         "anchor_alive": (None if anchor_state is None
                          else anchor_state == session_anchor.STATE_ALIVE),
@@ -2795,15 +2802,31 @@ def _mark_return_to_park(lease, park_ttl_s):
         owner["return_park_ttl_s"] = DEFAULT_PARK_TTL_S
 
 
-def _repark(lease):
-    """Put a resumed lease back in the park with its original budget, measured
-    from now; its db_name, ports and drop_on_release are untouched."""
+def _repark(lease, reg=None):
+    """Park `lease` (gc's park action) with the budget it had - `return_park_ttl_s`
+    after a resume/adopt out of a park, else DEFAULT_PARK_TTL_S - measured from
+    now; its db_name and drop_on_release are untouched.
+
+    A capacity reclaim may have orphaned the row first (server stopped, ports
+    given back, the old ones kept in `orphaned.ports`). A parked row is only
+    resumable with a port to bind, so under the lock (`reg` is the registry the
+    caller holds) the old ports are taken back when no other row holds them and
+    each can be bound; otherwise the row is parked without ports."""
     owner = lease.setdefault("owner", {})
     budget = owner.pop("return_park_ttl_s", None) or DEFAULT_PARK_TTL_S
     owner.pop("return_to_park", None)
-    # A capacity reclaim may have orphaned it first (server stopped, ports given
-    # back); it is parked now, whatever ports it still holds.
-    lease.pop("orphaned", None)
+    orphan = lease.pop("orphaned", None)
+    if reg is not None and isinstance(orphan, dict) and not lease.get("ports"):
+        wanted = []
+        for port in orphan.get("ports") or []:
+            try:
+                wanted.append(int(port))
+            except (TypeError, ValueError):
+                wanted = []
+                break
+        if wanted and not set(wanted) & _ports_in_use(reg) \
+                and all(_port_bindable(port) for port in wanted):
+            lease["ports"] = wanted
     _stamp_park(lease, budget)
 
 
@@ -2832,7 +2855,7 @@ def _settle_marked(reg, outcomes):
                                  "ports": list(lease.get("ports") or [])}
             lease["ports"] = []
         elif outcome == SETTLE_PARK:
-            _repark(lease)
+            _repark(lease, reg)
         kept.append(lease)
     reg["leases"] = kept
     return settled
@@ -4500,13 +4523,47 @@ def _gc_targets(reg, scope, anchor):
     return targets
 
 
+def _outlives_its_owner(lease):
+    """True when `lease` is PARKED, not reclaimed, once its owner is provably gone
+    (session ended, server pid dead or recycled - CAPACITY_REASONS): it belongs to
+    a RUN (`owner.run_id`, else the legacy `owner.session_id` - the key `adopt`,
+    `release` and `list --run-id` already identify an owner by) AND records a
+    build (`built`, written by `record-build`: there is a database worth keeping),
+    or it was resumed/adopted out of a deliberate park (`owner.return_to_park`).
+
+    Why a run id: it is the one identity a resuming session can present. `query
+    --state parked --run-id`, `adopt` and the tools above them are all keyed on
+    it, so a lease that records one CAN be found and re-claimed by the run that
+    comes back, while a lease with none (`acquire --allow-unowned`) can never be
+    claimed by anyone - keeping it would only hold disk and ports for a caller
+    that cannot exist. Why a build: a run-owned lease that was never built holds
+    ports and nothing a resumed run cannot recreate in seconds; parking it would
+    only occupy the small port pool for the park budget. A run that finished
+    normally has already `release`d its leases (the row and its database are
+    gone), so nothing of it reaches this rule - and a `release` that was killed
+    between its phases (its dead process still marks the row `reclaiming`,
+    by_verb release) is finished, not parked: its owner had decided to drop it. A
+    shared lease is cross-session by design and is never parked."""
+    owner = lease.get("owner") or {}
+    mark = lease.get("reclaiming")
+    if isinstance(mark, dict) and mark.get("by_verb") == "release":
+        return False
+    if lease.get("mode") == "shared":
+        return False
+    if owner.get("return_to_park"):
+        return True
+    return bool((owner.get("run_id") or owner.get("session_id"))
+                and isinstance(lease.get("built"), dict))
+
+
 def _gc_action(lease, reason):
-    """GC_ACTION_PARK when `lease` goes back to the park instead of being
-    reclaimed: it was resumed/adopted out of a deliberate park
-    (`owner.return_to_park`) and what ended is its OWNER (session ended, server
-    gone), not its park budget. Otherwise GC_ACTION_RECLAIM."""
-    if ((lease.get("owner") or {}).get("return_to_park")
-            and reason in CAPACITY_REASONS and lease.get("mode") != "shared"):
+    """GC_ACTION_PARK when `lease` is kept instead of reclaimed: what ended is its
+    OWNER (`reason` in CAPACITY_REASONS), and the lease `_outlives_its_owner`.
+    Otherwise - a lease with no run or no recorded build, a shared lease, or an
+    ended park budget or TTL (never an owner's fault) - GC_ACTION_RECLAIM. Parking uses the park
+    mechanics as they are: `_repark` stamps parked_at / park_ttl_s /
+    parked_boot_id, so the park budget still reclaims the lease later."""
+    if reason in CAPACITY_REASONS and _outlives_its_owner(lease):
         return GC_ACTION_PARK
     return GC_ACTION_RECLAIM
 
@@ -4538,6 +4595,9 @@ def cmd_gc(opts):
                               leases of ONE session anchor - `--anchor
                               <pid:fingerprint>`, default the caller's own. The
                               anchor must no longer be alive (`--force` overrides).
+    Every scope: a condemned lease that belongs to a run and records a build is
+    PARKED, not dropped, when its owner is gone (`_outlives_its_owner`);
+    `--dry-run` shows `action`.
     --dry-run                 list what would be reclaimed; change nothing.
 
     Two-phase (see the GC section header): the registry lock is NOT held while a
@@ -4585,16 +4645,19 @@ def cmd_gc(opts):
         now = _now()
         work = []
         for lease, reason in targets:
-            work.append((_mark_reclaiming(lease, reason, "gc", now), reason))
+            # The action is decided HERE, on the row as it stands: marking it below
+            # replaces the marker a killed `release` left, which `_gc_action` reads.
+            action = _gc_action(lease, reason)
+            work.append((_mark_reclaiming(lease, reason, "gc", now), reason, action))
         _shed_gone_servers(reg, now)
         # Also persists any re-anchoring `_judge` did for a resumed session.
         _write_registry(reg)
 
     # ---- phase B: stop + drop, OUTSIDE the lock -------------------------------
     outcomes, records, reparked = {}, {}, []
-    for lease, reason in work:
+    for lease, reason, action in work:
         token = lease.get("token", "")
-        if _gc_action(lease, reason) == GC_ACTION_PARK:
+        if action == GC_ACTION_PARK:
             # Back to the park: stop the server (park holds DISK, never MEMORY),
             # keep the database, the filestore and the ports.
             _stop_owner_group_if_local(lease)

@@ -102,7 +102,7 @@ TOOL_REMEDIES = {
     "NO_INSTANCE": "No catalog instance matches that series/profile: check with catalog_read, or declare one with /odoo-ai-agents:odoo-setup.",
     "EXCLUSIVE_CONFLICT": "That database is held exclusively by another lease: use mode ephemeral for an isolated database, or retry later. Never release a lease you did not acquire.",
     "PORT_POOL_EXHAUSTED": {
-        "default": "Every pooled port is held (diagnostics.fields.holders names the holders): lease_release or lease_park a lease YOU acquired, then call lease_acquire again; otherwise report the holders to the user.",
+        "default": "Every pooled port is held (diagnostics.fields.holders names the holders): lease_release or lease_park a lease YOU acquired, then call lease_acquire again. A holder in state parked that is not yours keeps its ports until its own run adopts it or its park budget lapses: report the holders to the user, who alone can release another run's lease.",
         # allocator.py PORTS_BUSY_OUTSIDE_REGISTRY: diagnostics.fields.holders is EMPTY - no lease
         # holds a port of this pool, yet none can be bound (TIME_WAIT, or a process the allocator
         # does not track). Releasing or parking a lease changes nothing here.
