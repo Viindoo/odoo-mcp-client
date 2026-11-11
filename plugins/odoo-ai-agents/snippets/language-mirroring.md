@@ -1,42 +1,38 @@
-# Language mirroring - chat output contract (SSOT)
+# Language of chat and of documents
 
-The humans using this plugin work in many languages. They prompt in their own
-language and review gates, proposals, plans, and summaries in chat. An answer mixing
-English prose and unexplained jargon into their language is hard to review and erodes
-trust in the gate flow - the human approves things they only half-understood.
+The people using this plugin work in many languages. What a human reads or approves is written in
+that human's language; what the machine or another agent reads stays English.
 
-## The contract
+## Which language
 
-Every piece of CHAT-FACING text the main agent emits - gate messages, proposals,
-plan tables' prose, clarifying questions, progress notes, final summaries, and
-RELAYS of subagent results - mirrors the USER'S language:
+1. The language the user writes their requests in.
+2. When that does not tell (a bare link, pasted code, a one-word reply): the response language
+   configured in Claude Code, which the session-start context states when it is set.
+3. Otherwise English.
 
-1. **Mirror 100% of the prose.** Detect the user's language from their prompts
-   and write all sentences in it. Skill bodies and templates are written in
-   English - they are instructions TO you, not text to paste. When a skill shows
-   a gate/proposal template, keep its STRUCTURE (lines, table columns, the
-   reply options) but translate every label and sentence.
-2. **Keep verbatim:** code, identifiers, model/field/module names, file paths,
-   CLI commands, tool and skill names, URLs, version strings, and the literal
-   keywords the user must type back. There are exactly two reply sets and no
-   others - `approve / refine: [feedback] / cancel` and `approve / skip / cancel`
-   (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md`); `yes` is not one of
-   them. Translate the surrounding sentence, never the keyword.
-3. **Explain unavoidable technical terms** in plain words in the user's language
-   the first time each appears in a conversation (keep the term, add a short
-   plain-language gloss in parentheses). Prefer the plain-language phrasing over
-   the jargon thereafter.
-4. **Relaying agent results:** subagent reports may arrive in English. Do not
-   paste them as-is - translate the human-facing parts and keep the technical
-   identifiers verbatim. When dispatching an agent, you MAY pass the user's
-   language in the brief so its `summary` field arrives pre-mirrored.
-5. **What this does NOT apply to - CHAT ONLY, never code:** this contract
-   governs chat-facing text exclusively. Code, comments, docstrings, variable
-   and field names, commit messages, plan.md, design docs' technical sections,
-   and tool-layer API output stay English regardless of the user's language,
-   unless the user explicitly asks otherwise - never write source code or
-   docstrings in the user's chat language. The SRS (roles, outcome, acceptance
-   criteria) and any gate SHOWN in chat follow the user's language.
+The main agent passes it down as `USER LANGUAGE` in every brief.
 
-Building for the audience is the why: the audience of chat output is
-the human in front of the screen, in their language - not the skill author.
+## What follows the user's language
+
+- **Chat**: gates, proposals, clarifying questions, progress notes, summaries and relays of a
+  subagent's result. A skill's template is an instruction to you, not text to paste: keep its
+  structure (lines, columns, reply options) and translate every label and sentence.
+- **Documents a human reads or approves**: the SRS, the design, the plan, the acceptance oracle,
+  review and acceptance reports, a survey synthesis, a gap matrix, a requirement list export.
+
+## What stays as it is
+
+- **English**: code, tests, comments, docstrings, identifiers, XML ids, tool-layer output, and the
+  working files agents hand each other (worklog, recon, ledgers, JSON state).
+- **Its own language**: a translation file, and a module's user documentation in each language it
+  ships.
+- **The repository's convention**: commit messages and pull request text.
+- **Verbatim everywhere**: field and key names of a template, status tokens, model, field and
+  module names, file paths, commands, tool and skill names, URLs, versions, and the reply keywords
+  the user types back - `approve / refine: [feedback] / cancel` and `approve / skip / cancel`
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md`); `yes` is not one of them.
+
+## Technical terms
+
+The first time an unavoidable technical term appears, keep the term and add a short plain gloss in
+the user's language; prefer the plain wording afterwards.
