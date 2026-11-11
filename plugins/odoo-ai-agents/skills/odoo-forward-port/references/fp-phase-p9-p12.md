@@ -1,5 +1,3 @@
-<!-- Reference for `odoo-forward-port` § The pipeline. -->
-
 # Forward-Port Pipeline - P9 to P12 (verify, migration dir, conclude, PR, cleanup)
 
 **Contents:** P9 - P9.6 - P10 - P12 - Cleanup (P9.5 is in `references/fp-phase-briefs.md`)

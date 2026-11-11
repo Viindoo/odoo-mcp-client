@@ -44,7 +44,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     passes `languages`, passes `demo` on an `init` build only (a test build runs the series default),
     adjusts the server-wide set for one call with `server_wide` when the task needs a different one,
     and never puts those flags in `extra_args`. The rules: SSOT
-    `snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply.
+    `snippets/odoo-build-facts.md` § Build facts the odoo-local tools apply.
 11. **A build's warnings are acted on before its instance is trusted.** `job_wait` reports problems
     a build logged without failing. A module Odoo says must be loaded server-wide means the set that
     build loaded lacks it: for the task, rebuild with `server_wide.include`; for every build, fix the
@@ -154,6 +154,6 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     `update` or `test` build takes no `demo` (any value is refused): a test build runs the series
     default read from the checkout, and on a series whose default loads none it refuses a database
     that holds demo data (`TEST_DB_HAS_DEMO`). The purpose-to-demo
-    mapping lives in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE.
+    mapping lives in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Demo data by build PURPOSE.
     Owned by `odoo-instance-ops` (§ Demo, languages and server-wide modules (HARD RULE)); the
     `odoo-instance` skill threads `DEMO:` through its dispatch brief.

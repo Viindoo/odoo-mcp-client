@@ -1,9 +1,3 @@
-<!-- SSOT for the deep-survey per-phase analytical lenses + drill procedures.
-     The orchestrator (main context) reads the lens block relevant to a phase
-     and INLINES it into each dispatched worker brief - workers are leaf subagents
-     that cannot resolve ${CLAUDE_PLUGIN_ROOT} themselves (same paste mechanism as
-     worker-brief.md / bidirectional-impact.md). Edit lenses here, not in SKILL.md. -->
-
 # Deep-Survey Analytical Lenses (worker mandates)
 
 **Contents:** Phase 1 lenses (haiku - wide / shallow gathering, several OSM tools allowed) - Phase 2 lenses (sonnet - narrow / deep analysis) - Dependency-closure drill (nearest -> base) - Test-protection map (three tiers)

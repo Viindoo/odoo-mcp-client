@@ -29,7 +29,7 @@ full gate list + reproduction steps; mark each "verify against live test class":
 - The `hr` self-access check - custom `hr.employee` fields need `groups=`.
   Both are FRAMEWORK classes a module-scoped run skips, and their class NAMES differ by series -
   resolve the name for the target before tagging either:
-  ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes.
+  ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md § Framework-validation test classes.
 - `test_lint` - Odoo CE static lint gate; the authoritative backend code-quality CI gate.
 - Every lint-class module the addons path ships, run alongside core `test_lint`. Which modules, and how to scope them: ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md.
 

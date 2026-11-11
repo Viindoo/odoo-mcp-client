@@ -31,7 +31,7 @@ in extra flags. When the caller's task needs a server-wide set different from th
 (exclude the deployment's branding modules; include a new module that must load server-wide),
 forward it as `SERVER_WIDE`; it reaches every build and serve of that database as `server_wide`.
 Rules, including what to do with a `job_wait` warning that a module must be loaded server-wide:
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply.
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Build facts the odoo-local tools apply.
 
 **Agent-side union this skill does not compute itself.** This skill resolves `PROFILE` and threads it
 into the brief (omitted when empty, never sent empty). The dispatched `odoo-instance-ops` agent PINS

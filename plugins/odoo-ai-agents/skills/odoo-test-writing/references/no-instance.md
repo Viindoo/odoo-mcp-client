@@ -12,5 +12,5 @@ next:
 ```
 Fall back to `BLOCKED` only when provisioning is itself impossible. On an existing database a run
 uses `-u <module>`, a fresh one `-i <module>`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database - `-i`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Test run on an existing database - `-i`
 vs `-u`), with the instance's own interpreter (`${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`).

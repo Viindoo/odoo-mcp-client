@@ -69,7 +69,7 @@ Fall back to `BLOCKED` only when provisioning itself is impossible.
 When dispatching `odoo-instance` run-tests, the caller picks:
 - `mode`: `fresh` (new DB, `-i`) or `reuse` (module installed, `-u`). Re-runs need `reuse`;
   `fresh` on an installed module runs none of its tests on recent series
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database).
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Test run on an existing database).
 - `log_mode` (optional): `info`|`debug`|`sql`.
 
 A run's `warnings > 0` MUST be surfaced as findings alongside failures and errors - never swallowed.
