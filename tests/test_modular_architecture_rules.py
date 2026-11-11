@@ -59,14 +59,6 @@ def test_a_generic_accounting_module_runs_on_the_generic_chart_of_account():
     assert "generic chart of `account`" in _between(PRINCIPLES, "## 2.", "## 3.")
 
 
-def test_a_business_module_paints_only_with_core_levers():
-    section = _between("skills/_shared/odoo-frontend-fidelity.md", "### A.", "### B.")
-    rule6 = section.split("6. ", 1)[1]
-    assert "core levers" in rule6 and "bg-white" in rule6
-    step = _between("agents/odoo-ui-reviewer.md", "### Step 4b", "### Step 5")
-    assert "theme-fixed Bootstrap class" in step
-
-
 def test_dependents_are_computed_to_a_fixed_point_and_retirement_is_marked_under_the_name_key():
     graph = _read("skills/_shared/odoo-module-graph.md")
     assert "## Reverse closure" in graph

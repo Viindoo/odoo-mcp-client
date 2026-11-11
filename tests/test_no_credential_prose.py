@@ -103,8 +103,6 @@ ALLOWLIST = (
           shape=r'"secret"|secret framing'),
     Allow(A + "snippets/master-child-design-contract.md", "the word is banned as a framing of a design",
           shape=r'"secret"/"private"'),
-    Allow(A + "snippets/visual-evidence-lifecycle-contract.md", "about guessability of a run-slug name",
-          shape=r"never as a secret either"),
     Allow(A + "docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md", "a readiness-probe URL, no sign-in is performed",
           shape=r"fallback `/web/login`"),
     # --- human-only documents and IDE snippets ------------------------------------------------

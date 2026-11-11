@@ -76,9 +76,7 @@ REF_SCOPE_DOMINANCE_CITERS = 15
 # docstring), given a wider - but still bounded, never infinite - ceiling, comfortably above its
 # measured citer count and nowhere near the 66-citer regression shape. A file that drops under
 # LARGE_FILE_THRESHOLD leaves this map (the default covers it).
-REF_SCOPE_KNOWN_BACKLOG_CEILING = {
-    "snippets/visual-evidence-lifecycle-contract.md": 35,
-}
+REF_SCOPE_KNOWN_BACKLOG_CEILING = {}
 
 _FINDING_RE = re.compile(r"^\[ref-scope\] (?P<citer>\S+):\d+ cites '(?P<cited>[^']+)'")
 

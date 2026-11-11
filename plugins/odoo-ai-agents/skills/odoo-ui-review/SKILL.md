@@ -23,15 +23,6 @@ unverified impression.
 - **Writing or changing Odoo frontend JS/OWL source** → `odoo-coding`
 - **Source-level code review (Python/JS/XML)** → `odoo-code-review`
 
-## When to invoke
-
-Main agent launches the `odoo-ui-reviewer` **agent** as a subagent when the user has a running
-Odoo instance and wants a verdict on how a rendered screen looks and behaves. The agent drives a
-live browser (chrome-devtools MCP) to capture the screen, exercise controls, run a Lighthouse
-audit, sweep responsive breakpoints, then ground every styling defect in the codebase via OSM. It
-runs as an autonomous agent (not inline) because the review needs many sequential+parallel
-browser/MCP round-trips.
-
 ## Agent invocation
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side

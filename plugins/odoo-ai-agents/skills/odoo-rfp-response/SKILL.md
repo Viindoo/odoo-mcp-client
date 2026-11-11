@@ -9,15 +9,6 @@ model: inherit
 ## Role
 Pre-sales Consultant / Bid Manager
 
-## When to use
-
-- Prospect / public-sector client issues an RFP / RFQ / ITT expecting a formal compliance verdict per line
-- You need a written compliance matrix before submitting a full proposal
-- Sales engineering needs a quick score card to decide whether to bid
-- Project manager needs to flag which requirements need custom dev before committing to a timeline
-
-Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for quoting; this skill outputs compliance verdicts. `odoo-capability-proof` gives deep code evidence for ONE requirement; this skill covers ALL requirements at once. `odoo-feature-check` handles a single feature; this skill handles a numbered list.
-
 ## Out of Scope
 
 - Effort estimation / day-count → `odoo-gap-analysis`

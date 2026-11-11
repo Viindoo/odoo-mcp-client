@@ -10,14 +10,6 @@ model: inherit
 
 Customer-success health assessment for an Odoo partner or distributor. Audience: internal CSM, AM, or CEO; the accountability it serves is net revenue retention. Output leads with score → risk → opportunity → one concrete next action, and states churn signals plainly - a false Green today is a lost renewal tomorrow.
 
-## When to use
-
-- Pre-renewal triage (60-90 days out)
-- QBR preparation for a named account
-- Portfolio sweep before CSM capacity planning
-- Escalation decision (loop in leadership or vendor?)
-- Upsell pipeline seeding
-
 ## Out of Scope
 
 - Qualifying a new prospect (no go-live yet) -> use `odoo-discovery-summary`
