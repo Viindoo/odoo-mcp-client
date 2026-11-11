@@ -1,9 +1,3 @@
-<!-- SSOT snippet. Defines the ONE severity scale, the audit-tier mapping, the diff fold-in rule,
-     and the ownership-transfer/dedup rule shared by the review-plus-audit pipeline. Referenced
-     (not copy-pasted) by `odoo-code-reviewer` (including its Audit escalation step) and by
-     `odoo-perf-audit`, `odoo-security-audit`, and `odoo-deprecation-audit`.
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md. -->
-
 # Review Severity Rubric
 
 Do not invent a second severity scale or a parallel vocabulary anywhere in the review-plus-audit

@@ -1,10 +1,3 @@
-<!-- SSOT snippet. Authoring-owned by odoo-planning; WRITTEN at runtime only by odoo-coding.
-     On-disk claim/status registry so concurrent runs/worktrees see which NEW modules are being
-     built where, letting `BLOCKED: manifest dependency <D> unresolved` be classified instead of
-     guessed. WRITTEN ONLY by odoo-coding; odoo-coder (which emits the raw BLOCKED) stays
-     ledger-unaware. Referenced (not copy-pasted) by odoo-coding and the plan-running rules. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md. -->
-
 # Module Coordination Ledger (cross-run / worktree)
 
 The per-run dependency pre-flight (`odoo-coder` step 6) already

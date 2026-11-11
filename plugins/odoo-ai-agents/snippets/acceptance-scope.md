@@ -1,11 +1,3 @@
-<!-- SSOT snippet. Turns a change's blast-radius into an actionable verify-scope manifest:
-     reverse-closure -> risk rank -> dependent modules + screens -> install/test/render sets.
-     Builds ON bidirectional-impact.md (closure mechanics live there - do NOT restate them);
-     this snippet adds risk ranking, screen enumeration, and the manifest contract. Referenced
-     (not copy-pasted) by odoo-acceptance, odoo-code-review and the plan's acceptance node
-     (blast-radius render-check + acceptance hand-off).
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md. -->
-
 # Acceptance Scope Contract (blast-radius -> verify-scope manifest)
 
 Most QA binds tests and render-checks to the module that was edited. A change in an Odoo

@@ -1,8 +1,3 @@
-<!-- SSOT snippet. How a test that legitimately emits a server/console WARNING or ERROR captures
-     or mutes that log so it never leaks into CI/Runbot output. Orthogonal to
-     test-behavior-contract.md and test-sensitivity-contract.md. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md. -->
-
 # Expected-Log Contract (capture or mute the log a guard legitimately emits)
 
 A test whose code path legitimately emits a WARNING/ERROR and does NOT capture or mute it leaks

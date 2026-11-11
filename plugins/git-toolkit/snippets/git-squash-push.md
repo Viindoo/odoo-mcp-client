@@ -1,9 +1,3 @@
-<!-- SSOT snippet. Domain-agnostic recipe for op=squash-push: stale-base guard + squash-to-one
-     commit + force-with-lease push. This is a COMPOSITION of S1 (backup), S6 (tree-identity),
-     and S2 (force-with-lease) from git-safety-contract.md onto a stale-base guard - not a
-     re-explanation of those primitives. Referenced by git-operator via
-     ${CLAUDE_PLUGIN_ROOT}/snippets/git-squash-push.md. Edit here only. -->
-
 # git-squash-push recipe (SSOT)
 
 Squash every commit above `origin/<principal>` on the integration branch into a single commit,

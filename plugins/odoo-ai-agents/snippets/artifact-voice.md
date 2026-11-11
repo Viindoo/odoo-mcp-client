@@ -1,51 +1,32 @@
-# Artifact voice - state the truth, not the journey (SSOT)
+# Artifact voice - state the truth, not the journey
 
-An artifact outlives the process that produced it. A reader months later needs to
-know what the system IS and what the deliverable SAYS - not what was tried, in what
-order, by whom, or which ticket tracked it. Process narration goes stale the moment
-it ships and forces every future reader to subtract history from fact.
+An artifact outlives the process that produced it. Its reader needs what the system is and what the
+deliverable says, not what was tried, in what order, by whom or under which ticket. This binds
+every artifact a skill or agent of this plugin writes: designs, requirement specifications, plans,
+acceptance oracles, recon and review reports, documentation, proposals, marketing copy, pull
+request bodies.
 
-## The contract
+1. **No process narration.** Not "we first tried X, then switched to Y", "after investigating",
+   "added because the review found". State the result and, where it helps, the reason that still
+   holds.
+2. **No dates as provenance.** "verified <date>", "as of <date>", "(updated <date>)" do not belong
+   in a deliverable: the fact holds or the artifact needs fixing. A date that is data (a deadline,
+   a report period, an example record) stays.
+3. **No tracker references.** Issue, pull request, failure-log and review-finding ids live in the
+   tracker and the commit message. When the reason behind a rule matters, state the reason.
+4. **No before and after.** "no longer", "previously", "used to", "the new behaviour" describe a
+   diff, not a state. A fact of external version history (an Odoo API removed in a given series)
+   is domain knowledge and stays.
+5. **Edit in place.** A text that changes is rewritten coherently to its new state. No appended
+   "update", "addendum", "exception" or "decisions taken at the gate" section, in a design as in a
+   pull request body.
 
-Every ARTIFACT this plugin's skills and agents produce - reports, proposals,
-design docs, marketing copy, checklists, generated skills - is written in
-present-tense, current-state voice:
+A design keeps the reason for a decision next to the decision, in the present tense; it keeps no
+list of the alternatives considered.
 
-1. **No process narration.** Do not write "we first tried X, then switched to
-   Y", "after investigating, ...", "this was added because the review found
-   ...". State the result and, where useful, the reason that still holds.
-2. **No dates-as-provenance.** "verified <date>", "as of <date>", "(updated
-   <date>)" do not belong in a deliverable body - the fact either holds or the
-   artifact needs fixing. (Dates that ARE data - a deadline, a report period,
-   an example record - are fine.)
-3. **No tracker references.** Issue numbers, PR numbers, failure-log names,
-   and review-finding IDs live in the tracker and the commit message, not in
-   the artifact. If the reason behind a rule matters, state the reason itself.
-4. **No before/after narration about the system.** "no longer", "previously",
-   "used to", "the new behavior" describe a diff, not a state. Write what the
-   system does now. (Facts about EXTERNAL version history - e.g. an Odoo API
-   removed in a given version - are domain knowledge, not narration: keep them.)
-5. **Edit in place.** A text that changes is rewritten coherently to its new
-   state - never an appended "update", "exception" or "note" paragraph. This
-   binds a PR body, a decision note and a memory as it binds a deliverable.
+Comments, docstrings and user-visible strings in source are governed by
+`${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`.
 
-## Comments and docstrings inside source
-
-Source files are governed by
-`${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`, which owns whether a
-comment should exist at all and what it may say. It applies these same voice
-rules and adds the code-specific ones (default to no comment, purpose over
-mechanics, no attribution or self-defense, the volume ceiling). Do not restate
-either contract in the other.
-
-## What is exempt
-
-Artifacts whose PURPOSE is to record history keep it: changelogs, commit
-messages, audit trails, session reports, and the evidence
-sections of debug/review reports (a root-cause proof must show the
-reproduction). Chat conversation with the user may narrate freely - this
-contract governs the files and copy that ship.
-
-Self-check before emitting an artifact: "if a stranger reads only this file in
-six months, does every sentence still earn its place?" Sentences about the
-journey fail that test; sentences about the destination pass.
+**Exempt:** artifacts whose purpose is the record - changelogs, commit messages, worklogs, audit
+trails, session reports, and the evidence section of a debug or review report (a root-cause proof
+shows its reproduction). Conversation with the user may narrate.

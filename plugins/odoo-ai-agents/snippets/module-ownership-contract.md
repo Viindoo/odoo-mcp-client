@@ -1,8 +1,3 @@
-<!-- SSOT snippet. Factored from odoo-solution-architect § Module ownership and dependency
-     integrity. Referenced (not copy-pasted) by odoo-solution-architect and by child-architect
-     workers in master-child runs. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/module-ownership-contract.md. -->
-
 # Module Ownership and Dependency Integrity
 
 Where functionality LIVES is a deliberate first-class design decision, not the most convenient

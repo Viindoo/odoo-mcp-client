@@ -1,8 +1,3 @@
-<!-- SSOT snippet. HOW a single test is written so it guards the business behavior. Whether a node
-     owes a test, and the break-check that proves it can fail:
-     ${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md. Edit here only; consumers cite
-     ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md § <heading>. -->
-
 # Test-Behavior Contract (protect the business outcome, drive the real workflow)
 
 Short rules, each with an example. Where a case falls outside them, keep their intent: the test

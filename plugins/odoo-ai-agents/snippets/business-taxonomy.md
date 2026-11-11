@@ -1,7 +1,3 @@
-<!-- SSOT snippet. The business-function taxonomy, the specialist list the model-tier rules read,
-     and the Domain line every unit of work carries. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md. -->
-
 # Business Taxonomy
 
 A unit of work (a node, a module bundle, a requirement cluster, a module) carries ONE Domain line.

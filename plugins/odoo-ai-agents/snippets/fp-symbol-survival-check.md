@@ -1,7 +1,3 @@
-<!-- SSOT snippet. P6 of /odoo-forward-port pipeline. Referenced by
-     odoo-forward-port skill. Edit here only.
-     Cross-ref: fp-intent-4outcome.md, fp-merge-absorption.md, osm-first-contract.md -->
-
 # Forward-Port Symbol Survival Check (P6)
 
 **When to run:** after git-ops has opened the uncommitted merge window (P5), before any adapt work (P8).

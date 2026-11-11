@@ -1,7 +1,3 @@
-<!-- SSOT snippet (self-contained copy for this plugin - a runtime cannot cross-reference
-     another plugin's snippet). The single home WITHIN git-toolkit for the chat-output language
-     contract. Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md. Edit here only. -->
-
 # Language Mirroring - chat output contract (SSOT for git-toolkit)
 
 Humans using this toolkit work in many languages - they prompt, and review gates/plans/summaries in

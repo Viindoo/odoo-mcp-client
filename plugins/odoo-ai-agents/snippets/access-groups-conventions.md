@@ -1,8 +1,3 @@
-<!-- SSOT snippet. Access-group authoring rules for Odoo: which group model the target series uses
-     (category or privilege), ir.module.category XML id derivation, implied_ids hierarchy.
-     Edit here only; consumers cross-ref, never restate.
-     Consumers are DERIVED, never listed here - re-derive with `grep -rl "access-groups-conventions.md" plugins/odoo-ai-agents/`. -->
-
 # Access Groups Conventions - CORE (all distributions)
 
 CORE Odoo rules for declaring `res.groups` records. Which model a group hangs on depends on the

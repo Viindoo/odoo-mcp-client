@@ -1,8 +1,3 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by every agent that designs, writes, reviews, or
-     debugs an Odoo change (architect, coder, frontend-coder, code-reviewer, ui-reviewer,
-     backend-debugger, ui-debugger). Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md. -->
-
 # Bidirectional Impact Analysis (both directions, direct + indirect)
 
 An Odoo module is a node in a dependency DAG. A change is never confined to the file you edit: it

@@ -1,9 +1,3 @@
-<!-- SSOT snippet. The single source for the completion-status split between a skill whose
-     PRIMARY deliverable is complete WITHOUT a live Odoo instance (static analysis/review) and
-     a skill whose deliverable REQUIRES a live render/execution. Referenced via
-     ${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md instead of re-explaining
-     the split in each SKILL.md. -->
-
 # Instance-optional vs instance-required completion
 
 When a live Odoo instance/browser is unreachable, which terminal status a skill emits depends

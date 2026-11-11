@@ -1,6 +1,3 @@
-<!-- SSOT snippet. "readonly=False does not guarantee value survival on stored computes."
-     Edit here only; consumers cross-ref, never restate. Consumers are DERIVED, never listed here - re-derive with `grep -rl "stored-write-survival.md" plugins/odoo-ai-agents/`. -->
-
 # Stored Write Survival Contract
 
 ## The trap: `readonly=False` is not a survival guarantee

@@ -1,10 +1,3 @@
-<!-- SSOT snippet. What a `.po`/`.pot` ENTRY MEANS: the identity rule, the empty-`msgstr` rule,
-     the three adjudication buckets, fuzzy, placeholders. Consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md. What you DO and in what ORDER (build,
-     export, keep the export format, diff-review) is
-     ${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md; which WORDS is
-     ${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md. Neither is restated here. -->
-
 # PO entry semantics (SSOT)
 
 ## The identity rule - Odoo never exports a translation equal to its source

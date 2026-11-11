@@ -1,7 +1,3 @@
-<!-- SSOT snippet. The single home for the GitHub MCP-first / gh-CLI-fallback policy and the
-     exact tool prefix. Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md by
-     the skill and by github-operator. Edit here only. -->
-
 # GitHub MCP-first Policy (SSOT)
 
 For all GitHub API work, the GitHub MCP server is the PRIMARY interface; the `gh` CLI is the

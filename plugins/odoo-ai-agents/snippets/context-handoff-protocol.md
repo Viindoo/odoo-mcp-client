@@ -1,10 +1,3 @@
-<!-- SSOT snippet. The single home for the 3-tier agent dispatch model (resume-a-child-you-launched /
-     fork / fresh-spawn), the two identity facts, and the confidentiality guard. The message-DIRECTION
-     rule is NOT here - it is owned once by spawner-completion-contract.md R3; this file cites it and
-     never restates it. Referenced (not copy-pasted) by the orchestrator skills odoo-coding,
-     odoo-code-review, odoo-forward-port, odoo-deep-survey, odoo-brl. Edit here only; consumers point
-     at ${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md. Builds on worklog-contract.md. -->
-
 # Context-Handoff Protocol (CHP) - 3-tier agent dispatch
 
 You are an orchestrator skill dispatching worker agents. Tier C (fresh spawn + worklog) is the

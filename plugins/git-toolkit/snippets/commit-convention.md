@@ -1,9 +1,3 @@
-<!-- SSOT snippet. The single home for commit-message formatting: the mandatory universal
-     business-subject rule, length limits, the convention-detection protocol, when sign-off is
-     required, and the inbound-validation gate on any caller-supplied message. Points at the
-     two reference standards. Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md
-     by every committing agent (git-operator, git-pipeline-lead, github-operator). Edit here only. -->
-
 # Commit Convention (SSOT)
 
 Every commit this toolkit creates MUST follow a DETECTED convention, and MUST satisfy the universal
@@ -23,6 +17,9 @@ implementation (HOW).
   this commit will ___".
 - Capitalize the first word of the description; no trailing period.
 - Blank line REQUIRED between subject and body. Body explains WHY, not HOW (the diff shows HOW).
+- A message and a pull request body describe the NET change against the base branch - what the
+  code does once merged. Steps the branch took and later undid, review rounds and earlier attempts
+  are not part of it.
 
 ## C2 - Length limits
 

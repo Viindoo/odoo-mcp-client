@@ -1,10 +1,3 @@
-<!-- SSOT snippet. The single entry point for this plugin's cross-cutting status/gate/term
-     vocabulary. Machine-consumed values (the status enum, the gate-reply sets) are declared in
-     `generator/skill_tool_deps.json` -> `vocabulary` and rendered here for a human/agent reader;
-     `phase`/`cluster`/`leaf` are declared HERE because nothing parses them. Every consumer POINTS
-     at this file instead of restating any of the below - restating is how the plugin's vocabulary
-     drifted into three incompatible status enums and three gate-reply sets. -->
-
 # Vocabulary (SSOT index)
 
 ## Continuation status
