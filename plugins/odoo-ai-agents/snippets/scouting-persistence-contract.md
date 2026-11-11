@@ -1,9 +1,3 @@
-<!-- SSOT snippet. Home for the scouting/recon persistence + read-back contract shared by every
-     skill whose first phase SURVEYS before a later phase acts. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md. Tier classification of the
-     paths named here is owned by ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md - not
-     restated here. -->
-
 # Scouting persistence contract (SSOT)
 
 A scouting phase (intake Phase R, forward-port P0, a review/doc scoper, a rebase intake) spends real
@@ -17,7 +11,7 @@ Existing artifacts KEEP their current tier and filename - this clause adds no pa
 
 - **Write:** at the end of your scouting phase, before the plan/gate/next phase - return a POINTER plus counts, never an inline dump of the findings.
 - **Read:** the consuming phase names the artifact by filename and re-reads it from disk before it dispatches - it does not rely on the scout's returned text still being in context.
-- **Resume:** before dispatching a scout, glob for a matching artifact for THIS slug. Present -> read it and skip the dispatch. Absent -> dispatch. Never dispatch a scout twice per slug per run.
+- **Resume:** before dispatching a scout, glob for a matching artifact for THIS slug. Present and not stale (next bullet) -> read it and skip the dispatch. Absent -> dispatch. Never dispatch a scout twice per slug per run.
 - **Staleness:** slug matches but the recorded target ref/branch does not -> STALE - re-dispatch and overwrite, recording `stale: <old-ref> -> <new-ref>` in the new file. A matching ref name proves nothing on a long-lived branch: an old artifact is orientation only, never a fact - the fresh scout carries a "contradicts prior findings" section, and a named file, model or symbol is checked to still exist before it is cited. This clause applies only to a consumer whose OWN artifact schema actually carries the ref it checks (e.g. Clause 2's `target_ref:` header, or `_scope.md`'s `base_ref:`) - a consumer with no such field (and no staleness clause of its own) is unaffected.
 
 ## Clause 2 - the path for a scouting phase that writes NO file today
@@ -40,8 +34,8 @@ field in `odoo-impact-recon`):**
 target_ref: <ref>
 ```
 
-`<ref>` is the ref the working tree was on when this file was written - the `ref` of a `repo_facts`
-call on it (the branch, or the short SHA when `HEAD` is detached). This is the exact field Clause 1's staleness check reads. When a resume overwrites a
+`<ref>` is the commit the working tree was on when this file was written - the `head_sha` of a
+`repo_facts` call on it; a branch name does not identify what was read. This is the exact field Clause 1's staleness check reads. When a resume overwrites a
 STALE file, the new file's header gains a second line immediately below `target_ref:`:
 `stale: <old-ref> -> <new-ref>`.
 

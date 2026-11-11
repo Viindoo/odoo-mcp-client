@@ -32,3 +32,12 @@ Pivot row: F0 `§XML views` row "Chatter element".
 
 Cross-ref only - see F0 `§XML views` row "List view arch tag". `<list>` is canonical from v18;
 `<tree>` was canonical through v17. Do NOT restate details here.
+
+---
+
+## What an inherited view anchors on
+
+The xpath of an inherited view anchors on a stable identifier: a field's `name`, or an element's
+`id` or `name`. Never on text a user sees (`string`, `help`, a label, a placeholder, a title): it
+changes with wording and with translation. Only when the parent tree offers no such identifier
+does the xpath anchor on structure (a class, a position inside an identified block).

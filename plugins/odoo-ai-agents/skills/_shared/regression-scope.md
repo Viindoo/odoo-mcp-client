@@ -1,10 +1,3 @@
-<!-- SSOT snippet. The single home for the CUMULATIVE test-selection algorithm an `odoo-instance`
-     plan node uses to pick its suite scope, and any peer that runs a regression suite over a
-     module set. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md.
-     This selects WHICH suites run; the saga/rollback of the run itself is integration-loop.md;
-     the OSM session-pin race + ephemeral-DB lease are concurrency-guard.md. -->
-
 # Regression-scope selection (SSOT)
 
 Bounded algorithm `odoo-planner` follows to choose the modules an `odoo-instance` plan node must run
@@ -62,6 +55,10 @@ of the set computed above, so this selection work buys nothing. Pass the run-set
   `-i <modules> --test-enable` also runs every CORE module pulled in as a transitive dependency.**
   State that on those series instead of asserting the never-core rule - do not claim a guarantee
   those series cannot keep (0.5 caveat).
+- The exclusion has one hole: a node that adds something to a shared web-client surface without a
+  condition (a systray item, a Discuss sidebar category, an entry in a registry every screen
+  loads) changes what core's own JS suites count there. For such a node, add the JS suite of the
+  core app that owns the surface to the gate run.
 - `impact_analysis(entity_type="model", entity_name="<changed-model>", odoo_version=<explicit>)` is
   an OPTIONAL blast-radius signal to CONSIDER (a widen hint), NEVER a mandatory run-selection input -
   its `Dependent modules` list is dominated by core.

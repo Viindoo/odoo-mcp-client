@@ -133,7 +133,7 @@ match routes. Genuinely tiny/mechanical commits fall through and skip design.
 |---|---|---|---|
 | 1 | (c) "do now" | ALWAYS (unchanged from current P5) | YES |
 | 2 | (b) adapt | The adapt touches a model FIELD add/remove/type-change, OR changes a method signature, OR overrides/relocates an override point (`create`/`write`/`unlink` or a method whose `find_override_point` chain has >=3 entries) | YES |
-| 3 | (b) adapt | The adapt is a REFACTOR in the sense `odoo-solution-design` § When to invoke defines one (mixin extraction, module split/merge, inheritance-axis change) - not the same mechanical edit repeated across several files | YES |
+| 3 | (b) adapt | The adapt is a REFACTOR in the sense `odoo-solution-design` § Before dispatch (step 3, `SRS_REQUIRED`) defines one (mixin extraction, module split/merge, inheritance-axis change) - not the same mechanical edit repeated across several files | YES |
 | 4 | (b) adapt | The adapt is a full-stack change (touches backend Python/XML AND frontend JS/OWL/SCSS for the same intent) OR moves an OWL component across the legacy<->OWL-2 boundary | YES |
 | 5 | (a) already-present / (d) no-longer-relevant | never (no adapt code is written) | NO |
 | 6 | (b) adapt | none of rows 2-4 match - a single-file, single-symbol, signature-preserving rename/move resolved to intent | NO (skip - trivial) |

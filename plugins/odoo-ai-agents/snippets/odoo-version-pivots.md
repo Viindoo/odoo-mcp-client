@@ -1,18 +1,10 @@
-<!-- SSOT snippet. Ground-truth version-pivot table v8-v19, verified against on-disk codebase (D9).
-     Every file that states a version-specific API fact MUST cross-ref here, NOT restate.
-     Edit this file to correct a pivot; do not patch consumers.
-     Consumers are DERIVED, never listed here - re-derive with `grep -rl "odoo-version-pivots.md" plugins/odoo-ai-agents/`. -->
-
 # Odoo Version Pivots - v8-v19 SSOT
 
 Compact canonical table. Row format: **change** | **new API / mechanism** | **from vMIN** | **old: removed or alias**.
 "alias" = old name still works but emits DeprecationWarning. "REMOVED vN" = raises AttributeError / ImportError / ValidationError at that version.
 
-> **OSM caveat (active until server bug fix):** OSM currently does NOT resolve underscore-renamed
-> methods (`_has_cycle`, `_filtered_access`) or `res.users.has_group`/`has_groups` (server bugs
-> #2/#3). This table is the authoritative fallback for those symbols. For all others, verify via
-> OSM `api_version_diff(symbol, from_version, to_version)` at TARGET - do not read this table as
-> a substitute for a live OSM check when OSM is available and the symbol is indexed.
+> For a symbol the index resolves, its own answer at the target series outranks this table; the
+> table is the fallback for the symbols it does not resolve.
 
 ---
 
@@ -44,6 +36,7 @@ Which model a group hangs on, and how to declare it: `access-groups-conventions.
 | Cycle check | `_has_cycle(field)` | v18 | `_check_recursion(field)` = alias |
 | Display name | `_compute_display_name` override | v12 | `name_get()` deprecated v17, **REMOVED v18** |
 | Record-style API | `@api.model`, `@api.model_create_multi`, plain multi-record methods | v13 | `@api.one`, `@api.multi`, `_columns` dict, `fields.function`, `osv.osv` **REMOVED v13** |
+| Progress and commit inside a scheduled job | `ir.cron._notify_progress(done=, remaining=)`; `ir.cron._commit_progress(...)` | v18; v19 | a hand-written `cr.commit()` in the job's loop |
 
 ## Python ORM - cache / flush / metadata
 
@@ -52,7 +45,7 @@ Which model a group hangs on, and how to declare it: `access-groups-conventions.
 | Targeted flush | `Model.flush_model()` / `records.flush_recordset()` | v16 | `self.flush()` **REMOVED v17** |
 | Targeted invalidate | `Model.invalidate_model()` / `records.invalidate_recordset()` | v16 | `self.invalidate_cache()` **REMOVED v17** |
 | External id lookup | `record.get_external_id()` | v16 | `record.get_xml_id()` **REMOVED v17** |
-| View loading | `env['ir.ui.view'].get_views(...)` | v16 | `fields_view_get()` deprecated v16, **REMOVED v17**; `fields_get_keys()` gone v17 |
+| View loading | `Model.get_views(...)` / `Model.get_view(...)` (on the model itself) | v16 | `fields_view_get()` deprecated v16, **REMOVED v17**; `fields_get_keys()` gone v17 |
 | Registry cache clear | `registry.clear_cache()` | v17 | `registry.clear_caches()` = alias |
 | Field to SQL | `_field_to_sql(alias, fname, query)` | v17 | `_inherits_join_calc(...)` = alias |
 | Order to SQL | `_order_to_sql(order, query, alias, reverse)` | v17 | `_generate_order_by(...)` = alias |
@@ -133,7 +126,7 @@ documentation instance): test on a fresh lease.
 | Database state | Test build (`instance_build` op `test`) | Series |
 |---|---|---|
 | Scope modules NOT installed yet (a new database) | `test_mode` `fresh` (`-i`) | every series |
-| Scope modules ALREADY installed | `test_mode` `reuse` (`-u`) - right on every series | every series; from v19 `-i` skips an installed module and runs none of its tests |
+| Scope modules ALREADY installed | `test_mode` `reuse` (`-u`) for a re-run of the scope's own tests. A suite that gates builds a new database (`fresh`): an install-time test of an updated module runs before the modules loaded after it are back in the registry, so a required column one of them added makes its inserts fail spuriously | every series; from v19 `-i` skips an installed module and runs none of its tests |
 
 ## Framework-validation test classes (named in `--test-tags` beside module tags)
 

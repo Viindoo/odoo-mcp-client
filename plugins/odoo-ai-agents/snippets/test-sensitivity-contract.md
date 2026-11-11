@@ -1,19 +1,12 @@
-<!-- SSOT snippet: who writes a test, when one is needed, and the real break-check that proves it
-     guards its rule. HOW one test is written: test-behavior-contract.md. Consumers cite
-     ${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md § <heading>. -->
-
 # Test-Sensitivity Contract (code first, then a test proven by breaking the rule)
-
-Principles, not a script: apply each with judgment and say what you decided.
 
 ## Code first, then the test leg
 
-`odoo-coder` writes its node's tests itself, through `odoo-test-writing`: before the code when an
-acceptance criterion carries a comparable expected value (the first red run proves the test can
-fail), after the code for a behaviour discovered while coding. `odoo-frontend-coder` writes
-production code only and returns `OBSOLETE TESTS` (existing tests the REQUEST makes obsolete, or
-`none`). Every expected value comes from the REQUEST / SRS acceptance criteria, never from the
-code. Nothing is committed between the coders and the test leg.
+The node's coder writes its tests through `odoo-test-writing`: before the code when an acceptance
+criterion carries a comparable expected value (the first red run proves the test can fail), after
+the code for a behaviour discovered while coding. Every expected value comes from the REQUEST or
+the SRS acceptance criteria, never from the code. Nothing is committed between the code and the
+test leg.
 
 While the test-writer works it breaks production code on purpose, so nobody else builds, edits or
 commits in that node until it returns. It edits test files, and a production file only for a
@@ -24,9 +17,11 @@ assets (a JS test or tour bundle). It says so in its report.
 
 Judge from the actual change (its diff), not from the brief, whether a new test is needed. Comments,
 docstrings, formatting, docs, `.po`/`.pot` translations and manifest-only edits normally need none;
-a refactor relies on the existing suite staying green. Examples, not a closed list - a reordered
-field or a changed default is behavior, not formatting. When you decide no new test is needed, say
-why in one line (report and worklog).
+a refactor relies on the existing suite staying green. Neither does behavior that core already
+guarantees or that follows a pattern core applies everywhere (the "(copy)" name of a duplicate, a
+field's position in a view): a test is for a business rule of the module itself. A changed default
+that carries a business rule is behavior. When you decide no new test is needed, say why in one
+line (report and worklog).
 
 An empty diff never means "no test needed" when the brief carries adapt work (`SOURCE TESTS`, a
 bucket-(a) commit, a deferred test leg): those tests are still owed.

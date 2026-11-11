@@ -1,7 +1,3 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by odoo-solution-architect (designs it) and
-     odoo-coder (implements it). Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md. -->
-
 # Dynamic Demo Data (demo-readiness, not test fixtures)
 
 Demo data exists so the feature can be **demonstrated on a fresh database without manual data
@@ -11,9 +7,11 @@ for live demo readiness. Keep the two separate and serve both.
 
 ## Rule: every new end-user-visible model or behavior ships demo data
 
-If the design introduces a new model or a new behavior a user can see/operate, it MUST include demo
-data that exercises it, so the feature is demo-ready the moment the module installs on a build that
-carries demo. Which builds those are, and how each series spells the flag:
+A new model or behavior a user can see or operate ships demo data that exercises it, so the
+feature is demo-ready the moment the module installs on a build that carries demo - unless records
+the module itself ships (real data: its stages, templates, default records) already illustrate it
+for a prospect and for the user guide; a demo record that only duplicates a shipped record is
+removed, not maintained. Which builds those are, and how each series spells the flag:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. Note that an
 automation-test build never REQUIRES demo, and on the series where demo defaults off it has none
 at all - so demo data serves demo-readiness only, and a test must never depend on it.

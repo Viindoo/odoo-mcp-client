@@ -1,11 +1,12 @@
 # Instance profile resolution (which local instance serves a series)
 
-`instances.toml` declares the local Odoo instances on THIS host - series, profile, ports, database
-coordinates, `addons_path`, and the venv `python`. It is **Tier-1 - flat under `$ODOO_AI_HOME`**,
-not project-scoped (every other `.odoo-ai/` artifact is Tier-2, project/worktree-scoped). Full
-Tier-1/SHARE/ISOLATE classification tables:
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - do not restate the tables here).
-Read the catalog only through `catalog_read` (rows by series/profile) and `catalog_locate` (the
+A live Odoo MCP server in the session (one that reads or writes records) points at the instance
+its operator configured - often production - never at the one this run built: do not verify a
+change with it and never write through it.
+
+`instances.toml` (flat under `$ODOO_AI_HOME`) declares the local Odoo instances of this host -
+series, profile, ports, database coordinates, `addons_path`, the venv `python`. Read it only
+through `catalog_read` (rows by series/profile) and `catalog_locate` (the
 row whose `addons_path` covers a repo or worktree path); never parse the file yourself.
 
 ## Resolution order (stop at the first that yields a usable instance)

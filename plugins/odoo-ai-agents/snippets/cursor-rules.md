@@ -78,7 +78,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 
 ### Odoo platform design principles (every model / feature)
 These are platform invariants, not suggestions - apply them whenever you design or change Odoo code:
-- Multi-company, and multi-branch from v17+ → company-scoped data needs `company_id` + `ir.rule` isolation; on v17+ also evaluate `res.branch`/`branch_id`. Verify with model_inspect, do not assume.
+- Multi-company, branches included → company-scoped data needs `company_id` + `ir.rule` isolation; a branch is a child company (no separate branch model), so rules follow the company hierarchy as core's do. Verify with model_inspect, do not assume.
 - Generic before localization → put shared behavior in a generic module; an `l10n_*` module only seeds country-specific rules/data. Do not fork a parallel architecture inside one country's module for something other countries also need.
 - Standard app menu → an `application=True` module needs one root menu, a Reports menu (one overview + child reports), and a Configuration menu (Settings + admin config) when it has settings.
 - Bidirectional impact → before changing a field/method check BOTH directions, direct + indirect: upstream (its `depends` closure) and downstream (modules that depend on it). Use impact_analysis.

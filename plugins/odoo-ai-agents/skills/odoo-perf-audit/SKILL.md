@@ -18,11 +18,9 @@ Performance-focused Tech Lead / DBA auditing Odoo code with semantic MCP enrichm
 - **General code correctness / security review** - route to `odoo-code-review`
 - **Live profiling against a running instance** - requires a live Odoo MCP; this skill audits source code statically (with OSM grounding)
 
-## When to use
+## Reactive mode
 
-When the user shares Odoo Python, XML, or QWeb source and wants performance analysis, or when a list view / scheduled action / report is known slow and wants source-code root-cause analysis.
-
-**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a specific runtime performance symptom here (slow screen/query with reproduction recipe + version), root-cause THAT symptom following the scientific method (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`). A direct invocation with no specific symptom stays a proactive audit.
+When `odoo-debug` routes a specific runtime performance symptom here (slow screen/query with reproduction recipe + version), root-cause THAT symptom following the scientific method (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`). A direct invocation with no specific symptom stays a proactive audit.
 
 ## Diff-scope mode (optional)
 
@@ -74,7 +72,7 @@ Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 roun
 5. **Overly broad depends** - `@api.depends('line_ids')` on a stored field where `@api.depends('line_ids.price_unit', 'line_ids.qty')` would limit recompute scope
 6. **ORM-in-loop vs read_group** - `for rec in recs: total += rec.line_ids...` that could be a single `read_group` call
 7. **Heavy QWeb t-foreach** - `<t t-foreach="objects" t-as="o">` blocks calling `o.partner_id.name`, `o.currency_id.symbol`, etc. without prefetch warm-up
-8. **compute_sudo=True on heavy computations** - stored computed fields using `compute_sudo=True` bypass record rules and can mask access-pattern costs
+8. **`compute_sudo` set against its default** - a stored compute runs as superuser by default and a non-stored one as the user. Flag a non-stored compute forced to `compute_sudo=True` (it reads past record rules) and a stored one forced to `False` (its stored value then depends on who triggered the recompute) when no reason is stated; the default itself is not a finding
 
 ## Output format
 

@@ -6,4 +6,6 @@
   that framework. Which suite classes run them (desktop and mobile) and how a test sets a touch or
   non-touch device: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § JavaScript unit tests.
 - **Tour:** `js_test_inspect(module='web_tour', odoo_version='<version>')` for the registry path
-  and step shape, then `find_test_examples` for real steps.
+  and step shape, then `find_test_examples` for real steps. A tour runs only when its file is
+  declared in the module's test asset bundle (`web.assets_tests` on the series that have asset
+  bundles in the manifest): an undeclared tour is not found by `start_tour`.

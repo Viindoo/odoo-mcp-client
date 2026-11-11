@@ -15,7 +15,7 @@ before stopping on text-hunk conflicts. Rules:
 
 | File type | Policy |
 |---|---|
-| `.po` / `.pot` | Take the feature side per `po_policy`; then re-run `odoo-i18n` after the full rebase completes; do NOT hand-merge gettext diffs |
+| `.po` / `.pot` | Take git's three-way merge (the header from the feature side; an entry the feature branch added or changed wins, every other entry keeps the base's wording); then re-run `odoo-i18n` after the full rebase completes; do NOT hand-merge gettext diffs |
 | Binary (PNG, ODS, PDF, etc.) | Prefer feature per `binary_policy`; flag the choice in `rebase-log.md` |
 | Generated assets (compiled JS, minified CSS, etc.) | Regenerate from source after the rebase completes per `generated_policy`; do NOT hand-merge generated content |
 | Text hunk (Python/XML/JS/SCSS/CSV) | Route to the `odoo-coding` skill per ADAPT tier as described below |
