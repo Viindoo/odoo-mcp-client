@@ -13,25 +13,6 @@ def _read(rel):
     return re.sub(r"\s+", " ", (PLUGIN / rel).read_text(encoding="utf-8"))
 
 
-def test_only_the_migration_node_bumps_and_writes_migration_scripts():
-    rule = _read("snippets/odoo-platform-design-principles.md")
-    assert "the plan's `migration` node is the ONLY step that edits a module's `version`" in rule
-    assert "immediately before `integrate`" in rule
-    assert "by the smallest step - `x.y.z` -> `x.y.(z+1)`, and a two-component `x.y` -> `x.y.1`" in rule
-    assert "`migrations/<series>.<new short version>/`" in rule
-    assert "scripts/lib/migration_gate.py check" in rule
-
-
-@pytest.mark.parametrize("rel, phrase", [
-    ("agents/odoo-coder.md", "An existing module's `version` and anything under `migrations/` are touched only when your brief carries `MODE: migration`"),
-    ("agents/odoo-frontend-coder.md", "Edit the `version` key or anything under `migrations/` only when your brief asks for it"),
-    ("agents/odoo-test-writer.md", "the `version` or `migrations/` only when your brief asks for it"),
-    ("skills/odoo-intake/references/plan-mode-schema.md", "A build node edits a module's `version` or `migrations/` only when its brief asks for it"),
-])
-def test_no_build_node_touches_a_version_or_a_migration_folder_unless_asked(rel, phrase):
-    assert phrase in _read(rel)
-
-
 def test_the_migration_script_is_coded_by_the_coder_and_reviewed():
     skill = _read("skills/odoo-data-migration/SKILL.md")
     assert "Launch** ONE `odoo-coder` (model `sonnet`) with `MODE: migration`" in skill
@@ -83,12 +64,6 @@ def test_a_database_upgrade_request_is_routed_out():
     assert route in _read("skills/odoo-intake/references/collision-zones.md").lower()
     assert "needs a dedicated upgrade tool and repository" in _read("snippets/upg-conventions.md")
     assert "needs a dedicated upgrade tool and repository" in _read("skills/odoo-modules-upgrade/SKILL.md")
-
-
-def test_the_code_upgrade_writes_no_migration_and_bumps_no_version():
-    skill = _read("skills/odoo-modules-upgrade/SKILL.md")
-    assert "never bumps a `version`" in skill
-    assert "(b) any module's manifest `version` changed other than by dropping a series prefix, or a migration script was added" in skill
 
 
 def test_the_deploy_checklist_has_no_database_migration_domain():

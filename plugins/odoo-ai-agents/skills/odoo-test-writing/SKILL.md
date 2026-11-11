@@ -23,12 +23,7 @@ asserted to flag and allow, a refusal only for data integrity, a guard together 
 - **Running the module suite or a tour/HttpCase suite** -> `odoo-instance` via `NEEDS_NEXT`; this
   skill runs only its own baseline and break runs. A full load/stress harness -> `odoo-perf-audit`.
 
-## When to use
-
-`odoo-coder` invokes this skill INLINE for its own node - before the code when an acceptance
-criterion carries a comparable expected value, after the code for a behaviour discovered while
-coding (proven by the break in step 5). The `odoo-test-writer` agent invokes it for every other
-caller.
+## Modes
 
 - **`change`** - new or adjusted tests for the behavior the REQUEST changed.
 - **`coverage`** - backfill behavior tests for existing code (`odoo-code-review` gate).
@@ -91,18 +86,25 @@ is savepoint rollback). Where OSM lacks a detail, read
 
 ### 2. Search the existing tests first
 
-`tests_covering`, `find_test_examples` (test-only chunks, not `find_examples`), `test_coverage_audit`, and a `Grep` of the module's `tests/`, `static/tests/` and
-`static/tours/` in the worktree. Then per behavior: fully
+Find what already tests the behavior: the index (the tests covering the symbol, test examples,
+the module's coverage gaps) and the module's `tests/`, `static/tests/` and `static/tours/` in the
+worktree. Then per behavior: fully
 covered -> write nothing, but prove it by a break; partly covered -> add a method
 to that test class; an expectation the REQUEST made obsolete (including `OBSOLETE CANDIDATES`) ->
 adjust it and say why; not covered -> write a new test. A duplicate test is a defect.
 
 ### 3. Ground the model and the form view
 
-`model_inspect` for real field names and method signatures; `validate_relation` /
-`resolve_orm_chain` for relational paths. For a rule the user triggers in a form, read the form view
-(`model_inspect(model='<model>', method='views', odoo_version='<version>')`, plus the view XML in the worktree for anything the change adds). Reuse an existing helper's fixtures (`test_class_inspect`, then its source) instead of copying setUp code. For core ORM/action symbols the test calls directly, apply `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`
-§Test.
+Ground field names, method signatures and relational paths at the series. For a rule the user
+triggers in a form, read the merged form view (the indexed views plus the view XML in the worktree
+for anything the change adds). For core ORM/action symbols the test calls directly, apply
+`${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md` §Test.
+
+**Reuse before a new fixture, helper or base class.** Look for one that exists: the module's own
+test common classes, those of every module in its `depends` closure, and core's test helpers at
+the series (the ones that create users, companies, partners and documents). Extend or call it;
+copy no `setUp` code and add no dependency to reach one. Your report names each one reused, or
+`none found` with where you looked.
 
 ### 4. Write or adjust
 
@@ -113,8 +115,8 @@ or DISPLAY text, keep it simple. Name each method after the rule it protects
 (`test_discount_above_20pct_sets_audit_flag`). Expected values come from `TARGET BEHAVIOR`, never from the
 code.
 
-- **Own data only.** Create every record the test needs; never read a demo record
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE).
+- **Own data.** Create every record the test needs; a demo record is read only where
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/tests.md` § Demo data allows it.
 - **Register the file** in `<addon>/tests/__init__.py` per
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py` import order; the module's own `__init__.py` stays untouched. A JS test or tour asset loaded through a manifest key is the one `__manifest__.py`
   edit you may make.

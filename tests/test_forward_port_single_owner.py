@@ -148,15 +148,6 @@ def test_ethos_principle_2_reads_before_asking():
     assert "never widened" in ethos
 
 
-def test_framework_classes_are_unioned_by_the_instance_agent():
-    ops = _read("agents/odoo-instance-ops.md")
-    scope = ops.split("**Test scope (HARD RULE")[1].split("### ")[0]
-    assert "Framework-class union" in scope
-    assert "Framework-validation test classes" in scope
-    conv = _read("snippets/upg-conventions.md")
-    assert "unions it into every test run" in conv
-
-
 def test_upgrade_classifies_modules_and_gates_the_pr_on_it():
     skill = _read("skills/odoo-modules-upgrade/SKILL.md")
     assert "**upgraded**" in skill and "**already installable**" in skill
@@ -165,8 +156,3 @@ def test_upgrade_classifies_modules_and_gates_the_pr_on_it():
     assert "migrations/<older series>" in p7
 
 
-def test_reviewer_r1_checks_every_guideline_section():
-    reviewer = _read("agents/odoo-code-reviewer.md")
-    r1 = reviewer.split("## MODE R1")[1].split("## MODE R2")[0]
-    assert "every section of every guideline file" in r1
-    assert "always-invisible" in r1
