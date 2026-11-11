@@ -29,6 +29,10 @@ this node's coding nodes changed}. Compute the widening:
 3. KEEP ONLY owners that live in the repo under test; DROP every core / out-of-repo owner.
 4. Fold whole MODULES, never individual methods - `tests_covering` can return 900+ methods but
    only ~a dozen owner modules; the run unit is the owning module's suite.
+5. Reach, not only cover: an override on a report model built through `_table_query`, a server
+   action's code, a cron or a controller runs only when something calls it. A green run on an
+   install set with no caller proves nothing about it: widen the last pre-PR run to a module that
+   calls it, or query the model directly in a test.
 
 Own-module suites for every module in the run-set:
 - Python: `module_inspect(name=<module>, method="tests", odoo_version=<explicit>)`.

@@ -107,6 +107,11 @@ gate**, which selects the `web.Widget` / `AbstractField` / `odoo.define()` path.
    Bootstrap class that fixes a color regardless of theme (`bg-white`, `text-dark`,
    `border-light`). The test: a theme that changes a core token changes the module with it, with
    no edit in the module.
+7. **A stylesheet in the frontend bundle is loaded by every frontend page** (website, portal,
+   login, other modules' public pages): it never targets `body`, `html` or a bare element. Wrap
+   every rule in the page's own layout class, and give a page its background through the
+   layout's body class. A core UI test of another app that reds once the module is installed is
+   the module's defect.
 
 ### B. Token reality - OSM-grounded, never hardcoded
 
@@ -263,4 +268,13 @@ Six classes, each with its symptom, root cause, correct pattern and the series i
   `modal-body`). v18/v19 reorder the body/footer markup; the slot names are unchanged.
 - **Correct pattern:** body content in the default slot (no `t-set-slot`);
   `t-set-slot="header"` / `t-set-slot="footer"` only for those.
+- **Version applicability:** all v16+ (verify new majors via OSM).
+
+### Class 7 - props are validated only in dev mode
+
+- **Rule:** a test of a view compiler or renderer that inserts component nodes mounts the result
+  with prop validation on; the UI acceptance of such a change runs once with debug enabled.
+- **Root cause / ground truth:** OWL checks component props only when the app runs in dev mode,
+  so reading the compiled XML, a manual check or a screenshot in normal mode cannot catch a wrong
+  prop.
 - **Version applicability:** all v16+ (verify new majors via OSM).

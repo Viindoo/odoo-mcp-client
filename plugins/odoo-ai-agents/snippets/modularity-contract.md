@@ -9,6 +9,9 @@ A module may reference a model, field, method, xml_id, asset, group or record ON
 that owns it is the module itself or a member of the module's upstream `depends` closure (the
 transitive closure of `depends` in its manifest). A reference to anything else is a CRITICAL
 finding: the module cannot install alone, and it works only by accident of what else is installed.
+A CSS or SCSS selector that targets another module's markup is such a reference, and nothing
+records it: the rule compiles whether or not that module is installed. A stylesheet selects the
+module's own markup, core's, or that of a module in its closure.
 
 ## Where cross-module behaviour lives
 
@@ -17,6 +20,12 @@ both (`auto_install: True` when it must be present wherever both are). X never u
 Y, nor of a module that depends on Y, to "make it work". A cross-module scenario is proven only
 by the bridge's own tests or at acceptance on an instance that installs every module involved -
 never inside X's tests.
+
+`auto_install` is the one mechanism that brings a bridge in. Without the bridge each module
+behaves as it does alone, and that is correct: no guard that blocks an install, an update or an
+uninstall, no version check between modules, no warning, no control hidden on the bridge's
+absence and no note telling users to fetch it. An integration defect that remains with the bridge
+installed is fixed in the bridge.
 
 ## The check, per reference
 

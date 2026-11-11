@@ -68,6 +68,13 @@ produces it, (c) why this fix blocks that cause rather than masking the symptom.
 
 ---
 
+**Two traps of measurement.** A probe run with an empty or invented input answers only about that
+input: run it with the real input of the flow, and when a build that works exists, measure the
+same thing on both before naming a cause. A test that reds right after the install set, the
+`depends` or the test tags were widened may never have run before (a conditional skip stopped
+firing): find its start line in the previous run's log before asking what the change broke, and
+report a skipped test as an unmeasured risk, never as coverage.
+
 ## Handoff, not self-fix
 
 These debug agents DIAGNOSE; they do not edit source. Once the root cause is proven and the fix

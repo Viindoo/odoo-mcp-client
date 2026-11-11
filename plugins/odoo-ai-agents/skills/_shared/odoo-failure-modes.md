@@ -20,6 +20,8 @@
 | ORM call inside a loop (slow/limit) | N+1 - per-record query instead of batch read/write | `resolve_orm_chain`; see Performance layer |
 | Override never runs | wrong `_inherit`/`_name`, or super-chain bypassed | `find_override_point` (override chain + anti-patterns) |
 | Runtime presence probe (`hasattr(rec,'f')` / `getattr(rec,'f',default)` / `try...except AttributeError`) used instead of direct access | masks one of: (1) lookup-gap - existence never OSM-verified; (2) wrong ORM path - field lives on a related model; (3) missing-depends - field's module not in `depends` closure | `model_inspect` (field + declaring module) + `entity_lookup` (confirm real model/hop) + `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` (walk dep closure); see `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md` |
+| An ORM `write` right after a raw-SQL change of the same column has no effect | the cache still holds the old value, so the write is dropped as a no-op | `invalidate_recordset([<field>])` before the write, then re-read |
+| A time-window assertion on `create_date` fails only on slow or loaded runs | a `TransactionCase` class runs in one transaction, whose timestamp is the class start | anchor the reference time on `self.env.cr.now()`; compare the elapsed time since the class's first test with other builds |
 
 Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core_api`,
 `validate_depends`, `validate_domain`, `validate_relation`, `find_examples`.
@@ -59,6 +61,8 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 | `AccessError` on read/write | distinguish `ir.model.access` (CRUD per model/group) vs `ir.rule` (record-rule domain) | `model_inspect`; reproduce as the failing group; toggle with `sudo()` to confirm it is access (diagnose only, never fix-by-sudo) |
 | Unexpected data visible/hidden | record rule domain too broad/narrow; missing company rule | inspect the rule's domain; `validate_domain` |
 | Deep-dive for vulnerabilities (injection, XSS in QWeb, unsafe eval) | hand to `odoo-security-audit` (reactive mode) | - |
+| Duplicating a record raises `AccessError` for users outside a group | a copyable stored field carries `groups=`: `copy_data` reads every copyable field as the current user | restrict in the view and in `create`/`write` instead, or set `copy=False` on the field; run the core suites that duplicate the model |
+| Access answers differ between two shell sessions on one database | the registry's access cache kept state from a grant rolled back with a raw-SQL savepoint | run the mutating probe and the read-only sweep in separate processes, or clear the registry caches after the rollback |
 
 ## Layer: Performance
 
@@ -75,3 +79,4 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 | Bridge module absent after `-u` | `auto_install` fires on install only, never on update | `-i <bridge>` on the existing database; a fresh `-i` of the base modules shows the bridge joining |
 | Migration script errors | wrong version path; pre/post hook assumptions; renamed model/field | grep `migrations/`; `api_version_diff` |
 | Deprecated-API-at-runtime after upgrade | symbol removed/changed across versions | `lookup_core_api`, `api_version_diff`; for a full pre-upgrade scan hand to `odoo-deprecation-audit` |
+| End-migrate effects missing after re-running a failed `-u` | every module the failed run loaded was committed at its new version; end-migrate runs only once the whole graph has loaded, and the re-run finds nothing to migrate | reset `latest_version` of those modules to the previous version, run `-u` again (scripts idempotent), and check the data the end-migrate should have changed |

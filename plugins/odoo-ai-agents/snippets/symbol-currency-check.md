@@ -25,7 +25,10 @@ Trust `[pattern]` findings (deterministic - catches removed decorators like `@ap
 For a decorator, mixin/ORM helper, base class, or core method you call DIRECTLY - never your own
 custom field/model - call `lookup_core_api(name='<symbol>', odoo_version='<version>')`.
 `stable` -> use it as-is; `deprecated`/`removed` -> use the returned `replacement`. For a plain
-custom field/model add this is N=0 calls.
+custom field/model add this is N=0 calls. A method you call or override that still exists with the
+same name and parameters may still have changed: read its `def` line and body at the target series
+for its return type (a string that became an SQL object) and for the meaning of what it returns,
+its context keys and its selection values.
 
 ## Blind spots
 

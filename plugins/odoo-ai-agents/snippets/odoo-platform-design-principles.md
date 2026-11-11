@@ -58,7 +58,11 @@ module only **seeds** the rules, data, chart and taxes that differ per country.
 - **A value or rule set by law or regulation is a data record, never code** (§ 6).
 - **A generic accounting module runs on the generic chart of `account`** and is tested with it:
   accounts come from configuration, from the account type or from a partner or company property,
-  never from a code a localization assigns; the `l10n_*` module fills the hook.
+  never from a code a localization assigns; the `l10n_*` module fills the hook. Its tests take
+  accounts from the generic chart through the chart template's `ref(xmlid)` and pin that chart in
+  the test base class, so the suite does not depend on the localization installed. Code that
+  builds lines of a plain journal entry sets `tax_ids` explicitly, an empty list when no tax is
+  meant.
 
 ## 3. Standard app menu architecture (modules with `application=True`)
 
@@ -75,6 +79,8 @@ A non-application module (an extension, a bridge) is exempt from this section.
 
 ## 4. Extension, access and data hygiene (every module)
 
+- **A field with `groups=` on a model users duplicate breaks the copy** for everyone outside the
+  group: restrict editing in the view and in `create`/`write`, or set `copy=False` and say why.
 - **Extend, never replace.** A change to an existing view is an inherited view (`inherit_id` +
   xpath). A whole-view replacement happens only when the design names it and says why.
 - **Every new model ships its access row** in `ir.model.access.csv`. A model with `company_id`
@@ -93,6 +99,10 @@ A non-application module (an extension, a bridge) is exempt from this section.
 - **An economic transaction belongs to the commercial partner.** Invoices, receivables and
   payables, payments, reconciliation, credit limits and statements are recorded for and compared
   by `commercial_partner_id`, never a child contact.
+
+- **Point of sale works offline.** Anything at the counter - the selling screen, printing,
+  scales, scanners, the customer display, a bridge between them - works through the PoS offline
+  mode and syncs later; a sale never depends on the server at the moment of selling.
 
 ## 5. Change hygiene: versions, migrations, retirement
 
@@ -140,6 +150,10 @@ Within a series; a cross-series code upgrade follows
 - **Removing a `noupdate` data file deletes its records** at `_process_end` and cascades into
   customer records through `ondelete='cascade'`. A record customers reference is pinned by
   dropping its XML ID, never by removing the file.
+
+**A module merge is semantic.** Code merged from another module reads as if written once in the
+target: one class per model, no same-module `super()` chain where one method does, view
+extensions folded into the base view, and every shell or "module not installed" fallback deleted.
 
 ## 6. Legal rules as data
 

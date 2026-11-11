@@ -51,3 +51,7 @@ These rules are non-negotiable in every generated script:
 
 7. **Explicit transaction safety.** Do not call `env.cr.commit()` inside the migration
    function - Odoo's migration runner owns the transaction boundary.
+
+8. **No migration-only field.** State only a migration reads or writes (a "needs review" flag, a
+   conversion marker) never becomes a field: the script runs once and the field stays as dead
+   schema. What an operator must know goes to the log.

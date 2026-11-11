@@ -5,7 +5,7 @@ read. WHETHER the gate runs on a dispatch is owned by `GATE_ROLE` (`odoo-instanc
 
 ## Candidate set
 
-Odoo core `test_lint` (its series presence: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
+Odoo core `test_lint` (its series presence: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md`
 § Backend lint-class gate), plus every lint-class module the resolved addons path SHIPS: a module
 whose technical name starts with `test_` and whose tests run flake8 or pylint. Find them by reading
 the resolved addons path, never from memory.
@@ -65,3 +65,13 @@ the gate `tests-inconclusive`, whatever the counters say: a module whose tests n
 lint test skipped (its tool missing or too old, its scope filtered to nothing), a checker or
 plugin the log says failed to load, a count smaller than requested. `notes` names the module and
 the shortfall.
+
+## What the SQL-injection check proves
+
+The check judges syntax, not values, and its rules differ by series: read the checker the target
+series ships (the pylint plugin of core's `test_lint`) before changing a query to satisfy it. In
+its fuller form an integer conversion alone is accepted whatever the value, mixing it with a
+string conversion is not, only an `assert` (not a `raise`) clears a guarded parameter, and a
+private function is exempt - so the same line can pass in `_helper` and fail in `helper`. Convert
+a value that must be interpolated on its own first, join the pieces with string placeholders only,
+confirm the generated SQL is byte-identical, and re-run that one checker.

@@ -35,6 +35,10 @@ depth, every other consumer references it rather than restating it; Low = SMOKE 
 screen render without console/4xx-5xx error). The goal is depth where it matters, not uniform
 coverage.
 
+Tier by the write path, not by how broken a screen once looked: a screen that cannot write (a
+model with `_auto = False`, an access row with no write, a read-only widget) is a look-and-open
+check for `odoo-ui-review`, not a CRUD, role or state pass.
+
 ## Step 3 - Enumerate the affected screens
 
 For each in-scope module, list the screens (views/actions/menus) that bind a changed symbol -
