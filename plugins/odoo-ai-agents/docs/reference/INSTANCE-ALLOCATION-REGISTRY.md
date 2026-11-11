@@ -170,7 +170,9 @@ means "cannot prove liveness", never "proven dead" or "proven alive".
 
 **`owner.return_to_park`** (+ `return_park_ttl_s`, the budget it had) marks a lease taken out of a
 deliberate park by `resume` or `adopt`: a gc that condemns it because its new owner is gone parks it
-again with that budget instead of dropping its database.
+again with that budget instead of dropping its database. A lease with `owner.run_id` and a `built`
+record is parked on the same condemnation without this mark, at the default budget
+(`INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
 
 `drop_on_release` is true for an `ephemeral` lease whose database the caller builds through Odoo
 create-on-init and the allocator drops at release / gc through `scripts/lib/odoo_db.py`

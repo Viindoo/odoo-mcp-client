@@ -72,7 +72,8 @@ them.
   the session and pid rungs (`INSTANCE-ALLOCATION-RECLAIM.md` §7.1). Resume is `allocator.py resume
   <token> --pid <new server pid>`, one locked compare-and-set; `lease_find` with state `parked` is
   `allocator.py query --series <X.Y> --state parked`. Resuming or adopting a parked lease sets
-  `owner.return_to_park`, so a gc that finds its new owner gone parks it again instead of dropping it
+  `owner.return_to_park`, so a gc that finds its new owner gone parks it again instead of dropping it;
+  a built lease of a run is parked the same way when its owner is gone
   (`INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
 - **Shared ownership** - `INSTANCE-ALLOCATION-GUARDS.md` §6.3; `SHARED_NOT_PARKABLE`,
   `INSTANCE-ALLOCATION-API.md` §6.

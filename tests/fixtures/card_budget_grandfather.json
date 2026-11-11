@@ -22,7 +22,7 @@
     "snippets/instance-resolution.md": 4638,
     "snippets/master-child-design-contract.md": 9324,
     "snippets/new-module-manifest.md": 4052,
-    "snippets/odoo-bin-resource-limits.md": 6516,
+    "snippets/odoo-bin-resource-limits.md": 4268,
     "snippets/odoo-era-boundaries.md": 10382,
     "snippets/odoo-version-pivots.md": 16277,
     "snippets/osm-first-contract.md": 5403,
@@ -52,7 +52,7 @@
     "snippets/test-sensitivity-contract.md": 8684,
     "snippets/business-taxonomy.md": 4654,
     "snippets/odoo-platform-design-principles.md": 12562,
-    "skills/_shared/doc-capture-mechanics.md": 18858,
+    "skills/_shared/doc-capture-mechanics.md": 19344,
     "snippets/code-comment-contract.md": 5547
   }
 }

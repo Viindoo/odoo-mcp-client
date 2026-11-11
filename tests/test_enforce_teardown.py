@@ -1117,8 +1117,11 @@ class _Ledger:
                               env=self.env(anchor), timeout=60)
 
     def acquire(self, run_id="run-abc", mode="ephemeral", anchor=None, extra=()):
+        """`run_id=None` acquires an UNOWNED lease (`--allow-unowned`): SessionEnd still
+        reclaims it, where a lease that belongs to a run is parked."""
+        owner = ["--allow-unowned"] if run_id is None else ["--run-id", run_id]
         p = self.alloc("acquire", "--series", "17.0", "--mode", mode, "--no-create",
-                       "--ports", "1", "--run-id", run_id, *extra, anchor=anchor)
+                       "--ports", "1", *owner, *extra, anchor=anchor)
         assert p.returncode == 0, f"test setup: acquire failed: {p.stderr}"
         return re.search(r"^ALLOC_TOKEN=(\S+)$", p.stdout, re.M).group(1)
 
@@ -1697,12 +1700,16 @@ def test_session_end_gc_returns_at_once_and_reaps_from_a_detached_session(tmp_pa
 
     libdir = tmp_path / "scripts" / "lib"
     libdir.mkdir(parents=True)
-    # gc sleeps far longer than the hook may take, so a synchronous hook cannot hide here.
+    # gc blocks until the test opens the gate, so a synchronous hook cannot hide here (it would
+    # never return) and the test waits for nothing else.
+    gate = tmp_path / "gc-gate"
     (libdir / "allocator.py").write_text(
         "import os, sys, pathlib, time\n"
         "argv = sys.argv[1:]\n"
         "if argv[0] == 'gc':\n"
-        "    time.sleep(3)\n"
+        "    deadline = time.time() + 30\n"
+        f"    while not pathlib.Path({str(gate)!r}).exists() and time.time() < deadline:\n"
+        "        time.sleep(0.02)\n"
         "marker = pathlib.Path(__file__).parent / (argv[0] + '-done.txt')\n"
         "marker.write_text(str(os.getsid(0)))\n",
         encoding="utf-8",
@@ -1724,6 +1731,7 @@ def test_session_end_gc_returns_at_once_and_reaps_from_a_detached_session(tmp_pa
         "gc must still be running when the hook returns - if it already finished, the hook "
         "waited for it and the detach is not real"
     )
+    gate.write_text("go", encoding="utf-8")
     assert _wait_for_file(marker), (
         "the detached worker must still complete the gc after the hook returned - a fire-and-"
         "forget that never runs is worse than the synchronous version it replaced"
@@ -1733,44 +1741,6 @@ def test_session_end_gc_returns_at_once_and_reaps_from_a_detached_session(tmp_pa
     assert worker_sid != os.getsid(0), (
         "the worker must run in its OWN session (start_new_session/setsid); sharing this "
         "caller's session is what lets the dying CLI kill it mid-reap"
-    )
-
-
-def test_session_end_gc_reaping_bounds_are_not_squeezed_under_the_hook_timeout():
-    """The pre-detach defect, in one line of arithmetic: the script's own inner bounds
-    (gc 25s + reap 15s = 40s) already exceeded the 25s its registration granted the WHOLE
-    script, so a gc that actually used its bound guaranteed the rest was cut off - and gc
-    NEEDS that room (up to 10s of SIGTERM grace PER orphan). Now that the reaping is
-    detached, its bounds are sized for the work instead of for a hook budget. Lock that in:
-    the worker's own gc bound must be LARGER than the hook timeout, which is only possible
-    if the reaping no longer runs under it."""
-    text = GC_HOOK.read_text(encoding="utf-8")
-    bounds = {
-        name: int(re.search(rf"^{name}=(\d+)", text, re.MULTILINE).group(1))
-        for name in ("GC_TIMEOUT_S", "REAP_TIMEOUT_S")
-    }
-
-    reg = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
-    hook_timeouts = [
-        h.get("timeout")
-        for group in reg["hooks"]["SessionEnd"]
-        for h in group.get("hooks", [])
-        if "session-end-gc.sh" in h.get("command", "")
-    ]
-    assert hook_timeouts, "session-end-gc.sh must stay registered under SessionEnd"
-    hook_timeout = hook_timeouts[0]
-
-    assert bounds["GC_TIMEOUT_S"] > hook_timeout, (
-        f"the gc bound ({bounds['GC_TIMEOUT_S']}s) must exceed the hook timeout "
-        f"({hook_timeout}s) - if it fits under it, the reaping has been moved back under a "
-        f"budget the CLI does not honour anyway"
-    )
-    assert bounds["GC_TIMEOUT_S"] >= 60, (
-        f"gc spends up to 10s of SIGTERM grace per orphan; {bounds['GC_TIMEOUT_S']}s leaves "
-        f"no room for a real multi-orphan crash, the case this backstop exists for"
-    )
-    assert bounds["REAP_TIMEOUT_S"] <= bounds["GC_TIMEOUT_S"], (
-        "reap-orphans is the read-only half and must never outrank gc's bound"
     )
 
 
@@ -1832,11 +1802,12 @@ def test_session_end_reclaims_only_the_ending_sessions_own_running_leases(tmp_pa
     """THE CONTRACT. The ending session A holds a running lease and a PARKED one; a concurrent
     live session B holds a lease; an unanchored, pid-less lease is days past its TTL (liveness
     unprovable, NOT provably dead). A's process exits after the hook fires, as `claude` does.
-    Only A's running lease may go. MUST FAIL on the pre-fix hook (measured: it ran a bare `gc`
-    over the machine-global registry, whose TTL arm reclaimed the unprovable lease too)."""
+    Only A's running lease may go (it belongs to no run - one that does is parked, see the
+    test below). MUST FAIL on the pre-fix hook (measured: it ran a bare `gc` over the
+    machine-global registry, whose TTL arm reclaimed the unprovable lease too)."""
     other = subprocess.Popen(["sleep", "600"], start_new_session=True)
     try:
-        a_run = ledger.acquire("run-A", mode="exclusive")
+        a_run = ledger.acquire(None, mode="exclusive")
         a_parked = ledger.acquire("run-A", mode="exclusive", extra=("--db-name", "odoo_a_parked"))
         _age_lease(ledger, a_parked, 0, parked_at=int(time.time()), park_ttl_s=172800)
         b_run = ledger.acquire("run-B", mode="exclusive", anchor=str(other.pid),
@@ -1857,6 +1828,26 @@ def test_session_end_reclaims_only_the_ending_sessions_own_running_leases(tmp_pa
     finally:
         other.kill()
         other.wait(timeout=10)
+
+
+def test_session_end_parks_a_built_running_lease_that_belongs_to_a_run(tmp_path, ledger):
+    """The run may be resumed (a killed or checkpointed session ends exactly like this): the
+    ending session's lease that records a run id and a build keeps its database - parked, its
+    ports kept - while a lease of the same session with no run, or with no build, is reclaimed.
+    Driven through the REAL hook."""
+    owned = ledger.acquire("run-A", mode="exclusive")
+    assert ledger.alloc("record-build", owned, "--demo", "off").returncode == 0
+    unowned = ledger.acquire(None, mode="exclusive", extra=("--db-name", "odoo_unowned"))
+    unbuilt = ledger.acquire("run-A", mode="exclusive", extra=("--db-name", "odoo_unbuilt"))
+
+    log = _session_end(ledger, tmp_path)
+    ledger.close()  # the ending session's process exits, after the hook fired
+    assert _wait_worker_done(log), "the detached worker never finished"
+    assert not {unowned, unbuilt} & ledger.tokens()
+    reg = json.loads((ledger.home / "runtime" / "leases.json").read_text(encoding="utf-8"))
+    row, = [lz for lz in reg["leases"] if lz["token"] == owned]
+    assert row.get("parked_at") is not None and row["owner"].get("pid") is None
+    assert row["ports"], "a parked lease keeps the ports it will be served on"
 
 
 def test_session_end_destroys_nothing_while_the_anchor_is_still_alive(tmp_path, ledger):

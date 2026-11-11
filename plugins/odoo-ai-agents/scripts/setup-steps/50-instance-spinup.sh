@@ -146,6 +146,9 @@ source "$SCRIPT_DIR/../lib/resolve_instances.sh"
 # path). Policy: snippets/odoo-bin-resource-limits.md.
 # shellcheck source=../lib/resource_limits.sh
 source "$SCRIPT_DIR/../lib/resource_limits.sh"
+# The memory-capped launcher: the server below runs in a scope of its own, so a memory kill takes
+# the server down alone, never the session that started it.
+_RUN_BOUNDED_SH="$SCRIPT_DIR/../lib/run_bounded.sh"
 # Postgres client dispatch (pg_run_client) + db_run_mode vocabulary SSOT.
 # shellcheck source=../lib/pg_mode.sh
 source "$SCRIPT_DIR/../lib/pg_mode.sh"
@@ -1547,20 +1550,17 @@ cmd_apply() {
             _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
             logf="$_logs_dir/${_db_slug}-${_ts}.log"
             echo "LOG_PATH=$logf"
-            # v8-v11 listener guard (Problem 1 hardening - snippets/odoo-bin-
-            # resource-limits.md): Odoo applies NO memory cap of its own pre-
-            # v12 on ANY run mode - the generated limit_memory_hard/soft conf
-            # keys above are inert there too. A shell `ulimit -Sv` is the ONLY
-            # protection for a v8-v11 listener. Applied to the CURRENT shell
-            # immediately before backgrounding (the fork at `&` inherits it)
-            # and restored right after capturing `$!` - `ulimit` is a process
-            # rlimit, not a subshell, so it never disturbs setsid's process-
-            # group-leader invariant below. v12+ already gets the conf-key
-            # enforcement, so this guard is scoped to major < 12 only.
-            local _prev_lim_v=""
-            if ! resource_limit_is_uncapped && [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major < 12 )); then
-                _prev_lim_v="$(ulimit -Sv 2>/dev/null || echo unlimited)"
-                ulimit -Sv "$(resource_limit_hard_kib)" 2>/dev/null || true
+            # Memory cap (Problem 1 hardening - snippets/odoo-bin-resource-
+            # limits.md): the server runs in a memory-capped systemd scope of its
+            # own (lib/run_bounded.sh `capped`), so exceeding the cap kills it
+            # alone. Where no scope is usable, a v8-v11 listener falls back to
+            # `ulimit -Sv` (Odoo applies NO memory cap of its own pre-v12 on ANY
+            # run mode - the generated limit_memory_hard/soft conf keys above are
+            # inert there too); v12+ already gets the conf-key enforcement, so
+            # there the fallback is skipped (--scope-only).
+            local _cap_flag=""
+            if ! [[ "$_ver_major" =~ ^[0-9]+$ ]] || (( _ver_major >= 12 )); then
+                _cap_flag="--scope-only"
             fi
             # setsid: the server becomes its OWN session/process-group leader
             # (pgid == its own pid), so allocator.py can later stop the whole
@@ -1580,9 +1580,9 @@ cmd_apply() {
             # builds of 55-instance-ops.sh run under, so both use one filestore).
             odoo_isolated_rc_env "$conf"
             # shellcheck disable=SC2086
-            setsid "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
+            # `capped` execs, so the pid below is the server's own and still its group's leader.
+            setsid bash "$_RUN_BOUNDED_SH" capped ${_cap_flag:+"$_cap_flag"} "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!
-            [[ -n "$_prev_lim_v" ]] && { ulimit -Sv "$_prev_lim_v" 2>/dev/null || true; }
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
             # Bind the pid onto the caller's exclusive lease IMMEDIATELY - BEFORE
             # the readiness poll - so allocator.py release/gc can stop this

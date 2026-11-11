@@ -80,13 +80,13 @@ database (`INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
    `gc --scope dead-sessions` (ended sessions past `ANCHOR_GRACE_S`, dead or recycled server pids,
    expired parks - never the TTL arm), waits for this session's anchor process to exit, then runs
    `gc --scope anchor` for this session's running and reserved leases; a parked lease survives the
-   session by design, and a lease resumed or adopted out of a park is parked again rather than
-   dropped (`owner.return_to_park`). Finally it runs `reap-orphans` in list-only mode. Flow diagram:
+   session by design, and a built lease of a run, like a lease resumed or adopted out of a park, is
+   parked rather than dropped. Finally it runs `reap-orphans` in list-only mode. Flow diagram:
    `INSTANCE-ALLOCATION-RECLAIM.md` §7.2.
 4. **Explicit human sweep** - `lease_gc` / `allocator.py gc` (dry run first) and
    `allocator.py reap-orphans --yes` against the persisted candidate list. Each `lease_gc` row
    carries `action: reclaim` (server stopped, throwaway database dropped, lease deleted) or
-   `action: park` (a lease resumed out of a park goes back to it, database and ports kept); a real
+   `action: park` (a built lease of a run, or a lease resumed out of a park: database and ports kept); a real
    run lists the re-parked token prefixes in `parked`. Only an explicit
    `gc --scope all` applies the legacy TTL arm to a lease whose liveness cannot be proven.
 

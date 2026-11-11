@@ -152,24 +152,9 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
    `take_screenshot` `format` `png`; playwright `type` `png`), so text stays sharp. A GIF's width = the slot width: record at a
    viewport within the step-3 cap and pass the slot width as `record_and_gif` `gifWidth` /
    `convert_to_gif` `width`.
-7. **Verify.** Read the image's pixel width from its file header with the plugin interpreter:
-
-   ```
-   python3 - <image file> <<'EOF'
-   import struct, sys
-   b = open(sys.argv[1], "rb").read()
-   if b[:4] == b"\x89PNG":
-       w = struct.unpack(">I", b[16:20])[0]
-   elif b[:3] == b"GIF":
-       w = struct.unpack("<H", b[6:8])[0]
-   else:  # JPEG: walk the segments to the first SOF marker
-       i = 2
-       while b[i + 1] < 0xC0 or b[i + 1] > 0xCF or b[i + 1] in (0xC4, 0xC8, 0xCC):
-           i += 2 + struct.unpack(">H", b[i + 2:i + 4])[0]
-       w = struct.unpack(">H", b[i + 7:i + 9])[0]
-   print(w)
-   EOF
-   ```
+7. **Verify.** Read the image's pixel size with
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_sheet.py size --inputs <image files>` (one
+   `SIZE=<path> <width> <height>` line per file).
 
    Divide by the device pixel ratio (1 for a GIF) to get the captured CSS width; that value is the
    `:width:` the doc writer records for the image in an RST. When it fails the step-3 cap,
@@ -190,7 +175,9 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
 2. Frame the shot for its slot (section 7).
 3. On-theme check (section 6).
 4. Capture straight to the section-3 staging path in the final format, then verify its width
-   (section 7).
+   (section 7). In a run that varies one condition across shots (colour scheme, breakpoint,
+   language), read that condition back from the page right before EACH shot: a check at the start
+   of the run does not hold for the fifth image.
 
 ## 9. CAPTURE MODE - screens vs scenarios
 
@@ -270,6 +257,15 @@ Reference every final per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.
 capture stays where it was written, cited by that path.
 
 ## 14. Hard constraints (capture)
+
+- You write no image script of your own. To look at many shots at once, build a contact sheet with
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_sheet.py sheet --out <file> --col-width <px>
+  --columns <n> --inputs <files>`: it only scales down, and a `REFUSED=` line means the request was
+  too large - ask for fewer columns or fewer files, never work around it.
+- A command of yours that can grow without bound (a batch over many images, a documentation
+  build) runs under the memory cap of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`
+  § A heavy command of your own. Exit status 137 means it was killed for memory: make the work
+  smaller, never re-run it unchanged.
 
 - You run no git, `gh` or GitHub MCP call: a repo fact comes from `repo_facts`; the dispatching
   skill commits via git-toolkit `git-ops`.

@@ -14,7 +14,7 @@ Create a new Odoo database with a given module set for a target series.
 
 **Inputs:** series, modules (list), demo (`on`/`off`; absent means DERIVE per "Demo, languages and server-wide modules"), languages (csv; `en_US` added by the tool), server_wide (optional), addons_path override (optional), `persist` (default `ephemeral`; values: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5), `run_id` (passed on every lease call; NEVER omitted).
 
-**Resume before you build (listening `persist:` values only - FIRST).** `lease_find(series, state parked, run_id)`. `found=true` with `yours: true` -> operation 9, resume-instance, on that lease; do NOT acquire. `found=false` is an ordinary answer - build below. Full ladder: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
+**Resume before you build (listening `persist:` values only - FIRST).** `lease_find(series, state parked, run_id)`. `found=true` with `yours: true` -> operation 9, resume-instance, on that lease; do NOT acquire. `found=false` is an ordinary answer - build below. A run whose earlier session died finds here the built leases gc parked for it: resume the one this request needs and `lease_release` those it does not - a parked lease holds its ports until its budget lapses. Full ladder: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
 
 **Mechanism - branch on `persist`:**
 

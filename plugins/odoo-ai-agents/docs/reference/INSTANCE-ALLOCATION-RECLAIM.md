@@ -129,16 +129,30 @@ flowchart TD
     CL -- no --> WT[wait up to 60s for the anchor process to exit]
     WT --> G{anchor still alive?}
     G -- yes --> KEEP[allocator refuses ANCHOR_ALIVE, nothing reclaimed]
-    G -- no --> AN[gc --scope anchor: this session's running and reserved leases; a return_to_park lease is parked again]
+    G -- no --> AN[gc --scope anchor: this session's running and reserved leases; a built lease of a run, and a return_to_park lease, are parked instead]
     KEEP --> RO[reap-orphans list-only, candidates logged]
     AN --> RO
 ```
 
 A parked lease survives its session's end on purpose (park is how a session keeps a database for a
-later one); its own budget, rung 1, governs it. A lease RESUMED or ADOPTED out of a park carries
-`owner.return_to_park`: when any gc path condemns it because its new owner is gone (session ended,
-server dead or recycled), it is PARKED again with the budget it had (`ALLOC_PARKED`, JSON `parked`)
-instead of being dropped. A parked lease's full token is shown only to its own run (`lease_find`,
+later one); its own budget, rung 1, governs it.
+
+**A lease whose owner is gone is parked, not dropped, when a run can come back for it.** When any
+gc path condemns a lease because its owner is provably gone (session ended, server dead or
+recycled), the lease is PARKED - server stopped, database, filestore and ports kept, `ALLOC_PARKED`,
+JSON `parked`, reclaim log `action=parked` - in two cases: it records a run id AND a build (the
+database is worth keeping and the run can present its id to find it), or it was resumed or adopted
+out of a park (`owner.return_to_park`, parked again with the budget it had). The park budget is the
+default 48h unless the lease carried its own; when it lapses, gc reclaims the lease like any expired
+park. Still reclaimed at once: a lease with no run id, a run's lease that was never built, a shared
+lease, and a lease whose `release` was interrupted mid-drop. A run that finishes normally releases
+its leases itself, so nothing of it is left to park. A row a capacity reclaim had orphaned gets its
+former ports back when they are free; otherwise it is parked without ports and can only be released.
+
+The run that comes back gets the instance without a rebuild: `lease_find` (state `parked`, its
+`run_id`), `lease_adopt`, `instance_serve`. Parked leases keep their ports: a pool held by the
+parked leases of abandoned runs refuses `lease_acquire` with `PORT_POOL_EXHAUSTED` until those
+budgets lapse or a human releases them (`allocator.py release --force`). A parked lease's full token is shown only to its own run (`lease_find`,
 `lease_list`).
 
 ### 7.3 Two-phase reclamation and the `reclaiming` marker
@@ -193,8 +207,8 @@ keeps sweeping the registry.
 | Two allocators pick the same port | the flock serialises the read-modify-write; a live probe that binds the way Odoo does (`SO_REUSEADDR` + bind + listen) rejects a port a non-allocator process listens on, while a TIME_WAIT port stays usable. No holder at all yet no bindable port is `PORT_POOL_EXHAUSTED` with reason `ports-busy-outside-registry`. |
 | Ephemeral database name collision | uuid8 suffix; an Odoo create-on-init failure is retried with a new acquire. |
 | A subagent ends while its lease is live | the lease is protected by the SESSION, not the subagent. The SubagentStop teardown gate (`INSTANCE-LIFECYCLE-TEARDOWN.md`) blocks the subagent until it releases, parks or hands the lease off by name. |
-| The session ends normally | the SessionEnd hook reclaims that session's running and reserved leases (`gc --scope anchor`) once its anchor process has exited (§7.2). Parked leases survive. |
-| The session is killed (`-9`, OOM) | its anchor dies with it. Its leases stay protected for `ANCHOR_GRACE_S` after their last touch (a `claude --resume` of the same session id re-anchors them), then any later `gc --scope dead-sessions` - the next session to end on this host - reclaims them. A server that survives the session is stopped only if its pid is proven to be that lease's own. |
+| The session ends normally | the SessionEnd hook settles that session's running and reserved leases (`gc --scope anchor`) once its anchor process has exited (§7.2): a built lease of a run is parked, the others are reclaimed. Parked leases survive. |
+| The session is killed (`-9`, OOM) | its anchor dies with it. Its leases stay protected for `ANCHOR_GRACE_S` after their last touch (a `claude --resume` of the same session id re-anchors them), then any later `gc --scope dead-sessions` - the next session to end on this host - parks the built leases of a run and reclaims the others (§7.2), so a resumed run finds its databases. A server that survives the session is stopped only if its pid is proven to be that lease's own. |
 | A lease with no provable liveness (another host, no pid, no anchor) | never touched by an automatic path; only an explicit `gc --scope all` past the legacy TTL arm (at least 24h) reclaims it. |
 | Postgres unreachable | `acquire` refuses fast with exit 9; never silently shares a database. |
 | `$ODOO_AI_HOME` on a network FS without working flock | the registry must live on a local FS; setup checks and warns. |

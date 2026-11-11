@@ -300,8 +300,8 @@ def test_an_uninstalled_pin_is_reported_rather_than_left_deceptive(tree):
 # --------------------------------------------------------------------------- #
 
 def _launch_subshells(text):
-    """The body of every ulimit-scoped odoo-bin launch subshell: from its `(` to its `) >>"$logf"`."""
-    marker = 'resource_limit_is_uncapped || ulimit -Sv'
+    """The body of every memory-capped odoo-bin launch subshell: from its `(` to its `) >>"$logf"`."""
+    marker = 'exec_memory_capped "'
     out, pos = [], 0
     while (hit := text.find(marker, pos)) != -1:
         start = text.rfind("(\n", 0, hit)
@@ -315,7 +315,7 @@ def test_every_odoo_bin_launch_applies_the_toolchain():
     """The launch sites must actually call it, once per odoo-bin invocation that can run tests: one
     that passes --test-enable, or that appends caller-supplied flags (${arg_extra}), which can. A
     launch with neither (the i18n export: a fixed argv that exports and exits) runs no test, so it
-    needs no lint toolchain. Tied to the ulimit-scoped subshells, so a new test-capable verb added
+    needs no lint toolchain. Tied to the memory-capped launch subshells, so a new test-capable verb added
     without the call goes red here instead of silently linting with the OS toolchain."""
     text = OPS.read_text(encoding="utf-8")
     assert "source \"$LIB_DIR/lint_toolchain.sh\"" in text, "55-instance-ops.sh must source the lib"

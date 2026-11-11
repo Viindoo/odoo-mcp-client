@@ -125,7 +125,7 @@ Verb semantics that a synopsis cannot carry (the full text is the docstring):
   anchor, prints `allocator: adopted lease <token> run_id=<id>`; adopting (or resuming) a parked
   lease sets `owner.return_to_park`. **`heartbeat`** - refreshes `heartbeat_at` and, for the
   caller's own session, `seen_at`.
-- **`gc`** - scopes: RECLAIM §7.2; a condemned `return_to_park` lease is parked again, not dropped.
+- **`gc`** - scopes: RECLAIM §7.2; a condemned lease that belongs to a run and records a build, or carries `return_to_park`, is parked, not dropped.
   **`list --with-verdict`** - the liveness SSOT (RECLAIM §7.1). **`db-preflight`** evaluates
   `DB_AUTH` first; **`can-createdb`** is the ladder `acquire --mode ephemeral` gates on (§6.6).
   **`assert-droppable`** - GUARDS §6.3. **`reap-orphans`** - RECLAIM §6.5. **`anchor`** - its first

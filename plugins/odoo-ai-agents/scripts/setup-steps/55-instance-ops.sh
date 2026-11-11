@@ -102,7 +102,7 @@
 #             loaded." marker) -> non-zero return with the log path preserved for
 #             diagnosis; this verb NEVER blocks on reading a log line to decide
 #             completion, only on the process actually exiting. The launch is
-#             ALSO wrapped in a `ulimit -Sv`+`--limit-memory-hard=` resource-limit
+#             ALSO wrapped in a memory-cap + `--limit-memory-hard=` resource-limit
 #             guard (see below and snippets/odoo-bin-resource-limits.md).
 #   update  --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--version <X.Y>] [--extra "<resolved flags>"]
@@ -207,7 +207,7 @@
 #      UNDETERMINABLE state never blocks.
 #
 # RESOURCE LIMITS (init/update/test only - Problem 1 hardening): the odoo-bin
-# launch runs in a scoped subshell `( ulimit -Sv <kib> ...; <odoo-bin cmd> ...
+# launch runs in a scoped subshell `( ...; exec_memory_capped <odoo-bin cmd> ...
 # --limit-memory-hard=<bytes> ... ${arg_extra} )` - both driven by
 # scripts/lib/resource_limits.sh, overridable via ODOO_AI_LIMIT_MEMORY_HARD.
 # Full policy (why both mechanisms, the v12.0 enforcement boundary, the
@@ -360,10 +360,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 ODOO_DB_PY="$LIB_DIR/odoo_db.py"
 # Resource-limit SSOT (Problem 1 hardening) - resolves the memory HARD cap
-# for the ulimit/--limit-memory-hard wrapper on all 3 odoo-bin verbs below.
+# for the memory-cap/--limit-memory-hard wrapper on all 3 odoo-bin verbs below.
 # Policy: snippets/odoo-bin-resource-limits.md. Values: scripts/lib/resource_limits.sh.
 # shellcheck source=../lib/resource_limits.sh
 source "$LIB_DIR/resource_limits.sh"
+# exec_memory_capped: every odoo-bin below runs in a memory-capped scope of its own, so exceeding
+# the cap kills odoo-bin alone (status 137), never the session that launched it.
+# shellcheck source=../lib/run_bounded.sh
+source "$LIB_DIR/run_bounded.sh"
 # addons_path separator SSOT mirror (_addons_path_to_array) - see
 # scripts/lib/instances_io.py's join_addons_path/split_addons_path docstring.
 # shellcheck source=../lib/resolve_instances.sh
@@ -2304,15 +2308,15 @@ cmd_init() {
     log_ns="$(_resolve_log_ns)"
 
     # Resource-limit wrapper (Problem 1 hardening - snippets/odoo-bin-resource-
-    # limits.md, SSOT values in resource_limits.sh): `ulimit -Sv` is the
-    # version-general spine (Odoo applies NO memory cap on v8-v11's build
-    # path); `--limit-memory-hard=<bytes>` raises Odoo's own v12+ default
-    # clamp. resource_limit_hard_bytes() already resolves to 0 under the
-    # uncapped escape hatch, so the flag is always emitted; only the `ulimit`
-    # call is skipped in that case.
-    local _lim_bytes _lim_kib
+    # limits.md, SSOT values in resource_limits.sh): exec_memory_capped
+    # (lib/run_bounded.sh) is the version-general spine - odoo-bin runs in a
+    # memory-capped scope of its own, else under `ulimit -Sv` (Odoo applies NO
+    # memory cap on v8-v11's build path); `--limit-memory-hard=<bytes>` raises
+    # Odoo's own v12+ default clamp. resource_limit_hard_bytes() already
+    # resolves to 0 under the uncapped escape hatch, so the flag is always
+    # emitted; exec_memory_capped then adds no cap.
+    local _lim_bytes
     _lim_bytes="$(resource_limit_hard_bytes)"
-    _lim_kib="$(resource_limit_hard_kib)"
 
     local rc=0
     # shellcheck disable=SC2086
@@ -2328,7 +2332,7 @@ cmd_init() {
     # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
     # a log-tail wait; the log is consulted ONLY afterward, to CONFIRM the exit
     # actually installed something (see _install_confirmed).
-    # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
+    # Scoped subshell: the memory cap applies only to this one odoo-bin
     # invocation and never leaks past it. --limit-memory-hard sits BEFORE
     # ${arg_extra} so a caller-supplied override in --extra still wins
     # (Odoo's arg parser takes the last occurrence).
@@ -2342,7 +2346,6 @@ cmd_init() {
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         # The run conf is the ONLY config file this Odoo reads (odoo_cli_facts.sh).
         odoo_isolated_rc_env "$RUN_CONF"
-        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Toolchain env for Odoo's own lint families, scoped to THIS launch the
         # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
         # Without it `test_eslint` resolves whatever `eslint` PATH happens to
@@ -2381,7 +2384,7 @@ cmd_init() {
         # need a superuser).
         # Stable `server` option across v8-v19 - only its help text changed (at
         # v10), never the flag - so unlike --dev=all this needs NO series gate.
-        "$arg_python" "$odoo_bin" \
+        exec_memory_capped "$arg_python" "$odoo_bin" \
             -c "$RUN_CONF" \
             -d "$arg_db" \
             -i "$arg_modules" \
@@ -2463,16 +2466,15 @@ cmd_update() {
 
     # Resource-limit wrapper - see the identical comment block in cmd_init
     # above and snippets/odoo-bin-resource-limits.md for the full policy.
-    local _lim_bytes _lim_kib
+    local _lim_bytes
     _lim_bytes="$(resource_limit_hard_bytes)"
-    _lim_kib="$(resource_limit_hard_kib)"
 
     local rc=0
     # shellcheck disable=SC2086
     # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
     # a log-tail wait; the log is consulted ONLY afterward to CONFIRM the exit
     # actually updated something (see _install_confirmed).
-    # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
+    # Scoped subshell: the memory cap applies only to this one odoo-bin
     # invocation and never leaks past it. --limit-memory-hard sits BEFORE
     # ${arg_extra} so a caller-supplied override in --extra still wins.
     (
@@ -2485,7 +2487,6 @@ cmd_update() {
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         # The run conf is the ONLY config file this Odoo reads (odoo_cli_facts.sh).
         odoo_isolated_rc_env "$RUN_CONF"
-        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Toolchain env for Odoo's own lint families, scoped to THIS launch the
         # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
         # Without it `test_eslint` resolves whatever `eslint` PATH happens to
@@ -2503,7 +2504,7 @@ cmd_update() {
         # it earns its place when this subcommand is the first to name a
         # not-yet-existing database, which is the only moment unaccent can
         # still be installed.
-        "$arg_python" "$odoo_bin" \
+        exec_memory_capped "$arg_python" "$odoo_bin" \
             -c "$RUN_CONF" \
             -d "$arg_db" \
             -u "$arg_modules" \
@@ -2615,9 +2616,8 @@ cmd_test() {
 
     # Resource-limit wrapper - see the identical comment block in cmd_init
     # above and snippets/odoo-bin-resource-limits.md for the full policy.
-    local _lim_bytes _lim_kib
+    local _lim_bytes
     _lim_bytes="$(resource_limit_hard_bytes)"
-    _lim_kib="$(resource_limit_hard_kib)"
 
     local rc=0
     # Completion of a test run is the process exit, with one bound: Odoo logs
@@ -2635,7 +2635,7 @@ cmd_test() {
     [[ "$_log_start" =~ ^[0-9]+$ ]] || _log_start=0
     local _odoo_pid _shutdown_at="" _forced=0 _i _scan_from="$_log_start" _size
     # shellcheck disable=SC2086
-    # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
+    # Scoped subshell: the memory cap applies only to this one odoo-bin
     # invocation and never leaks past it. --limit-memory-hard sits BEFORE
     # ${arg_extra} so a caller-supplied override in --extra still wins.
     # The subshell runs in the background and `exec`s odoo-bin, so its pid IS
@@ -2653,7 +2653,6 @@ cmd_test() {
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         # The run conf is the ONLY config file this Odoo reads (odoo_cli_facts.sh).
         odoo_isolated_rc_env "$RUN_CONF"
-        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Toolchain env for Odoo's own lint families, scoped to THIS launch the
         # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
         # Without it `test_eslint` resolves whatever `eslint` PATH happens to
@@ -2671,7 +2670,7 @@ cmd_test() {
         # it earns its place when this subcommand is the first to name a
         # not-yet-existing database, which is the only moment unaccent can
         # still be installed.
-        exec "$arg_python" "$odoo_bin" \
+        exec_memory_capped "$arg_python" "$odoo_bin" \
             -c "$RUN_CONF" \
             -d "$arg_db" \
             "$mode_flag" "$arg_modules" \
@@ -2894,8 +2893,7 @@ _i18n_export_one() {
     (
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         odoo_isolated_rc_env "$i18n_conf"
-        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
-        exec "${argv[@]}"
+        exec_memory_capped "${argv[@]}"
     ) >>"$logf" 2>&1 || rc=$?
     if [[ "$rc" -ne 0 || ! -s "$tmp" ]]; then
         rm -f "$tmp"
@@ -3054,8 +3052,6 @@ cmd_i18n_export() {
     addons_csv="$(_addons_csv_from "$arg_addons")"
     local DB_CONN_ARGS
     _build_db_conn_args
-    local _lim_kib
-    _lim_kib="$(resource_limit_hard_kib)"
     trap _i18n_cleanup EXIT
     trap '_i18n_cleanup; exit 143' TERM
     trap '_i18n_cleanup; exit 130' INT

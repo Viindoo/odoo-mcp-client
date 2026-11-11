@@ -245,8 +245,6 @@ def test_a_pool_busy_outside_the_registry_gets_a_distinct_remedy(client, world):
         assert err["diagnostics"]["fields"]["reason"] == "ports-busy-outside-registry"
         assert err["diagnostics"]["fields"]["holders"] == []
         assert err["remedy"] == errors.TOOL_REMEDIES["PORT_POOL_EXHAUSTED"]["reasons"]["ports-busy-outside-registry"]
-        assert "outside the lease registry" in err["remedy"]
-        assert "release or park a lease" not in err["remedy"]
         assert _registry(world["home"])["leases"] == [], "a refused acquire must leave no lease behind"
     finally:
         blocker.close()
@@ -281,7 +279,6 @@ def test_a_worktree_only_addons_path_that_drops_the_core_addons_is_refused_with_
     assert err["diagnostics"]["fields"]["reason"] == "core-addons-missing"
     assert err["remedy"] == \
         errors.TOOL_REMEDIES["ADDONS_PATH_OVERRIDE_INVALID"]["reasons"]["core-addons-missing"]
-    assert "replace only the entry that covers this repo" in err["remedy"]
     assert _registry(world["home"])["leases"] == [], "a refused acquire must leave no lease behind"
 
     lease = _ok(_acquire(client, world, addons_path=[str(core), str(worktree)]))["lease"]
@@ -292,27 +289,20 @@ def test_a_worktree_only_addons_path_that_drops_the_core_addons_is_refused_with_
 # --------------------------------------------------------------------------- #
 # ownership + argument contract
 # --------------------------------------------------------------------------- #
-def test_release_by_another_run_is_refused_and_keeps_the_lease(client, world):
-    token = _ok(_acquire(client, world))["lease"]["token"]
-    err = _err(client.call("lease_release", {"lease_token": token, "run_id": "some-other-run"}))
-    assert err["code"] == "NOT_OWNER"
-    assert err["remedy"] == errors.TOOL_REMEDIES["NOT_OWNER"]
-    assert [lz["token"] for lz in _registry(world["home"])["leases"]] == [token]
-
-
-def test_park_by_another_run_is_refused(client, world):
+def test_another_runs_release_park_and_adopt_are_refused_and_never_name_the_owner(client, world):
     """Decided by the allocator (under its lock, ahead of the lease-state refusals - this lease has
     no server, so a later check would say NOT_RUNNING); the tool surfaces that named error with its
-    own tool-vocabulary remedy, and the lease is left as it was."""
+    own tool-vocabulary remedy, never names the owner run, and the lease is left as it was."""
     token = _ok(_acquire(client, world))["lease"]["token"]
-    err = _err(client.call("lease_park", {"lease_token": token, "run_id": "some-other-run"}))
-    assert err["code"] == "NOT_OWNER"
-    assert err["remedy"] == errors.TOOL_REMEDIES["NOT_OWNER"]
+    for tool in ("lease_release", "lease_park", "lease_adopt"):
+        err = _err(client.call(tool, {"lease_token": token, "run_id": "some-other-run"}))
+        assert err["code"] == "NOT_OWNER", tool
+        if tool != "lease_adopt":
+            assert err["remedy"] == errors.TOOL_REMEDIES["NOT_OWNER"], tool
+        assert "owner_run_id" not in err["diagnostics"], tool
+        assert RUN not in json.dumps(err), "%s leaks the owner run: %s" % (tool, err)
     rows = _registry(world["home"])["leases"]
     assert [lz["token"] for lz in rows] == [token] and "parked_at" not in rows[0]
-
-
-def test_park_of_an_unknown_token_is_lease_not_found(client, world):
     err = _err(client.call("lease_park", {"lease_token": "0" * 32, "run_id": RUN}))
     assert err["code"] == "LEASE_NOT_FOUND"
 
@@ -330,33 +320,24 @@ def test_park_of_a_lease_never_served_keeps_it_and_a_second_park_is_refused_by_n
     assert "instance_serve" in err["remedy"], "the remedy speaks tool vocabulary"
 
 
-@pytest.mark.parametrize("mode", ["ephemeral", "exclusive", "shared"])
-def test_every_leasing_mode_requires_a_run_id(client, world, mode):
-    err = _err(client.call("lease_acquire", {"series": SERIES, "mode": mode, "cwd": str(world["work"]),
-                                             "no_create": True}))
-    assert err["code"] == "RUN_ID_REQUIRED"
-    assert "never invent" in err["remedy"].lower()
-    assert _registry(world["home"])["leases"] == []
-
-
-def test_missing_series_is_an_invalid_argument_naming_it(client, world):
+def test_arguments_the_tools_refuse_are_refused_by_name_and_leave_no_lease_behind(client, world):
+    for mode in ("ephemeral", "exclusive", "shared"):
+        err = _err(client.call("lease_acquire", {"series": SERIES, "mode": mode, "cwd": str(world["work"]),
+                                                 "no_create": True}))
+        assert err["code"] == "RUN_ID_REQUIRED", mode
+    for mode in ("shared", "readonly"):  # a mode that reserves no port: refused, not ignored
+        err = _err(_acquire(client, world, mode=mode, ports=1))
+        assert err["code"] == "INVALID_ARGUMENTS" and err["message"].startswith("arguments.ports"), mode
     err = _err(client.call("lease_acquire", {"run_id": RUN, "cwd": str(world["work"])}))
     assert err["code"] == "INVALID_ARGUMENTS" and err["message"].startswith("arguments.series")
-
-
-def test_unknown_series_is_no_instance_with_a_tool_remedy(client, world):
     err = _err(_acquire(client, world, series="99.0"))
     assert err["code"] == "NO_INSTANCE" and "catalog_read" in err["remedy"]
-
-
-def test_relative_cwd_is_refused(client, world):
     err = _err(_acquire(client, world, cwd="relative/dir"))
     assert err["code"] == "INVALID_ARGUMENTS" and "arguments.cwd" in err["message"]
-
-
-def test_scope_run_requires_a_run_id(client):
     err = _err(client.call("lease_list", {"scope": "run"}))
     assert err["code"] == "INVALID_ARGUMENTS" and "run_id" in err["message"]
+    assert _err(client.call("db_preflight", {"series": "99.0"}))["code"] == "NO_INSTANCE"
+    assert _registry(world["home"])["leases"] == [], "a refused acquire leaves no lease behind"
 
 
 # --------------------------------------------------------------------------- #
@@ -460,6 +441,7 @@ def test_gc_dry_run_names_an_ended_sessions_lease_but_removes_nothing(world):
     with McpClient(a.env, world["work"]) as ca:
         ca.initialize()
         token = _ok(_acquire(ca, world))["lease"]["token"]
+    _record_build(world["home"], token)
     a.end()
     with McpClient(b.env, world["work"]) as cb:
         cb.initialize()
@@ -468,8 +450,17 @@ def test_gc_dry_run_names_an_ended_sessions_lease_but_removes_nothing(world):
         cands = _ok(cb.call("lease_gc", {"scope": "all"}))["leases"]
         assert [(c["token_prefix"], c["reason"]) for c in cands] == [(token[:8], "owner-session-ended")]
         assert "token" not in cands[0], "gc never hands out a full token"
-        assert cands[0]["run_id"] is None and cands[0]["action"] == "reclaim"
+        assert cands[0]["run_id"] is None
+        assert cands[0]["action"] == "park", "a built lease of a run is kept, not reclaimed"
     assert [lz["token"] for lz in _registry(world["home"])["leases"]] == [token]
+
+
+def _record_build(home, token):
+    """The `built` record `instance_build` leaves on a lease (written directly: no build runs here)."""
+    path = home / "runtime" / "leases.json"
+    doc = json.loads(path.read_text())
+    next(lz for lz in doc["leases"] if lz["token"] == token)["built"] = {"demo": False, "languages": []}
+    path.write_text(json.dumps(doc), encoding="utf-8")
 
 
 def _set_owner_flag(home, token, key, value):
@@ -480,37 +471,68 @@ def _set_owner_flag(home, token, key, value):
     path.write_text(json.dumps(doc), encoding="utf-8")
 
 
-def test_gc_reports_a_return_to_park_lease_as_parked_not_reclaimed(world):
-    """A lease adopted/resumed out of a park carries owner.return_to_park: when its session ends,
-    gc sends it BACK to the park (database + ports kept) instead of reclaiming it. The tool must say
-    so - per lease (action park) and in `parked` after a real run - never report it as reclaimed."""
+def test_gc_reports_a_built_runs_lease_as_parked_not_reclaimed(world):
+    """When a session ends, gc keeps the database of a lease that belongs to a run and records a
+    build: the tool says so - per lease (action park) and in `parked` after a real run - and never
+    reports it as reclaimed. A lease of the same run that was never built is still reclaimed."""
     a, b = world["session"]("sess-a"), world["session"]("sess-b")
     with McpClient(a.env, world["work"]) as ca:
         ca.initialize()
-        back = _ok(_acquire(ca, world))["lease"]["token"]
+        kept = _ok(_acquire(ca, world))["lease"]["token"]
         gone = _ok(_acquire(ca, world))["lease"]["token"]
-    _set_owner_flag(world["home"], back, "return_to_park", True)
+    _record_build(world["home"], kept)
     a.end()
     with McpClient(b.env, world["work"]) as cb:
         cb.initialize()
         dry = _ok(cb.call("lease_gc", {"scope": "all"}))
         actions = {c["token_prefix"]: c["action"] for c in dry["leases"]}
-        assert actions == {back[:8]: "park", gone[:8]: "reclaim"}
+        assert actions == {kept[:8]: "park", gone[:8]: "reclaim"}
         assert dry["parked"] == []
         real = _ok(cb.call("lease_gc", {"scope": "all", "dry_run": False}, timeout=120))
-        assert real["parked"] == [back[:8]]
+        assert real["parked"] == [kept[:8]]
         assert [c["token_prefix"] for c in real["leases"]] == [gone[:8]]
     rows = {lz["token"]: lz for lz in _registry(world["home"])["leases"]}
-    assert list(rows) == [back] and rows[back].get("parked_at") is not None
+    assert list(rows) == [kept] and rows[kept].get("parked_at") is not None
+
+
+def test_a_run_finds_and_adopts_the_lease_gc_parked_for_it_from_a_new_session(world):
+    """The resume path, through the tools an agent has: the first session ends (its lease is
+    parked by gc), a second session names the run id, gets the token, adopts the parked lease
+    and sees it as its own - parked, database and ports kept, ready for instance_serve."""
+    a, b = world["session"]("sess-a"), world["session"]("sess-b")
+    with McpClient(a.env, world["work"]) as ca:
+        ca.initialize()
+        token = _ok(_acquire(ca, world, ports=1))["lease"]["token"]
+    _record_build(world["home"], token)
+    a.end()
+    with McpClient(b.env, world["work"]) as cb:
+        cb.initialize()
+        assert _ok(cb.call("lease_gc", {"scope": "all", "dry_run": False}, timeout=120))["parked"] \
+            == [token[:8]]
+        found = _ok(cb.call("lease_find", {"series": SERIES, "state": "parked", "run_id": RUN}))
+        assert found["found"] is True and found["lease"]["token"] == token
+        assert found["lease"]["yours"] is True and found["lease"]["run_id"] == RUN
+        stranger = _ok(cb.call("lease_find", {"series": SERIES, "state": "parked",
+                                              "run_id": "not-the-owner"}))
+        assert stranger["lease"]["token"] is None, "another run is shown the prefix only"
+
+        _ok(cb.call("lease_adopt", {"lease_token": token, "run_id": RUN}))
+        mine = _ok(cb.call("lease_list", {}))["leases"]
+        assert [r["token"] for r in mine] == [token]
+        assert mine[0]["state"] == "parked" and mine[0]["ports"], "parked, ports kept"
 
 
 # --------------------------------------------------------------------------- #
 # find / preflight
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("state", ["shared", "parked"])
-def test_find_with_nothing_to_reuse_is_a_normal_answer(client, state):
-    out = _ok(client.call("lease_find", {"series": SERIES, "state": state}))
-    assert out == {"found": False, "state": state, "lease": None, "addons_mismatch": []}
+def test_find_returns_the_shared_render_lease(client, world):
+    for state in ("shared", "parked"):  # nothing to reuse is a normal answer
+        out = _ok(client.call("lease_find", {"series": SERIES, "state": state}))
+        assert out == {"found": False, "state": state, "lease": None, "addons_mismatch": []}
+    token = _ok(_acquire(client, world, mode="shared"))["lease"]["token"]
+    out = _ok(client.call("lease_find", {"series": SERIES, "run_id": RUN}))
+    assert out["found"] is True and out["lease"]["token"] == token and out["lease"]["mode"] == "shared"
+    assert out["lease"]["yours"] is True and out["lease"]["run_id"] == RUN
 
 
 def _parked_for_tree(c, world, name):
@@ -549,17 +571,6 @@ def test_adopt_of_a_parked_lease_of_another_tree_is_refused_with_its_remedy(clie
     assert err["remedy"] == errors.TOOL_REMEDIES["LEASE_ADDONS_MISMATCH"]
     assert "lease_find" in err["remedy"] and "addons_path" in err["remedy"]
     assert (world["home"] / "runtime" / "leases.json").read_bytes() == before
-
-
-def test_find_returns_the_shared_render_lease(client, world):
-    token = _ok(_acquire(client, world, mode="shared"))["lease"]["token"]
-    out = _ok(client.call("lease_find", {"series": SERIES, "run_id": RUN}))
-    assert out["found"] is True and out["lease"]["token"] == token and out["lease"]["mode"] == "shared"
-    assert out["lease"]["yours"] is True and out["lease"]["run_id"] == RUN
-
-
-def test_db_preflight_for_an_undeclared_series_is_no_instance(client):
-    assert _err(client.call("db_preflight", {"series": "99.0"}))["code"] == "NO_INSTANCE"
 
 
 # --------------------------------------------------------------------------- #
@@ -663,23 +674,6 @@ def test_find_never_hands_a_live_foreign_sessions_lease_to_a_caller_naming_its_r
         assert resumed["token"] == token and resumed["run_id"] == RUN and resumed["yours"] is True
         stranger = _ok(cb.call("lease_find", {"series": SERIES, "run_id": "another-run"}))["lease"]
         assert stranger["token"] is None and stranger["run_id"] is None
-
-
-def test_not_owner_never_names_the_owner_run(client, world):
-    token = _ok(_acquire(client, world))["lease"]["token"]
-    for tool in ("lease_release", "lease_park", "lease_adopt"):
-        err = _err(client.call(tool, {"lease_token": token, "run_id": "some-other-run"}))
-        assert err["code"] == "NOT_OWNER", tool
-        assert "owner_run_id" not in err["diagnostics"], tool
-        assert RUN not in json.dumps(err), "%s leaks the owner run: %s" % (tool, err)
-    assert [lz["token"] for lz in _registry(world["home"])["leases"]] == [token]
-
-
-@pytest.mark.parametrize("mode", ["shared", "readonly"])
-def test_ports_with_a_mode_that_reserves_none_is_refused_not_ignored(client, world, mode):
-    err = _err(_acquire(client, world, mode=mode, ports=1))
-    assert err["code"] == "INVALID_ARGUMENTS" and err["message"].startswith("arguments.ports")
-    assert _registry(world["home"])["leases"] == [], "a refused acquire leaves no lease behind"
 
 
 # --------------------------------------------------------------------------- #

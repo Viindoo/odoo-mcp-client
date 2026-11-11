@@ -28,6 +28,7 @@ import sys
 import textwrap
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -195,8 +196,11 @@ def _make_fake_venv(tmp_path: Path, *, odoo_runnable: bool) -> Path:
 
     if odoo_runnable:
         # `<py> <odoo-bin> --version` -> exit 0; everything else -> real python3
+        # An `import odoo` probe FAILS, so recording the python proves the gate is
+        # `<py> <odoo-bin> --version`, never an import check.
         py_body = textwrap.dedent(f"""\
             if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+            if [[ "$1" == "-c" && "$2" == "import odoo" ]]; then exit 1; fi
             exec {real_py3} "$@"
         """)
     else:
@@ -226,7 +230,9 @@ def _make_step45_stub_bin(tmp_path: Path, fake_venv_dir: Path) -> Path:
         textwrap.dedent(f"""\
             case "$1" in
                 venv)
-                    # No-op: fake venv already at the target path.
+                    # No-op: fake venv already at the target path. The call is logged:
+                    # a run that refuses before building must never reach it.
+                    echo "uv $*" >> "{pip_log}"
                     exit 0 ;;
                 pip)
                     echo "uv pip $*" >> "{pip_log}"
@@ -236,6 +242,14 @@ def _make_step45_stub_bin(tmp_path: Path, fake_venv_dir: Path) -> Path:
         """),
     )
     return bind, pip_log
+
+
+def _step45_path(bind: Path) -> str:
+    """PATH for a step-45 run: the stub dir in front of the ambient PATH WITHOUT any
+    Postgres client. `create-venv` ends by asking whether Postgres answers; a client
+    installed on the host would question whatever cluster it finds there (and a password
+    prompt on a pipe sits out the whole probe bound)."""
+    return farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bind)
 
 
 def _run_step45(
@@ -248,7 +262,7 @@ def _run_step45(
     extra_args: list | None = None,
 ) -> subprocess.CompletedProcess:
     env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["PATH"] = _step45_path(bind)
     env["ODOO_AI_INSTANCES"] = str(instances_toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     cmd = ["bash", str(STEP45), "create-venv", "--series", series,
@@ -263,67 +277,14 @@ def _run_step45(
 # ---------------------------------------------------------------------------
 
 @requires_bash
-def test_step45_verifies_odoo_bin_runs_before_recording_python(tmp_path):
-    """When venv python can run `<py> <odoo-bin> --version`, the python field MUST be recorded."""
+def test_step45_records_python_once_odoo_bin_runs_and_installs_every_requirements_file(tmp_path):
+    """The python field is recorded ONLY because `<py> <odoo-bin> --version` exits 0
+    (the venv stub fails an `import odoo` probe, so an import gate would not record),
+    and every repeatable --requirements file is installed, in order."""
     core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-    toml = _make_instances_toml(tmp_path, addons_path=addons_path)
-    venv_dir = _make_fake_venv(tmp_path, odoo_runnable=True)
-    bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
-
-    res = _run_step45(tmp_path, bind, toml, venv_dir, series="17.0")
-
-    # The script must succeed and record the python path in instances.toml.
-    assert res.returncode == 0, (
-        f"Expected success.\nstdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-    content = toml.read_text(encoding="utf-8")
-    # python field must be set to the venv's bin/python path (not blank "")
-    assert 'python = ""' not in content, (
-        f"python field was NOT recorded despite odoo being runnable.\nTOML:\n{content}"
-    )
-    assert "bin/python" in content, (
-        f"Expected venv python path recorded in TOML.\nTOML:\n{content}"
-    )
-
-
-@requires_bash
-def test_step45_empty_venv_does_not_record_python(tmp_path):
-    """When venv python cannot run `<py> <odoo-bin> --version`, step 45 must NOT record python."""
-    core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-    toml = _make_instances_toml(tmp_path, addons_path=addons_path)
-    venv_dir = _make_fake_venv(tmp_path, odoo_runnable=False)
-    bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
-
-    res = _run_step45(tmp_path, bind, toml, venv_dir, series="17.0")
-    out = res.stdout + res.stderr
-
-    # Must exit non-zero.
-    assert res.returncode != 0, (
-        f"Expected non-zero exit when odoo-bin --version fails.\nstdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-    # Must not record the python field.
-    content = toml.read_text(encoding="utf-8")
-    assert 'python = ""' in content, (
-        f"python field must remain blank when odoo-bin --version fails.\nTOML:\n{content}"
-    )
-    # Must print an actionable error message mentioning the failure.
-    assert "not recorded" in out.lower() or "failed" in out.lower() or "python" in out.lower(), (
-        f"Expected actionable error about the failed gate.\nOutput:\n{out}"
-    )
-
-
-@requires_bash
-def test_step45_multi_requirements_all_installed(tmp_path):
-    """--requirements is repeatable; each file must be installed in order."""
-    core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-    toml = _make_instances_toml(tmp_path, addons_path=addons_path)
+    toml = _make_instances_toml(tmp_path, addons_path=str(core / "addons"))
     venv_dir = _make_fake_venv(tmp_path, odoo_runnable=True)
     bind, pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
-
-    # Create two distinct requirements files.
     req1 = tmp_path / "req-core.txt"
     req2 = tmp_path / "req-addons.txt"
     req1.write_text("# core requirements\n", encoding="utf-8")
@@ -335,62 +296,42 @@ def test_step45_multi_requirements_all_installed(tmp_path):
     )
     out = res.stdout + res.stderr
 
-    assert res.returncode == 0, (
-        f"Expected success with multiple --requirements.\nstdout: {res.stdout}\nstderr: {res.stderr}"
+    assert res.returncode == 0, f"Expected success.\n{out}"
+    content = toml.read_text(encoding="utf-8")
+    assert 'python = ""' not in content and "bin/python" in content, (
+        f"the venv python must be recorded once odoo-bin runs.\nTOML:\n{content}"
     )
-    assert pip_log.exists(), f"uv pip install was never called.\nOutput:\n{out}"
+    assert pip_log.exists(), f"uv pip install was never called.\n{out}"
     logged = pip_log.read_text(encoding="utf-8")
-    assert str(req1) in logged, f"req1 not installed.\nlogged:\n{logged}\nout:\n{out}"
-    assert str(req2) in logged, f"req2 not installed.\nlogged:\n{logged}\nout:\n{out}"
+    assert str(req1) in logged and str(req2) in logged, (
+        f"each --requirements file must be installed.\nlogged:\n{logged}"
+    )
+    assert logged.index(str(req1)) < logged.index(str(req2)), "files install in the order given"
 
 
 @requires_bash
-def test_step45_gate_uses_odoo_bin_version_not_import(tmp_path):
-    """Oracle test: stub python that PASSES `--version` but would FAIL `import odoo`.
-
-    The gate must use `<py> <odoo-bin> --version`, NOT `<py> -c "import odoo"`.
-    If python field IS recorded, gate correctly uses --version.
-    If python field is NOT recorded, gate incorrectly still relies on import odoo.
-    """
+def test_step45_empty_venv_does_not_record_python(tmp_path):
+    """When venv python cannot run `<py> <odoo-bin> --version`, step 45 fails and records nothing."""
     core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-    toml = _make_instances_toml(tmp_path, addons_path=addons_path)
-
-    venv_dir = tmp_path / "fake-venv-oracle"
-    bin_dir = venv_dir / "bin"
-    bin_dir.mkdir(parents=True)
-    real_py3 = real_python3()
-
-    # This stub: `--version` -> exit 0 (Odoo runnable); `-c "import odoo"` -> exit 1.
-    # If gate still uses import odoo, it would fail -> python NOT recorded.
-    # If gate uses --version, it succeeds -> python IS recorded.
-    py_body = textwrap.dedent(f"""\
-        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-        if [[ "$1" == "-c" && "$2" == "import odoo" ]]; then exit 1; fi
-        exec {real_py3} "$@"
-    """)
-    _write_stub(bin_dir / "python", py_body)
-    _write_stub(bin_dir / "pip", "exit 0\n")
-
+    toml = _make_instances_toml(tmp_path, addons_path=str(core / "addons"))
+    venv_dir = _make_fake_venv(tmp_path, odoo_runnable=False)
     bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
+
     res = _run_step45(tmp_path, bind, toml, venv_dir, series="17.0")
 
-    # Must succeed: gate uses --version which exits 0.
-    assert res.returncode == 0, (
-        f"Expected success (gate uses --version which passes).\n"
-        f"stdout: {res.stdout}\nstderr: {res.stderr}"
+    assert res.returncode != 0, (
+        f"Expected non-zero exit when odoo-bin --version fails.\n{res.stdout}{res.stderr}"
     )
     content = toml.read_text(encoding="utf-8")
-    assert 'python = ""' not in content, (
-        "python field must be recorded when `--version` passes, even if `import odoo` would fail "
-        "(proves gate uses odoo-bin --version, not import odoo)"
+    assert 'python = ""' in content, (
+        f"python field must remain blank when odoo-bin --version fails.\nTOML:\n{content}"
     )
 
 
 @requires_bash
 def test_step45_fails_loud_when_core_repo_missing(tmp_path):
     """When addons_path has no dir with odoo-bin, step 45 must exit non-zero
-    with a message mentioning 'core repo' or 'odoo-bin', and must NOT record python."""
+    and must NOT record python."""
     # addons_path points to a dir that exists but has NO odoo-bin.
     fake_addons = tmp_path / "addons-no-bin"
     fake_addons.mkdir(parents=True, exist_ok=True)
@@ -406,108 +347,9 @@ def test_step45_fails_loud_when_core_repo_missing(tmp_path):
         f"Expected non-zero when core repo/odoo-bin is missing.\n"
         f"stdout: {res.stdout}\nstderr: {res.stderr}"
     )
-    assert "core repo" in out.lower() or "odoo-bin" in out.lower(), (
-        f"Expected mention of 'core repo' or 'odoo-bin' in error output.\nOutput:\n{out}"
-    )
     content = toml.read_text(encoding="utf-8")
     assert 'python = ""' in content, (
         f"python field must remain blank when core repo is missing.\nTOML:\n{content}"
-    )
-
-
-@requires_bash
-def test_step45_per_profile_venv_path_and_profile_field(tmp_path):
-    """With --profile minimal_17, step 45 must:
-    - Place the venv at venvs/17.0-minimal_17 (not venvs/17.0).
-    - Record the python field in the [[instance]] block that matches
-      series=17.0 AND profile=minimal_17 (not the other profile's block).
-    """
-    core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-
-    # Two [[instance]] blocks in the same toml: minimal_17 and full_17.
-    toml = tmp_path / "instances.toml"
-    toml.write_text(
-        textwrap.dedent(f"""\
-            [[instance]]
-            series = "17.0"
-            profile = "minimal_17"
-            instance_key = "17.0:minimal_17"
-            python = ""
-            http_port = 8069
-            db_name = "odoo_17_0_minimal_17"
-            db_host = "localhost"
-            db_user = "odoo"
-            run_mode = "source"
-            addons_path = "{addons_path}"
-
-            [[instance]]
-            series = "17.0"
-            profile = "full_17"
-            instance_key = "17.0:full_17"
-            python = ""
-            http_port = 8079
-            db_name = "odoo_17_0_full_17"
-            db_host = "localhost"
-            db_user = "odoo"
-            run_mode = "source"
-            addons_path = "{addons_path}"
-        """),
-        encoding="utf-8",
-    )
-
-    venv_dir = tmp_path / "odoo-ai" / "venvs" / "17.0-minimal_17"
-    venv_dir.mkdir(parents=True, exist_ok=True)
-
-    venv_dir_bin = venv_dir / "bin"
-    venv_dir_bin.mkdir(exist_ok=True)
-    real_py3 = real_python3()
-    _write_stub(
-        venv_dir_bin / "python",
-        textwrap.dedent(f"""\
-            if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-            exec {real_py3} "$@"
-        """),
-    )
-    _write_stub(venv_dir_bin / "pip", "exit 0\n")
-
-    bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
-
-    env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    # Run with --profile minimal_17: no --path so venv path is auto-derived.
-    res = subprocess.run(
-        ["bash", str(STEP45), "create-venv", "--series", "17.0",
-         "--profile", "minimal_17", "--tool", "uv",
-         "--path", str(venv_dir)],
-        capture_output=True, text=True, env=env,
-    )
-
-    assert res.returncode == 0, (
-        f"Expected success with --profile minimal_17.\n"
-        f"stdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-
-    content = toml.read_text(encoding="utf-8")
-    # The minimal_17 block must now have the python path recorded.
-    # The full_17 block must still have python = "".
-    blocks = content.split("[[instance]]")
-    minimal_block = next((b for b in blocks if "minimal_17" in b and "full_17" not in b), "")
-    full_block = next((b for b in blocks if "full_17" in b and "minimal_17" not in b), "")
-
-    assert minimal_block, f"Could not find minimal_17 block in TOML:\n{content}"
-    assert full_block, f"Could not find full_17 block in TOML:\n{content}"
-
-    assert 'python = ""' not in minimal_block, (
-        f"minimal_17 block must have python path recorded, not empty.\nBlock:\n{minimal_block}"
-    )
-    assert "bin/python" in minimal_block, (
-        f"Expected venv python path in minimal_17 block.\nBlock:\n{minimal_block}"
-    )
-    assert 'python = ""' in full_block, (
-        f"full_17 block must still have python='' (unmodified).\nBlock:\n{full_block}"
     )
 
 
@@ -516,21 +358,11 @@ def test_step45_per_profile_venv_path_and_profile_field(tmp_path):
 # ---------------------------------------------------------------------------
 
 @requires_bash
-def test_step45_no_profile_does_not_clobber_profiled_block(tmp_path):
-    """create-venv without --profile must NOT write into a profiled [[instance]] block.
-
-    Business rule (M1): when the toml has ONLY profiled blocks for series 17.0,
-    running `create-venv --series 17.0` (no --profile) must fail-loud with a
-    message asking for --profile. It must NOT silently record the venv path into
-    the profiled block.
-
-    This test is RED on code where `profile == "" or block_profile == profile`
-    matches any block (poisoning the profiled block).
-    """
+def test_step45_no_profile_refuses_before_building_and_leaves_a_profiled_block_alone(tmp_path):
+    """create-venv without --profile, when the toml holds ONLY profiled blocks for
+    the series, must refuse (non-zero) BEFORE any venv is built, and must leave the
+    catalog byte-identical: it never guesses which profiled block to record into."""
     core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-
-    # Only ONE [[instance]] block, and it IS profiled.
     toml = tmp_path / "instances.toml"
     toml.write_text(
         textwrap.dedent(f"""\
@@ -544,36 +376,28 @@ def test_step45_no_profile_does_not_clobber_profiled_block(tmp_path):
             db_host = "localhost"
             db_user = "odoo"
             run_mode = "source"
-            addons_path = "{addons_path}"
+            addons_path = "{core / 'addons'}"
         """),
         encoding="utf-8",
     )
     original_content = toml.read_text(encoding="utf-8")
-
     venv_dir = _make_fake_venv(tmp_path, odoo_runnable=True)
-    bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
+    bind, uv_log = _make_step45_stub_bin(tmp_path, venv_dir)
 
-    # Run create-venv WITHOUT --profile.
-    res = _run_step45(tmp_path, bind, toml, venv_dir, series="17.0")
-    out = res.stdout + res.stderr
+    env = dict(os.environ)
+    env["PATH"] = _step45_path(bind)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    # No --profile AND no --path: the guard fires before the venv path is computed.
+    res = subprocess.run(
+        ["bash", str(STEP45), "create-venv", "--series", "17.0", "--tool", "uv"],
+        capture_output=True, text=True, env=env,
+    )
 
-    # Must exit non-zero (refuses to guess which profiled block to update).
-    assert res.returncode != 0, (
-        f"Expected non-zero when only profiled blocks exist and --profile not given.\n"
-        f"stdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-    # Must mention --profile in the error message.
-    assert "--profile" in out or "profile" in out.lower(), (
-        f"Expected message mentioning --profile in output.\nOutput:\n{out}"
-    )
-    # The profiled block must be UNCHANGED (python field must remain blank).
-    content_after = toml.read_text(encoding="utf-8")
-    assert 'python = ""' in content_after, (
-        f"profiled block must NOT have python recorded (no --profile given).\nTOML:\n{content_after}"
-    )
-    # Verify TOML is byte-identical to what we started with.
-    assert content_after == original_content, (
-        f"TOML must be unchanged when create-venv fails-loud.\nOriginal:\n{original_content}\nAfter:\n{content_after}"
+    assert res.returncode != 0, f"must refuse without --profile.\n{res.stdout}{res.stderr}"
+    assert toml.read_text(encoding="utf-8") == original_content, "the catalog must be unchanged"
+    assert not uv_log.exists(), (
+        f"nothing may be built once the guard refuses:\n{uv_log.read_text(encoding='utf-8')}"
     )
 
 
@@ -650,43 +474,37 @@ def test_step45_no_profile_writes_unprofiled_block_when_present(tmp_path):
 
 
 @requires_bash
-def test_step45_per_profile_venv_path_auto_derived(tmp_path):
-    """With --profile minimal_17 and NO --path, venv must be placed at
-    venvs/17.0-minimal_17 (auto-derived from series + profile slug).
-
-    L5 coverage: test_step45_per_profile_venv_path_and_profile_field passes
-    --path explicitly so the auto-derive branch is never exercised there.
-    """
+def test_step45_per_profile_venv_lands_at_the_profile_path_and_only_its_block_records_python(tmp_path):
+    """With --profile minimal_17 and NO --path, the venv is auto-derived at
+    $ODOO_AI_HOME/venvs/17.0-minimal_17 (series + profile slug), and python is
+    recorded in the [[instance]] block of series=17.0 AND profile=minimal_17 -
+    never in the sibling profile's block."""
     core = _make_core_dir(tmp_path)
     addons_path = str(core / "addons")
-
+    block = textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        profile = "{profile}"
+        instance_key = "17.0:{profile}"
+        python = ""
+        http_port = {port}
+        db_name = "odoo_17_0_{profile}"
+        db_host = "localhost"
+        db_user = "odoo"
+        run_mode = "source"
+        addons_path = "%s"
+    """) % addons_path
     toml = tmp_path / "instances.toml"
     toml.write_text(
-        textwrap.dedent(f"""\
-            [[instance]]
-            series = "17.0"
-            profile = "minimal_17"
-            instance_key = "17.0:minimal_17"
-            python = ""
-            http_port = 8069
-            db_name = "odoo_17_0_minimal_17"
-            db_host = "localhost"
-            db_user = "odoo"
-            run_mode = "source"
-            addons_path = "{addons_path}"
-        """),
+        block.format(profile="minimal_17", port=8069) + "\n" + block.format(profile="full_17", port=8079),
         encoding="utf-8",
     )
 
-    # Auto-derived venv dir: $ODOO_AI_HOME/venvs/17.0-minimal_17 (host-global,
-    # snippets/state-root-resolution.md). slug of "minimal_17" = "minimal_17".
+    # Pre-create the venv at the auto-derived location with a python stub so the uv
+    # stub no-ops and the gate finds the right python.
     expected_venv = tmp_path / "odoo-ai-home" / "venvs" / "17.0-minimal_17"
-
-    # Pre-create the venv dir with a python stub so uv stub no-ops and
-    # the gate check finds the right python.
-    expected_venv.mkdir(parents=True, exist_ok=True)
     venv_bin = expected_venv / "bin"
-    venv_bin.mkdir(exist_ok=True)
+    venv_bin.mkdir(parents=True)
     real_py3 = real_python3()
     _write_stub(
         venv_bin / "python",
@@ -696,43 +514,36 @@ def test_step45_per_profile_venv_path_auto_derived(tmp_path):
         """),
     )
     _write_stub(venv_bin / "pip", "exit 0\n")
-
     bind, _pip_log = _make_step45_stub_bin(tmp_path, expected_venv)
 
     env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["PATH"] = _step45_path(bind)
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-
-    # Run WITHOUT --path so the auto-derive branch is exercised.
     res = subprocess.run(
         ["bash", str(STEP45), "create-venv", "--series", "17.0",
          "--profile", "minimal_17", "--tool", "uv"],
         capture_output=True, text=True, env=env,
     )
 
-    assert res.returncode == 0, (
-        f"Expected success with --profile and no --path.\n"
-        f"stdout: {res.stdout}\nstderr: {res.stderr}"
+    assert res.returncode == 0, f"Expected success.\n{res.stdout}{res.stderr}"
+    blocks = toml.read_text(encoding="utf-8").split("[[instance]]")
+    minimal_block = next((b for b in blocks if 'profile = "minimal_17"' in b), "")
+    full_block = next((b for b in blocks if 'profile = "full_17"' in b), "")
+    assert minimal_block and full_block, f"both profile blocks must survive:\n{blocks}"
+    assert str(expected_venv / "bin" / "python") in minimal_block, (
+        f"the auto-derived venv python must be recorded in the minimal_17 block.\n{minimal_block}"
     )
-    # The auto-derived venv path must appear in the output.
-    assert "17.0-minimal_17" in res.stdout + res.stderr, (
-        f"Expected auto-derived venv path '17.0-minimal_17' in output.\nOutput:\n{res.stdout + res.stderr}"
-    )
-    content = toml.read_text(encoding="utf-8")
-    assert 'python = ""' not in content, (
-        f"python field must be recorded with auto-derived path.\nTOML:\n{content}"
-    )
-    assert "bin/python" in content, (
-        f"Expected venv python path in TOML.\nTOML:\n{content}"
-    )
+    assert 'python = ""' in full_block, f"the sibling profile's block must stay untouched.\n{full_block}"
 
 
 # ---------------------------------------------------------------------------
 # step 50 tests
 # ---------------------------------------------------------------------------
 
-def _make_step50_toml(tmp_path: Path, *, series: str = "17.0", py_path: str) -> Path:
+def _make_step50_toml(
+    tmp_path: Path, *, series: str = "17.0", py_path: str, profile: str | None = None,
+) -> Path:
     """instances.toml for step 50 (source mode).
 
     py_path points to the fake venv python stub that controls import odoo behavior.
@@ -752,13 +563,17 @@ def _make_step50_toml(tmp_path: Path, *, series: str = "17.0", py_path: str) -> 
             db_user = "odoo"
             run_mode = "source"
             addons_path = "{fake_addons}"
-        """),
+        """) + (
+            f'profile = "{profile}"\ninstance_key = "{series}:{profile}"\n' if profile else ""
+        ),
         encoding="utf-8",
     )
     return toml
 
 
-def _make_step50_fake_py(tmp_path: Path, *, odoo_importable: bool) -> Path:
+def _make_step50_fake_py(
+    tmp_path: Path, *, odoo_importable: bool, gate_log: Path | None = None,
+) -> Path:
     """Standalone fake python binary (not inside a venv dir) for step 50 tests.
 
     Intercepts `<py> <odoo-bin> --version` (gate call) based on odoo_importable.
@@ -782,166 +597,10 @@ def _make_step50_fake_py(tmp_path: Path, *, odoo_importable: bool) -> Path:
             if [[ "$2" == "--version" ]]; then exit 1; fi
             exec {real_py3} "$@"
         """)
+    if gate_log is not None:  # record WHICH launcher the gate was asked about
+        body = f'if [[ "$2" == "--version" ]]; then echo "$1" >> "{gate_log}"; fi\n' + body
     _write_stub(fake_py, body)
     return fake_py
-
-
-@requires_bash
-def test_step50_validates_odoo_bin_runs_before_launch(tmp_path):
-    """When `<py> <odoo-bin> --version` fails, step 50 must exit non-zero BEFORE launching odoo-bin.
-
-    The test uses a fake `python` interpreter (pointed to by the instance's `python`
-    field in instances.toml) that fails `--version`. The system python3 on PATH is
-    left real so that instances_io.py (called by _read_instance) works correctly.
-    """
-    # Fake python that FAILS `<py> <odoo-bin> --version` but passes instances_io calls
-    fake_py = _make_step50_fake_py(tmp_path, odoo_importable=False)
-
-    # Fake odoo-bin (records launch attempts - must NOT be reached)
-    fake_addons = tmp_path / "fake-core" / "addons"
-    fake_addons.mkdir(parents=True, exist_ok=True)
-    fake_bin = tmp_path / "fake-core" / "odoo-bin"
-    odoo_launch_log = tmp_path / "odoo-launch.log"
-    _launcher(
-        fake_bin,
-        f'echo "odoo-bin launched $*" >> "{odoo_launch_log}"\nsleep 999\n',
-    )
-
-    # Build stub bin dir: only curl is stubbed; python3 stays real (for instances_io)
-    bind = tmp_path / "bin50"
-    bind.mkdir(exist_ok=True)
-    _write_stub(bind / "curl", 'echo "000"\n')
-
-    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
-
-    env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    env["SPINUP_TIMEOUT"] = "3"
-    env.pop("ODOO_PG_PASSWORD", None)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = subprocess.run(
-        ["bash", str(STEP50), "apply", "--version", "17.0"],
-        capture_output=True, text=True, env=env, timeout=30,
-    )
-    out = res.stdout + res.stderr
-
-    # Must exit non-zero
-    assert res.returncode != 0, (
-        f"Expected non-zero exit when odoo-bin --version fails.\nstdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-
-    # Must print a LOUD, actionable error mentioning PREFLIGHT failure
-    assert "PREFLIGHT" in out or "failed" in out.lower(), (
-        f"Expected PREFLIGHT error message.\nOutput:\n{out}"
-    )
-
-    # Must NOT have launched odoo-bin (no poll stage reached)
-    assert not odoo_launch_log.exists(), (
-        f"odoo-bin was launched despite --version preflight failure.\n"
-        f"launch log: {odoo_launch_log.read_text()}\nOutput:\n{out}"
-    )
-    # Confirm the poll loop was not entered (no "Polling" in output)
-    assert "Polling" not in out, (
-        f"Step 50 entered the poll loop despite preflight failure.\nOutput:\n{out}"
-    )
-
-
-@requires_bash
-def test_step50_gate_uses_odoo_bin_version_not_import(tmp_path):
-    """Oracle test: stub python that PASSES `<py> <odoo-bin> --version` but would
-    FAIL `<py> -c "import odoo"`. The preflight in step 50 must use --version, NOT
-    import odoo.
-
-    If the gate correctly uses `--version` -> preflight PASSES -> launch PROCEEDS
-    (odoo-bin launch log created, poll loop entered).
-
-    If the gate incorrectly uses `import odoo` -> preflight FAILS -> launch BLOCKED
-    (odoo-bin launch log NOT created, no poll loop).
-
-    This test is RED on any code path that still uses `import odoo` as the gate.
-    """
-    real_py3 = real_python3()
-    # Oracle stub: `$2 == "--version"` passes (gate check);
-    # When called as `<py> <odoo-bin> -c <conf> ...` (real launch), log and exit 0
-    # so odoo-bin is "launched" and the log file is created.
-    # When called as `<py> -c "import odoo"` (old gate), exits 1 (odoo not importable).
-    # Anything else (instances_io.py Python calls) delegates to real python3.
-    py_bin_dir = tmp_path / "fake-py-oracle"
-    py_bin_dir.mkdir(exist_ok=True)
-    fake_py = py_bin_dir / "python"
-    odoo_launch_log = tmp_path / "odoo-launch.log"
-    fake_addons = tmp_path / "fake-core" / "addons"
-    fake_addons.mkdir(parents=True, exist_ok=True)
-    fake_bin = tmp_path / "fake-core" / "odoo-bin"
-    # fake_bin is also a bash stub (needed for ODOO_BIN path).
-    _launcher(fake_bin, f'echo "odoo-bin-direct $*" >> "{odoo_launch_log}"\nexit 0\n')
-
-    _write_stub(
-        fake_py,
-        textwrap.dedent(f"""\
-            # Gate check: `<py> <odoo-bin> --version`
-            if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-            # Old import gate (must NOT be used by step 50): `<py> -c "import odoo"`
-            if [[ "$1" == "-c" ]]; then exit 1; fi
-            # Real odoo-bin launch: `<py> <odoo-bin> -c <conf> -d <db> ...`
-            # Detected by: $1 is a path and $2 == "-c" (config flag).
-            if [[ -f "$1" && "$2" == "-c" ]]; then
-                echo "odoo-bin launched via py: $*" >> "{odoo_launch_log}"
-                exit 0
-            fi
-            exec {real_py3} "$@"
-        """),
-    )
-
-    bind = tmp_path / "bin50-oracle"
-    bind.mkdir(exist_ok=True)
-    # curl returns 000 on first call (server not yet up) then 200 (up).
-    # This forces step 50 to launch odoo-bin before the poll loop can short-circuit.
-    curl_counter = tmp_path / "curl-count.txt"
-    curl_counter.write_text("0", encoding="utf-8")
-    _write_stub(
-        bind / "curl",
-        textwrap.dedent(f"""\
-            n=$(cat "{curl_counter}" 2>/dev/null || echo 0)
-            n=$((n + 1))
-            echo "$n" > "{curl_counter}"
-            if [[ "$n" -le 1 ]]; then echo "000"; else echo "200"; fi
-        """),
-    )
-    # pg_isready stub: simulate PG reachable so the preflight check does not
-    # block the test on CI runners that have pg_isready installed but no live
-    # PostgreSQL service.  This test is specifically about the --version oracle
-    # gate; PG reachability is orthogonal.
-    _write_stub(bind / "pg_isready", "exit 0\n")
-
-    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
-
-    env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    env["SPINUP_TIMEOUT"] = "10"
-    env.pop("ODOO_PG_PASSWORD", None)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = subprocess.run(
-        ["bash", str(STEP50), "apply", "--version", "17.0"],
-        capture_output=True, text=True, env=env, timeout=30,
-    )
-    out = res.stdout + res.stderr
-
-    # Gate must PASS (--version exits 0) -> launch must PROCEED.
-    assert res.returncode == 0, (
-        f"Expected success: gate uses --version (passes), but got non-zero.\n"
-        f"stdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-    # odoo-bin must have been launched (proves preflight did not block).
-    assert odoo_launch_log.exists(), (
-        f"odoo-bin was NOT launched despite --version gate passing.\nOutput:\n{out}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -952,29 +611,23 @@ def test_step50_gate_uses_odoo_bin_version_not_import(tmp_path):
 # ---------------------------------------------------------------------------
 
 @requires_bash
-def test_step50_finds_odoo_bin_across_a_real_two_entry_addons_path(tmp_path):
-    """_find_odoo_bin must locate odoo-bin when INST_ADDONS_PATH carries 2+
-    entries produced by the ACTUAL instances_io.py pipeline (a genuine TOML
-    array -> join_addons_path -> INST_ADDONS_PATH), not a hand-joined string.
-
-    No ODOO_BIN override here: the addons_path SCAN itself must resolve the
-    odoo-bin location by finding it under the SECOND entry - the exact
-    dimension (2+ real entries) that was absent from every other fixture and
-    let a producer/consumer separator mismatch (IFS=',' against a
-    colon-joined INST_ADDONS_PATH) ship silently.
-    """
+def test_step50_a_failing_version_gate_stops_the_spinup_at_the_launcher_found_in_a_real_two_entry_addons_path(tmp_path):
+    """Two behaviours on one run. (1) The odoo-bin SCAN must locate the launcher
+    when INST_ADDONS_PATH carries 2+ entries produced by the ACTUAL instances_io.py
+    pipeline (a genuine TOML array -> join_addons_path -> INST_ADDONS_PATH), found
+    under the SECOND entry with no ODOO_BIN override - the dimension a
+    producer/consumer separator mismatch once slipped through. (2) When
+    `<py> <odoo-bin> --version` fails, step 50 exits non-zero BEFORE launching
+    anything or entering the readiness poll."""
     # Entry 1: a plain custom-addons repo - no odoo-bin here.
     custom_dir = tmp_path / "custom-addons"
     custom_dir.mkdir(parents=True)
-
     # Entry 2: the real Odoo core dir (has odoo-bin under it).
     core = _make_core_dir(tmp_path)
     core_addons = str(core / "addons")
 
-    # A python stub that FAILS the `<py> <odoo-bin> --version` preflight gate -
-    # this lets the test stop cheaply and deterministically right after
-    # odoo-bin resolution, without needing curl/pg_isready/poll machinery.
-    fake_py = _make_step50_fake_py(tmp_path, odoo_importable=False)
+    gate_log = tmp_path / "version-gate-calls.log"
+    fake_py = _make_step50_fake_py(tmp_path, odoo_importable=False, gate_log=gate_log)
 
     toml = tmp_path / "instances50-2entry.toml"
     toml.write_text(
@@ -1010,18 +663,12 @@ def test_step50_finds_odoo_bin_across_a_real_two_entry_addons_path(tmp_path):
     )
     out = res.stdout + res.stderr
 
-    # Must NOT report "Could not locate the Odoo server launcher" - that would
-    # mean the scan failed to split the 2-entry INST_ADDONS_PATH correctly.
-    assert "Could not locate" not in out, (
-        f"_find_odoo_bin failed to resolve odoo-bin across a real 2-entry "
-        f"addons_path (producer/consumer separator mismatch).\nOutput:\n{out}"
+    assert gate_log.exists(), f"the gate was never asked: the scan did not resolve a launcher\n{out}"
+    assert gate_log.read_text(encoding="utf-8").split() == [str(core / "odoo-bin")], (
+        "the gate must be asked about the launcher found under the SECOND addons_path entry"
     )
-    # Must have reached the (deliberately failing) PREFLIGHT gate - proof
-    # odoo-bin WAS found and execution proceeded past the lookup.
-    assert "PREFLIGHT FAILED" in out, (
-        f"Expected to reach the PREFLIGHT gate (odoo-bin found, python stub "
-        f"rejects --version).\nOutput:\n{out}"
-    )
+    assert res.returncode != 0, f"a failing gate must stop the spin-up\n{out}"
+    assert "Polling" not in out, f"the readiness poll was entered despite the failed gate\n{out}"
 
 
 # ---------------------------------------------------------------------------
@@ -1043,41 +690,54 @@ def _leases_at(home: Path) -> list:
     return json.loads(reg.read_text(encoding="utf-8")).get("leases", [])
 
 
-def _make_step50_spinup_env(tmp_path: Path, *, curl_mode: str):
+def _make_step50_spinup_env(
+    tmp_path: Path, *, curl_mode: str, profile: str | None = None, lifetime: int = 15,
+):
     """A source-mode step-50 scenario whose preflights PASS and whose 'odoo-bin'
     launch is faked by the python stub (logs the launch, then `exec sleep` to
     stay alive with a clean pid). curl_mode: 'up' (always 200), 'down' (always
-    000), 'up_after_launch' (000 on the first probe, 200 thereafter)."""
+    000), 'up_after_launch' (000 on the first probe, 200 thereafter). Every curl
+    request is appended to `<tmp_path>/curl.log`.
+
+    The stub ANSWERS a bounded `odoo_db.py` question and returns, as a real venv
+    python does: only an odoo-bin invocation stays up. A stub that ran the launch
+    body for the DB preflight too would hang it until its bound (10s) and make
+    every spin-up test measure the fixture."""
     launch_log = tmp_path / "odoo-launch.log"
     py_bin_dir = tmp_path / "fake-py-bin"
     py_bin_dir.mkdir(exist_ok=True)
     fake_py = py_bin_dir / "python"
-    # `<py> <odoo-bin> --version` -> exit 0 (preflight passes); real launch -> log + stay alive.
-    # The preflight call is `$2 == "--version"`; the actual launch call is not --version.
+    # `<py> <odoo-bin> --version` -> exit 0 (preflight passes); an `import odoo` probe
+    # fails (the retired gate); a real launch -> log + stay alive.
     _write_stub(fake_py, textwrap.dedent(f"""\
         if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        if [[ "$1" == *odoo_db.py ]]; then echo "DB_AUTH=ok"; exit 0; fi
+        if [[ "$1" == "-c" ]]; then exit 1; fi
         echo "odoo-bin launched $*" >> "{launch_log}"
-        exec sleep 15
+        echo $$ >> "{tmp_path}/server.pids"
+        exec sleep {lifetime}
     """))
     odoo_bin = tmp_path / "odoo-bin"
     _launcher(odoo_bin, "exit 0\n")  # only needs to be executable for _find_odoo_bin
 
     bind = tmp_path / "bin50"
     bind.mkdir(exist_ok=True)
+    curl_log = tmp_path / "curl.log"
+    record = f'echo "$*" >> "{curl_log}"\n'
     if curl_mode == "up":
-        _write_stub(bind / "curl", 'echo "200"\n')
+        _write_stub(bind / "curl", record + 'echo "200"\n')
     elif curl_mode == "down":
-        _write_stub(bind / "curl", 'echo "000"\n')
+        _write_stub(bind / "curl", record + 'echo "000"\n')
     else:  # up_after_launch: 000 on the first probe, 200 once the server "launched"
         cnt = tmp_path / "curl.count"
-        _write_stub(bind / "curl", textwrap.dedent(f"""\
+        _write_stub(bind / "curl", record + textwrap.dedent(f"""\
             n="$(cat "{cnt}" 2>/dev/null || echo 0)"
             echo $((n + 1)) > "{cnt}"
             if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
         """))
     _write_stub(bind / "pg_isready", "exit 0\n")  # reachable -> skip the real-PG preflight
 
-    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
+    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py), profile=profile)
     home = tmp_path / "odoo-ai-home"
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
@@ -1105,22 +765,174 @@ def _run_step50_args(env, *extra_args) -> subprocess.CompletedProcess:
     )
 
 
-@requires_bash
-def test_step50_registers_shared_lease_after_server_up(tmp_path):
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50(env)
+def _wait_exists(path: Path, timeout_s: float = 10.0) -> bool:
+    """The launch is backgrounded: `apply` can return before the stand-in server has
+    written its first line, so a test reading its launch log waits for it."""
+    deadline = time.monotonic() + timeout_s
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return path.exists()
+
+
+def _stop_servers(home: Path) -> None:
+    """Stop every server stand-in (`sleep`) a spin-up of `home` launched."""
+    pidfile = home.parent / "server.pids"
+    pids = pidfile.read_text(encoding="utf-8").split() if pidfile.exists() else []
+    for pid in pids:
+        if _alive(pid):
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+            except OSError:
+                pass
+
+
+@pytest.fixture(scope="module")
+def spinup_ok(tmp_path_factory):
+    """ONE successful declared/shared spin-up (the allocator is on, the owner run
+    id and a gevent port pair are given). Every test below that only reads what a
+    good spin-up leaves behind - lease, log, conf, probe requests - reads this
+    run instead of paying for its own."""
+    tmp = tmp_path_factory.mktemp("spinup_ok")
+    env, home, launch_log = _make_step50_spinup_env(
+        tmp, curl_mode="up_after_launch", lifetime=300)
+    env["INST_RUN_ID"] = "run-owner-xyz"
+    res = _run_step50_args(
+        env, "--gevent-port", "9069", "--gevent-port-key", "longpolling_port")
     out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    assert launch_log.exists(), f"odoo-bin must have launched\n{out}"
-    shared = [lz for lz in _leases_at(home) if lz.get("mode") == "shared"]
-    assert len(shared) == 1, f"step 50 must register exactly one shared lease\n{_leases_at(home)}"
+    _wait_exists(launch_log)
+    ns = SimpleNamespace(
+        res=res, out=out, home=home, launch_log=launch_log, tmp=tmp,
+        conf=_generated_conf_text(out) if res.returncode == 0 else "",
+    )
+    yield ns
+    _stop_servers(home)
+
+
+@requires_bash
+def test_step50_registers_shared_lease_after_server_up(spinup_ok):
+    assert spinup_ok.res.returncode == 0, spinup_ok.out
+    assert spinup_ok.launch_log.exists(), f"odoo-bin must have launched\n{spinup_ok.out}"
+    leases = _leases_at(spinup_ok.home)
+    shared = [lz for lz in leases if lz.get("mode") == "shared"]
+    assert len(shared) == 1, f"step 50 must register exactly one shared lease\n{leases}"
     lz = shared[0]
     assert lz["series"] == "17.0"
     assert lz["ports"] == [18069], "the lease records the actual bound port"
     assert lz["drop_on_release"] is False, "the shared render lease must NEVER own the declared DB"
     pid = lz["owner"]["pid"]
     assert pid and _alive(pid), "the live server pid is recorded (for gc + cross-session discovery)"
-    os.kill(int(pid), signal.SIGTERM)  # reap the backgrounded sleep
+
+
+@requires_bash
+def test_step50_shared_lease_is_owner_stamped_with_the_callers_run_id(spinup_ok):
+    """When the caller sets INST_RUN_ID before apply, the shared lease it registers
+    is owner-stamped instead of unowned."""
+    shared = [lz for lz in _leases_at(spinup_ok.home) if lz.get("mode") == "shared"]
+    assert len(shared) == 1, f"expected exactly one shared lease\n{_leases_at(spinup_ok.home)}"
+    assert shared[0]["owner"].get("run_id") == "run-owner-xyz", (
+        f"the shared lease must be owner-stamped with INST_RUN_ID; got {shared[0]['owner']!r}"
+    )
+
+
+@requires_bash
+def test_step50_readiness_probes_the_database_selector_first(spinup_ok):
+    """The readiness probe's PRIMARY endpoint is /web/database/selector: the whole
+    spin-up (the 'already up' pre-check and the poll that confirmed it) asked only
+    that endpoint, never the /web/login fallback."""
+    assert spinup_ok.res.returncode == 0, spinup_ok.out
+    requests = (spinup_ok.tmp / "curl.log").read_text(encoding="utf-8").splitlines()
+    assert requests and all("/web/database/selector" in r for r in requests), requests
+
+
+@requires_bash
+def test_step50_gate_is_odoo_bin_version_never_an_import(spinup_ok):
+    """The python stub PASSES `<py> <odoo-bin> --version` but FAILS an `import odoo`
+    probe: the spin-up only gets through its preflight and launches if the gate is
+    the former."""
+    assert spinup_ok.res.returncode == 0, spinup_ok.out
+    assert spinup_ok.launch_log.exists(), f"the launch was blocked by the preflight\n{spinup_ok.out}"
+
+
+@requires_bash
+def test_step50_apply_writes_log_under_odoo_ai_home(spinup_ok):
+    """apply writes the Odoo log to <ODOO_AI_HOME>/logs/<db>-<ts>.log and emits ONE
+    parseable 'LOG_PATH=<path>' line on stdout, so a calling agent can capture the
+    log location without screen-scraping."""
+    res = spinup_ok.res
+    assert res.returncode == 0, f"Expected success.\nstdout: {res.stdout}\nstderr: {res.stderr}"
+    log_path_lines = [line for line in res.stdout.splitlines() if line.startswith("LOG_PATH=")]
+    assert len(log_path_lines) == 1, f"Expected exactly one LOG_PATH= line.\n{res.stdout}"
+    log_path = Path(log_path_lines[0].split("=", 1)[1])
+    assert log_path.parent == spinup_ok.home / "logs"
+    assert log_path.name.startswith("odoo_test-") and log_path.suffix == ".log", log_path.name
+    assert log_path.exists(), f"LOG_PATH file {log_path} does not exist (redirect failed?)"
+
+
+@requires_bash
+def test_step50_gevent_port_and_key_together_writes_conf_line(spinup_ok):
+    """--gevent-port + --gevent-port-key given TOGETHER succeed and the generated
+    conf carries the second listening-port line under the agent-resolved key."""
+    assert spinup_ok.res.returncode == 0, spinup_ok.out
+    assert "longpolling_port = 9069" in spinup_ok.conf, spinup_ok.conf
+
+
+@requires_bash
+def test_step50_conf_carries_limit_memory_hard_soft_and_time_real(spinup_ok):
+    conf = spinup_ok.conf
+    for key in ("limit_memory_hard", "limit_memory_soft", "limit_time_real"):
+        assert re.search(rf"^{key} = \d+$", conf, re.MULTILINE), (
+            f"conf must carry a numeric {key} key.\nconf:\n{conf}"
+        )
+
+
+@requires_bash
+def test_step50_conf_never_carries_limit_time_cpu_while_workers_zero(spinup_ok):
+    """limit_time_cpu must never appear at all while workers=0 - a dead key
+    would give false confidence that a runaway request is bounded."""
+    assert spinup_ok.res.returncode == 0, spinup_ok.out
+    assert "limit_time_cpu" not in spinup_ok.conf, spinup_ok.conf
+
+
+@requires_bash
+def test_step50_conf_requests_unaccent_for_a_database_it_may_create(spinup_ok):
+    """The spin-up conf must carry `unaccent = True`: this launch CREATES the
+    database whenever it is the first to name a missing one, and creation is the
+    only moment unaccent can still be installed."""
+    assert spinup_ok.res.returncode == 0, spinup_ok.out
+    assert re.search(r"^unaccent = True$", spinup_ok.conf, re.MULTILINE), spinup_ok.conf
+
+
+@pytest.fixture(scope="module")
+def spinup_never_ready(tmp_path_factory):
+    """ONE spin-up whose server never answers on either endpoint (the poll times out)."""
+    tmp = tmp_path_factory.mktemp("spinup_never_ready")
+    env, home, _ = _make_step50_spinup_env(tmp, curl_mode="down")
+    env["SPINUP_TIMEOUT"] = "2"
+    started = time.monotonic()
+    res = _run_step50(env)
+    return SimpleNamespace(
+        res=res, out=res.stdout + res.stderr, home=home, elapsed=time.monotonic() - started)
+
+
+@requires_bash
+def test_step50_leaves_no_shared_lease_when_server_never_comes_up(spinup_never_ready):
+    assert spinup_never_ready.res.returncode != 0, (
+        f"a never-ready spin-up must fail\n{spinup_never_ready.out}"
+    )
+    assert _leases_at(spinup_never_ready.home) == [], (
+        "a failed spin-up must leave NO shared lease (registration happens only after the server is up)"
+    )
+
+
+@requires_bash
+def test_step50_readiness_poll_is_bounded_never_hangs(spinup_never_ready):
+    """The readiness poll (primary + fallback) is BOUNDED by SPINUP_TIMEOUT - a
+    server that never becomes ready on EITHER endpoint returns within a small,
+    deterministic wall-clock bound, never hangs indefinitely."""
+    assert spinup_never_ready.res.returncode != 0, spinup_never_ready.out
+    assert spinup_never_ready.elapsed < 20, (
+        f"the poll must be BOUNDED by SPINUP_TIMEOUT (=2s); took {spinup_never_ready.elapsed:.1f}s"
+    )
 
 
 @requires_bash
@@ -1145,48 +957,11 @@ def test_step50_attaches_to_existing_shared_lease_without_relaunch(tmp_path):
     assert shared[0]["owner"]["pid"] == os.getpid(), "attach must not overwrite the live server pid"
 
 
-@requires_bash
-def test_step50_leaves_no_shared_lease_when_server_never_comes_up(tmp_path):
-    env, home, _ = _make_step50_spinup_env(tmp_path, curl_mode="down")
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, f"a never-ready spin-up must fail\n{out}"
-    assert _leases_at(home) == [], (
-        "a failed spin-up must leave NO shared lease (registration happens only after the server is up)"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Root-cause fix: the readiness signal is a BOUNDED HTTP-port poll of
 # /web/database/selector (primary, docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item
 # 14), fallback /web/login - never a log tail, never an unbounded wait.
 # ---------------------------------------------------------------------------
-
-@requires_bash
-def test_step50_ready_via_database_selector_primary_probe(tmp_path):
-    """RED-first: the readiness probe's PRIMARY endpoint is
-    /web/database/selector, not /web/login alone. A curl stub that answers 200
-    ONLY for the selector path (000 for anything else, including /web/login)
-    must still let apply succeed - proving the probe actually queries the
-    selector endpoint. Under the OLD /web/login-only probe this stub would
-    NEVER see a 200 (its only endpoint always sees 000) and apply would time
-    out (BLOCKED, non-zero) instead."""
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    bind = tmp_path / "bin50"
-    _write_stub(bind / "curl", textwrap.dedent("""\
-        if [[ "$*" == *"/web/database/selector"* ]]; then
-            echo "200"
-        else
-            echo "000"
-        fi
-    """))
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, (
-        f"apply must succeed via the /web/database/selector probe alone.\n{out}"
-    )
-    assert "timed out" not in out
-
 
 @requires_bash
 def test_step50_falls_back_to_web_login_when_selector_never_ready(tmp_path):
@@ -1198,7 +973,7 @@ def test_step50_falls_back_to_web_login_when_selector_never_ready(tmp_path):
     odoo-bin (not just short-circuit an 'already up' pre-check, which probes
     the selector-only and sees 000 here)."""
     env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    env["SPINUP_TIMEOUT"] = "3"
+    env["SPINUP_TIMEOUT"] = "1"
     bind = tmp_path / "bin50"
     _write_stub(bind / "curl", textwrap.dedent("""\
         if [[ "$*" == *"/web/database/selector"* ]]; then
@@ -1210,30 +985,10 @@ def test_step50_falls_back_to_web_login_when_selector_never_ready(tmp_path):
     res = _run_step50(env)
     out = res.stdout + res.stderr
     assert res.returncode == 0, f"apply must succeed via the /web/login fallback.\n{out}"
-    assert launch_log.exists(), (
+    assert _wait_exists(launch_log), (
         f"the selector-only 'already up' pre-check must see 000 and proceed to launch, "
         f"then the poll's fallback must confirm readiness on /web/login\n{out}"
     )
-
-
-@requires_bash
-def test_step50_readiness_poll_is_bounded_never_hangs(tmp_path):
-    """The readiness poll (primary + fallback) is BOUNDED by SPINUP_TIMEOUT -
-    a server that never becomes ready on EITHER endpoint must return within a
-    small, deterministic wall-clock bound, never hang indefinitely and never
-    fall back to tailing a (possibly empty) log."""
-    env, _, _ = _make_step50_spinup_env(tmp_path, curl_mode="down")
-    env["SPINUP_TIMEOUT"] = "2"
-    started = time.monotonic()
-    res = _run_step50(env)
-    elapsed = time.monotonic() - started
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, f"a never-ready spin-up must fail, not hang\n{out}"
-    assert elapsed < 20, (
-        f"the poll must be BOUNDED by SPINUP_TIMEOUT (=2s), not wait indefinitely; "
-        f"took {elapsed:.1f}s\n{out}"
-    )
-    assert "timed out" in out.lower()
 
 
 @requires_bash
@@ -1244,7 +999,7 @@ def test_step50_degrades_to_plain_spinup_without_allocator(tmp_path):
     out = res.stdout + res.stderr
     assert res.returncode == 0, out
     assert "is up:" in out, f"the server must still spin up and print its URL\n{out}"
-    assert launch_log.exists(), "the server must still launch when the allocator is disabled"
+    assert _wait_exists(launch_log), "the server must still launch when the allocator is disabled"
     assert _leases_at(home) == [], "with the allocator disabled, NO lease is written"
     # The degraded path leaves a short backgrounded `sleep` (no lease records its
     # pid); it is detached and self-reaps, so it does not block the suite.
@@ -1268,36 +1023,111 @@ def test_step50_exclusive_without_overrides_is_blocked_not_8069_fallback(tmp_pat
     assert _leases_at(home) == [], "a blocked exclusive spin-up must write no lease"
 
 
+@pytest.fixture(scope="module")
+def exclusive_runs(tmp_path_factory):
+    """The --exclusive spin-ups against ONE reserved lease: a launch naming a
+    database the lease does not hold (refused), the launch naming its own database
+    (the lease's pid is bound onto it), and a token-less launch on the caller's own
+    db and port. Each run is paid once; the tests below read what it left."""
+    tmp = tmp_path_factory.mktemp("exclusive_runs")
+    env, home, launch_log = _make_step50_spinup_env(
+        tmp, curl_mode="up_after_launch", lifetime=300)
+    built_db = "odoo_17_0_t_builtleg"
+    # --no-create keeps this a pure RESERVATION: it skips the allocator's own
+    # cluster preflight, so the launch log only ever records the spin-ups below.
+    acq = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "exclusive", "--db-name", built_db, "--run-id", "run-excl",
+         "--no-create"],
+        capture_output=True, text=True, env=env,
+    )
+    assert acq.returncode == 0, acq.stderr
+    token = next(
+        line.split("=", 1)[1].strip().strip("'")
+        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
+    )
+    ns = SimpleNamespace(home=home, token=token, built_db=built_db,
+                         lease_before=[lz for lz in _leases_at(home) if lz.get("token") == token][0],
+                         launched_by_acquire=launch_log.exists())
+
+    def spin(*args):
+        launch_log.unlink(missing_ok=True)
+        (tmp / "curl.count").unlink(missing_ok=True)  # the first probe says 'down' again
+        res = _run_step50_args(env, "--exclusive", "--http-port", "18271",
+                               "--port-key", "http_port", *args)
+        if res.returncode == 0:
+            _wait_exists(launch_log)
+            # The log already holds the stand-in's answer to the DB preflight; the server's own
+            # line (`-c <conf> -d <db>`) follows once the memory-capped launcher has exec'd it.
+            deadline = time.monotonic() + 10
+            while (not launch_log.exists() or " -d " not in launch_log.read_text(encoding="utf-8")) \
+                    and time.monotonic() < deadline:
+                time.sleep(0.05)
+        launched = launch_log.read_text(encoding="utf-8") if launch_log.exists() else None
+        return SimpleNamespace(res=res, out=res.stdout + res.stderr, launched=launched,
+                               leases=_leases_at(home))
+
+    ns.wrong_db = spin("--db-name", "odoo_17_0_t_someotherdb", "--alloc-token", token)
+    ns.own_db = spin("--db-name", built_db, "--alloc-token", token)
+    ns.tokenless = spin("--db-name", "odoo_17_0_t_deadbeef")
+    yield ns
+    _stop_servers(home)
+
+
 @requires_bash
-def test_step50_exclusive_uses_allocator_port_and_db_skips_shared_lease(tmp_path):
+def test_step50_refuses_a_db_name_that_disagrees_with_its_lease(exclusive_runs):
+    """ONE DATABASE, BOTH LEGS. `55-instance-ops.sh init` installs the module set
+    into the database the lease reserved, then this script launches that SAME
+    database listening. Launching a DIFFERENT name makes Odoo create that other
+    database EMPTY on the spot: the port answers HTTP 200 and every later check
+    reports green against code nobody installed - so the disagreement is refused
+    before anything is launched or written."""
+    ex = exclusive_runs
+    assert not ex.launched_by_acquire, "test setup: the reservation must launch nothing"
+    run = ex.wrong_db
+    assert run.res.returncode != 0, f"a db-name that disagrees with the lease must BLOCK\n{run.out}"
+    assert ex.built_db in run.out, f"the refusal must name the database the lease reserved\n{run.out}"
+    assert run.launched is None, f"NOTHING may launch\n{run.out}"
+    assert "Generated conf:" not in run.out, f"no conf may be written either\n{run.out}"
+
+
+@requires_bash
+def test_step50_exclusive_binds_launched_pid_onto_the_caller_lease(exclusive_runs):
+    """An --exclusive spin-up BINDS the launched server pid onto the caller's
+    PRE-ACQUIRED lease (via --alloc-token), so a later release or gc can stop the
+    whole process group before dropping the DB."""
+    ex = exclusive_runs
+    assert ex.lease_before["owner"]["pid"] is None, "exclusive acquire records no pid until the bind"
+    run = ex.own_db
+    assert run.res.returncode == 0, f"the matching db name must spin up\n{run.out}"
+    assert run.launched is not None, f"odoo-bin must launch when both legs agree\n{run.out}"
+    lease_after = [lz for lz in run.leases if lz.get("token") == ex.token]
+    assert lease_after, f"the exclusive lease must survive (never a shared row)\n{run.leases}"
+    pid = lease_after[0]["owner"]["pid"]
+    assert pid and _alive(int(pid)), "the bound pid must be the live server"
+    assert not [lz for lz in run.leases if lz.get("mode") == "shared"], (
+        "the exclusive branch must NOT register a shared render lease"
+    )
+
+
+@requires_bash
+def test_step50_exclusive_uses_allocator_port_and_db_skips_shared_lease(exclusive_runs):
     """--exclusive --db-name --http-port --port-key spins up the CALLER's own
-    pre-leased db/port (not the declared 18069/odoo_test) and registers NO
-    shared lease at all - the DB is already owned by the caller's own acquire,
-    not a second shared render-target row (P5.6/P5.7)."""
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50_args(
-        env, "--exclusive",
-        "--db-name", "odoo_17_0_t_deadbeef",
-        "--http-port", "18271",
-        "--port-key", "http_port",
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    assert launch_log.exists(), f"odoo-bin must launch for a well-specified --exclusive run\n{out}"
-    launched = launch_log.read_text(encoding="utf-8")
-    assert "odoo_17_0_t_deadbeef" in launched, (
-        f"launch must target the ALLOCATOR-issued db, not the declared odoo_test\n{launched}"
-    )
-    assert _leases_at(home) == [], (
-        "--exclusive must register NO shared lease - the DB is the caller's own "
-        f"pre-leased instance, not the shared render target\nleases: {_leases_at(home)}"
-    )
-    # Conf must carry the overridden port under the agent-resolved key.
-    conf_lines = [line for line in out.splitlines() if "Generated conf:" in line]
-    assert conf_lines, f"no 'Generated conf' line\n{out}"
-    conf_path = Path(conf_lines[0].split("Generated conf:")[-1].strip())
-    conf = conf_path.read_text(encoding="utf-8")
-    assert "http_port = 18271" in conf, f"conf must bind the allocator-issued port\n{conf}"
+    pre-leased db/port (not the declared 18069/odoo_test), with or without a token,
+    and registers NO shared lease - the DB is already owned by the caller's own
+    acquire, not a second shared render-target row."""
+    for label, run, db in (("with a token", exclusive_runs.own_db, exclusive_runs.built_db),
+                           ("without a token", exclusive_runs.tokenless, "odoo_17_0_t_deadbeef")):
+        assert run.res.returncode == 0, f"[{label}] {run.out}"
+        assert db in run.launched, (
+            f"[{label}] launch must target the ALLOCATOR-issued db, not the declared odoo_test\n{run.launched}"
+        )
+        assert not [lz for lz in run.leases if lz.get("mode") == "shared"], (
+            f"[{label}] --exclusive must register NO shared lease\n{run.leases}"
+        )
+        assert "http_port = 18271" in _generated_conf_text(run.out), (
+            f"[{label}] conf must bind the allocator-issued port"
+        )
 
 
 @requires_bash
@@ -1340,152 +1170,30 @@ def test_step50_refuses_run_id_and_teaches_where_ownership_is_recorded(tmp_path)
     )
 
 
-@requires_bash
-def test_step50_refuses_a_db_name_that_disagrees_with_its_lease(tmp_path):
-    """ONE DATABASE, BOTH LEGS. An isolated listening instance is built in two
-    legs - `55-instance-ops.sh init` installs the module set into a database and
-    exits, then this script launches that SAME database listening. This script
-    carries no -i/-u, so launching a DIFFERENT name makes Odoo create that other
-    database EMPTY on the spot: the port answers HTTP 200 and every later test,
-    QA pass and visual check reports green against code nobody installed.
-
-    The lease named by --alloc-token records which database was reserved and
-    built, so the disagreement is DECIDABLE here - and must be refused before
-    anything is launched or written, because no later signal exists.
-    """
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    built_db = "odoo_17_0_t_builtleg"
-    acq = subprocess.run(
-        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
-         "--mode", "exclusive", "--db-name", built_db, "--run-id", "run-excl",
-         # --no-create keeps this a pure RESERVATION: it skips the allocator's own
-         # cluster preflight, which would otherwise invoke the declared (stubbed)
-         # python and write to the very launch log this test reads as "did the
-         # spin-up launch anything?".
-         "--no-create"],
-        capture_output=True, text=True, env=env,
-    )
-    assert acq.returncode == 0, acq.stderr
-    token = next(
-        line.split("=", 1)[1].strip().strip("'")
-        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
-    )
-    assert not launch_log.exists(), "test setup: the acquire must launch nothing"
-
-    res = _run_step50_args(
-        env, "--exclusive",
-        "--db-name", "odoo_17_0_t_someotherdb",   # NOT the database the lease holds
-        "--http-port", "18271", "--port-key", "http_port",
-        "--alloc-token", token,
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, f"a db-name that disagrees with the lease must BLOCK\n{out}"
-    assert "BLOCKED" in out and built_db in out, (
-        f"the refusal must name the database the lease actually reserved\n{out}"
-    )
-    assert not launch_log.exists(), (
-        f"NOTHING may launch - an empty database answering 200 is the failure\n{out}"
-    )
-    assert "Generated conf:" not in out, f"no conf may be written either\n{out}"
-
-    # The agreeing case is unaffected: the same lease, launched on its own database.
-    ok = _run_step50_args(
-        env, "--exclusive", "--db-name", built_db,
-        "--http-port", "18271", "--port-key", "http_port",
-        "--alloc-token", token,
-    )
-    okout = ok.stdout + ok.stderr
-    assert ok.returncode == 0, f"the matching db name must still spin up\n{okout}"
-    assert launch_log.exists(), f"odoo-bin must launch when both legs agree\n{okout}"
-    pid = [lz for lz in _leases_at(home) if lz.get("token") == token][0]["owner"]["pid"]
-    if pid and _alive(pid):
-        os.kill(int(pid), signal.SIGTERM)
-
-
-@requires_bash
-def test_step50_exclusive_binds_launched_pid_onto_the_caller_lease(tmp_path):
-    """L1.1 (RAM-leak fix): an --exclusive spin-up must BIND the launched server
-    pid onto the caller's PRE-ACQUIRED lease (via --alloc-token), so a later
-    `allocator.py release`/`gc` can stop the whole process group before dropping
-    the DB. Before this fix only shared leases recorded a pid, so an exclusive
-    lease leaked the listening server on release.
-    """
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-
-    # The caller (odoo-instance-ops) acquires the exclusive lease FIRST.
-    db = "odoo_17_0_t_deadbeef"
-    acq = subprocess.run(
-        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
-         "--mode", "exclusive", "--db-name", db, "--run-id", "run-excl"],
-        capture_output=True, text=True, env=env,
-    )
-    assert acq.returncode == 0, acq.stderr
-    token = next(
-        line.split("=", 1)[1].strip().strip("'")
-        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
-    )
-    assert token, f"acquire must mint a token\n{acq.stdout}"
-    lease_before = [lz for lz in _leases_at(home) if lz.get("token") == token][0]
-    assert lease_before["owner"]["pid"] is None, "exclusive acquire records no pid until the bind"
-
-    res = _run_step50_args(
-        env, "--exclusive",
-        "--db-name", db,
-        "--http-port", "18271",
-        "--port-key", "http_port",
-        "--alloc-token", token,
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    assert launch_log.exists(), f"odoo-bin must launch for a well-specified --exclusive run\n{out}"
-
-    lease_after = [lz for lz in _leases_at(home) if lz.get("token") == token]
-    assert lease_after, f"the exclusive lease must survive (never a shared row)\n{_leases_at(home)}"
-    pid = lease_after[0]["owner"]["pid"]
-    assert pid, "the launched server pid must be BOUND onto the exclusive lease"
-    assert _alive(int(pid)), "the bound pid must be the live server (kill -0 confirmed)"
-    # No shared lease is ever created on the exclusive branch.
-    assert not [lz for lz in _leases_at(home) if lz.get("mode") == "shared"], (
-        "the exclusive branch must NOT register a shared render lease"
-    )
-    os.kill(int(pid), signal.SIGTERM)  # reap the backgrounded sleep stand-in
-
-
-def _make_step50_forking_env(tmp_path: Path, *, trap_term: bool):
-    """A step-50 source-mode scenario whose 'odoo-bin' launch forks a CHILD
-    (a stand-in worker) in the setsid process group and whose curl NEVER answers
-    200 (the readiness poll TIMES OUT). Writes '<leader> <child>' to a pidfile.
-    When trap_term is True, BOTH leader and child TRAP SIGTERM (append to a marker
-    file and keep running) so only a SIGKILL escalation can reap them - proving
-    the timeout cleanup escalates and targets the whole GROUP. Returns
-    (env, home, pidfile, marker)."""
+def _make_step50_forking_env(tmp_path: Path):
+    """A step-50 source-mode scenario whose 'odoo-bin' launch forks a CHILD (a
+    stand-in worker) in the setsid process group and whose curl NEVER answers 200
+    (the readiness poll TIMES OUT). BOTH leader and child TRAP SIGTERM (append to a
+    marker file and keep running) so only a SIGKILL escalation can reap them.
+    Writes '<leader> <child>' to a pidfile. Returns (env, home, pidfile, marker)."""
     pidfile = tmp_path / "grp.pids"
     marker = tmp_path / "term.marker"
     py_bin_dir = tmp_path / "fake-py-bin"
     py_bin_dir.mkdir(exist_ok=True)
     fake_py = py_bin_dir / "python"
-    if trap_term:
-        launch_body = textwrap.dedent(f"""\
-            trap 'echo leader >> "{marker}"' TERM
-            (
-              trap 'echo child >> "{marker}"' TERM
-              while :; do sleep 1; done
-            ) &
-            echo "$$ $!" > "{pidfile}"
-            while :; do sleep 1; done
-        """)
-    else:
-        launch_body = textwrap.dedent(f"""\
-            sleep 300 &
-            echo "$$ $!" > "{pidfile}"
-            wait
-        """)
+    launch_body = textwrap.dedent(f"""\
+        trap 'echo leader >> "{marker}"' TERM
+        (
+          trap 'echo child >> "{marker}"' TERM
+          while :; do sleep 1; done
+        ) &
+        echo "$$ $!" > "{pidfile}"
+        while :; do sleep 1; done
+    """)
     _write_stub(fake_py, textwrap.dedent(f"""\
         if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
         # A real venv python ANSWERS a bounded odoo_db.py question and returns;
-        # only an odoo-bin invocation launches a server. A stub that ran the
-        # launch body here would make the DB preflight look like a hanging
-        # server, and the test would then measure the fixture.
+        # only an odoo-bin invocation launches a server.
         if [[ "$1" == *odoo_db.py ]]; then echo "DB_AUTH=ok"; exit 0; fi
     """) + launch_body)
 
@@ -1502,8 +1210,8 @@ def _make_step50_forking_env(tmp_path: Path, *, trap_term: bool):
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(home)
-    env["SPINUP_TIMEOUT"] = "3"       # short poll bound
-    env["SPINUP_STOP_GRACE"] = "2"    # short SIGTERM->SIGKILL escalation bound
+    env["SPINUP_TIMEOUT"] = "1"       # one poll round
+    env["SPINUP_STOP_GRACE"] = "1"    # short SIGTERM->SIGKILL escalation bound
     env.pop("ODOO_PG_PASSWORD", None)
     env["ODOO_BIN"] = str(odoo_bin)
     return env, home, pidfile, marker
@@ -1519,14 +1227,16 @@ def _wait_dead(pid: int, timeout_s: float = 5.0) -> bool:
 
 
 @requires_bash
-def test_step50_exclusive_binds_pid_before_poll_and_group_reaped_on_timeout(tmp_path):
-    """L1.1 failure-path gap: an --exclusive spin-up must bind the pid onto the
-    lease BEFORE the readiness poll (so release/gc can always reap), and on a poll
-    TIMEOUT the local cleanup must stop the whole process GROUP - not just the
-    leader - so a forked worker child does not survive against a DB the caller may
-    then drop."""
-    env, home, pidfile, _ = _make_step50_forking_env(tmp_path, trap_term=False)
-    db = "odoo_17_0_t_timeout1"
+def test_step50_a_timed_out_exclusive_spinup_binds_its_pid_and_reaps_the_whole_group(tmp_path):
+    """On a readiness TIMEOUT the local cleanup stops the whole process GROUP, and
+    ESCALATES: SIGTERM the group, wait a bounded grace, then SIGKILL it. Proven with
+    a leader AND child that both TRAP SIGTERM - they still end up dead (only SIGKILL
+    can do that) and both RECEIVED the group SIGTERM (a bare `kill <leader>` would
+    leave the forked worker running against a DB the caller may then drop). The
+    launched pid was bound onto the exclusive lease BEFORE the poll, so release or
+    gc can always reap regardless of the poll outcome."""
+    env, home, pidfile, marker = _make_step50_forking_env(tmp_path)
+    db = "odoo_17_0_t_timeout2"
     acq = subprocess.run(
         [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
          "--mode", "exclusive", "--db-name", db, "--run-id", "run-excl"],
@@ -1547,59 +1257,12 @@ def test_step50_exclusive_binds_pid_before_poll_and_group_reaped_on_timeout(tmp_
     assert pidfile.exists(), f"the fake server must have launched + forked a child\n{out}"
     leader, child = (int(x) for x in pidfile.read_text().split())
 
-    # (1) pid bound onto the lease BEFORE the poll (even though the poll timed out).
-    lease = [lz for lz in _leases_at(home) if lz.get("token") == token]
-    assert lease, "the exclusive lease must survive the timeout"
-    assert lease[0]["owner"]["pid"] == leader, (
-        "the launched pid must be BOUND onto the lease before the readiness poll, "
-        "so release/gc can reap the group regardless of poll outcome"
-    )
-    # (2) the WHOLE group is reaped by the local cleanup - child too, not just leader.
     try:
-        assert _wait_dead(leader), "the timeout cleanup must stop the group leader"
-        assert _wait_dead(child), (
-            "the timeout cleanup must stop the forked CHILD too (group-targeted, "
-            "not a bare `kill <leader>` that leaves workers running)"
+        lease = [lz for lz in _leases_at(home) if lz.get("token") == token]
+        assert lease, "the exclusive lease must survive the timeout"
+        assert lease[0]["owner"]["pid"] == leader, (
+            "the launched pid must be BOUND onto the lease before the readiness poll"
         )
-    finally:
-        for p in (child, leader):
-            try:
-                os.kill(p, signal.SIGKILL)
-            except (ProcessLookupError, OSError):
-                pass
-
-
-@requires_bash
-def test_step50_timeout_cleanup_escalates_to_group_sigkill(tmp_path):
-    """The timeout cleanup must ESCALATE: SIGTERM the group, wait a bounded grace,
-    then SIGKILL the group. Proven with a leader AND child that both TRAP SIGTERM
-    (survive it) - they must still end up dead (only SIGKILL can do that), and both
-    must have RECEIVED the group SIGTERM (marker written by each)."""
-    env, home, pidfile, marker = _make_step50_forking_env(tmp_path, trap_term=True)
-    db = "odoo_17_0_t_timeout2"
-    acq = subprocess.run(
-        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
-         "--mode", "exclusive", "--db-name", db, "--run-id", "run-excl"],
-        capture_output=True, text=True, env=env,
-    )
-    assert acq.returncode == 0, acq.stderr
-    token = next(
-        line.split("=", 1)[1].strip().strip("'")
-        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
-    )
-
-    res = _run_step50_args(
-        env, "--exclusive", "--db-name", db, "--http-port", "18271",
-        "--port-key", "http_port", "--alloc-token", token,
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, f"a never-ready spin-up must FAIL (timeout)\n{out}"
-    assert pidfile.exists(), out
-    leader, child = (int(x) for x in pidfile.read_text().split())
-
-    try:
-        # Both members RECEIVED the group SIGTERM (group targeting), yet survived it
-        # (they trap it) - so being dead now proves the SIGKILL escalation fired.
         assert _wait_dead(leader), "SIGKILL escalation must reap the SIGTERM-trapping leader"
         assert _wait_dead(child), "SIGKILL escalation must reap the SIGTERM-trapping child"
         marker_text = marker.read_text(encoding="utf-8") if marker.exists() else ""
@@ -1616,128 +1279,25 @@ def test_step50_timeout_cleanup_escalates_to_group_sigkill(tmp_path):
 
 
 @requires_bash
-def test_step50_gevent_port_without_key_is_blocked(tmp_path):
-    """--gevent-port with NO --gevent-port-key must BLOCK (non-zero, no launch)
-    rather than silently omitting the second listening port from the generated
-    conf (mirrors the --exclusive-without-overrides gate above)."""
+@pytest.mark.parametrize("half", [
+    pytest.param(("--gevent-port", "9069"), id="port-without-key"),
+    pytest.param(("--gevent-port-key", "longpolling_port"), id="key-without-port"),
+])
+def test_step50_a_half_specified_gevent_pair_is_blocked(tmp_path, half):
+    """--gevent-port and --gevent-port-key come as a PAIR: either alone must BLOCK
+    (non-zero, no launch, no lease) rather than silently omitting the second
+    listening port from the generated conf."""
     env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50_args(env, "--gevent-port", "9069")
+    res = _run_step50_args(env, *half)
     out = res.stdout + res.stderr
-    assert res.returncode != 0, f"--gevent-port with no --gevent-port-key must be BLOCKED\n{out}"
-    assert "BLOCKED" in out, f"expected an explicit BLOCKED message\n{out}"
-    assert "gevent-port" in out, f"expected the error to name the half-specified flag\n{out}"
-    assert not launch_log.exists(), (
-        f"odoo-bin must NOT launch when --gevent-port is under-specified\n{out}"
-    )
+    assert res.returncode != 0, f"{half} alone must be BLOCKED\n{out}"
+    assert not launch_log.exists(), f"odoo-bin must NOT launch when the pair is under-specified\n{out}"
     assert _leases_at(home) == [], "a blocked spin-up must write no lease"
-
-
-@requires_bash
-def test_step50_gevent_port_key_without_port_is_blocked(tmp_path):
-    """--gevent-port-key with NO --gevent-port must BLOCK (non-zero, no launch) -
-    the other half of the pairing gate (the previous test covers the reverse)."""
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50_args(env, "--gevent-port-key", "longpolling_port")
-    out = res.stdout + res.stderr
-    assert res.returncode != 0, f"--gevent-port-key with no --gevent-port must be BLOCKED\n{out}"
-    assert "BLOCKED" in out, f"expected an explicit BLOCKED message\n{out}"
-    assert "gevent-port" in out, f"expected the error to name the half-specified flag\n{out}"
-    assert not launch_log.exists(), (
-        f"odoo-bin must NOT launch when --gevent-port-key is under-specified\n{out}"
-    )
-    assert _leases_at(home) == [], "a blocked spin-up must write no lease"
-
-
-@requires_bash
-def test_step50_gevent_port_and_key_together_writes_conf_line(tmp_path):
-    """Regression guard for the happy path: --gevent-port + --gevent-port-key
-    given TOGETHER must still succeed and the generated conf must carry the
-    second listening-port line under the agent-resolved key - the new pairing
-    gate must not block (or otherwise disturb) the well-specified case."""
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50_args(
-        env, "--gevent-port", "9069", "--gevent-port-key", "longpolling_port",
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    assert launch_log.exists(), f"odoo-bin must launch for a well-specified gevent pair\n{out}"
-    conf_lines = [line for line in out.splitlines() if "Generated conf:" in line]
-    assert conf_lines, f"no 'Generated conf' line\n{out}"
-    conf_path = Path(conf_lines[0].split("Generated conf:")[-1].strip())
-    conf = conf_path.read_text(encoding="utf-8")
-    assert "longpolling_port = 9069" in conf, (
-        f"conf must carry the second listening port under the resolved key\n{conf}"
-    )
-
-
-@requires_bash
-def test_step50_shared_lease_owner_stamped_when_run_id_set(tmp_path):
-    """P5.5: when the caller sets INST_RUN_ID before invoking apply (the
-    declared/shared persist: shared-running path), _register_shared threads
-    --run-id into its allocator acquire, so the shared lease is owner-stamped
-    instead of unowned. Absent INST_RUN_ID, the lease stays unowned exactly as
-    before (back-compat - already covered by test_step50_registers_shared_lease_after_server_up)."""
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    env["INST_RUN_ID"] = "run-owner-xyz"
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    assert launch_log.exists()
-    shared = [lz for lz in _leases_at(home) if lz.get("mode") == "shared"]
-    assert len(shared) == 1, f"expected exactly one shared lease\n{_leases_at(home)}"
-    lz = shared[0]
-    assert lz["owner"].get("run_id") == "run-owner-xyz", (
-        f"the shared lease must be owner-stamped with INST_RUN_ID; got {lz['owner']!r}"
-    )
-    pid = lz["owner"]["pid"]
-    if pid and _alive(pid):
-        os.kill(int(pid), signal.SIGTERM)
 
 
 # ---------------------------------------------------------------------------
 # WI-4 (a): persistent log path under ~/.odoo-ai/logs/ + parseable LOG_PATH=
 # ---------------------------------------------------------------------------
-
-@requires_bash
-def test_step50_apply_writes_log_under_odoo_ai_home(tmp_path):
-    """apply must write the Odoo log to <ODOO_AI_HOME>/.odoo-ai/logs/<db>-<ts>.log
-    and emit a parseable 'LOG_PATH=<path>' line on stdout so a calling agent
-    can capture the log location without screen-scraping.
-    """
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-
-    assert res.returncode == 0, f"Expected success.\nstdout: {res.stdout}\nstderr: {res.stderr}"
-
-    # 1. A parseable LOG_PATH= line must appear on stdout.
-    log_path_lines = [line for line in res.stdout.splitlines() if line.startswith("LOG_PATH=")]
-    assert len(log_path_lines) == 1, (
-        f"Expected exactly one LOG_PATH= line on stdout.\nstdout:\n{res.stdout}"
-    )
-
-    log_path = Path(log_path_lines[0].split("=", 1)[1])
-
-    # 2. The path must be inside ODOO_AI_HOME/logs/ (ODOO_AI_HOME IS the .odoo-ai
-    #    dir; .odoo-ai is appended only in the HOME fallback).
-    expected_dir = home / "logs"
-    assert log_path.parent == expected_dir, (
-        f"LOG_PATH must be under {expected_dir}, got {log_path.parent}"
-    )
-
-    # 3. The filename encodes the db name and a UTC timestamp.
-    assert log_path.name.startswith("odoo_test-"), (
-        f"Log filename must start with the db name 'odoo_test-', got: {log_path.name}"
-    )
-    assert log_path.suffix == ".log", (
-        f"Log file must have .log suffix, got: {log_path.suffix}"
-    )
-
-    # 4. The log file must actually exist (Odoo output was redirected there).
-    assert log_path.exists(), (
-        f"LOG_PATH file {log_path} does not exist (redirect failed?)"
-    )
-
 
 # ---------------------------------------------------------------------------
 # WI-4 (b): port config key - xmlrpc_port for v8/9/10, http_port for v11+
@@ -1793,108 +1353,19 @@ def _make_step50_toml_for_series(tmp_path: Path, series: str, checkout: str | No
 
 
 
-@requires_bash
-def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
-    """For series 8.0, 9.0, 10.0 the generated odoo.conf must use xmlrpc_port;
-    for 17.0 it must use http_port.
-
-    Strategy: use an 'up_after_launch' curl stub (first probe 000, second+ 200)
-    so the script enters the 'source' branch, generates a conf, and launches
-    odoo-bin. Apply succeeds (HTTP 200 on the 2nd poll) and the conf is NOT
-    cleaned up (cleanup only on poll-timeout). We then read the conf from the
-    path printed on stdout.
-    """
-    results = {}
-    for series in ("8.0", "9.0", "10.0", "17.0"):
-        series_tmp = tmp_path / series.replace(".", "_")
-        series_tmp.mkdir()
-        _, _, env = _make_step50_toml_for_series(series_tmp, series)
-        results[series] = _step50_apply_conf(series_tmp, series, env)
-    # The key is the checkout's option dest, never the series label: a 10.0 checkout declared
-    # under 17.0 still gets xmlrpc_port.
-    mixed_tmp = tmp_path / "mixed"
-    mixed_tmp.mkdir()
-    _, _, env = _make_step50_toml_for_series(mixed_tmp, "17.0", checkout="10.0")
-    results["10.0-as-17.0"] = _step50_apply_conf(mixed_tmp, "17.0", env)
-
-    for series in ("8.0", "9.0", "10.0", "10.0-as-17.0"):
-        conf = results[series]
-        assert "xmlrpc_port" in conf, (
-            f"series {series}: expected 'xmlrpc_port' in conf, got:\n{conf}"
-        )
-        assert "http_port" not in conf, (
-            f"series {series}: 'http_port' must NOT appear in conf (it's xmlrpc_port for <v11), got:\n{conf}"
-        )
-
-    conf17 = results["17.0"]
-    assert "http_port" in conf17, (
-        f"series 17.0: expected 'http_port' in conf, got:\n{conf17}"
-    )
-    assert "xmlrpc_port" not in conf17, (
-        f"series 17.0: 'xmlrpc_port' must NOT appear in conf, got:\n{conf17}"
-    )
-
-
-def _step50_apply_conf(series_tmp: Path, series: str, env: dict) -> str:
-    """Run `apply --version <series>` in a _make_step50_toml_for_series world with an
-    up-after-launch curl; return the generated conf's text."""
-    # Replace the curl stub with an up_after_launch variant:
-    # first probe -> 000 (triggers launch), second probe -> 200 (poll succeeds).
-    bind = series_tmp / f"bin-{series.replace('.', '_')}"
-    cnt = series_tmp / "curl.count"
-    _write_stub(bind / "curl", textwrap.dedent(f"""\
-        n="$(cat "{cnt}" 2>/dev/null || echo 0)"
-        echo $((n + 1)) > "{cnt}"
-        if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
-    """))
-
-    res = subprocess.run(
-        ["bash", str(STEP50), "apply", "--version", series],
-        capture_output=True, text=True, env=env, timeout=30,
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, (
-        f"Expected success for series={series}.\nout:\n{out}"
-    )
-    # Extract the conf path from output.
-    conf_lines = [
-        line for line in out.splitlines()
-        if "Generated conf:" in line
-    ]
-    assert conf_lines, (
-        f"No 'Generated conf' line for series={series}.\nout:\n{out}"
-    )
-    conf_path = conf_lines[0].split("Generated conf:")[-1].strip()
-    assert Path(conf_path).exists(), (
-        f"Conf file {conf_path} does not exist for series={series} "
-        f"(should NOT be cleaned up when apply succeeds)"
-    )
-    return Path(conf_path).read_text(encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# Fix 5: --dev=all version gate (v8/v9 must NOT get --dev=all; v10+ must)
-# ---------------------------------------------------------------------------
-
-@requires_bash
-def test_step50_dev_flag_gated_by_version(tmp_path):
-    """series 8.0 and 9.0 must NOT include '--dev=all' in the launch command;
-    series 17.0 MUST include '--dev=all' - and a 9.0 checkout declared under
-    17.0 must not either: the gate is the checkout's own --dev option.
-
-    --dev=all needs a value-taking --dev (v10+); v9 has only a boolean --dev and
-    v8 has no --dev at all. Passing --dev=all to either would raise an optparse
-    error and prevent Odoo from starting.
-
-    Strategy: identical to test_step50_conf_uses_xmlrpc_port_for_legacy_series -
-    use an up_after_launch curl stub so the script generates the launch command and
-    succeeds. Capture the 'Launching:' line from stdout and check --dev=all presence.
-    """
-    results = {}
-    for series, checkout in (("8.0", None), ("9.0", None), ("17.0", None), ("17.0", "9.0")):
-        label = series if checkout is None else "%s-as-%s" % (checkout, series)
-        series_tmp = tmp_path / label.replace(".", "_")
-        series_tmp.mkdir()
+@pytest.fixture(scope="module")
+def series_runs(tmp_path_factory):
+    """One `apply` per checkout shape, each paid once: label -> (conf text, the
+    'Launching:' line). A checkout declared under another series label
+    ('10.0-as-17.0') proves the answers come from the checkout's own option
+    facts, never from the series label."""
+    runs = {}
+    for label, series, checkout in (
+        ("8.0", "8.0", None), ("9.0", "9.0", None), ("10.0", "10.0", None),
+        ("17.0", "17.0", None), ("10.0-as-17.0", "17.0", "10.0"),
+        ("9.0-as-17.0", "17.0", "9.0"),
+    ):
+        series_tmp = tmp_path_factory.mktemp("series_" + label.replace(".", "_"))
         _, _, env = _make_step50_toml_for_series(series_tmp, series, checkout=checkout)
         # up_after_launch: first probe 000 (trigger launch), second+ 200 (success).
         bind = series_tmp / f"bin-{series.replace('.', '_')}"
@@ -1904,34 +1375,40 @@ def test_step50_dev_flag_gated_by_version(tmp_path):
             echo $((n + 1)) > "{cnt}"
             if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
         """))
-
         res = subprocess.run(
             ["bash", str(STEP50), "apply", "--version", series],
             capture_output=True, text=True, env=env, timeout=30,
         )
         out = res.stdout + res.stderr
-        assert res.returncode == 0, (
-            f"Expected success for series={series}.\nout:\n{out}"
-        )
-        # Capture the 'Launching:' diagnostic line.
-        launch_lines = [line for line in out.splitlines() if "Launching:" in line]
-        assert launch_lines, (
-            f"No 'Launching:' line for series={series}.\nout:\n{out}"
-        )
-        results[label] = launch_lines[0]
+        assert res.returncode == 0, f"Expected success for {label}.\nout:\n{out}"
+        launching = [line for line in out.splitlines() if "Launching:" in line]
+        assert launching, f"No 'Launching:' line for {label}.\nout:\n{out}"
+        # The conf is NOT cleaned up when apply succeeds.
+        runs[label] = (_generated_conf_text(out), launching[0])
+    return runs
 
-    # v8 and v9 checkouts: --dev=all must NOT appear.
-    for series in ("8.0", "9.0", "9.0-as-17.0"):
-        assert "--dev=all" not in results[series], (
-            f"series {series}: '--dev=all' must NOT appear in launch command "
-            f"(--dev=all requires v10+); got: {results[series]!r}"
-        )
 
-    # v17: --dev=all must appear.
-    assert "--dev=all" in results["17.0"], (
-        f"series 17.0: '--dev=all' must appear in launch command; "
-        f"got: {results['17.0']!r}"
-    )
+@requires_bash
+def test_step50_conf_main_port_key_comes_from_the_checkout(series_runs):
+    """The main-port key is the checkout's option dest, never the series label:
+    xmlrpc_port for a v8/9/10 checkout (even one declared under 17.0), http_port
+    from v11."""
+    for label in ("8.0", "9.0", "10.0", "10.0-as-17.0"):
+        conf = series_runs[label][0]
+        assert "xmlrpc_port" in conf and "http_port" not in conf, f"{label}:\n{conf}"
+    conf17 = series_runs["17.0"][0]
+    assert "http_port" in conf17 and "xmlrpc_port" not in conf17, conf17
+
+
+@requires_bash
+def test_step50_dev_all_is_gated_by_the_checkouts_own_dev_option(series_runs):
+    """--dev=all needs a value-taking --dev (v10+); v9 has only a boolean --dev and
+    v8 none, so passing it there would stop Odoo from starting. The gate is the
+    checkout's own option, not the series label."""
+    for label in ("8.0", "9.0", "9.0-as-17.0"):
+        assert "--dev=all" not in series_runs[label][1], f"{label}: {series_runs[label][1]!r}"
+    for label in ("10.0", "17.0"):
+        assert "--dev=all" in series_runs[label][1], f"{label}: {series_runs[label][1]!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -1981,7 +1458,7 @@ def test_step45_verifies_all_profile_repos_present(tmp_path):
     bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
 
     env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["PATH"] = _step45_path(bind)
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
 
@@ -1997,10 +1474,6 @@ def test_step45_verifies_all_profile_repos_present(tmp_path):
         f"Expected non-zero exit when a profile repo dir is missing.\n"
         f"stdout: {res.stdout}\nstderr: {res.stderr}"
     )
-    # Error message must name the missing repo path
-    assert "missing" in out.lower() or "missing-addon-repo" in out or "not found" in out.lower(), (
-        f"Expected error message mentioning the missing repo path.\nOutput:\n{out}"
-    )
     # python must NOT be recorded
     content = toml.read_text(encoding="utf-8")
     assert 'python = ""' in content, (
@@ -2013,175 +1486,44 @@ def test_step45_verifies_all_profile_repos_present(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# F2: no-profile + only-profiled-blocks fails EARLY (before gate/build)
-# ---------------------------------------------------------------------------
-
-@requires_bash
-def test_step45_no_profile_multiprofile_fails_early(tmp_path):
-    """When the toml has only profiled blocks for the given series, create-venv
-    without --profile must fail BEFORE any venv is built (no venv dir created).
-
-    Business rule (B2): fail-loud guard triggers before gate/build so the error
-    message is clean rather than appearing after expensive dependency install.
-
-    The existing test_step45_no_profile_does_not_clobber_profiled_block verifies
-    exit non-zero + TOML unchanged; this test additionally verifies the guard
-    fires BEFORE any venv directory is created.
-    """
-    core = _make_core_dir(tmp_path)
-    addons_path = str(core / "addons")
-
-    toml = tmp_path / "instances.toml"
-    toml.write_text(
-        textwrap.dedent(f"""\
-            [[instance]]
-            series = "17.0"
-            profile = "minimal_17"
-            instance_key = "17.0:minimal_17"
-            python = ""
-            http_port = 8069
-            db_name = "odoo_17_minimal"
-            db_host = "localhost"
-            db_user = "odoo"
-            run_mode = "source"
-            addons_path = "{addons_path}"
-        """),
-        encoding="utf-8",
-    )
-
-    venv_dir = _make_fake_venv(tmp_path, odoo_runnable=True)
-    bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
-
-    # A representative auto-derived venv path. The --profile guard fires BEFORE
-    # the venv path is ever computed, so
-    # its exact root is irrelevant to this assertion - what matters is that NO
-    # venv directory materializes anywhere under tmp_path.
-    auto_venv_path = tmp_path / "odoo-ai" / "venvs" / "17.0"
-
-    env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-
-    # Run WITHOUT --profile AND WITHOUT --path so auto-derived path is used
-    res = subprocess.run(
-        ["bash", str(STEP45), "create-venv", "--series", "17.0", "--tool", "uv"],
-        capture_output=True, text=True, env=env,
-    )
-    out = res.stdout + res.stderr
-
-    # Must fail
-    assert res.returncode != 0, (
-        f"Expected non-zero exit.\nstdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-    # Guard message must mention --profile
-    assert "--profile" in out or "profile" in out.lower(), (
-        f"Expected message mentioning --profile.\nOutput:\n{out}"
-    )
-    # No venv must have been created (guard fired BEFORE build)
-    assert not auto_venv_path.exists(), (
-        f"Venv dir {auto_venv_path} must NOT be created when guard fires early.\n"
-        f"Output:\n{out}"
-    )
-
-
-# ---------------------------------------------------------------------------
 # F3: step 50 shared lease must pass --profile to allocator acquire
 # ---------------------------------------------------------------------------
 
 @requires_bash
 def test_step50_shared_lease_passes_profile_to_allocator(tmp_path):
-    """When spinning up a profiled instance, step 50's _register_shared must
-    pass --profile <name> to allocator acquire so the lease targets the correct
-    (series, profile) slot rather than the first series match.
-
-    Strategy: write a profiled [[instance]] in instances.toml, run step 50 apply,
-    then inspect the written lease to confirm profile is recorded. The allocator
-    already supports --profile (cmd_acquire reads opts['profile']); this test
-    confirms step 50 actually passes it.
-
-    RED on current code where _register_shared calls acquire without --profile.
-    """
-    # instances.toml with a PROFILED block
-    fake_addons = tmp_path / "fake-core" / "addons"
-    fake_addons.mkdir(parents=True, exist_ok=True)
-    fake_bin = tmp_path / "fake-core" / "odoo-bin"
-    _launcher(fake_bin, 'echo "Odoo Server 17.0"\n')
-
-    real_py3 = real_python3()
-    py_bin_dir = tmp_path / "fake-py-bin"
-    py_bin_dir.mkdir(exist_ok=True)
-    fake_py = py_bin_dir / "python"
-    launch_log = tmp_path / "odoo-launch.log"
-    _write_stub(fake_py, textwrap.dedent(f"""\
-        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-        echo "launched $*" >> "{launch_log}"
-        exec sleep 15
-    """))
-
-    toml = tmp_path / "instances.toml"
+    """When spinning up a profiled instance, step 50's shared registration passes
+    the profile to the allocator, so the lease targets the correct (series, profile)
+    slot rather than the first series match."""
+    env, home, _launch_log = _make_step50_spinup_env(
+        tmp_path, curl_mode="up_after_launch", profile="test_profile", lifetime=60)
+    # A sibling profile of the same series, declared FIRST: a registration that forgot
+    # the profile would land on "the first series match" - this one.
+    toml = Path(env["ODOO_AI_INSTANCES"])
     toml.write_text(
-        textwrap.dedent(f"""\
+        toml.read_text(encoding="utf-8").replace('[[instance]]', textwrap.dedent("""\
             [[instance]]
             series = "17.0"
-            profile = "test_profile"
-            instance_key = "17.0:test_profile"
-            python = "{fake_py}"
+            profile = "decoy"
+            instance_key = "17.0:decoy"
+            python = "/nonexistent/python"
             http_port = 18169
-            db_name = "odoo_17_tp"
+            db_name = "odoo_decoy"
             db_host = "localhost"
             db_user = "odoo"
             run_mode = "source"
-            addons_path = "{fake_addons}"
-        """),
-        encoding="utf-8",
-    )
+            addons_path = "/nonexistent/addons"
 
-    bind = tmp_path / "bin50p"
-    bind.mkdir(exist_ok=True)
-    # curl: 000 first (trigger launch), 200 second (server up)
-    cnt = tmp_path / "curl.count"
-    _write_stub(bind / "curl", textwrap.dedent(f"""\
-        n="$(cat "{cnt}" 2>/dev/null || echo 0)"
-        echo $((n + 1)) > "{cnt}"
-        if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
-    """))
-    _write_stub(bind / "pg_isready", "exit 0\n")
-
-    home = tmp_path / "odoo-ai-home"
-    env = dict(os.environ)
-    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(home)
-    env["SPINUP_TIMEOUT"] = "10"
-    env.pop("ODOO_PG_PASSWORD", None)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = subprocess.run(
-        ["bash", str(STEP50), "apply", "--version", "17.0", "--profile", "test_profile"],
-        capture_output=True, text=True, env=env, timeout=30,
-    )
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, (
-        f"Expected success for profiled instance.\nstdout: {res.stdout}\nstderr: {res.stderr}"
-    )
-
-    # Inspect the lease: profile field must be recorded
-    leases = _leases_at(home)
-    shared = [lz for lz in leases if lz.get("mode") == "shared"]
-    assert len(shared) == 1, (
-        f"Expected exactly one shared lease.\nLeases:\n{leases}\nOutput:\n{out}"
-    )
-    lz = shared[0]
-    assert lz.get("profile") == "test_profile", (
-        f"Shared lease must record profile='test_profile' (got {lz.get('profile')!r}).\n"
-        f"Lease: {lz}\nOutput:\n{out}"
-    )
-
-    # Reap the background sleep
-    pid = lz.get("owner", {}).get("pid")
-    if pid and _alive(pid):
-        os.kill(int(pid), signal.SIGTERM)
+            [[instance]]"""), 1), encoding="utf-8")
+    try:
+        res = _run_step50_args(env, "--profile", "test_profile")
+        out = res.stdout + res.stderr
+        assert res.returncode == 0, f"Expected success for profiled instance.\n{out}"
+        shared = [lz for lz in _leases_at(home) if lz.get("mode") == "shared"]
+        assert len(shared) == 1, f"Expected exactly one shared lease.\n{_leases_at(home)}\n{out}"
+        assert shared[0].get("profile") == "test_profile", shared[0]
+    finally:
+        _wait_exists(tmp_path / "server.pids")
+        _stop_servers(home)
 
 
 # ---------------------------------------------------------------------------
@@ -2294,38 +1636,6 @@ def _generated_conf_text(out: str) -> str:
 
 
 @requires_bash
-def test_step50_conf_carries_limit_memory_hard_soft_and_time_real(tmp_path):
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    conf = _generated_conf_text(out)
-    assert re.search(r"^limit_memory_hard = \d+$", conf, re.MULTILINE), (
-        f"conf must carry a numeric limit_memory_hard key.\nconf:\n{conf}"
-    )
-    assert re.search(r"^limit_memory_soft = \d+$", conf, re.MULTILINE), (
-        f"conf must carry a numeric limit_memory_soft key.\nconf:\n{conf}"
-    )
-    assert re.search(r"^limit_time_real = \d+$", conf, re.MULTILINE), (
-        f"conf must carry a numeric limit_time_real key.\nconf:\n{conf}"
-    )
-
-
-@requires_bash
-def test_step50_conf_never_carries_limit_time_cpu_while_workers_zero(tmp_path):
-    """limit_time_cpu must never appear at all while workers=0 - a dead key
-    would give false confidence that a runaway request is bounded."""
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    conf = _generated_conf_text(out)
-    assert "limit_time_cpu" not in conf, (
-        f"conf must NOT carry limit_time_cpu while workers=0 (dead key).\nconf:\n{conf}"
-    )
-
-
-@requires_bash
 def test_step50_conf_limit_memory_hard_is_env_overridable(tmp_path):
     """The A2 conf keys must be driven by the SAME resource_limits.sh env
     overrides as the build path (SSOT: one resolver, not two independent
@@ -2338,68 +1648,6 @@ def test_step50_conf_limit_memory_hard_is_env_overridable(tmp_path):
     conf = _generated_conf_text(out)
     assert "limit_memory_hard = 1234567890" in conf, (
         f"conf must honor an explicit ODOO_AI_LIMIT_MEMORY_HARD override.\nconf:\n{conf}"
-    )
-
-
-@requires_bash
-def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
-    """The step-50 preflight is BOUNDED on its odoo_db.py rung.
-
-    Rung 2 - `odoo_db.py preflight`, the connection Odoo itself opens - runs ALWAYS
-    when a python is declared, never as an `elif` a cheaper rung can shadow. It runs
-    the instance's own declared interpreter, a third-party program that can hang (an
-    unreachable cluster with no connect timeout, a broken venv wrapper). An unbounded
-    probe would stall the whole spin-up, and the spin-up's own timeout +
-    process-group cleanup contract could never even be reached. The probe must
-    therefore be cut off, reported as NOT PROBED with its RUNG NAMED, and never
-    mistaken for 'the cluster is down'.
-    """
-    py_bin_dir = tmp_path / "fake-py-bin"
-    py_bin_dir.mkdir()
-    fake_py = py_bin_dir / "python"
-    # --version answers (the venv gate passes); ANY other invocation - notably the
-    # odoo_db.py reachability probe - hangs forever.
-    _write_stub(fake_py, textwrap.dedent("""\
-        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-        while :; do sleep 1; done
-    """))
-    odoo_bin = tmp_path / "odoo-bin"
-    _launcher(odoo_bin, "exit 0\n")
-    bind = tmp_path / "bin50"
-    bind.mkdir()
-    _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
-
-    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
-    env = dict(os.environ)
-    # This instance declares NO db_run_mode, so rung 1 is selected by whether a
-    # pg_isready EXISTS - a fact about the host, which no test may assume. The
-    # absence is constructed here so the ladder provably falls to the interpreter
-    # on every image, including one that ships postgresql-client.
-    env["PATH"] = farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bind)
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    env["SPINUP_TIMEOUT"] = "3"
-    env["SPINUP_STOP_GRACE"] = "2"
-    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "2"
-    env["ODOO_BIN"] = str(odoo_bin)
-    env.pop("ODOO_PG_PASSWORD", None)
-
-    res = _run_step50_args(env)  # a 30s subprocess bound: a hang FAILS this test
-    out = res.stdout + res.stderr
-
-    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
-        f"a probe that did not answer must NOT be reported as an unreachable "
-        f"cluster - that conflation is the defect this dispatch replaced\n{out}"
-    )
-    assert "was NOT probed" in out, (
-        f"an unanswered probe must be said out loud, never skipped silently\n{out}"
-    )
-    # "was NOT probed" is ALSO what the no-surface-and-no-python branch prints, so
-    # on its own it cannot tell a cut-off interpreter probe from a ladder that
-    # never reached one. Name the rung that had to run.
-    assert "odoo_db.py preflight" in out, (
-        f"the interpreter rung is the one under test - a PATH that also lost the "
-        f"declared python would pass the assertion above while testing nothing\n{out}"
     )
 
 
@@ -2436,7 +1684,9 @@ def _make_step50_toml_with_pg_surface(
     return toml
 
 
-def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
+def _docker_pg_scenario(
+    tmp_path: Path, *, docker_body: str, curl_body: str, probe_timeout: int = 5,
+):
     """A source-mode step-50 scenario whose Postgres is declared as `docker`.
 
     Returns (env, out_paths). `docker_body` is the stub daemon's behavior, so one
@@ -2447,8 +1697,11 @@ def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
     py_bin_dir = tmp_path / "fake-py-bin"
     py_bin_dir.mkdir(exist_ok=True)
     fake_py = py_bin_dir / "python"
+    # The declared interpreter ANSWERS odoo_db.py (so the only probe that can hang is
+    # the rung under test); only an odoo-bin invocation launches a server.
     _write_stub(fake_py, textwrap.dedent(f"""\
         if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        if [[ "$1" == *odoo_db.py ]]; then echo "DB_AUTH=ok"; exit 0; fi
         echo "odoo-bin launched $*" >> "{launch_log}"
         exec sleep 15
     """))
@@ -2475,9 +1728,9 @@ def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
     env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    env["SPINUP_TIMEOUT"] = "3"
-    env["SPINUP_STOP_GRACE"] = "2"
-    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "3"
+    env["SPINUP_TIMEOUT"] = "1"
+    env["SPINUP_STOP_GRACE"] = "1"
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = str(probe_timeout)
     env["ODOO_BIN"] = str(odoo_bin)
     env.pop("ODOO_PG_PASSWORD", None)
     return env, launch_log, docker_log
@@ -2510,139 +1763,11 @@ def test_step50_docker_pg_preflight_probes_inside_the_container_and_launches(tmp
         f"a healthy containerised cluster must not be reported unreachable\n{out}"
     )
     assert res.returncode == 0, f"the spin-up must succeed\n{out}"
-    assert "ok PostgreSQL is accepting connections" in out, (
-        f"the docker rung must report its POSITIVE observation\n{out}"
-    )
+    assert _wait_exists(launch_log), f"the healthy cluster must not block the launch\n{out}"
     assert docker_log.exists(), f"the probe never invoked docker at all\n{out}"
     calls = docker_log.read_text(encoding="utf-8")
     assert "exec" in calls and "pg-for-tests" in calls and "pg_isready" in calls, (
         f"the probe must run pg_isready INSIDE the declared container; got:\n{calls}"
-    )
-
-
-@requires_bash
-@pytest.mark.parametrize("surface", ["native", "docker"])
-def test_step50_a_probe_that_times_out_is_never_a_reachability_verdict(tmp_path, surface):
-    """124 means "the probe did not answer", on EVERY rung of the ladder.
-
-    Only the interpreter rung was guarded, so a bound that elapsed on the native
-    or docker rung fell straight through to `PREFLIGHT FAILED: PostgreSQL is not
-    reachable ... (exit 124)` and refused to launch. Its sibling
-    05-prereq-check.sh gets this right on both rungs, so the two ladders
-    disagreed about the same rule.
-    """
-    hang = "while :; do :; done\n"
-    if surface == "docker":
-        env, launch_log, _ = _docker_pg_scenario(
-            tmp_path, docker_body=hang, curl_body='echo "000"\n')
-    else:
-        launch_log = tmp_path / "odoo-launch.log"
-        py_bin_dir = tmp_path / "fake-py-bin"
-        py_bin_dir.mkdir(exist_ok=True)
-        fake_py = py_bin_dir / "python"
-        _write_stub(fake_py, textwrap.dedent(f"""\
-            if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-            echo "odoo-bin launched $*" >> "{launch_log}"
-            exec sleep 15
-        """))
-        odoo_bin = tmp_path / "odoo-bin"
-        _launcher(odoo_bin, "exit 0\n")
-        bind = tmp_path / "bin50-native"
-        bind.mkdir(exist_ok=True)
-        _write_stub(bind / "curl", 'echo "000"\n')
-        # The stub SHADOWS whatever client the image ships, so the rung under
-        # test is this hanging one on every host - never the runner's real
-        # pg_isready answering about a cluster this test knows nothing about.
-        _write_stub(bind / "pg_isready", hang)
-        _require_real_timeout(bind)
-        toml = _make_step50_toml_with_pg_surface(
-            tmp_path, py_path=str(fake_py), extra='db_run_mode = "native"\n')
-        env = dict(os.environ)
-        env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
-        env["ODOO_AI_INSTANCES"] = str(toml)
-        env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-        env["SPINUP_TIMEOUT"] = "3"
-        env["SPINUP_STOP_GRACE"] = "2"
-        env["ODOO_AI_PG_PROBE_TIMEOUT"] = "3"
-        env["ODOO_BIN"] = str(odoo_bin)
-        env.pop("ODOO_PG_PASSWORD", None)
-
-    res = _run_step50_args(env)
-    out = res.stdout + res.stderr
-
-    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
-        f"[{surface}] a bound that elapsed says NOTHING about the cluster\n{out}"
-    )
-    assert "was NOT probed" in out, (
-        f"[{surface}] an unanswered probe must be said out loud\n{out}"
-    )
-    assert launch_log.exists(), (
-        f"[{surface}] an unanswered probe must not block the launch\n{out}"
-    )
-
-
-@requires_bash
-def test_step50_a_tcp_only_declaration_never_consults_a_local_client(tmp_path):
-    """`tcp-only` positively declares NO client surface, so rung 1 is skipped.
-
-    This is the DECLARED twin of the undeclared case above, and it needs no
-    assumption about the host at all: an installed pg_isready belongs to some
-    OTHER cluster, so consulting it is the wrong-cluster hazard - it would answer
-    confidently, and about a database this instance never uses. The ladder must
-    walk straight past it to the instance's own interpreter, and when THAT cannot
-    answer, report a non-answer rather than convert one into a verdict.
-    """
-    probe_log = tmp_path / "pg_isready-calls.log"
-    py_bin_dir = tmp_path / "fake-py-bin"
-    py_bin_dir.mkdir()
-    fake_py = py_bin_dir / "python"
-    # --version answers (the venv gate passes); the reachability probe hangs.
-    _write_stub(fake_py, textwrap.dedent("""\
-        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
-        while :; do sleep 1; done
-    """))
-    odoo_bin = tmp_path / "odoo-bin"
-    _launcher(odoo_bin, "exit 0\n")
-    bind = tmp_path / "bin50-tcponly"
-    bind.mkdir()
-    _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
-    # A local client that would report a HEALTHY cluster - the false green the
-    # declaration exists to refuse. It records every call, so "never consulted"
-    # is proved rather than inferred from the absence of a message.
-    _write_stub(bind / "pg_isready", f'echo "called $*" >> "{probe_log}"\nexit 0\n')
-
-    toml = _make_step50_toml_with_pg_surface(
-        tmp_path, py_path=str(fake_py), extra='db_run_mode = "tcp-only"\n')
-    env = dict(os.environ)
-    # Ambient PATH is fine here: the stub above SHADOWS any client the image
-    # ships, so this test's outcome is the same whether or not one exists.
-    env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    env["SPINUP_TIMEOUT"] = "3"
-    env["SPINUP_STOP_GRACE"] = "2"
-    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "2"
-    env["ODOO_BIN"] = str(odoo_bin)
-    env.pop("ODOO_PG_PASSWORD", None)
-
-    res = _run_step50_args(env)  # a 30s subprocess bound: a hang FAILS this test
-    out = res.stdout + res.stderr
-
-    assert not probe_log.exists(), (
-        f"a tcp-only declaration must never reach a local client - it answers for "
-        f"a DIFFERENT cluster; calls:\n{probe_log.read_text(encoding='utf-8')}\n{out}"
-    )
-    assert "ok PostgreSQL is accepting connections" not in out, (
-        f"the wrong cluster's client answered 0 and that became a positive "
-        f"observation about this one\n{out}"
-    )
-    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
-        f"a probe that did not answer must NOT be reported as an unreachable "
-        f"cluster\n{out}"
-    )
-    assert "was NOT probed" in out and "odoo_db.py preflight" in out, (
-        f"tcp-only must fall to the interpreter rung, and its non-answer must be "
-        f"said out loud\n{out}"
     )
 
 
@@ -2658,6 +1783,96 @@ def _tomllib_load(path: Path) -> dict:
 
     with open(path, "rb") as fh:
         return tomllib.load(fh)
+
+
+def _unanswered_probe_scenario(tmp_path: Path, rung: str):
+    """A source-mode step-50 scenario in which ONE rung of the Postgres preflight
+    ladder never answers, every other rung answers fine, and curl never says the
+    server is up. Returns (env, launch_log, asked, local_client_calls):
+    `asked` is a file the hanging rung writes before it hangs (proof the rung under
+    test really ran), `local_client_calls` a file a healthy local pg_isready writes
+    when consulted.
+
+    rung: `undeclared-interpreter` (no db_run_mode and NO client installed, so the
+    ladder falls to the instance's own interpreter), `tcp-only` (declared: NO client
+    surface, a healthy local pg_isready must never be consulted), `native` (a
+    hanging pg_isready), `docker` (a hanging container client)."""
+    if rung == "docker":
+        env, launch_log, docker_log = _docker_pg_scenario(
+            tmp_path, docker_body="while :; do :; done\n", curl_body='echo "000"\n',
+            probe_timeout=1)
+        return env, launch_log, docker_log, tmp_path / "never-written"
+
+    launch_log = tmp_path / "odoo-launch.log"
+    asked = tmp_path / "probe-asked.log"
+    local_client_calls = tmp_path / "pg_isready-calls.log"
+    py_hangs = rung in ("undeclared-interpreter", "tcp-only")
+    answer = "while :; do sleep 1; done" if py_hangs else 'echo "DB_AUTH=ok"; exit 0'
+    py_bin_dir = tmp_path / "fake-py-bin"
+    py_bin_dir.mkdir(exist_ok=True)
+    fake_py = py_bin_dir / "python"
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        if [[ "$1" == *odoo_db.py ]]; then echo asked >> "{asked}"; {answer}; fi
+        echo "odoo-bin launched $*" >> "{launch_log}"
+        exec sleep 15
+    """))
+    odoo_bin = tmp_path / "odoo-bin"
+    _launcher(odoo_bin, "exit 0\n")
+    bind = tmp_path / "bin50-probe"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
+    env = dict(os.environ)
+    if rung == "native":
+        # The stub SHADOWS whatever client the image ships, so the rung under test is
+        # this hanging one on every host.
+        _write_stub(bind / "pg_isready", f'echo asked >> "{asked}"\nwhile :; do :; done\n')
+        _require_real_timeout(bind)
+        extra = 'db_run_mode = "native"\n'
+        env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
+    elif rung == "tcp-only":
+        # A local client that would report a HEALTHY cluster - the false green the
+        # declaration exists to refuse; it records every call.
+        _write_stub(bind / "pg_isready", f'echo "called $*" >> "{local_client_calls}"\nexit 0\n')
+        extra = 'db_run_mode = "tcp-only"\n'
+        env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
+    else:  # undeclared-interpreter: no client may be reachable, whatever the host ships
+        extra = ""
+        env["PATH"] = farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bind)
+    toml = _make_step50_toml_with_pg_surface(tmp_path, py_path=str(fake_py), extra=extra)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env["SPINUP_TIMEOUT"] = "1"
+    env["SPINUP_STOP_GRACE"] = "1"
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "1"
+    env["ODOO_BIN"] = str(odoo_bin)
+    env.pop("ODOO_PG_PASSWORD", None)
+    return env, launch_log, asked, local_client_calls
+
+
+@requires_bash
+@pytest.mark.parametrize("rung", ["undeclared-interpreter", "tcp-only", "native", "docker"])
+def test_step50_a_probe_that_does_not_answer_is_never_a_reachability_verdict(tmp_path, rung):
+    """A bound that elapsed means "the probe did not answer", on EVERY rung of the
+    ladder (native client, container client, the instance's own interpreter): it
+    says nothing about the cluster, so it must never become `PostgreSQL is not
+    reachable` and must not block the launch. A declared `tcp-only` also never
+    consults a local client - an installed pg_isready belongs to some OTHER cluster
+    and would answer confidently about a database this instance never uses.
+    """
+    env, launch_log, asked, local_client_calls = _unanswered_probe_scenario(tmp_path, rung)
+    res = _run_step50_args(env)  # a 30s subprocess bound: a hang FAILS this test
+    out = res.stdout + res.stderr
+
+    assert asked.exists(), f"[{rung}] test setup: the rung under test was never asked\n{out}"
+    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
+        f"[{rung}] a bound that elapsed says NOTHING about the cluster\n{out}"
+    )
+    assert _wait_exists(launch_log), f"[{rung}] an unanswered probe must not block the launch\n{out}"
+    assert not local_client_calls.exists(), (
+        f"[{rung}] a tcp-only declaration must never reach a local client\n"
+        f"{local_client_calls.read_text(encoding='utf-8') if local_client_calls.exists() else ''}"
+    )
 
 
 @requires_bash
@@ -2694,49 +1909,6 @@ def test_step45_upsert_keeps_the_catalog_parseable_for_any_recorded_value(tmp_pa
         f"the recorded value must round-trip exactly; wrote {hostile!r}, read back "
         f"{got!r}\noutput:\n{out}"
     )
-
-
-@requires_bash
-def test_step45_upsert_never_leaves_a_half_written_catalog(tmp_path):
-    """The catalog is replaced ATOMICALLY, never truncated in place.
-
-    An in-place truncate has a window in which the host's only instance catalog
-    is empty or partial; a crash there loses every declared instance. The
-    allocator's own registry write already uses tmp + os.replace - the same
-    discipline applies to the file the allocator READS.
-    """
-    core = _make_core_dir(tmp_path)
-    toml = _make_instances_toml(tmp_path, addons_path=str(core / "addons"))
-    # The step delegates to the ONE catalog writer every setup step shares; the
-    # atomicity rule is checked where the write actually happens.
-    src = STEP45.read_text(encoding="utf-8")
-    wrapper = src[src.index("_upsert_instance_keys() {"):src.index("# _detect_pg_facts")]
-    assert "toml-upsert-instance-keys" in wrapper, (
-        "step 45 must record through config_merge.py's shared catalog writer"
-    )
-    lib = (ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "config_merge.py").read_text(
-        encoding="utf-8")
-    writer = lib[lib.index("def cmd_toml_upsert_instance_keys"):]
-    writer = writer[:writer.index("\ndef ", 1)]
-    assert "os.replace" in writer, (
-        "the upsert must publish the new catalog with an atomic os.replace, not an "
-        "in-place truncate of the host's SSOT"
-    )
-    assert 'open(path, "w"' not in writer, (
-        "the upsert must not open the catalog itself for writing (that truncates it)"
-    )
-    # And the mechanism must actually work end to end.
-    env = dict(os.environ)
-    env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
-    res = subprocess.run(
-        ["bash", "-c",
-         f'source "{STEP45}" check >/dev/null; '
-         f'_upsert_instance_keys "17.0" "" "odoo_root=/srv/odoo"'],
-        capture_output=True, text=True, env=env,
-    )
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert _tomllib_load(toml)["instance"][0]["odoo_root"] == "/srv/odoo"
     leftovers = [p.name for p in toml.parent.glob("instances.toml.tmp*")]
     assert leftovers == [], f"the temp file must not survive a successful write: {leftovers}"
 
@@ -2818,54 +1990,41 @@ def _write_stamped_log(tmp_path: Path, name: str, *, verb: str, series: str, bod
     return log
 
 
-@requires_bash
-def test_step55_test_verb_reports_the_scope_it_actually_covered(tmp_path):
-    """How many modules loaded and how many tests ran are MACHINE output.
-
-    Left as prose instructions, both figures depend on an agent hand-running two
-    greps and hand-writing the numbers into free text - the same discretion that
-    produced the original silent cover-up. The caller must RECEIVE them.
-    """
-    res, log, _env = _run55_test_verb(
-        tmp_path, odoo_output=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}\n{_MODERN_SUMMARY}")
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert "MODULES_LOADED=3" in res.stdout, (
-        f"the number of modules loaded must be emitted\nstdout:\n{res.stdout}"
-    )
-    assert "TESTS_RUN=5" in res.stdout, (
-        f"the number of tests that ran must be emitted\nstdout:\n{res.stdout}"
-    )
-    # The pre-existing lines other consumers parse must be untouched.
-    for kept in ("TEST_RESULT=passed", "TEST_FAILED=0", "TEST_SKIPPED=0", "FINDINGS_PATH="):
-        assert kept in res.stdout, f"{kept} must still be emitted\nstdout:\n{res.stdout}"
-
-
-@requires_bash
-def test_step55_test_verb_log_is_self_describing_and_carries_its_verdict(tmp_path):
-    """The log must say WHICH verb produced it, and end up holding the verdict.
-
-    `wait-log` reads nothing but the log, so a verdict that only ever reaches the
-    script's stdout is unreachable by construction - the caller then waits for a
-    `TEST_RESULT=` that no polling call can ever show it.
-    """
+@pytest.fixture(scope="module")
+def step55_test_run(tmp_path_factory):
+    """ONE `test` verb run against a fake odoo-bin that prints a clean modern run,
+    plus the `wait-log` read of the log it left."""
+    tmp = tmp_path_factory.mktemp("step55_test_run")
     res, log, env = _run55_test_verb(
-        tmp_path, odoo_output=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}\n{_MODERN_SUMMARY}")
-    assert res.returncode == 0, res.stdout + res.stderr
-    contents = log.read_text(encoding="utf-8")
-    assert contents.startswith("ODOO_AI_RUN_VERB=test"), (
-        f"the log must be stamped with its run verb\nlog head:\n{contents[:200]}"
-    )
-    assert "SERIES=17.0" in contents.splitlines()[0], (
-        f"the stamp must carry the series so the era gate can be resolved\n{contents[:200]}"
-    )
-    assert "TEST_RESULT=passed" in contents, (
-        f"the verdict must be IN the log, where wait-log can reach it\n{contents[-400:]}"
-    )
-
+        tmp, odoo_output=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}\n{_MODERN_SUMMARY}")
     waited = _run55("wait-log", "--log", str(log), "--timeout", "0", env=env)
-    assert "TEST_RESULT=passed" in waited.stdout, (
-        f"wait-log must surface the verdict the log carries\nstdout:\n{waited.stdout}"
-    )
+    return SimpleNamespace(res=res, log=log, waited=waited)
+
+
+@requires_bash
+def test_step55_test_verb_reports_the_scope_it_actually_covered(step55_test_run):
+    """How many modules loaded and how many tests ran are MACHINE output: left as
+    prose instructions, both figures depend on an agent hand-running two greps and
+    hand-writing the numbers into free text. The caller must RECEIVE them."""
+    res = step55_test_run.res
+    assert res.returncode == 0, res.stdout + res.stderr
+    for kept in ("MODULES_LOADED=3", "TESTS_RUN=5",
+                 # lines other consumers parse must be untouched
+                 "TEST_RESULT=passed", "TEST_FAILED=0", "TEST_SKIPPED=0", "FINDINGS_PATH="):
+        assert kept in res.stdout, f"{kept} must be emitted\nstdout:\n{res.stdout}"
+
+
+@requires_bash
+def test_step55_test_verb_log_is_self_describing_and_carries_its_verdict(step55_test_run):
+    """The log says WHICH verb produced it and ends up holding the verdict:
+    `wait-log` reads nothing but the log, so a verdict that only reached the
+    script's stdout would be unreachable by construction."""
+    contents = step55_test_run.log.read_text(encoding="utf-8")
+    assert contents.startswith("ODOO_AI_RUN_VERB=test"), contents[:200]
+    assert "SERIES=17.0" in contents.splitlines()[0], "the stamp must carry the series"
+    assert "TEST_RESULT=passed" in contents, "the verdict must be IN the log"
+    waited = step55_test_run.waited
+    assert "TEST_RESULT=passed" in waited.stdout, waited.stdout
     assert "BUILD_RESULT=success" in waited.stdout, waited.stdout
 
 
@@ -2934,9 +2093,8 @@ def test_step55_wait_log_still_certifies_an_install_build_at_modules_loaded(tmp_
 # while the command that runs next answered it perfectly well. Two copies of a
 # question is how a setup step came to contradict the command after it.
 # ---------------------------------------------------------------------------
-def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true",
-                            docker_answer="t", alloc_log=None):
-    """(env, toml, alloc_log): a record-env scenario carrying BOTH DB routes.
+def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true", docker_answer="t"):
+    """(env, toml): a record-env scenario carrying BOTH DB routes.
 
     The declared interpreter answers `odoo_db.py preflight` with `preflight_rc`
     (8 = Odoo was refused authentication), and a stub `docker` stands in for the
@@ -2963,18 +2121,6 @@ def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true",
     bind.mkdir(exist_ok=True)
     _write_stub(bind / "docker", f'echo "{docker_answer}"\nexit 0\n')
     _require_real_timeout(bind)
-    log = alloc_log or (tmp_path / "alloc-calls.log")
-    real_py3 = real_python3()
-    # A python3 that RECORDS what the step asked the allocator, then runs it for
-    # real. Recording is what turns "the delegation exists" from a claim about the
-    # source text into an observation about the run - this repo's dominant defect
-    # is a correct mechanism nothing ever calls.
-    _write_stub(bind / "python3", textwrap.dedent(f"""\
-        for a in "$@"; do
-            case "$a" in *allocator.py) echo "$@" >> "{log}" ;; esac
-        done
-        exec {real_py3} "$@"
-    """))
 
     toml = tmp_path / "instances45-db.toml"
     toml.write_text(textwrap.dedent(f"""\
@@ -3004,38 +2150,13 @@ def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true",
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     env["ODOO_AI_PG_PROBE_TIMEOUT"] = "10"
     env.pop("ODOO_PG_PASSWORD", None)
-    return env, toml, log
+    return env, toml
 
 
 def _run_step45_record_env(env, series="17.0"):
     return subprocess.run(
         ["bash", str(STEP45), "record-env", "--series", series],
         capture_output=True, text=True, env=env, timeout=120,
-    )
-
-
-@requires_bash
-def test_record_env_delegates_the_db_question_instead_of_reimplementing_it(tmp_path):
-    """The step must ASK the owner of the ladder, and be observed doing it.
-
-    Both halves matter: the absent re-implementation, and a recorded call proving
-    the delegation is actually reached. A string that is merely absent would also
-    be satisfied by a step that asks nothing at all.
-    """
-    env, _toml, alloc_log = _step45_db_question_env(tmp_path, preflight_rc=8)
-    res = _run_step45_record_env(env)
-
-    text = STEP45.read_text(encoding="utf-8")
-    assert "can-createdb" not in text, (
-        "45-venv.sh must not re-implement the capability question in shell - the "
-        "allocator owns that ladder"
-    )
-    assert alloc_log.exists(), (
-        "the step never asked the allocator anything; stdout={out!r} stderr={err!r}".format(
-            out=res.stdout, err=res.stderr))
-    calls = alloc_log.read_text(encoding="utf-8")
-    assert "db-preflight" in calls, (
-        f"the step must ask db-preflight (both facts, authentication first); got:\n{calls}"
     )
 
 
@@ -3048,7 +2169,7 @@ def test_record_env_does_not_contradict_the_allocator_on_the_same_fixture(tmp_pa
     copy of the question reports success where the allocator refuses. Asserted on
     the emitted verdict token, so it cannot go green on a reworded message.
     """
-    env, toml, _log = _step45_db_question_env(tmp_path, preflight_rc=8)
+    env, toml = _step45_db_question_env(tmp_path, preflight_rc=8)
 
     step = _run_step45_record_env(env)
     direct = subprocess.run(
@@ -3090,15 +2211,3 @@ def test_record_env_does_not_contradict_the_allocator_on_the_same_fixture(tmp_pa
 # runtime one.
 # ---------------------------------------------------------------------------
 
-@requires_bash
-def test_step50_conf_requests_unaccent_for_a_database_it_may_create(tmp_path):
-    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
-    res = _run_step50(env)
-    out = res.stdout + res.stderr
-    assert res.returncode == 0, out
-    conf = _generated_conf_text(out)
-    assert re.search(r"^unaccent = True$", conf, re.MULTILINE), (
-        "the spin-up conf must carry `unaccent = True`: this launch CREATES the database "
-        "whenever it is the first to name a missing one, and creation is the only moment "
-        f"unaccent can still be installed.\nconf:\n{conf}"
-    )

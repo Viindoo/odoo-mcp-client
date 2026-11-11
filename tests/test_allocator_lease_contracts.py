@@ -18,6 +18,12 @@ The contract, stated as behavior:
     reason and remedy (the ports are busy outside the registry);
   - a lease resumed out of another session's park goes BACK to the park when the
     resuming session ends - its database is not dropped;
+  - a lease that belongs to a run (it records a run id) and records a build is PARKED,
+    not reclaimed, when its owner is gone - a session killed with SIGKILL, a server pid
+    that died: the
+    database stays, the run that comes back finds it by run id, adopts and serves it,
+    and the park budget still reclaims it if nobody does; a lease with no run id, or
+    one that was never built, is reclaimed as before;
   - a missing or unreadable instance catalog is a named refusal
     (NO_INSTANCE_CATALOG) on every verb that reads it, never a traceback.
 
@@ -439,15 +445,233 @@ def test_a_lease_resumed_from_a_park_is_parked_again_when_the_resuming_session_e
         _kill(second)
 
 
-def test_a_lease_the_ending_session_acquired_itself_is_still_reclaimed(world):
-    """Control: only a lease taken OUT OF A PARK goes back to one."""
+def _databases_exist(world):
+    """`resume` refuses a database that is provably gone; the stub cluster answers `exists`
+    with true so a parked lease can be resumed."""
+    world.py.write_text(world.py.read_text(encoding="utf-8").replace(
+        "exists) echo false", "exists) echo true"), encoding="utf-8")
+
+
+def _acquire_unowned(world, env, *extra):
+    p = world.run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--allow-unowned",
+                  *extra)
+    assert p.returncode == 0, p.stderr
+    return _kv(p.stdout)
+
+
+def test_a_lease_with_no_run_is_still_reclaimed_when_its_session_ends(world):
+    """A lease that belongs to no run can be found and claimed by no one, so keeping its
+    database would hold disk and ports for a caller that cannot exist: it is reclaimed."""
     a = world.session("sess-A")
-    _p, out = world.acquire(world.env(a))
+    out = _acquire_unowned(world, world.env(a))
     anchor = a.anchor
     a.end()
     p = world.run(world.env(None), "gc", "--scope", "anchor", "--anchor", anchor)
     assert p.returncode == 0, p.stderr
     assert world.lease(out["ALLOC_TOKEN"]) is None and len(world.drops()) == 1
+    assert _kv(p.stdout).get("ALLOC_RECLAIMED") == out["ALLOC_TOKEN"]
+
+
+# --------------------------------------------------------------------------- #
+# 4b - a built lease that belongs to a run survives its owner (the killed-session case)
+# --------------------------------------------------------------------------- #
+def _record_build(world, env, token):
+    p = world.run(env, "record-build", token, "--demo", "off")
+    assert p.returncode == 0, p.stderr
+
+
+def _running_lease_of_a_killed_session(world, run_id="run-A", built=True):
+    """Session A holds a run-owned throwaway lease (that recorded a build, unless `built` is
+    False) bound to a live server; session A is then killed with SIGKILL (the OOM case) and its
+    server is left running. Returns (token, port, server, anchor)."""
+    a = world.session("sess-A")
+    p, out = world.acquire(world.env(a), "--ports", "1", run_id=run_id)
+    assert p.returncode == 0, p.stderr
+    token, port = out["ALLOC_TOKEN"], int(out["ALLOC_PORTS"])
+    if built:
+        _record_build(world, world.env(a), token)
+    server = _server(port)
+    assert world.run(world.env(a), "bind", token, "--pid", str(server.pid)).returncode == 0
+    assert world.lease(token)["drop_on_release"] is True
+    anchor = a.anchor
+    a.end()  # SIGKILL
+    return token, port, server, anchor
+
+
+@pytest.mark.parametrize("sweep", ["anchor", "dead-sessions"])
+def test_a_killed_session_leaves_its_runs_database_and_a_parked_lease(world, sweep):
+    """Both sweeps SessionEnd runs: the ending session's own anchor, and every dead session
+    (past the grace window). Neither may drop the database of a lease that belongs to a run."""
+    alloc = _import_allocator()
+    token, port, server, anchor = _running_lease_of_a_killed_session(world)
+    try:
+        assert server.alive(), "test setup: the killed session leaves its server running"
+        if sweep == "anchor":
+            argv = ["gc", "--scope", "anchor", "--anchor", anchor]
+        else:
+            world.age(token, alloc.ANCHOR_GRACE_S + 60)
+            argv = ["gc", "--scope", "dead-sessions"]
+        p = world.run(world.env(None), *argv)
+        assert p.returncode == 0, p.stderr
+
+        row = world.lease(token)
+        assert row is not None, "a run's lease must survive the end of its session"
+        assert row.get("parked_at") is not None and row["park_ttl_s"] == alloc.DEFAULT_PARK_TTL_S
+        assert row["owner"].get("pid") is None and row["ports"] == [port]
+        assert row["drop_on_release"] is True and world.drops() == [], "the database must stay"
+        assert server.wait_dead(), "a parked lease holds disk, never a server"
+        assert _kv(p.stdout).get("ALLOC_PARKED") == token
+        assert "ALLOC_RECLAIMED" not in p.stdout
+        rec, = [r for r in world.records() if r["token"] == token]
+        assert (rec["action"], rec["reason"], rec["dropped_db"], rec["run_id"]) == (
+            "parked", "owner-session-ended", False, "run-A")
+    finally:
+        _kill(server)
+
+
+def test_the_run_that_comes_back_finds_adopts_and_serves_its_parked_lease(world):
+    """A resumed session (a new process, a new session id) gets the instance back with no
+    rebuild: it finds the lease by run id, adopts it and binds a server to it again."""
+    _databases_exist(world)
+    token, port, server, anchor = _running_lease_of_a_killed_session(world)
+    try:
+        assert world.run(world.env(None), "gc", "--scope", "anchor", "--anchor",
+                         anchor).returncode == 0
+        b = world.session("sess-B")
+        found = world.run(world.env(b), "query", "--series", "17.0", "--state", "parked",
+                          "--run-id", "run-A")
+        assert found.returncode == 0, found.stderr
+        assert _kv(found.stdout)["ALLOC_TOKEN"] == token
+        assert _kv(found.stdout).get("ALLOC_ATTACHED_FROM_RUN") in (None, ""), (
+            "the run's own lease is returned silently")
+
+        assert world.run(world.env(b), "adopt", token, "--run-id", "run-A").returncode == 0
+        assert world.lease(token)["owner"]["session"]["pid"] == b.pid
+
+        second = _server(port)
+        try:
+            p = world.run(world.env(b), "resume", token, "--pid", str(second.pid))
+            assert p.returncode == 0, p.stderr
+            row = world.lease(token)
+            assert row.get("parked_at") is None and row["owner"]["pid"] == second.pid
+            assert row["ports"] == [port] and world.drops() == []
+        finally:
+            _kill(second)
+    finally:
+        _kill(server)
+
+
+def test_a_parked_runs_lease_is_reclaimed_once_its_park_budget_lapses(world):
+    """Nobody adopted it: the existing park budget reclaims it - the database goes then."""
+    alloc = _import_allocator()
+    token, _port, server, anchor = _running_lease_of_a_killed_session(world)
+    try:
+        assert world.run(world.env(None), "gc", "--scope", "anchor", "--anchor",
+                         anchor).returncode == 0
+        assert world.lease(token) is not None and world.drops() == []
+
+        world.run(world.env(None), "gc", "--scope", "dead-sessions")
+        assert world.lease(token) is not None, "inside its budget the park is kept"
+
+        world.edit(token, lambda lz: lz.update(
+            parked_at=int(time.time()) - lz["park_ttl_s"] - 60))
+        p = world.run(world.env(None), "gc", "--scope", "dead-sessions")
+        assert p.returncode == 0, p.stderr
+        assert world.lease(token) is None and len(world.drops()) == 1
+        rec = [r for r in world.records() if r["token"] == token][-1]
+        assert (rec["action"], rec["reason"], rec["dropped_db"]) == (
+            "deleted", alloc.CONDEMN_PARK_EXPIRED, True)
+    finally:
+        _kill(server)
+
+
+@pytest.mark.parametrize("sweep", ["anchor", "dead-sessions"])
+def test_a_run_owned_lease_that_was_never_built_is_reclaimed_and_frees_its_ports(world, sweep):
+    """No database worth keeping: a run-owned lease with no recorded build is not parked when
+    its session is killed - it holds ports and nothing a resumed run cannot recreate in seconds.
+    Its server is stopped, its (throwaway) database dropped and its ports given back."""
+    alloc = _import_allocator()
+    token, port, server, anchor = _running_lease_of_a_killed_session(world, built=False)
+    try:
+        if sweep == "anchor":
+            argv = ["gc", "--scope", "anchor", "--anchor", anchor]
+        else:
+            world.age(token, alloc.ANCHOR_GRACE_S + 60)
+            argv = ["gc", "--scope", "dead-sessions"]
+        p = world.run(world.env(None), *argv)
+        assert p.returncode == 0, p.stderr
+        assert world.lease(token) is None and len(world.drops()) == 1
+        assert _kv(p.stdout).get("ALLOC_RECLAIMED") == token and "ALLOC_PARKED" not in p.stdout
+        assert server.wait_dead()
+        rec, = [r for r in world.records() if r["token"] == token]
+        assert (rec["action"], rec["dropped_db"]) == ("deleted", True)
+        again = world.acquire(world.env(None), "--no-create", "--ports", "1", run_id="run-B")[0]
+        assert again.returncode == 0, "the reclaimed lease's port is free again"
+    finally:
+        _kill(server)
+
+
+def test_a_run_owned_lease_whose_server_died_with_no_session_is_parked_too(world):
+    """The other CAPACITY reason: an unanchored lease whose recorded server pid is dead."""
+    from test_allocator_liveness_v3 import _dead_pid
+    p, out = world.acquire(world.env(None), "--pid", str(_dead_pid()), run_id="run-A")
+    assert p.returncode == 0, p.stderr
+    token = out["ALLOC_TOKEN"]
+    _record_build(world, world.env(None), token)
+    p = world.run(world.env(None), "gc")
+    assert p.returncode == 0, p.stderr
+    assert world.lease(token).get("parked_at") is not None and world.drops() == []
+    rec, = [r for r in world.records() if r["token"] == token]
+    assert (rec["action"], rec["reason"]) == ("parked", "owner-pid-dead")
+
+
+def test_a_run_owned_lease_whose_liveness_is_unprovable_is_still_reclaimed_by_ttl(world):
+    """Only an OWNER that is provably gone parks a lease. An expired TTL is an absence of
+    evidence and a deliberate `gc` sweep: it reclaims as before."""
+    p, out = world.acquire(world.env(None), "--ttl", "1", run_id="run-A")
+    assert p.returncode == 0, p.stderr
+    token = out["ALLOC_TOKEN"]
+    world.age(token, 100_000)
+    assert world.run(world.env(None), "gc").returncode == 0
+    assert world.lease(token) is None and len(world.drops()) == 1
+
+
+def test_an_orphaned_runs_lease_parks_with_its_ports_back_when_they_are_free(world):
+    """A capacity reclaim stopped the owner's server and gave the ports away (`orphaned`).
+    A parked row is only resumable with a port, so gc takes the old ones back when no one
+    holds them - and never one another lease holds."""
+    a, b = world.session("sess-A"), world.session("sess-B")
+
+    def take(env, run_id):
+        p, out = world.acquire(env, "--no-create", "--ports", "1", run_id=run_id)
+        assert p.returncode == 0, p.stderr
+        _record_build(world, env, out["ALLOC_TOKEN"])
+        return out["ALLOC_TOKEN"], int(out["ALLOC_PORTS"])
+
+    free_token, free_port = take(world.env(a), "run-free")
+    taken_token, _ = take(world.env(a), "run-taken")
+    _holder, held_port = take(world.env(b), "run-holder")
+
+    def orphan(ports):
+        def _edit(lz):
+            lz["orphaned"] = {"at": int(time.time()), "reason": "owner-session-ended",
+                              "by_verb": "acquire-capacity", "ports": ports}
+            lz["ports"] = []
+        return _edit
+
+    world.edit(free_token, orphan([free_port]))
+    world.edit(taken_token, orphan([held_port]))
+    anchor = a.anchor
+    a.end()
+
+    p = world.run(world.env(None), "gc", "--scope", "anchor", "--anchor", anchor)
+    assert p.returncode == 0, p.stderr
+    restored, lost = world.lease(free_token), world.lease(taken_token)
+    assert restored.get("parked_at") is not None and restored["ports"] == [free_port]
+    assert "orphaned" not in restored
+    assert lost.get("parked_at") is not None and lost["ports"] == [], (
+        "a port another lease holds is never taken back")
+    assert world.drops() == []
 
 
 # --------------------------------------------------------------------------- #

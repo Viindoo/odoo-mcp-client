@@ -948,8 +948,9 @@ def found_lease(fields, caller_run, cwd):
 
 
 # The allocator's gc `action` per lease (allocator.py GC_ACTION_*): reclaim = stopped, database
-# dropped when throwaway, row deleted; park = a lease resumed or adopted out of a park goes BACK to
-# the park (server stopped, database + ports kept). A reclaimed-record spells park "parked".
+# dropped when throwaway, row deleted; park = a lease that belongs to a run and records a build (or
+# was resumed or adopted out of a park) whose owner is gone is PARKED (server stopped, database + ports kept) so
+# the run can find it again. A reclaimed-record spells park "parked".
 GC_ACTIONS = ("reclaim", "park")
 _GC_ACTION_ALIASES = {"parked": "park", "deleted": "reclaim"}
 
@@ -981,7 +982,7 @@ def _gc(args, ctx):
     mine = my_tokens(cwd)  # read BEFORE a real run deletes the rows it reclaims
     f = cli.run_allocator("gc", argv, cwd, GC_TIMEOUT_S)["fields"]
     items = [i for i in ((f.get("candidates") if dry_run else f.get("reclaimed")) or []) if isinstance(i, dict)]
-    # A real run lists the leases it sent back to the park separately (`parked`, tokens only):
+    # A real run lists the leases it parked instead of reclaiming separately (`parked`, tokens only):
     # they are reported as action park, never folded into - or dropped from - the reclaimed list.
     parked = [] if dry_run else [t for t in (f.get("parked") or []) if isinstance(t, str) and t]
     return {"dry_run": dry_run, "scope": args["scope"],
@@ -1293,10 +1294,13 @@ def register(registry, ctx):
         "applies the long TTL arm to leases whose liveness cannot be proven. Reclaiming stops the "
         "server and DROPS throwaway databases: run dry_run first, show the user the list, and call "
         "with dry_run false only when the user asked for the cleanup. Each lease carries action: "
-        "reclaim (stopped, throwaway database dropped, lease deleted) or park (a lease resumed out of "
-        "a park goes back to the park: server stopped, database and ports kept); a real run lists "
-        "the re-parked leases' token prefixes in parked. run_id is shown only for this session's "
-        "leases. You never need it to free your own lease - use lease_release.",
+        "reclaim (stopped, throwaway database dropped, lease deleted) or park (a lease that belongs "
+        "to a run and records a build, whose session ended or whose server died, is parked instead: "
+        "server stopped, database and ports kept, so the run can find it again with lease_find and "
+        "adopt it; a run's lease that was never built is reclaimed); a park whose budget lapses is "
+        "reclaimed. A real run lists the parked leases' token prefixes "
+        "in parked. run_id is shown only for this session's leases. You never need it to free your "
+        "own lease - use lease_release.",
         _obj({"dry_run": {"type": "boolean", "default": True,
                           "description": "true (default): list what would be reclaimed, change nothing. "
                                          "false: reclaim them."},
@@ -1306,7 +1310,7 @@ def register(registry, ctx):
         _obj({"dry_run": {"type": "boolean"}, "scope": {"type": "string"},
               "leases": {"type": "array", "items": GC_ITEM_SCHEMA},
               "parked": {"type": "array", "items": {"type": "string"},
-                         "description": "Token prefixes a real run sent back to the park (empty on "
+                         "description": "Token prefixes a real run parked instead of reclaiming (empty on "
                                         "a dry run: those show as action park in leases)."}},
              ["dry_run", "scope", "leases", "parked"]),
         _gc, title="Garbage-collect dead Odoo leases", long_running=True, destructive=True,
