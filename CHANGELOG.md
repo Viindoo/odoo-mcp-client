@@ -6,6 +6,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.8.0] - 2026-11-11
+
+### Added
+
+- The state of a run survives a context compaction: a `PreCompact` hook
+  (`hooks/steer-compaction.sh`) tells the summary what to keep (each contract read with the rule
+  it set, the skill and phase in progress, the leases, worktrees and open pages held, the limits
+  the human stated) and records the plugin skills the session invoked and its unfinished run;
+  after the compaction the session is told which skill to invoke again and which run and node to
+  resume.
+- Size limits on runtime instruction files: every entry of the card budget equals the size of its
+  file, an agent body is limited to 200 lines and 12,000 bytes (an agent over a limit is recorded
+  and may only shrink), and `make sync-budgets` lowers the recorded figures after a file shrinks.
+  `docs/authoring-skills-and-agents.md` § 2.5 states what belongs in a runtime file and which
+  carrier a rule lives in (the always-loaded ethos, an agent body, a contract read by path).
+
+### Changed
+
+- The instruction text a run loads is about 40% smaller (measured over the fifty skill journeys;
+  `odoo-coding` 45%, `odoo-code-review` 54%, `odoo-forward-port` 61%). The hot contracts are
+  rewritten as rules without incident history, restated tool schemas or lookup recipes; eight
+  agents follow the five-part body template; the `## MCP tools` block of a skill lists its tools
+  only, the orientation text staying in the server's own instructions and in the IDE snippets.
+- Four behaviour rules sit in the always-loaded ethos, where a subagent and a compacted session
+  still see them: a brief hands over scope, intent, goal and key results, with evidence as
+  evidence and a diagnosis labelled as a hypothesis; a problem is checked against the source and
+  decided by its owner before it is passed up, and what goes up carries the business context, the
+  modules, the technical facts, the options and a recommendation; code and tests reuse what the
+  module, its dependency closure and core already provide; artifacts and the codebase state the
+  current state, and history goes to the commit message.
+- Reuse is checked: the coder searches the module, its `depends` closure and core before adding a
+  helper, mixin, field, component, test base class or fixture, and reports what it reused; the
+  reviewer lists every new building block in the mechanical pass and judges each against an
+  existing equivalent in the behaviour pass. A dependency is never added to reach a helper.
+- One version bump per changed module per PR: every module changed outside `tests/` and
+  `static/tests/` takes the smallest version step, with or without a migration script, and
+  `migration_gate.py` fails a PR that lacks it. A migration script is written only when existing
+  data of the series must change. Not bumped: a new module, a `test_*` module, a module that is
+  not installable after the PR and a module upgraded to the series. An already-installable module
+  touched by an upgrade PR takes the bump and keeps what the databases of a released series rely
+  on (fields, models and XML ids that hold data are retired, never removed or renamed).
+- A PR lands as one commit per module, base modules first; the CI verdict is taken at the branch
+  tip. A forward-port keeps its single merge commit.
+- A design states each decision with its reason in place and carries no list of alternatives, no
+  addendum and no gate log; an upgrade design has one "source to target" section and no hand-off
+  to a database migration. A screen finding is assessed and fixed by the agents, and the
+  before/after screenshots are reported without waiting for approval. An independent review of
+  the SRS is an optional step of `odoo-solution-design`.
+- A defect that predates a forward-port and reds a gate of the modules it touches is fixed in the
+  port's PR; a behaviour change needs the settled principle, the verified current behaviour and
+  the known business impact; a recon is reused only at the same head commit; a mockup binds
+  layout and behaviour, never colours or sizes; `.po` conflicts in a rebase are resolved by a
+  three-way merge; `cr.commit()` is valid in a scheduled job through the progress API of the
+  series, and elsewhere only to stay consistent with an external system after an irreversible
+  effect, with the reason in a comment and never under a test.
+- `git-toolkit` - the model of a launch travels in the launch's `model` parameter only (the
+  `DISPATCH MODEL` first line of a brief is removed), and a commit message or PR body states the
+  net change against the base. (`git-toolkit` 0.9.3 -> 0.9.4.)
+
+### Fixed
+
+- A docs-site capture instance installs auto-install modules: `context: doc` no longer forces
+  `skip_auto_install`, `odoo-doc-site` asks for the product shape, module documentation keeps
+  skipping them, and the docs tail builds one capture instance per build shape instead of sharing
+  the translation database (#312). A module that auto-installs for a country is listed in the
+  site row's `extra_modules`.
+- Branches are child companies: the design principles and the IDE snippets describe company-bound
+  data over the company tree (`parent_of`, `root_id`) instead of a `res.branch` model.
+- `odoo-perf-audit` no longer reports `compute_sudo=True` on a stored computed field, the core
+  default; the version pivots state where `-u` applies, `get_views` as a method of every model,
+  and the scheduled-job progress API per series; the regression scope adds the JavaScript suite
+  of the core app that owns a shared web-client surface a node extends without a condition.
+
+### Removed
+
+- The incident history in the `description` of `hooks/hooks.json` (two sentences remain; the set
+  of registered deny scripts is pinned by a structural test) and `COMPRESSION-REPORT.md`.
+
 ## [8.7.0] - 2026-11-08
 
 ### Added
