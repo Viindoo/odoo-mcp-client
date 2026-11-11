@@ -27,7 +27,8 @@ token set, or a diff); none judges the meaning of prose.
                        dispatched agent's registry `brief.required` lists.
  13. card-budget     - a hot shared contract (cited by >= 3 skills/agents, or listed in
                        tests/fixtures/card_budget_grandfather.json) stays within its byte
-                       budget; growth is a deliberate budget bump in that file.
+                       budget, and every entry equals the real size (a trim lowers its entry);
+                       growth is a deliberate budget bump in that file.
  14. ref-scope       - (a) WARN-ONLY: a citation of a large file carries a section anchor;
                        (b) STRICT: no consumer file points at snippets/references/.
  15. no-provenance   - agent-facing prose carries no plugin-self changelog or tracker
@@ -40,8 +41,13 @@ token set, or a diff); none judges the meaning of prose.
                        resolves.
  20. definition-pointer - no runtime file points a reader at a SKILL.md or an agents/<name>.md
                        path: a skill is invoked and an agent is launched, neither is read.
+ 21. agent-body     - an agent body (after the frontmatter) stays within 200 lines and 12,000
+                       bytes; a dimension over its limit is recorded in tests/fixtures/
+                       agent_body_budget.json, and that figure only goes down.
 
 Run: python3 generator/check_orchestration.py [--strict]   (ORCH_STRICT=1 also enforces)
+Sync: python3 generator/check_orchestration.py --sync-budgets   (make sync-budgets) lowers every
+      recorded figure (card budgets, agent record) to the real size and never raises one.
 """
 
 import json
@@ -513,6 +519,157 @@ def check_card_budget(findings: list[str]) -> None:
                 f"[card-budget] '{relpath}' is {size}B, over its budget of {budget}B "
                 f"({why}) - grow it only with a deliberate grandfather-file bump, never silently"
             )
+        elif relpath in grandfather and size < budget:
+            findings.append(
+                f"[card-budget] '{relpath}' is {size}B, under its recorded budget of {budget}B - "
+                f"lower the entry to the real size (make sync-budgets)"
+            )
+
+
+# --- [agent-body] (rule 21) and the budget sync -------------------------------------------------
+
+AGENT_BODY_RECORD_FILE = REPO_ROOT / "tests" / "fixtures" / "agent_body_budget.json"
+AGENT_BODY_MAX_LINES = 200
+# 200 lines at about 60 bytes a line. The bodies at or under 200 lines average near that; a body
+# with far longer lines (one is about 100 lines and 15 KB) is over this ceiling at any line count.
+AGENT_BODY_MAX_BYTES = 12_000
+
+
+def agent_body_figures(agent_files: list[Path], base: Path) -> dict[str, tuple[int, int]]:
+    """{path relative to `base`: (lines, bytes)} of each agent body - the text after the
+    frontmatter fence."""
+    figures: dict[str, tuple[int, int]] = {}
+    for path in agent_files:
+        text = path.read_text(encoding="utf-8")
+        match = re.match(r"---\r?\n.*?\r?\n---[ \t]*\r?\n", text, re.S)
+        body = text[match.end():] if match else text
+        figures[path.relative_to(base).as_posix()] = (
+            len(body.splitlines()), len(body.encode("utf-8")))
+    return figures
+
+
+_DIMENSIONS = (("lines", AGENT_BODY_MAX_LINES), ("bytes", AGENT_BODY_MAX_BYTES))
+
+
+def _over_dimensions(figure: tuple[int, int]) -> dict[str, int]:
+    """{dimension: figure} for each dimension of `figure` above its limit."""
+    return {name: figure[k] for k, (name, limit) in enumerate(_DIMENSIONS) if figure[k] > limit}
+
+
+def _agent_body_over(figure: tuple[int, int]) -> bool:
+    return bool(_over_dimensions(figure))
+
+
+def _load_agent_body_record(record_file: Path) -> dict[str, dict[str, int]]:
+    """{agent path: {dimension: recorded figure}}; an entry holds only the dimensions that were
+    above their limit when it was recorded."""
+    if not record_file.is_file():
+        return {}
+    data = json.loads(record_file.read_text(encoding="utf-8"))
+    return {k: {d: int(v[d]) for d in ("lines", "bytes") if d in v}
+            for k, v in data.get("agents", {}).items()}
+
+
+def agent_body_findings(
+    figures: dict[str, tuple[int, int]], record: dict[str, dict[str, int]]
+) -> list[str]:
+    """An agent body stays within AGENT_BODY_MAX_LINES lines and AGENT_BODY_MAX_BYTES bytes. Only
+    a dimension above its limit is recorded; its recorded figure equals the real figure and never
+    rises. A dimension within its limit is free to move while it stays within it. An agent whose
+    dimensions both fit has no record."""
+    limits = f"{AGENT_BODY_MAX_LINES} lines / {AGENT_BODY_MAX_BYTES} bytes"
+    found: list[str] = []
+    for rel in sorted(set(figures) | set(record)):
+        if rel not in figures:
+            found.append(f"[agent-body] '{rel}' is recorded but is not an agent file - drop the entry")
+            continue
+        over = _over_dimensions(figures[rel])
+        rec = record.get(rel, {})
+        for name, size in over.items():
+            if name not in rec:
+                found.append(
+                    f"[agent-body] '{rel}' body is {size} {name}, over the {limits} limit and not "
+                    f"recorded for {name} - shrink it")
+            elif size > rec[name]:
+                found.append(
+                    f"[agent-body] '{rel}' body is {size} {name}, above its recorded {rec[name]} - "
+                    f"a recorded figure only goes down")
+            elif size < rec[name]:
+                found.append(
+                    f"[agent-body] '{rel}' body is {size} {name}, below its recorded {rec[name]} - "
+                    f"lower the record (make sync-budgets)")
+        for name in rec:
+            if name not in over:
+                found.append(
+                    f"[agent-body] '{rel}' body is within the {name} limit - drop its recorded "
+                    f"{name} (make sync-budgets)")
+    return found
+
+
+def check_agent_body(findings: list[str]) -> None:
+    """21. [agent-body] - see agent_body_findings."""
+    figures = agent_body_figures(sorted(REPO_ROOT.glob("plugins/*/agents/*.md")), REPO_ROOT)
+    findings.extend(agent_body_findings(figures, _load_agent_body_record(AGENT_BODY_RECORD_FILE)))
+
+
+def sync_budgets(
+    card_file: Path, plugin_root: Path, record_file: Path, agent_files: list[Path], base: Path
+) -> tuple[list[str], list[str]]:
+    """Bring every recorded figure down to the real size; never raise one. Returns (changes,
+    refusals). A card entry whose file grew, an agent over the limit that is not recorded or
+    whose figure grew, and a path that no longer exists are refused and left as they are."""
+    changes: list[str] = []
+    refusals: list[str] = []
+
+    if card_file.is_file():
+        data = json.loads(card_file.read_text(encoding="utf-8"))
+        budgets = data.get("budgets", {})
+        for rel in list(budgets):
+            path = plugin_root / rel
+            if not path.is_file():
+                refusals.append(f"{rel}: file is missing, entry kept")
+                continue
+            size = path.stat().st_size
+            if size < budgets[rel]:
+                changes.append(f"{rel}: {budgets[rel]} -> {size}")
+                budgets[rel] = size
+            elif size > budgets[rel]:
+                refusals.append(f"{rel}: is {size}B, over its budget of {budgets[rel]}B, not raised")
+        if changes:
+            card_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    figures = agent_body_figures(agent_files, base)
+    record = _load_agent_body_record(record_file)
+    new_record: dict[str, dict[str, int]] = {}
+    for rel, figure in sorted(figures.items()):
+        over = _over_dimensions(figure)
+        old = record.get(rel, {})
+        kept: dict[str, int] = {}
+        for name, size in over.items():
+            if name not in old:
+                refusals.append(f"{rel}: body is {size} {name}, over the limit and not recorded, "
+                                f"not added")
+            elif size > old[name]:
+                refusals.append(f"{rel}: body is {size} {name}, above its record of {old[name]}, "
+                                f"not raised")
+                kept[name] = old[name]
+            else:
+                if size < old[name]:
+                    changes.append(f"{rel}: {name} {old[name]} -> {size}")
+                kept[name] = size
+        for name in old:
+            if name not in over:
+                changes.append(f"{rel}: {name} left the agent record")
+        if kept:
+            new_record[rel] = kept
+    for rel, old in record.items():
+        if rel not in figures:
+            refusals.append(f"{rel}: not an agent file, entry kept")
+            new_record[rel] = old
+    if new_record != record:
+        out = {"agents": dict(sorted(new_record.items()))}
+        record_file.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+    return changes, refusals
 
 
 # --- [ref-scope] (rule 14, M9) ----------------------------------------------------------------
@@ -1328,6 +1485,16 @@ def check_version_claim(findings: list[str], advisory_findings: list[str]) -> No
 
 
 def main(argv: list[str]) -> int:
+    if "--sync-budgets" in argv:
+        changes, refusals = sync_budgets(
+            CARD_BUDGET_GRANDFATHER_FILE, PLUGIN_ROOT, AGENT_BODY_RECORD_FILE,
+            sorted(REPO_ROOT.glob("plugins/*/agents/*.md")), REPO_ROOT)
+        for line in changes:
+            print(f"lowered: {line}")
+        for line in refusals:
+            print(f"REFUSED: {line}")
+        print(f"{len(changes)} figure(s) lowered, {len(refusals)} refused")
+        return 1 if refusals else 0
     strict = "--strict" in argv or os.environ.get("ORCH_STRICT") == "1"
     findings: list[str] = []
 
@@ -1465,6 +1632,7 @@ def main(argv: list[str]) -> int:
     # 13, 14b, 15. [card-budget] / [ref-scope] half (b) / [no-provenance] (M9/M10,
     # 12-design-final.md) - LIVE and enforcing, part of `findings` like rules 1-8 and 11.
     check_card_budget(findings)
+    check_agent_body(findings)
     check_ref_scope_no_reference_pointer(findings)
     check_no_provenance(findings)
 

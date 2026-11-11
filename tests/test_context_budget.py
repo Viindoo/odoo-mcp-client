@@ -69,31 +69,15 @@ def test_grandfather_fixture_loads_and_is_nonempty():
     )
 
 
-def test_wave13_grandfather_entries_match_actual_post_trim_size():
-    """The base 27-ish-file block was generated ONCE, at the start of the wave, EXCLUDING wave 7's
-    own 13 inverted files. Each of those 13 earns its OWN entry the moment it is trimmed and
-    committed - that entry must be its file's actual post-trim size (never a stale earlier size,
-    and never larger than what is really on disk, which would silently hide future regrowth)."""
-    data = _grandfather()
-    budgets = data["budgets"]
-    missing = []
+def test_every_budget_entry_equals_the_real_file_size():
+    """A trim must be followed by lowering its entry, or the headroom it reclaimed is handed back
+    silently. `make sync-budgets` lowers the entries."""
     mismatched = []
-    for relpath in co.INVERTED_SNIPPETS:
+    for relpath, recorded in _grandfather()["budgets"].items():
         path = PLUGIN / relpath
-        if not path.is_file():
-            missing.append(relpath)
-            continue
-        actual = path.stat().st_size
-        if actual <= co.CARD_BUDGET_DEFAULT_CAP:
-            continue  # under the default cap - no entry needed, the default cap already covers it
-        recorded = budgets.get(relpath)
-        if recorded != actual:
-            mismatched.append((relpath, recorded, actual))
-    assert not missing, f"wave-13 file(s) missing from disk: {missing}"
-    assert not mismatched, (
-        f"wave-13 grandfather entries must equal the file's actual current size (recorded, actual): "
-        f"{mismatched}"
-    )
+        if path.is_file() and path.stat().st_size != recorded:
+            mismatched.append((relpath, recorded, path.stat().st_size))
+    assert not mismatched, f"budget entries that differ from the real size (recorded, actual): {mismatched}"
 
 
 def test_card_budget_candidates_discovered():
@@ -277,3 +261,50 @@ def test_synthetic_undersize_file_is_clean(tmp_path, monkeypatch):
     findings: list[str] = []
     co.check_card_budget(findings)
     assert findings == [], f"expected zero findings on an under-cap file, got: {findings}"
+
+
+def _fake_tree(tmp_path, monkeypatch, size: int, budget: int):
+    """A plugin tree holding one declared file of `size` bytes with a `budget` entry."""
+    fake_root = tmp_path / "odoo-ai-agents"
+    (fake_root / "snippets").mkdir(parents=True)
+    (fake_root / "skills" / "driver").mkdir(parents=True)
+    (fake_root / "agents").mkdir(parents=True)
+    (fake_root / "skills" / "driver" / "SKILL.md").write_text("y" * size, encoding="utf-8")
+    fixture = tmp_path / "budgets.json"
+    fixture.write_text(json.dumps({"budgets": {"skills/driver/SKILL.md": budget}}), encoding="utf-8")
+    monkeypatch.setattr(co, "PLUGIN_ROOT", fake_root)
+    monkeypatch.setattr(co, "SNIPPETS_DIR", fake_root / "snippets")
+    monkeypatch.setattr(co, "SHARED_DIR", fake_root / "skills" / "_shared")
+    monkeypatch.setattr(co, "SKILLS_DIR", fake_root / "skills")
+    monkeypatch.setattr(co, "AGENTS_DIR", fake_root / "agents")
+    monkeypatch.setattr(co, "REFERENCES_DIR", fake_root / "snippets" / "references")
+    monkeypatch.setattr(co, "CARD_BUDGET_GRANDFATHER_FILE", fixture)
+    return fake_root, fixture
+
+
+def test_a_declared_file_under_its_budget_is_flagged_as_slack(tmp_path, monkeypatch):
+    _fake_tree(tmp_path, monkeypatch, size=400, budget=500)
+    findings: list[str] = []
+    co.check_card_budget(findings)
+    assert len(findings) == 1 and "skills/driver/SKILL.md" in findings[0]
+
+
+def test_a_declared_file_equal_to_its_budget_is_clean(tmp_path, monkeypatch):
+    _fake_tree(tmp_path, monkeypatch, size=500, budget=500)
+    findings: list[str] = []
+    co.check_card_budget(findings)
+    assert findings == []
+
+
+def test_sync_lowers_a_slack_entry_and_never_raises_a_grown_one(tmp_path, monkeypatch):
+    fake_root, fixture = _fake_tree(tmp_path, monkeypatch, size=400, budget=500)
+    record = tmp_path / "agents.json"
+    args = (fixture, fake_root, record, [], tmp_path)
+    changes, refusals = co.sync_budgets(*args)
+    assert json.loads(fixture.read_text())["budgets"]["skills/driver/SKILL.md"] == 400
+    assert changes and not refusals
+
+    (fake_root / "skills" / "driver" / "SKILL.md").write_text("y" * 450, encoding="utf-8")
+    changes, refusals = co.sync_budgets(*args)
+    assert json.loads(fixture.read_text())["budgets"]["skills/driver/SKILL.md"] == 400
+    assert refusals and not changes
