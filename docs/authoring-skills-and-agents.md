@@ -71,6 +71,12 @@ current-state writing) is one sentence in the ethos file, paid for by trimming a
 one agent's trade lives in that agent's body. A contract holds what several actors need in detail
 at one step of their work.
 
+**Changing a rule means changing its sentence.** To stop an instruction that is already shipped,
+remove or rewrite the sentence that states it; never add a later sentence that overrides it - the
+model follows the specific sentence over the abstract override, and the text ends up with two
+voices. After a change, measure the behaviour again: when two rewordings change nothing, the cause
+is the mechanism (what is loaded, when), not the wording.
+
 ## 3. Skill authoring
 
 A skill is one directory `plugins/odoo-ai-agents/skills/<name>/SKILL.md` = YAML frontmatter +
@@ -160,10 +166,12 @@ incomplete or unreachable. Never invert this. OSM is STATIC (no live records). K
 "live Odoo MCP exposing `read_record`/`search_records`" by capability, not a product name). Guard:
 `tests/test_disambiguation.py`. Full rules: CONTRIBUTING.md "Agent-facing prose".
 
-**Fan-out / model tier.** If a skill dispatches subagents, it must reference
-`skills/_shared/concurrency-guard.md` for the concurrency envelope (Mode A / Mode B) and the
-"Model-tier selection" SSOT (capability map, resolution order, one-tier escalation) rather than
-restating the numbers or the tiers. A skill that resumes an agent it launched earlier (a fix
+**Fan-out, model tier and effort.** If a skill dispatches subagents, it must reference
+`skills/_shared/concurrency-guard.md` for the fan-out caps (Mode A / Mode B), the "Model-tier
+selection" SSOT (the kind of reasoning picks the tier) and its "Effort" table (the blast radius
+picks the effort: recon flags, the number of modules and business functions, a specialist
+domain) rather than restating them. Tier and effort are launch parameters: a brief template never
+carries them as a line of the brief. A skill that resumes an agent it launched earlier (a fix
 round, a second review) names the agent and sends it the delta with `SendMessage`; it never
 launches a fresh agent for continuation work (launch economics, the same SSOT).
 
@@ -284,8 +292,7 @@ body names. This does NOT change the `tools:`-free convention above - still no a
 **No git in prose.** Skill, agent, command, snippet and workflow text states a git need as a
 request plus its expected result for `git-toolkit:git-ops`, or reads a repo fact (root, branch, short
 SHA, origin URL, dirty paths, merge or rebase in progress) with the odoo-local `repo_facts` tool; it
-never spells a git subcommand or flag, a read included (`tests/test_git_delegation_boundary.py`
-fails on any). The one exception is a command line `/odoo-ai-agents:odoo-setup` prints for the
+never spells a git subcommand or flag, a read included. The one exception is a command line `/odoo-ai-agents:odoo-setup` prints for the
 human to run.
 
 **Where a model choice lives (placement rule).** An agent reads its own body only AFTER it was
@@ -295,6 +302,12 @@ default), in `skills/_shared/concurrency-guard.md` "Model-tier selection" (the c
 the resolution order), or in the skill/agent that CALLS the agent. A spawner agent picks the model
 of the children it launches, by pointer to that SSOT - never a copied table. Do not hardcode a
 tier rationale in prose; reference the SSOT.
+
+**Effort follows the same placement.** An agent whose work always needs thorough checking (a
+reviewer, a debugger, the design session) or is always mechanical (instance operations) declares
+`effort:` in its frontmatter as the default; a launcher overrides it per launch from the "Effort"
+table. Allowed values are `low`, `medium`, `high`, `xhigh`; `max` is never a default (lint
+`[agent-effort]`).
 
 **Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
 `snippets/dispatch-brief.md` says what a launcher (the main agent, a dispatching skill, a node
@@ -346,22 +359,23 @@ reference is read only through the section it names. A reference longer than 100
 a `**Contents:**` line listing its `##` headings (Anthropic: a table of contents at the top), so a
 reader can jump to the section a skill cites instead of reading the file.
 
-## 6.5. Shared contracts: decidable rule vs. explanation (`snippets/references/`)
+## 6.5. Shared contracts: rules only, and a size budget
 
 Every `snippets/*.md` (and `skills/_shared/*.md`) file cited by 3+ distinct skills+agents is a
 HOT file, loaded into many cold agent contexts per run - its byte size is a per-invocation cost.
-When authoring or editing one, keep it to DECIDABLE RULES ONLY (thresholds, exceptions, schemas,
-procedures a reader can act on without further judgment). Move rationale, worked examples, and
-historical "why" prose to a sibling `snippets/references/<name>.md` - a file for humans and future
-authors doing repo archaeology, not for a runtime agent.
+Keep it to rules a reader can act on: thresholds, exceptions, schemas, procedures. Rationale beyond
+one clause, worked examples and the story of how a rule came to be do not go into the repository
+at all: the reason for a change is the commit message.
 
-**The read-both hazard - the one hard rule.** The main file must NEVER name its `references/`
-sibling's path, in any form (no "see snippets/references/X.md for more"). If an executing agent is
-shown that path, it may read both files and the byte-cost saving is lost. `snippets/references/`
-is discoverable only from this section and from `[ref-scope]`'s lint (`check_orchestration.py`),
-which also asserts no consumer-facing file contains the literal substring `snippets/references/`.
+A procedure only one mode of an agent needs lives in that skill's `references/` and the agent
+reads it by path for that mode (for example an agent with a `copy` and a `landing` mode names one
+file per mode), so a run loads the mode it runs and nothing else.
 
-`[card-budget]` (same lint) holds every hot file to its budget, and every declared budget equals
+A contract that receives a new rule is trimmed elsewhere first. When the rule is new behaviour and
+the file is already tight, raise its entry in the budget file by hand to the new size, in the same
+commit, and say why in the commit message.
+
+`[card-budget]` (`check_orchestration.py`) holds every hot file to its budget, and every declared budget equals
 the file's real size: after a trim, `make sync-budgets` lowers the entries (it never raises one);
 a file that must grow is trimmed elsewhere first. A file becomes subject to it two ways:
 
@@ -388,7 +402,7 @@ Run the full local gate (same as CI) before pushing:
 
 ```bash
 make validate          # plugin schema + skill frontmatter + skill-listing budget + workflow + orchestration check, both STRICT/enforced
-make test              # full pytest suite (naming, format, body convention, CHP, disambiguation, ...)
+make test              # full pytest suite: a parallel pass, then the timing-sensitive tests alone
 make gen-check         # regenerate SSOT artifacts, fail on any diff (idempotency)
 make deps-check        # every skill->tool reference points at a live tool
 make workflows-check   # workflows/*.workflow.yaml vs schema (warn-first standalone; WORKFLOWS_STRICT=1 to enforce locally - `make validate` always runs it strict)
@@ -407,7 +421,8 @@ fields.
 
 1. Scaffold with the `agent-creator` agent / `agent-development` skill.
 2. Frontmatter: `name`, `description` (routing metadata - triggers + `<example>`s, no trailing
-   `.`/`!`/`?`), `model` (default tier). Omit `tools:`.
+   `.`/`!`/`?`), `model` (default tier), `effort` only for an agent that is always thorough or
+   always mechanical. Omit `tools:`.
 3. Body: second-person system prompt - role, procedure, runtime constraints, output contract.
    **No `## When to invoke`** and no routing section.
 4. Name it as an actor noun (`-er`/`-or`/`-ist`, `odoo-` prefix), different from the dispatching

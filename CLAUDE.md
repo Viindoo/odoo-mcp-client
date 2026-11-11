@@ -31,7 +31,7 @@ exists to *validate and generate* the Markdown, not to run at user time.
 
 ```bash
 make setup              # create .venv + install requirements.txt (one-time)
-make test               # full pytest suite (tests/)
+make test               # full pytest suite (tests/): the tests in parallel (one worker per file; TEST_WORKERS=<n|auto>), then the timing-sensitive set alone
 make validate           # claude plugin validate (if CLI present) + schema/format pytest + workflow + orchestration check, both STRICT/enforced
 make gen                # regenerate SSOT-derived artifacts (see "SSOT generator" below)
 make gen-check          # run gen, then fail if it produced any diff (CI idempotency gate)
@@ -55,9 +55,15 @@ claude --plugin-dir ./plugins/odoo-ai-agents      # skills + agents + commands +
 claude --plugin-dir ./plugins/odoo-semantic-mcp   # MCP connection + connect command
 ```
 
-CI (`.github/workflows/validate.yml`) runs `pytest tests/`, `check_deps.py`, the gen-idempotency
-check, and the orchestration + workflow-schema lints (both STRICT/enforced) on every PR. Match
-these locally with `make validate` before pushing.
+A test that asserts something finishes inside a time bound, or that drives a real browser, is
+listed in `SERIAL_TESTS` in `tests/conftest.py` (one pattern per line): it is marked `serial` and
+runs alone after the parallel pass. Distribution is by file, so a module-scoped fixture is built
+once per file and a fixed port belongs to one file only. `requirements.txt` is read by `make setup`
+and by CI only; nothing in it is installed on a plugin user's machine.
+
+CI (`.github/workflows/validate.yml`) runs the same two test passes (`make test-run`),
+`check_deps.py`, the gen-idempotency check, and the orchestration + workflow-schema lints (both
+STRICT/enforced) on every PR. Match these locally with `make validate` before pushing.
 
 ## Architecture you must understand before editing
 
@@ -121,11 +127,16 @@ Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
   `--load-language` (`en_US` + `languages`) and the series' demo flag (from `demo`, on `init` only),
   and `extra_args` refuses those flags. `instance_i18n_export` runs Odoo's own exporter (`.pot`
   first, then one `.po` per language, from one database). One build or export runs on a database at a time (`DATABASE_BUSY`).
+- **A served instance is the installed build.** `instance_serve` passes no developer option and
+  drops the environment's `ODOO_DEV`, so the server neither restarts on a saved file nor reads
+  views from files; `developer_server: true` (the caller's own lease) asks for the developer
+  option the checkout declares, and the result states `developer_server`. Evidence - a capture,
+  an acceptance, a review, a recording - is never taken on a developer server.
 - **Repo facts come from a tool, never from agent-run git.** `repo_facts` (script:
   `scripts/lib/repo_facts.py`, the one place that reads git for an agent) returns the root, the main
   checkout behind a linked worktree, branch/ref, short HEAD SHA, origin URL (credentials removed),
   dirty paths and an in-progress merge/rebase. Plugin prose never spells a git command or flag - it
-  calls this tool or asks `git-toolkit:git-ops` for a result (`tests/test_git_delegation_boundary.py`).
+  calls this tool or asks `git-toolkit:git-ops` for a result.
 - **Tool-launched Odoo never reads `~/.odoorc`.** Every `odoo-bin` the scripts launch reads a
   generated config file, named by `-c` and by `$ODOO_RC` (`scripts/lib/odoo_cli_facts.sh`
   `odoo_isolated_rc_env` - where Odoo loads its default rc file at import time, `-c` alone does not
@@ -139,8 +150,29 @@ Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
   plus the override dirs, never the rest of the state root (`block-capture-outside-state-root.sh`,
   decided by `scripts/lib/capture_paths.py`). A test
   pins the set of registered deny scripts - a new deny updates it. Every hook that reads
-  a subagent's report reads it through `hooks/final-report.sh` (the `SubagentHandback` message, else
-  the final message).
+  a subagent's report reads it through `hooks/final-report.sh`: the `SubagentHandback` message
+  delivered since the launcher's latest request, else the final message. A subagent resumed with a
+  new request owes a new hand-back; `enforce-resumed-handback.sh` (SubagentStop) stops, once, a
+  resumed turn that ends without one. `enforce-job-wait.sh` (Stop and SubagentStop) stops, once,
+  a turn that ends while a build or export job that agent started is still running: a finished
+  job notifies no one.
+- **Every `odoo-bin` the scripts launch is memory-capped.** `scripts/lib/run_bounded.sh`
+  (`run_memory_capped`, `exec_memory_capped`, CLI `capped`) runs it in a transient systemd scope
+  with a memory limit where a user manager enforces one, else under an address-space limit; the
+  cap is the value `scripts/lib/resource_limits.sh` resolves. A new launch site uses that helper,
+  never its own `ulimit` or `systemd-run` line (`snippets/odoo-bin-resource-limits.md`).
+- **A run's built lease outlives its session.** When the owner of a lease is gone, gc parks the
+  lease (database and ports kept, for its park budget) if it records a run id and a build, and
+  reclaims it otherwise; the rule is `_outlives_its_owner` in `scripts/lib/allocator.py`
+  (`docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
+- **One image command.** `scripts/lib/image_sheet.py` builds a contact sheet and reads image
+  sizes; agent prose points at it and no agent writes its own image script.
+- **Model tier and effort are launch parameters.** `skills/_shared/concurrency-guard.md` holds the
+  two tables; an agent may declare a default `effort:` in its frontmatter (lint `[agent-effort]`),
+  and a brief template never carries either as a brief line.
+- **The user's language.** `scripts/lib/response_language.py` reads the response language
+  configured in Claude Code and `hooks/check-setup-deps.sh` states it in the session-start
+  context; `snippets/language-mirroring.md` says what follows it.
 - **Compaction.** `hooks/steer-compaction.sh` (PreCompact) steers the summary and records the
   session's plugin skills and run in progress in a state file; `hooks/recover-after-compaction.sh`
   (SessionStart, source `compact`) names them back to the agent. A rule every step needs does not
@@ -222,7 +254,7 @@ plugin; `Odoo Semantic`/`OSM` = the brand; `` `odoo-semantic` `` in backticks = 
 id (config only); `mcp__plugin_odoo-semantic-mcp_odoo-semantic__*` = the tool-call prefix Claude
 Code gives the plugin's server (`mcp__odoo-semantic__*` only for a server registered by hand under
 that id). A bare `odoo-semantic` token
-outside those contexts is a bug. Enforced by `tests/test_naming_consistency.py`.
+outside those contexts is a bug.
 
 ### Versioning - VERSION is SSOT, kept in lockstep
 
