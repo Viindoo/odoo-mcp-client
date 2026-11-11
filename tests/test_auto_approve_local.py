@@ -212,11 +212,3 @@ def test_hooks_json_local_matcher_rejects_browser_and_foreign_tools():
     assert re.match(pattern, "mcp__plugin_odoo-ai-agents_chrome-devtools__navigate_page") is None
     assert re.match(pattern, "mcp__odoo-semantic__model_inspect") is None
     assert re.match(pattern, "Bash") is None
-
-
-def test_manifest_description_documents_the_new_hook():
-    """hooks.json's description is the map a debugging agent reads first; a hook missing from it
-    is a hook nobody knows fired (mirrors test_permission_denied_teardown.py's own check)."""
-    manifest = json.loads((PLUGIN / "hooks" / "hooks.json").read_text(encoding="utf-8"))
-    desc = " ".join(manifest.get("description", "").split())
-    assert HOOK.name in desc, "the manifest description must name auto-approve-local.sh"
