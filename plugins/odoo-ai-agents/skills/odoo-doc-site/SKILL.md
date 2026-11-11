@@ -34,12 +34,10 @@ group.
 - `CODE_WORKTREE` - absolute path of the code being documented. As a plan tail node it is
   `<code repo>/run-integration`. Absent: the catalog row's addons path.
 - `RUN_ID` - the caller's run id. Standalone: make one per series.
-- `INSTANCE_HANDLE` - optional: a demo build the caller already holds (the module-docs step's,
-  or an i18n export build). When its series is the target, `demo` is true, `languages_loaded`
-  holds every site language and its `addons_path` covers `CODE_WORKTREE` (else the catalog
-  addons), step 3 installs the plan's missing modules on that lease by a delta `init` and
-  provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture
-  instance); the caller releases it.
+- `INSTANCE_HANDLE` - optional: a demo build the caller already holds. When its series is the target, `demo` is true, `languages_loaded`
+  holds every site language, its build reported `auto_install: on` and its `addons_path` covers
+  `CODE_WORKTREE` (else the catalog addons), step 3 installs the plan's missing modules on that
+  lease by a delta `init` and provisions nothing; the caller releases it.
 - `WORKTREE` with `LAND: caller` - a caller that owns the branch (`odoo-forward-port`) hands the
   series worktree in: step 0 creates no worktree and no branch, steps 7-8 run nothing, and the
   return carries the file list for the caller to commit. It may add `PAGE PLAN`, the rows it
@@ -92,14 +90,20 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
    group has its own facts file `<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`,
    written by that group's writer (`file:symbol` citations); a live-UI difference is a finding.
 3. **Capture instance, then the check shot** (`references/check-shot.md`).
-   - With a covering `INSTANCE_HANDLE`: invoke `odoo-instance` with `operation: init` on that
-     handle for the modules the plan needs that it lacks, then `ensure-up`; skip the create below.
-     Otherwise invoke `odoo-instance` with `operation: create`, `context: doc`, `series` and `PROFILE` = the
+   - The site documents the product as users run it, so its capture database is built with
+     auto-install on. With a covering `INSTANCE_HANDLE` whose build reported `auto_install: on`:
+     invoke `odoo-instance` with `operation: init` on that handle for the modules the plan needs
+     that it lacks, then `ensure-up`; skip the create below. A handle built with auto-install
+     skipped does not cover a site: leave it to its owner and create.
+     Otherwise invoke `odoo-instance` with `operation: create`, `context: doc`,
+     `skip_auto_install: false`, `series` and `PROFILE` = the
      series and profile of the row's `instance` key (`<series>:<profile>`; no profile part: omit
      `PROFILE`), `modules` = the
      documented modules plus the row's `extra_modules` plus the bridge modules matching
      `module_bridge_patterns` for every app the plan shows (one build, one instance, one lease per
-     series), `demo: on`, `languages` = every site language, `persist: exclusive-running`,
+     series; a module Odoo auto-installs only for a company of one country is not added by this
+     build, whose main company has no country - the row's `extra_modules` names the localization
+     modules the site documents), `demo: on`, `languages` = every site language, `persist: exclusive-running`,
      `WORKTREE_PATH` = `CODE_WORKTREE` when given, `run_id` = `RUN_ID`. Keep the
      returned block verbatim as `INSTANCE_HANDLE`. Build, update and reinstall decisions follow
      `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree.

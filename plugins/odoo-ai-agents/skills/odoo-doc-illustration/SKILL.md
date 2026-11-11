@@ -41,7 +41,8 @@ documents the module again from scratch; absent, a module that already ships doc
 `MARKETING COPY`, `BUYER PROFILE`; each is forwarded and never rebuilt. `INSTANCE_HANDLE`
 (optional): a demo build the caller already holds; when its `addons_path` covers `doc_root`,
 `demo` is true and `languages_loaded` holds every resolved language, the run captures on it and
-provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance).
+provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance
+per build shape).
 
 ## Steps
 

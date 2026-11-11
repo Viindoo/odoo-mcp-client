@@ -82,9 +82,9 @@ SUSPEND an instance: stop its server if it has one, keep its database, filestore
 
 ### 9. resume-instance
 
-Bring a PARKED instance back to running on its own database, filestore and ports - no rebuild, no `-i`/`-u`, no second lease. **Inputs:** series, `run_id`; the coordinates come from `lease_find`, never the caller. Run Step A; do NOT call `lease_acquire`.
+Bring a PARKED instance back to running on its own database, filestore and ports - no rebuild, no `-i`/`-u`, no second lease. **Inputs:** the `lease_token` of the handle when the caller holds one, else series and `run_id`. Run Step A; do NOT call `lease_acquire`.
 
-1. `lease_find(series, state parked, run_id)`. `found=false` -> `status: down`; a caller that wanted an instance is routed to operation 1. A found lease with `yours: false` is another run's (token withheld): not yours to resume, release or park - report it in `notes` and treat the answer as `found=false`.
+1. With a token: go to step 2 with it. Without one: `lease_find(series, state parked, run_id)` - it returns one lease, so a run that parked more than one instance of the series passes the token instead. `found=false` -> `status: down`; a caller that wanted an instance is routed to operation 1. A found lease with `yours: false` is another run's (token withheld): not yours to resume, release or park - report it in `notes` and treat the answer as `found=false`.
 2. `yours: true` -> `lease_adopt(lease_token, run_id)` before serving, ALWAYS (every parked lease you did not obtain in this dispatch). A refused adopt (`LEASE_NOT_ADOPTED`): report it and do not serve.
 3. `instance_serve(lease_token)`, no `profile` - resumes the parked lease (`resumed=true`) and returns its `url`. Report `status: up`. The running server is now yours to tear down like any lease you obtained: park, release or hand it off before your terminal status.
 
@@ -94,11 +94,14 @@ A refused resume leaves the lease unchanged and still parked: follow the error c
 
 A running instance on a lease THIS dispatch obtained keeps its database, filestore and ports across a restart. Python-only change: `lease_park(lease_token, run_id)`, then `instance_serve(lease_token)`. Manifest, data or field change: `instance_build` operation `update` on the same lease. Never kill or relaunch `odoo-bin` by hand - the lease tracks only the server its tools start. A handle that only arrived in your brief is not yours to park: ask its owner.
 
-### Doc-context provision (composite: demo + language + skip-auto-install)
+### Doc-context provision (demo + languages + the auto-install shape)
 
-For documentation capture (`CONTEXT: doc`), pass all three in the SAME `instance_build` init to get a clean instance - target module and its direct `depends[]` only, no auto_install noise: `demo` `on`, `languages` = the capture locales, and the skip-auto-install flag in `extra_args` where `cli_help` lists it. Use the flag unconditionally for `CONTEXT: doc` - the instance must render ONLY the target module.
+For documentation capture (`CONTEXT: doc`), one `instance_build` init carries `demo` `on` and `languages` = the capture locales. The auto-install shape follows `SKIP_AUTO_INSTALL`:
 
-**Exception - auto-install bridge required:** if skipping auto-install makes the target module fail installation (missing dependency), capture the error and flag `NEEDS_CONTEXT: auto-install bridge <name> required - install selectively?`. Do NOT re-provision without the flag. If the caller confirms, add ONLY the bridge module to `modules` without removing the flag, and record the bridge in the output block notes.
+- `true` (the default under `CONTEXT: doc`) - a module's own documentation: the skip-auto-install flag goes in `extra_args` where `cli_help` lists it, so the instance renders the target module and its `depends` only. When the skip makes the target module fail to install, return `NEEDS_CONTEXT: auto-install bridge <name> required - install selectively?`; on the caller's yes, add only that bridge to `modules`, keep the flag, and name the bridge in `notes`.
+- `false` - the product as users run it (a documentation site): no skip flag, so Odoo installs every auto-install module whose dependencies are met.
+
+State the shape in `notes`: `auto_install: on`, `auto_install: skipped`, or `auto_install: on (the series has no skip flag)`.
 
 ### `MODE_HINT: path-incremental` - never yours
 

@@ -17,7 +17,7 @@ all volatile state lives in one machine-global file the allocator owns.
 
 **Both layers are Tier-1 - flat under `$ODOO_AI_HOME`, NEVER namespaced per project/worktree.** This
 is a hard invariant of the namespaced state-root convention
-(`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Tier-1 allowlist): namespacing the lease
+(`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Tier-1): namespacing the lease
 registry under a project- or worktree-scoped dir would let two worktrees of the same repo (or two
 different repos) allocate the same port/DB independently, exactly the collision this whole design
 exists to prevent. Every other `.odoo-ai/`-rooted artifact in this plugin (design docs, worklogs,
