@@ -64,6 +64,11 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-teardown.sh\"",
             "timeout": 8
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-job-wait.sh\"",
+            "timeout": 8
           }
         ]
       }
@@ -216,6 +221,16 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-background-wait.sh\"",
+            "timeout": 8
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-resumed-handback.sh\"",
+            "timeout": 8
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-job-wait.sh\"",
             "timeout": 8
           },
           {

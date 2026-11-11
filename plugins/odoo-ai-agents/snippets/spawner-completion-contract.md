@@ -109,6 +109,9 @@ A result is yours to judge before it is anyone else's.
 - **Before re-dispatching mutating work**, measure the state the child was to change (HEAD, an
   operation in progress, running processes) and read its whole report. A child that ended without
   handing back may have finished: measure the tree, then resume that child and ask for its report.
+  A completion notice that says the report was delivered, with no report from that child in your
+  context since your last send to it, is that case: the notice following a send is that send's
+  completion, never an echo of an earlier turn, so do not wait for another.
   Never a second writer on a tree the first may still be writing; a replacement brief states the
   HEAD it expects and stops when it differs. Two empty returns from the same kind of child change
   the approach; a third nudge is not one.
@@ -132,13 +135,23 @@ last act of your dispatch.
   launcher. While a lease you obtained is live and not forwarded in the message, the call is
   refused: release, park or forward the lease
   (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1 § The three exits), then call
-  again. A second call after a delivered one is refused, so nothing amends a delivered report.
+  again.
 - **Otherwise:** your report is the final text of your turn.
 
-You do not send your report to anyone and you do not look for a reply address: a worker knows
-neither its own id nor its launcher's, a brief carries no reply address, and a messaging tool in
-your toolset is not a signal to use it. The only message you send goes down, to a child you
-launched, by the id its launch returned. From a nested position a send to `main` is delivered to
-the main conversation, which is not waiting for you, while your launcher still receives only your
-report - a send that succeeds is not a return path. An agent the main conversation launched in the
-background may message `main` mid-run; its completion report is still delivered for it.
+**One report per dispatch.** Your launch is a dispatch, and so is every request your launcher
+(the main conversation, or the agent that launched you) sends you after a report of yours was
+delivered: its answer is a new report, delivered the same way. Plain text that ends such a turn
+reaches nobody - your launcher is told a report arrived and receives none - and a gate stops that
+turn end once. A notice of your own background work, a child's report or a hook's note is not a
+request and needs no new report. Inside one dispatch a second `SubagentHandback` is refused, so
+nothing amends a delivered report. When the call that answers a NEW request is refused as already
+delivered, send that answer once with the messaging tool - to the id the request shows as its
+sender, to `main` when it shows none - and stop.
+
+Apart from that one case you send your report to no one and look for no reply address: a worker
+knows neither its own id nor its launcher's, and a messaging tool in your toolset is not a signal
+to use it. The only message you send goes down, to a child you launched, by the id its launch
+returned. From a nested position a send to `main` reaches the main conversation, which is not
+waiting for you - a send that succeeds is not a return path. An agent the main conversation
+launched in the background may message `main` mid-run; its completion report is still delivered
+for it.

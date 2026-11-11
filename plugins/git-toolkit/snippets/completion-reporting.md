@@ -6,8 +6,8 @@ the findings file first and finish every other step; the report goes out last:
 
 - **`SubagentHandback` is in your toolset** -> call it once with the FULL report as `message`. Only
   that message reaches your caller; text outside it does not. The report is handed over the moment
-  the call runs and a second call is refused, so call it LAST - nothing you do afterwards amends
-  the report. LAST means in a message of its own: send `SubagentHandback` ALONE, never beside
+  the call runs and a second call in the same dispatch is refused, so call it LAST - nothing you
+  do afterwards amends the report. LAST means in a message of its own: send `SubagentHandback` ALONE, never beside
   another tool call, and only after you have read the result of every other call you made. A
   handback sent in the same message as another call is written before that call's result exists,
   so the report cannot contain it - not the command's output, not whether a verification passed -
@@ -15,7 +15,13 @@ the findings file first and finish every other step; the report goes out last:
 - **Otherwise** -> your report is the FINAL TEXT of your turn: emit it and stop. That text is what
   your caller receives.
 
-`SubagentHandback` takes no address, so it is not a send. Apart from it, never send the report to
+A request your launcher sends you after your report was delivered opens a new dispatch: answer it
+with a new `SubagentHandback`, never with plain text, which reaches nobody. Only when that call is
+refused as already delivered, send the answer once with the messaging tool - to the id the request
+shows as its sender, to `main` when it shows none - and stop. A notice of your own background
+work is not a request and needs no new report.
+
+`SubagentHandback` takes no address, so it is not a send. Apart from it and that one case, never send the report to
 anyone. You cannot address the context that dispatched you - no agent can - and the presence of a
 messaging tool in your toolset is not an instruction to try. An inbound message gives you no
 address either: what it shows as its sender is a type label, and no lookup exists to turn any name
