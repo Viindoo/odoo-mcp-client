@@ -1,5 +1,3 @@
-<!-- Reference for `odoo-git-rebase` § The pipeline: per-phase git-ops requests (outcome + result), dispatch-brief templates, artifact formats. -->
-
 # Git-Rebase Pipeline - per-phase execution detail
 
 **Contents:** Checkpoint writers and shape - Principal-checkout-lock (MUST - enforced at P0 and P7) - P0 - Intake / resolve - P1 - Recon (range enumerate) - P2 - Intent extract (parallel, rebase MODE) - P3 - Cluster behavior comparison - P4 - Classify (orchestrator records only) - P5 - Design (conditional route-out) - P6 - Plan gate (Plan Mode) - Summary - The single rebase invocation (delegated to git-ops at P7) - Per-commit plan - Conflict-resolution policy - Instance verify (B3 decision) - Installable guard - Bucket-(c) upgrade-scale decisions - P7 - Create integration worktree + start rebase
@@ -68,8 +66,9 @@ commit at P6 design_doc ingestion). Do NOT blindly recreate the integration work
 
 Dispatch a haiku subagent. Brief (run-specific inputs only):
 
+Launch parameters, not brief lines: `model` = haiku; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: haiku
 TASK: Resolve the following natural-language rebase request into structured inputs.
 NL REQUEST: <verbatim user prompt>
 STEPS:
@@ -171,8 +170,9 @@ in each extractor brief below.
 Dispatch one `odoo-intent-extractor` per non-(a) commit from `recon.md`. Model = `extract_tier`
 from recon. Brief (rebase MODE - different from forward-port MODE):
 
+Launch parameters, not brief lines: `model` = extract_tier; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <extract_tier>
 GROUNDING MODE: rebase-base-head
 NEW BASE REF: <new-base>
 SHA: <sha>
@@ -204,8 +204,9 @@ for the SAME sha.
 
 Brief (run-specific inputs only):
 
+Launch parameters, not brief lines: `model` = extract-tier; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <extract-tier>            # the MODULE bundle's tier, per Table 1
 GROUNDING MODE: rebase-base-head
 NEW BASE REF: <new-base>
 MODULE: <module-name>
@@ -298,8 +299,9 @@ git-ops writes the diff to the output file and returns the path.
 
 Dispatch `odoo-diff-comparator` (sonnet):
 
+Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet
 mode: rebase
 TASK: Compare the feature branch versus the new base as a WHOLE - what intents the new base
       already satisfies, what symbols it renamed/moved, what override points it refactored.
@@ -440,3 +442,7 @@ git-ops returns `DONE` (proceed to P8b) or `BLOCKED-CONFLICT` with
 `conflicted_files: [<paths>]` and `stopped_commit: <sha>` (proceed to P8).
 
 ---
+
+The rebase targets the base BRANCH as fetched right before it, never a commit id recorded at an
+earlier assessment: when the fetched tip differs from the one assessed, re-assess the overlap and
+any version-bump collision; fetch again right before the push and repeat when the base moved.

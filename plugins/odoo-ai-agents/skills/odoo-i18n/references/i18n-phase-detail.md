@@ -61,7 +61,6 @@ that cannot corroborate demo records for a module whose manifest declares `demo`
 BLOCKED rather than reconciling.
 
 Pick the leaf's model per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier
-selection and pass it both as a `DISPATCH MODEL:` line in the brief and as the Agent `model`
-parameter. When a module in the leaf's scope has a `business_function` on the specialist list of
+selection, its effort per § Effort, and pass both as launch parameters. When a module in the leaf's scope has a `business_function` on the specialist list of
 `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md` (read from its manifest `category`), state the
 function in the brief.

@@ -28,8 +28,8 @@ must land separately. Each node carries:
 | `modules` | technical names the node touches, in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`); omitted for a node that touches no module. On an `odoo-instance` node this IS the suite scope |
 | `approach`, `approach_kind` | the skill, agent or workflow; `skill | agent | workflow | inline | integrate` |
 | `agent`, `mode` | the agent the node launches and its `MODE` (e.g. `odoo-code-reviewer` `R1`), when the node launches one directly |
-| `model` | `haiku`, `sonnet`, `opus`, `fable` - the launch tier of an agent node, from `build_tier_hint` for a build node, else the default tail. A skill node is invoked inline and carries none: it runs in the runner's context, and the skill's own frontmatter `model:` applies for that turn |
-| `build_tier_hint` | a build node: the design's hint plus its six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the plan copies, the runner checks presence |
+| `model`, `effort` | the launch tier (`haiku`, `sonnet`, `opus`, `fable`) and effort (`low`, `medium`, `high`, `xhigh`) of an agent node: from `build_tier_hint` for a build node, else the default tail's tier and the effort row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort that fits the node's work. A skill node is invoked inline and carries none: it runs in the runner's context, and the skill's own frontmatter `model:` applies for that turn |
+| `build_tier_hint` | a build node: the design's tier and effort plus its six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the plan copies, the runner checks presence |
 | `business_function`, `audience` | the unit's Domain line (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`); `audience: n/a` for a unit with no user-facing screen |
 | `when` | a condition the runner evaluates with a tool before launching (§ Default tail); absent = always |
 | `depends_on` | node ids; the only ordering statement |
@@ -142,7 +142,7 @@ node's Block 3 line.
 
 ## Block 3 - Assignment
 
-One line per node: `node -> agent <mode> @ <model> | skill | workflow (effort S/M/L/XL)`, the
+One line per node: `node -> agent <mode> @ <model>/<effort> | skill | workflow (size S/M/L/XL)`, the
 node's **acceptance criteria** (business-observable outcomes that make the `objective` true,
 each with its SRS or design pointer - never "field X exists") and the repo's **verify command**.
 For a criterion that spans several modules, name on the owning verification node which
@@ -235,7 +235,7 @@ place; the rest keep their order.
   approach: odoo-pr-monitoring
   approach_kind: skill
   depends_on: [docs-site]
-  when: the plan has a coding node, or the user asked for the PR to be watched
+  when: the user asked for the PR to be watched
 - id: merge-site   # the human gate, always; the docs PR never merges before the code it documents
   approach: odoo-pr-monitoring   # with monitor-site; without it: inline, git-toolkit:git-ops
   approach_kind: skill
@@ -387,6 +387,6 @@ the first ready node in topological order.
 
 A `refine` at the plan gate loops back to the plan, never to execution: Plan Mode is still open
 after the rejected `ExitPlanMode`, so the gate owner adjusts the nodes (objective, acceptance,
-scope, files, assignment, effort) in the harness plan file itself and presents again; the planner
+scope, files, assignment, size) in the harness plan file itself and presents again; the planner
 rewrites the state-root plan once, after `approve`, before Phase P. `cancel` stops. Never launch a
 writes-files node, nor the planner, off a rejected plan while Plan Mode is open.

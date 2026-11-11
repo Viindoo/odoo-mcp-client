@@ -3,6 +3,7 @@ name: odoo-backend-debugger
 description: |
   Use this agent when the main agent needs to diagnose a Python/ORM/server-side Odoo runtime failure to a PROVEN root cause - data-state bugs, Expected singleton, AccessError (ir.model.access vs ir.rule), compute/onchange/constraint/ORM-hook-order bugs, tracebacks, module-load/migration/ParseError. OSM-only (no browser). Diagnosis + fix location only; does NOT write the fix
 model: sonnet
+effort: high
 color: yellow
 ---
 

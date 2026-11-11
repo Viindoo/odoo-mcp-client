@@ -1,5 +1,3 @@
-<!-- Reference for `odoo-git-rebase` P8-P12: conflict loop, symbol-survival and collection gate, adapt, review loop, verify, gate, final review and PR, artifact formats. P0-P7: `rb-phase-detail.md`. -->
-
 # Git-Rebase Pipeline - P8 to P12 execution detail
 
 **Contents:** P8 - Conflict-resolution loop - P8b - Symbol-survival + collection gate - P9 - Adapt + test forward - P9b - Code-review loop - P10 - Verify - P11 - Gate - P12 - Final review + PR - rebase-log.md format - P8-resolved modules - Test-leg reports - intake.md format
@@ -72,9 +70,10 @@ and dispatch nothing else - a bucket-(a)/(d) commit is never sent to `odoo-codin
 Outcome (b)/(c): dispatch Explore first if context is needed, then the `odoo-coding` skill via the
 Skill tool (never raw `odoo-coder` or `odoo-frontend-coder` agents):
 
+Launch parameters, not brief lines: `model` = adapt_tier from plan.md; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
 SKILL: odoo-coding
-DISPATCH MODEL: <adapt_tier from plan.md>
 TASK: Resolve a rebase conflict for one commit in a same-series Odoo rebase.
 SHA: <sha>
 INTENT: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
@@ -204,8 +203,9 @@ tool) ONCE with the adapt fields below (never raw `odoo-coder` or `odoo-frontend
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`) in `rebase-log.md` § Test-leg reports,
 one `<module>: <report>` per module. Adapt brief:
 
+Launch parameters, not brief lines: `model` = adapt_tier; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <adapt_tier>
 REQUEST: Adapt module <module> and the branch's own tests to the new-base (<new-base branch>) idiom.
 MODE: adapt
 MODULE SCOPE: <module> @ <WT_ROOT>/rb-integration/<module>
@@ -296,8 +296,9 @@ git-ops writes the range-diff output to the file and returns the path.
 
 Dispatch `odoo-diff-comparator` (sonnet):
 
+Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet
 mode: rebase
 verify_mode: true
 TASK: Verify the rebase outcome via range-diff and duplicate-behavior guard.

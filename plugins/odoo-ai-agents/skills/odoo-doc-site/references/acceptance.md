@@ -11,12 +11,13 @@ rebuild, stop it and serve again.
 
 ## Launch (`odoo-qa-tester`)
 
-`DISPATCH MODEL` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier
+The launch `model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier
 selection: items that compare an observed value with a stated one (1, 2, 4-11) are haiku; items
 that judge what an image shows (3, 12) are sonnet. A launch that includes item 3 or 12 is sonnet.
 
+Launch parameters, not brief lines: `model` = sonnet | haiku; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet | haiku
 MODE: DOCS
 ORACLE_PATH: <abs path of the checklist file, written below>
 MODULES: none

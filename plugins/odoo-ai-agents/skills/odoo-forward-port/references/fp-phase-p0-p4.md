@@ -1,5 +1,3 @@
-<!-- Reference for `odoo-forward-port` § The pipeline. -->
-
 # Forward-Port Pipeline - P0 to P4 (recon, intent, classify, design, plan gate)
 
 **Contents:** P0 - P1 - P2 (incl. upgrade-scale gate) - P3 - P4 (plan.md template)
@@ -90,8 +88,9 @@ dispatched to BOTH modules' extractor instances. Set the brief's `SLUG` field to
 
 Brief (run-specific inputs only):
 
+Launch parameters, not brief lines: `model` = extract-tier; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <extract-tier>            # the MODULE bundle's tier, per Table 1
 MODULE: <module-name>
 commit_dump_paths:
   <sha1>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha1>.dump

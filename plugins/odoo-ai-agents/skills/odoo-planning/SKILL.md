@@ -88,8 +88,9 @@ independent module clusters) you MAY fan out one planner per cluster following *
 subagent `model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier
 selection and pass it explicitly.
 
+Launch parameters, not brief lines: `model` = the tier chosen above; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <the tier chosen above>
 You are the odoo-planner agent. Produce the 3-block EXECUTION PLAN (NOT code, NOT a design) for:
 
 REQUEST: [the change to ship, target Odoo version, any constraints]
@@ -142,7 +143,7 @@ Build order: <node-1> -> <node-2> -> ...   (topological order; landing: <one lin
 Lifecycle:   <the tail nodes in order with their when: conditions, as the plan writes them>
              (the doc nodes run AFTER code/review/QA when their `when:` holds, with no gate of their own)
 Docs:        <module | site | both | none> - <the facts that decided it>   (reply `refine:` to change it)
-Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY)
+Estimates:   size <S/M/L/XL total> · est_agents <n> (ADVISORY)
 Approve plan? (approve / refine: [feedback] / cancel)
 ```
 
@@ -183,8 +184,8 @@ Per node: WHO runs it (the agent with its `MODE` and `model`, or the skill or wo
 acceptance - `plan-mode-schema.md` § Block 1 / § Block 3). A workflow node also binds its
 `workflow_inputs` (a video's destination, languages and embed targets, derived and cited - never the
 YAML default by silence); the brief's optional `VIDEO DESTINATION` input, when present, is that value. HOW the result is built stays with the
-design doc and the coder. A build node's `model` is the design's `build_tier_hint` with its
-checklist; a tail node's is the default tail's. `effort` and `est_agents` are ADVISORY.
+design doc and the coder. A build node's `model` and `effort` are the design's `build_tier_hint` with
+its checklist; a tail node's are the default tail's. `size` and `est_agents` are ADVISORY.
 
 The landing sequence the plan reserves follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`;
 each `odoo-instance` node's `modules` field IS its regression scope

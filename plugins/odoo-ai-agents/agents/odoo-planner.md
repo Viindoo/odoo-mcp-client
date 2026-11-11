@@ -44,8 +44,8 @@ run git, `gh` or the GitHub MCP.
 Consume the design's DAG by pointer; use OSM only to confirm that a module you assign to a node
 exists and that its dependency edge holds (`set_active_version` first; OSM unreachable: check the
 design and the manifests on disk per `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` and say so in the
-plan header). `NEEDS_CONTEXT` only for a sequencing decision no artifact encodes. Prose in the
-brief's `USER LANGUAGE`; identifiers, module names, paths and skill names verbatim.
+plan header). `NEEDS_CONTEXT` only for a sequencing decision no artifact encodes. The plan and
+your report are in the brief's `USER LANGUAGE`; keys, identifiers, paths verbatim.
 
 ## Round 0 - Read the inputs BY POINTER (do not re-derive)
 
@@ -82,8 +82,8 @@ read these pointers:
 - **Integration loop** - run by the main agent per `plan-mode-schema.md` § Running the plan; the
   plan carries ordering via `depends_on` ONLY, and NO worktree topology and NO concrete ref STATE (no
   SHAs, branch tips, resolved worktree paths, lease tokens).
-- **Tier and oracle** - a build node's `model` comes from the design's `build_tier_hint` and its
-  checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1-5.2); a tail node's
+- **Tier, effort and oracle** - a build node's `model` and `effort` come from the design's
+  `build_tier_hint` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1-5.2, § Effort); a tail node's
   from `plan-mode-schema.md` § Default tail. The acceptance oracle is the SRS's acceptance criteria
   (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`).
 
@@ -133,16 +133,16 @@ only human gate; no node, the doc nodes included, presents a plan gate of its ow
 
 ## Round 2 - Agent, mode, model, and the estimate
 
-Per node give: the agent with its `MODE` and `model` (a build node: `odoo-coder` at the design's
-`build_tier_hint`, its six-item checklist copied; a tail node: the agent, mode and model of
+Per node give: the agent with its `MODE`, `model` and `effort` (a build node: `odoo-coder` at the
+design's `build_tier_hint`, its six-item checklist copied; a tail node: the agent, mode and model of
 `plan-mode-schema.md` § Default tail), or the skill or workflow it invokes; `when:` where the work is
 conditional; `depends_on`; a business `objective`; acceptance criteria (from `QA_ORACLE` when present,
 else the SRS or the design's per-module acceptance criteria - Round 0 step 3); the `business_function`
-and `audience` of the Domain line; a verify command; a rough `effort` (S/M/L/XL) and `est_agents`.
+and `audience` of the Domain line; a verify command; a rough `size` (S/M/L/XL) and `est_agents`.
 The `objective` and the acceptance criteria state RESULTS in business terms per `plan-mode-schema.md`
 § Block 1 and § Block 3. A source criterion phrased technically (a field, model, file or method to
 exist) is restated as the business outcome it serves, with a pointer to its design or oracle line.
-`effort` and `est_agents` carry the `est_` prefix and the note "ADVISORY". For ANY acceptance
+`size` and `est_agents` carry the `est_` prefix and the note "ADVISORY". For ANY acceptance
 criterion that spans more than one module, add ONE line to the OWNING node's Block 3 assignment
 naming which of its assertions cross a module boundary. A node carries NO `gate_tier`.
 
@@ -180,7 +180,7 @@ After writing the file, return:
 - Build order: <node-1> -> <node-2> -> ... (topological order, for reading only)
 - Landing: <one line: ONE run-integration branch per repo, ONE PR per repo>
 - Lifecycle: <the tail nodes in order, each with its when:, as written in the plan>
-- Estimates: effort <total S/M/L/XL> · est_agents <n> (ADVISORY / du kien - non-binding)
+- Estimates: size <total S/M/L/XL> · est_agents <n> (ADVISORY)
 - Artifact: <SHARE_DIR>/plans/<slug>-<date>.md
 - Next: (RETURN_TO set) Return to: <RETURN_TO> | (else) serialize via intake Phase P, then the main agent runs the plan
 ```

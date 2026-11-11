@@ -38,11 +38,12 @@ never production source.
 
 ## Dispatch (P1)
 
-Launch `odoo-solution-architect` with `model: opus` and the fields below; fill the universal
-skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton read by path.
+Launch `odoo-solution-architect` with `model: opus` and `effort: high` (`xhigh` when the request
+names a specialist business function, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+§ Effort) and the fields below; fill the universal skeleton of
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton read by path.
 
 ```
-DISPATCH MODEL: opus
 MODE: design-session | master | child | consistency | reconcile | review
 REQUEST: <the requirement, target models when known>
 ODOO VERSION: <version>        PROFILE: <profile | none>

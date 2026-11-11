@@ -5,8 +5,9 @@ skeleton (read by path) plus the fields below. Every path is the captured absolu
 
 ## Launch (`odoo-doc-writer`)
 
+Launch parameters, not brief lines: `model` = haiku | sonnet; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <haiku | sonnet, per concurrency-guard.md § Model-tier selection>
 MODE: full
 MODULE: <technical name>   MODULE_PATH: <abs path under WORKTREE_PATH>
 WORKTREE_PATH: <doc_root>
@@ -31,8 +32,9 @@ writer's scope; only `index*.html` there is the marketer's.
 
 ## The landing launch (`odoo-marketer`, after `full` returns)
 
+Launch parameters, not brief lines: `model` = haiku | opus; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <haiku | opus, per concurrency-guard.md § Model-tier selection>
 MODE: landing
 MODULE: <technical name>   MODULE_PATH: <abs path under WORKTREE_PATH>
 WORKTREE_PATH: <doc_root>
@@ -61,8 +63,9 @@ FINDINGS:
 
 ## `catalog-only` (launched by `odoo-doc-feature-map`)
 
+Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet
 MODE: catalog-only
 MODULE: <technical name>   MODULE_PATH: <abs path>
 WORKTREE_PATH: <abs path of the checkout holding the module>

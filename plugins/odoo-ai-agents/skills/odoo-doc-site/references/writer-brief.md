@@ -5,8 +5,9 @@ skeleton (read by path) plus the fields below. Every path is the captured absolu
 
 ## Launch (`odoo-doc-site-writer`)
 
+Launch parameters, not brief lines: `model` = sonnet | haiku; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet | haiku
 SITE WORKTREE: <abs path of the series worktree>
 SERIES: <series>   PROFILE: <profile part of the series' instance key | none>
 LANGUAGES: <site languages, source first>
@@ -30,7 +31,7 @@ Required: `SITE WORKTREE`, `SERIES`, `LANGUAGES`, `PAGE PLAN`, `FACTS`, `INSTANC
 `check-shot` launch, which gets `SERVED URLS` to measure it; every other launch gets the recorded
 value and `none` for `SERVED URLS`.
 
-`DISPATCH MODEL`: `sonnet` when the group has a `compose` or `port` row; `haiku` when every row is
+The launch `model`: `sonnet` when the group has a `compose` or `port` row; `haiku` when every row is
 `recapture`, `relabel`, `wire`, `fill` or `check-shot`. Tier table:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection.
 

@@ -1,33 +1,19 @@
-# Concurrency guard - the OOM envelope for agent fan-out (SSOT)
+# Concurrency guard - fan-out caps, model tier and effort (SSOT)
 
-## Choosing Mode A vs Mode B
+## Fan-out caps
 
-Use **Mode B** (model-weighted budget, per-worker ledger, disjoint-file partition) when the skill
-fans out MORE THAN ONE worker that WRITES to a shared module/worktree: each worker owns a DISJOINT
-file set and records it in the coordination ledger
-(`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`). Otherwise use **Mode A**.
-
-## Mode A - subagent batching
-
-Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
-for more work, batch in groups of <=3 (fire <=3, wait, fire the next <=3).
-
-## Mode B - model-weighted budget (rolling-window / weighted-batch skills)
-
-| model  | weight |
-|--------|--------|
-| haiku  | 1 |
-| sonnet | 2 |
-| opus   | 4 |
-| fable  | 8 |
-
-At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
-or exactly 1 fable (always exclusive). Mixing is allowed up to the budget (worst case 2 opus).
+- **Mode A** (the default): at most 3 subagents, fork workers or parallel MCP legs at once; more
+  work goes in batches of 3.
+- **Mode B**, for a skill that fans out more than one worker WRITING to a shared module or
+  worktree: each worker owns a disjoint file set recorded in the coordination ledger
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`), and at most 8 weight units are
+  in flight - haiku 1, sonnet 2, opus 4, fable 8 (always alone).
 
 ## Model-tier selection - the kind of reasoning drives the tier (SSOT)
 
 Every launcher - the main agent, a skill, a spawner or node-owner agent - reads this section by
-path before a launch and passes `model` explicitly. Pick the LOWEST tier whose row matches the
+path before a launch and passes `model` and `effort` explicitly, for a plugin agent and for a
+built-in one (Explore, general-purpose) alike. Pick the LOWEST tier whose row matches the
 kind of reasoning the work needs. Size is never an input: module count, file count, line count and blast radius do not move a tier.
 
 | tier | pick when the work is |
@@ -62,10 +48,29 @@ dependent modules.
 
 `OVERRIDE_CHAIN_MIN = 3`, `DEPENDENTS_MIN = 5`.
 
+### Effort - the blast radius drives it
+
+The tier is the kind of reasoning; the effort is how far the agent looks and how hard it checks
+before it concludes. Size moves the effort, never the tier. Pick the LOWEST row that matches:
+
+| effort | pick when |
+|--------|-----------|
+| `low` | mechanical work with its rule stated: find and gather, instance operations, polling, list-driven edits |
+| `medium` | the default: a change inside one module and one business function, no recon flag |
+| `high` | `recon.md` raised a flag (an inheritance-axis change, an override chain of at least `OVERRIDE_CHAIN_MIN`, at least `DEPENDENTS_MIN` dependents of one symbol, a `noupdate` data file in scope, a stored compute over a many-record relation); the change touches two or more modules or business functions; a design session; review `R2`; debugging to a root cause; writing an acceptance oracle |
+| `xhigh` | a unit whose `business_function` is on the specialist list AND a recon flag; a design session whose request names a specialist business function; review `R3` |
+
+`max` is the human's to ask for, never an agent's choice. A launcher with no recon (a debug, a
+standalone review) reads the row from the module's business function and from whether the symptom
+or the diff crosses modules. The architect writes the effort beside the tier in `build_tier_hint`,
+the plan node carries it, the launcher passes it.
+
 ### Escalation
 
 On `BLOCKED`, a `NEEDS_JUDGEMENT` line, or a failed own gate: relaunch ONCE, one tier up, passing
-the previous attempt's artifacts. Never two tiers at once.
+the previous attempt's artifacts. Never two tiers at once. A miss of breadth - a dependent module
+not examined, a case a review or a test caught outside what the agent looked at - goes one effort
+step up at the same tier instead, `xhigh` being the ceiling.
 
 Inside an approved scope the launcher chooses every tier itself, escalation included, and never
 asks the human about a tier. `fable` alone needs the human's text confirmation
@@ -85,17 +90,18 @@ to a new launch; Explore and Plan agents cannot be resumed.
 
 ### Haiku-safe body rules
 
-Every body that can run at haiku: each step has a true-or-false condition; a missing fact is
-written as `UNKNOWN`, never guessed; every claim carries its evidence (an OSM result or
-`file:line`); a step that needs judgement writes `NEEDS_JUDGEMENT` and stops; full output goes to
-a file and the report returns the path plus a short summary; every OSM call passes a concrete
-`odoo_version` and `profile_name`.
+A body that can run at haiku: each step has a true-or-false condition; a missing fact is
+`UNKNOWN`, never guessed; every claim carries its evidence (an OSM result or `file:line`); a step
+that needs judgement writes `NEEDS_JUDGEMENT` and stops; full output goes to a file and the report
+returns the path plus a short summary.
 
 ### Where a tier is chosen
 
 The launch `model` parameter first, else the agent's frontmatter `model:`, else
 `CLAUDE_CODE_SUBAGENT_MODEL`, else the caller's own model. An agent body never states its own
-tier. A skill's frontmatter `model:` takes effect for the rest of the current turn once the skill
+tier. Effort resolves the same way: the launch `effort` parameter, else the agent's frontmatter
+`effort:`, else the default of the model it runs on - an agent on another model than its launcher
+does not inherit the session's effort. A skill's frontmatter `model:` takes effect for the rest of the current turn once the skill
 is invoked; a skill without it runs in the invoking context's model, so wrap a mechanical skill
 invoked from an opus or fable context in a haiku or sonnet launch (reason d). `odoo-instance` is
 the rule of its own: launch `odoo-instance-ops` at haiku, inline only in that skill's exceptions
@@ -103,35 +109,24 @@ the rule of its own: launch `odoo-instance-ops` at haiku, inline only in that sk
 
 ## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
-Both pins are server-side state shared per MCP session, last-write-wins: a parent agent and the
-subagents it dispatches share one session, so one actor's pin clobbers another's.
-
-In every call, `odoo_version` carries a CONCRETE version and `profile_name` carries a concrete
-profile. The sentinel `'auto'` and a bare omission are BOTH forbidden.
-Call `set_active_version` (and `set_active_profile` where a tenant profile applies) once at
-bootstrap as the reachability probe, and only then. Never rely on their ambient state afterwards. Multi-version and
-multi-profile flows (migrations, cross-version diffs, cross-profile deployments) pass the
-explicit concrete value per call - never the pin. A genuinely unknown version is a
-`NEEDS_CONTEXT`, never a licence to pass `'auto'`.
+Both pins are server-side state of one MCP session that a parent and its subagents share, last
+write wins. So every call passes a CONCRETE `odoo_version` and `profile_name`: never `'auto'`,
+never an omission, in multi-version and multi-profile flows too. `set_active_version` (and
+`set_active_profile` for a tenant profile) is called once at bootstrap as the reachability probe
+and never relied on afterwards. An unknown version is a `NEEDS_CONTEXT`.
 
 ## Odoo instance allocation (DB / port)
 
-Under concurrency, never reuse the declared database or port for a MUTATION (tests, `init` / `update`, a throwaway
-server): another agent or session may hold it. Isolation comes from `lease_acquire` mode
-`ephemeral` - a unique database and pooled ports owned by your `run_id`; mode `exclusive` gives up
-isolation (say so in your report), and a read-only attach needs no lease. A refused acquire is
-never a degrade: follow its error code's remedy. Protocol:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. `lease_release` (or
-`lease_park`) what you acquired before your terminal status; ownership and the exits:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3.
+A mutation (tests, `init`, `update`, a throwaway server) never reuses the declared database or
+port: another agent or session may hold it. `lease_acquire` mode `ephemeral` gives a database and
+ports of your own; `exclusive` gives up isolation (say so in your report); a read-only attach
+needs no lease. A refused acquire is not a degrade: follow the remedy of its error code. Protocol:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate; release or park before your
+terminal status: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3.
 
-## Browser exclusivity (orthogonal)
+## Browser exclusivity
 
-Browser-driving agents (odoo-ui-debugger / odoo-ui-reviewer) are EXCLUSIVE-serial **per MCP
-family** - never two drivers on the SAME family (chrome-devtools, playwright, pagecast; headed
-and headless each count as their own family) at once. Distinct families MAY run in parallel, up
-to the pool cap **`W` = the number of distinct browser server families available (2 headless;
-optionally +2 headed when a headed variant is also in play), RAM permitting**;
-state-mutating (CRUD-heavy) drives stay <= 2 simultaneous regardless of family mix.
-Exclusivity rule and close-before-done:
+One driver per browser MCP family at a time (chrome-devtools, playwright, pagecast; headed and
+headless count as separate families). Distinct families may run in parallel, RAM permitting, with
+at most 2 state-mutating drives at once. Close-before-done:
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
