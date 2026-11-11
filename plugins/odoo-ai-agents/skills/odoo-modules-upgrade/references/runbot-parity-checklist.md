@@ -13,22 +13,12 @@ Used in: the P5 install + test gate (upgrade pipeline) and as a pre-PR checklist
 
 ## Gate 1 - flake8 (all series)
 
-Run flake8 **without** the `flake8-bugbear` plugin. Runbot does NOT have bugbear installed;
-running WITH it produces false B950/B018 failures. The tell: `B018` firing on a manifest string
-is a bugbear false positive - means bugbear is present and must be uninstalled from the venv.
-
-```bash
-# Check whether bugbear is present - if so, uninstall before running
-pip show flake8-bugbear 2>/dev/null && pip uninstall -y flake8-bugbear
-
-# Run flake8 on installable modules only (same scope Runbot uses)
-flake8 --select=E,W,F,C,B,B9 \
-       --max-line-length=120 \
-       <module_dirs...>
-```
-
-Reproduce count must match the Runbot build for the branch. If the count differs, check for
-stray bugbear or a different `--max-line-length` value.
+Run flake8 over the installable modules with the options and plugins the project's own CI uses:
+read them from the flake8 test of its lint-class module
+(`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` § Scope the gate to the PR's modules) or
+from the repository's flake8 configuration; never assume a line length, a selection or a plugin
+set. A finding count that differs from the CI build of the branch means the plugin set or the
+line length differs from CI's.
 
 ---
 

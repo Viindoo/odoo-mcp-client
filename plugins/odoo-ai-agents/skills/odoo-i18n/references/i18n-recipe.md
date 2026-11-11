@@ -207,8 +207,8 @@ the exports and the translation work that loop:
   load + re-export + diff-review (non-destructive, no polib), hand-translate the residual, then run
   the per-language validation gates (diff-review adjudication + placeholder-integrity; `-u` reload
   with `<lang>` loaded). Emit `translation-report-<lang>.json` per language. Each language's `-u`
-  reload follows the reserve-only lease guard (see gate-3 above): reuse the L1 install lease
-  or use mode `exclusive` on a declared DB - never a fresh ephemeral lease for reload-only. Languages
+  reload follows the reserve-only lease guard (see gate-3 above): reuse the L1 install lease,
+  never a fresh ephemeral lease for reload-only and never a declared database. Languages
   looped in parallel share that database:
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
 
@@ -302,8 +302,7 @@ and the `fuzzy` flag per entry as you write it (no full-file polib scan) - both 
    the `-u` reload requires the DB to ALREADY EXIST with the module installed. A `lease_acquire`
    in mode `ephemeral` only reserves a unique DB name and ports; the DB is created by the L1 `-i`
    run via Odoo create-on-init, not by the lease. Do NOT acquire a fresh ephemeral lease for the
-   reload - its DB is uncreated and `-u` will fail. Keep the L1 lease, or use mode `exclusive` on a
-   declared DB that already has the module installed.
+   reload - its DB is uncreated and `-u` will fail. Keep the L1 lease.
 
 4. **Export against the adapted code (PR-head / merged tree).** When odoo-i18n is dispatched from a
    forward-port or upgrade run, the Odoo instance must run the POST-ADAPT code - the worktree the adapt

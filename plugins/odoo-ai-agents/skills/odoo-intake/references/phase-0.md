@@ -10,8 +10,8 @@ Read from Hard rule 3 of `SKILL.md`.
    - **Check for an active run** - glob `<ISOLATE_DIR>/run-*.json` for any with `status: NEEDS_NEXT`. If one exists, do NOT silently open a second RUN-DAG. Surface it and ask: resume it (continue per `plan-mode-schema.md` § Running the plan), or start fresh? Only proceed to open a new run once the user chooses.
    - **Check for existing recon** - glob `<ISOLATE_DIR>/recon/*/findings.md` for this intent's slug.
      A match whose `target_ref:` header line (schema: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md`
-     clause 2) equals the current ref (`ref` of a `repo_facts` call: the branch, or the short SHA when
-     `HEAD` is detached) -> READ it and SKIP Phase R's dispatch entirely (resume rule: clause 1 of
+     clause 2) equals the current commit (`head_sha` of a `repo_facts` call) -> READ it and SKIP
+     Phase R's dispatch entirely (resume rule: clause 1 of
      the same contract). A mismatch -> STALE - fall through to Phase R, which re-dispatches and
      overwrites the file per clause 1.
 

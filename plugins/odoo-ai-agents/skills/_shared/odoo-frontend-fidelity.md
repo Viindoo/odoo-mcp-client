@@ -1,16 +1,8 @@
 # Odoo Frontend Fidelity - era-aware OWL/JS/SCSS ground truth (SSOT)
 
-> Grounding for the frontend skills (`odoo-coding`, `odoo-code-review`, `odoo-ui-review`,
-> `odoo-ui-debugger`, `odoo-visual-regression`). The queryable home of version-tagged rules is the
-> Odoo Semantic server (`lint_check`, `suggest_pattern`, `find_style_override`,
-> `resolve_stylesheet`); this document is the client-side grounding and the standalone fallback.
-> Skills cross-reference it; they do not duplicate it.
->
 > **Ground truth = OSM + the running instance, not memory.** The rules below are stable; any
 > concrete *token name*, *signature* or *bundle path* is version-specific - confirm it for the
 > target version before relying on it.
-
-Organised by the three frontend eras, then design-system fidelity, then the OWL pitfall catalogue.
 
 ---
 
@@ -107,7 +99,8 @@ gate**, which selects the `web.Widget` / `AbstractField` / `odoo.define()` path.
 4. **Fix the token foundation, not per-component patches (right altitude).** When many
    components look wrong, suspect the token layer first; one foundation fix usually resolves
    every downstream surface/border/text/badge token.
-5. **Scope overrides appropriately** and respect the mockup's spec dimensions.
+5. **Scope overrides appropriately**; sizes come from core's spacing and sizing levers, not from
+   a mockup's pixel values.
 6. **A business module paints only with core levers**: the core SCSS variables, the runtime
    custom properties core and Bootstrap emit, and core classes that carry a theme meaning. No
    custom property of its own (`--<vendor>-*`), no class of its own that holds a color, no
@@ -145,33 +138,22 @@ Never trust that an edit "took" - read the computed value:
    self-ref cycles and transparent surfaces.
 2. Edit SCSS -> recompile the asset bundle (`--dev=assets` or restart) -> screenshot (destination:
    state-root-resolution.md § Where a captured artifact goes) + re-read computed styles.
-3. Iterate until tokens resolve and the UI matches the mockup.
+3. Iterate until tokens resolve and the layout and behaviour match the mockup.
 
 ### D. Mockup-first
 
-Before writing, consult the project's mockups + UI design spec for intent. Theme-correct means
-matching both the Odoo design system **and** the project's mockup.
+Before writing, consult the project's mockups and UI design spec for intent. A mockup binds layout
+and behaviour; its colours, fonts and pixel sizes only show a role, which the theme's own tokens
+fill. A hardcoded colour that happens to equal the mockup is a defect; a colour that differs
+while the token holds the right role is not.
 
-### E. The bug class this prevents
+### E. The flat-render defect
 
-An OWL backend app renders "flat" (panes without background or border, muted text invisible,
-badges without fill) when its SCSS chains surface tokens into custom properties the series does
-not emit at runtime and a "shim" backfills them self-referentially (rule A3): every downstream
-token resolves to empty. Detection: `getComputedStyle(document.documentElement)` shows the chain
-EMPTY. Fix: one high-altitude change - redefine the missing variables non-self-referentially,
-anchored to tokens the series does emit, each with a literal fallback - then verify per § C. A
-design-system-aware skill never generates this (A2/A3 + token reuse) and flags it on review.
-
-### F. How the skills use this
-
-- **`odoo-coding` (prevention):** before emitting SCSS/OWL, resolve which tokens to reuse
-  (OSM + § B); run the output self-check gate - no hardcoded hex/rgba, no self-ref custom
-  property, referenced tokens exist at runtime for the target version, output matches the mockup.
-- **`odoo-ui-review` (detection + remediation):** the design-system/theme lens runs the
-  token-reality check (§ C) and flags empty/transparent surfaces, self-ref cycles, hardcoded
-  palette and mockup divergence - emitting token+file remediation pointers.
-- **`odoo-ui-debugger` / `odoo-visual-regression`:** cross-reference this SSOT when a root cause
-  or a diff is theme/token related.
+A backend screen renders flat (panes without background or border, invisible muted text, badges
+without fill) when its SCSS chains surface tokens into custom properties the series does not emit
+and a backfill refers to itself (rule A3): every downstream token resolves empty. Fix it once, at
+the foundation: redefine the missing variables anchored to tokens the series emits, each with a
+literal fallback, then verify per § C.
 
 ### G. Brand-token fidelity (optional, brand-agnostic, consumer-driven)
 
@@ -206,10 +188,7 @@ A non-empty `<SHARE_DIR>/mockups/` (also consumer-declared) feeds the mockup-fir
 
 ## OWL pitfall catalogue (corrected, version-tagged)
 
-Six classes. Each lists symptom, root cause, the correct pattern, a source citation, version
-applicability and a tier tag. Tier semantics: **lint-block** = the gate fails; **lint-warn** =
-the gate warns (false-positive-prone, human-confirm); **grounding** = resolve the right shape via
-OSM before writing; **runtime** = only observable on the running instance.
+Six classes, each with its symptom, root cause, correct pattern and the series it applies to.
 
 ### Class 1 - `t-on` arrow `this` binding
 
@@ -223,10 +202,7 @@ OSM before writing; **runtime** = only observable on the running instance.
   at render time.
 - **Correct pattern:** `t-on-click="onFoo"` (method) or `t-on-click="() => this.onFoo(ev)"`;
   for slot scope use the slot variable. Never `() => onFoo()` against a free identifier.
-- **Citation:** `owl.js:2438`; `web/.../core/dialog/dialog.xml:24`.
 - **Version applicability:** v16+ (verify new majors via OSM).
-- **Tier:** **lint-block (tightened)** - match only *arrow + bare lowercase identifier call
-  without `this.` / `props.` / a slot variable*; never flag `t-on="foo"` nor `() => this.foo()`.
 
 ### Class 2 - non-reactive `useService` in templates
 
@@ -238,10 +214,7 @@ OSM before writing; **runtime** = only observable on the running instance.
 - **Correct pattern:** resolve per target version + per service. v16-v18: wrap non-reactive
   services in `useState(useService("..."))`. v19: plain `useService("...")` for services that
   are `reactive()`; confirm which via OSM.
-- **Citation:** `emoji_picker.js:138` (v17/18 wrap), `emoji_picker.js:110` (v19 plain).
 - **Version applicability:** required v16; canonical v17/v18; dropped v19 (per-service).
-- **Tier:** **grounding + runtime; lint-warn only** (the correct shape is version- and
-  service-dependent).
 
 ### Class 3 - raw `contenteditable` instead of the editor
 
@@ -252,10 +225,7 @@ OSM before writing; **runtime** = only observable on the running instance.
   `onWillUpdateProps` (`web_editor/.../static/src/.../backend/html_field.js:450`).
 - **Correct pattern:** in `onWillStart`, `await loadBundle('web_editor.backend_assets_wysiwyg')`
   then instantiate the Wysiwyg with stable props; never author a raw `contenteditable`.
-- **Citation:** `web_editor/.../backend/html_field.js:450`.
 - **Version applicability:** v17+ (OWL form view).
-- **Tier:** **lint-block** (raw `contenteditable`) **+ grounding** (resolve the bundle name /
-  lazy-load shape via OSM).
 
 ### Class 4 - Sass function inside `calc()`
 
@@ -265,10 +235,7 @@ OSM before writing; **runtime** = only observable on the running instance.
   interpolation so the Sass value is resolved before it reaches the CSS `calc()` - not a compiler
   swap. Core: `calc(#{map-get($spacers, 1 )} / 2)` (`web/.../views/calendar/calendar_renderer.scss:2`).
 - **Correct pattern:** interpolate - `calc(#{map-get($spacers, 1 )} / 2)`, `calc(#{$gutter} / 2)`.
-- **Citation:** `web/.../views/calendar/calendar_renderer.scss:2`.
 - **Version applicability:** all versions.
-- **Tier:** **lint-warn** - flag `calc(` containing `map-get` / `min(` (etc.) without an
-  enclosing `#{`.
 
 ### Class 5 - `--bs-*` reference + self-referential custom property
 
@@ -284,10 +251,7 @@ OSM before writing; **runtime** = only observable on the running instance.
 - **Correct pattern:** reference the un-prefixed runtime tokens Odoo actually emits; a variable
   that must be backfilled is redefined non-self-referentially, anchored to an emitted token with
   a literal fallback.
-- **Citation:** `web/.../scss/bootstrap_overridden.scss:51` (`$variable-prefix: ''`).
 - **Version applicability:** all v16+ (verify new majors via OSM).
-- **Tier:** **lint-warn** - flag `var(--bs-` in addon SCSS (and the self-ref
-  `--x: var(--x, ...)` pattern).
 
 ### Class 6 - `Dialog` body slot
 
@@ -299,6 +263,4 @@ OSM before writing; **runtime** = only observable on the running instance.
   `modal-body`). v18/v19 reorder the body/footer markup; the slot names are unchanged.
 - **Correct pattern:** body content in the default slot (no `t-set-slot`);
   `t-set-slot="header"` / `t-set-slot="footer"` only for those.
-- **Citation:** `web/.../core/dialog/dialog.xml`.
 - **Version applicability:** all v16+ (verify new majors via OSM).
-- **Tier:** **lint-block** - flag `t-set-slot="body"` under `<Dialog>`.

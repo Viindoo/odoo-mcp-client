@@ -113,11 +113,10 @@ Re-dispatch the Step above for a clean retry.
 - **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
   regression. Re-dispatch `odoo-instance` (same shape as above) against a clean checkout of
   the target tip - no `WORKTREE_PATH` override, no absorption - running the SAME closure. Red
-  there too = pre-existing (record in merge-log.md, do not fix, do not block). Green on clean /
+  there too = pre-existing: record it in merge-log.md and, once its cause is proven, fix it in
+  this PR per `[[fp-merge-absorption]]` § C3 (its exceptions are listed there). Green on clean /
   red only after absorption = FP-delta (fix before committing: it goes back to the module's coder
-  through `odoo-coding`, 8b `WORKER_AGENT_ID`, with the P9 failure output). Never widen an assertion to hide a pre-existing failure. For source-series
-  follow-through on a pre-existing red, apply C3 - carry faithfully + open a source issue
-  (resolvable remote) or record it; see `[[fp-merge-absorption]]` § Triage / C3.
+  through `odoo-coding`, 8b `WORKER_AGENT_ID`, with the P9 failure output). Never widen an assertion to hide a pre-existing failure.
 - **Baseline a failed INSTALL the same way.** If a module fails to install, re-dispatch
   `odoo-instance` against clean `origin/<target-branch>` (no `WORKTREE_PATH`, no absorption).
   Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
@@ -211,20 +210,18 @@ about the others. A mandatory review:
 2. **Attribute every finding to the FP diff before rating it.** Invoke the `git-toolkit:git-ops` skill
    (via the Skill tool) for the diff of `<file>` that shows only what the FP added to it (the changes
    on `fp/<slug>` since it left `origin/<target-branch>`). A finding on a line this port changed is
-   in scope (fix now); a finding on a line NOT in this diff is pre-existing - note it separately,
-   never block the PR on it. Rate findings only after this attribution.
+   in scope (fix now); a finding on a line NOT in this diff is pre-existing - rate it separately
+   and handle it per C3 below. Rate findings only after this attribution.
 
 **Acceptance hand-off.** The `odoo-code-review` dispatch may carry a `next: odoo-acceptance` entry in
 its own Continuation Contract (Phase A.5 emits it whenever `render_check_set` reaches beyond the
 reviewed modules). Do NOT act on it - P11 already ran acceptance for this batch.
 
-**Per finding, apply C3 (fix old version first).** Check whether the same defect exists at the source
-series. If it does, it is a **pre-existing source bug** (inherited - forwarded faithfully, not introduced
-by this port): route the fix UPSTREAM via a source-series issue (invoke git-ops when a source
-remote resolves from `repo_facts` `remotes`, else record it in `merge-log.md` + the Continuation Contract);
-do NOT patch it inside the FP. Record `<sha> | C3 | source issue <ref|DEFERRED> | <evidence>` in
-`merge-log.md` and carry it faithfully forward. EXCEPTION: a serious security/safety bug is fixed on the
-destination immediately (still open a source issue). SSOT: `[[fp-merge-absorption]]` § Triage / C3.
+**Per pre-existing finding, apply C3** (`[[fp-merge-absorption]]` § C3): a proven defect in a
+module this port touches is fixed in this PR, in that module's commit, with a guarding test. When
+the same defect exists at the source series, also open a source-series issue (git-ops when a
+source remote resolves from `repo_facts` `remotes`, else record it in `merge-log.md` and the
+Continuation Contract). Record `<sha> | C3 | fixed in <module commit> | <evidence>`.
 
 **Field-existence question:** query that field directly instead of re-dumping the model:
 

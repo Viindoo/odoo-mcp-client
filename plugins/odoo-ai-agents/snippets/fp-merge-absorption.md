@@ -1,7 +1,3 @@
-<!-- SSOT snippet. Referenced by odoo-forward-port and every agent that runs a merge or verify
-     step of a forward-port. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md. -->
-
 # FP Merge Absorption (merge protocol + per-batch verify)
 
 ## Git operation - ONE merge for the whole range, ONE merge commit
@@ -217,7 +213,10 @@ proactively at P8 (a coder who SPOTS a defect while adapting):
   its cause: fixed in THIS PR, in the commit of the module that owns it, with a guarding test and
   the evidence; it forward-ports later like any other change and is never carried forward
   knowingly. Only a defect in a module outside the PR and outside the run's scope opens a
-  follow-up, and the owner is asked first.
+  follow-up, and the owner is asked first. Recorded in the merge log and not fixed here: a defect
+  in a module that is `installable: False` at the target (it gets only what a gate needs), a
+  timing race in core the port did not cause, and a defect whose fix needs a design of its own -
+  the port lands green first and that fix follows as its own change.
 - **FP-delta** (green on source, red after adapt): fix it here, now.
 
 Canonical merge-log record: `<sha> | C3 | fixed in <module commit> | <evidence one-liner>`.

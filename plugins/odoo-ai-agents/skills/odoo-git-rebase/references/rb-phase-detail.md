@@ -340,7 +340,7 @@ then dispatch a late `odoo-intent-extractor` (rebase MODE, same brief as P2 disp
 
 Fires when a commit matches the design-trigger table (`rb-triage-table.md` § Design-trigger
 table): bucket-(c) "do now" always; bucket-(b) adapt when it changes a field/method signature,
-an override point, is a refactor in the sense `odoo-solution-design` § When to invoke defines
+an override point, is a refactor in the sense `odoo-solution-design` § Before dispatch (step 3, `SRS_REQUIRED`) defines
 one, or is full-stack / crosses the legacy<->OWL-2 boundary. Bucket (a)/(d) and trivial
 single-symbol (b) skip design.
 Continuation Contract payload (emit verbatim):
@@ -429,8 +429,8 @@ scope:
     are re-applied and staged automatically
   - replay the commits after <old-base> (from recon.md) onto <new-base>
 conflict_resolution_policy:
-  po_policy: take-feature-side  # the feature branch's version, not the base's
-  pot_policy: take-feature-side
+  po_policy: three-way-merge  # header from the feature side; an entry the feature branch added or changed wins, every other entry keeps the base's wording
+  pot_policy: three-way-merge
   binary_policy: prefer-feature-per-project-convention  # flag the choice in rebase-log.md for human review
   generated_policy: do-not-merge; regenerate from source after rebase completes
 confirmed: yes (Plan Mode approval obtained at P6)

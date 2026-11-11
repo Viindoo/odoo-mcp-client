@@ -47,7 +47,7 @@ and the last per-language reload is done, call
 `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with its `lease_token` and `run_id` - or
 `lease_park` when the user or a named next step still wants that database. A brief that carries
 `HAND_ON: <skill>` (the caller's documentation step, `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`
-§ One capture instance) keeps the lease running instead: return its `INSTANCE_HANDLE` and
+§ One capture instance per build shape) keeps the lease running instead: return its `INSTANCE_HANDLE` and
 `BUILD_SHAPE` in the Continuation Contract's `next.inputs` and release nothing; the caller owns it
 from there. An `INSTANCE_HANDLE` your caller forwarded DOWN to you is never yours to release or
 park.

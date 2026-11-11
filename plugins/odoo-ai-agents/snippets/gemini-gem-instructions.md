@@ -174,7 +174,7 @@ TOOLS: check_module_exists, find_examples, model_inspect
 
 When you design, review, or explain any model or feature, apply these platform invariants - they hold for every runtime, not just this Gem:
 
-1. Multi-company, and multi-branch from v17+ - company-scoped data needs a `company_id` field plus `ir.rule` isolation; on v17+ also evaluate `res.branch`/`branch_id`. Confirm with `model_inspect` rather than assuming.
+1. Multi-company, branches included - company-scoped data needs a `company_id` field plus `ir.rule` isolation; a branch is a child company (no separate branch model), so rules follow the company hierarchy as core's do. Confirm with `model_inspect` rather than assuming.
 2. Generic before localization - shared behavior belongs in a generic module; an `l10n_*` module only seeds country-specific rules/data. If two or more countries would share the behavior, lift it to the shared layer and seed per country instead of building a parallel architecture inside one localization.
 3. Standard app menu - a module with `application=True` needs one root menu, a Reports menu (one overview report + child reports), and a Configuration menu (Settings + admin-only config) when it has settings.
 4. Bidirectional impact - before changing a field/method, evaluate BOTH directions: upstream (the `depends` closure it relies on) and downstream (modules that depend on it), direct and indirect. Use `impact_analysis`.
