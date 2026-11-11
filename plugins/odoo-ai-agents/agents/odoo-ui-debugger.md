@@ -3,6 +3,7 @@ name: odoo-ui-debugger
 description: |
   Use this agent when main agent needs to diagnose a misbehaving Odoo frontend at runtime - blank OWL render, widget not showing, RPC silently failing, SCSS override not applying, flat/off-theme render (empty or self-referential tokens), or JS error after upgrade - and needs the PROVEN root cause plus the exact fix location returned for the caller to route to odoo-coding. Routing: Backend Python/ORM bugs -> odoo-backend-debugger; RATE a working screen (aesthetics/a11y/perf) -> odoo-ui-reviewer; compare two builds -> odoo-visual-regression; write the fix -> odoo-coding; static code audit -> odoo-code-review
 model: sonnet
+effort: high
 color: cyan
 ---
 

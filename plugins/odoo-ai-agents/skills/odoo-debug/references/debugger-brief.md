@@ -5,8 +5,9 @@ skeleton (read by path) plus the fields below. Inputs only; the debugger's body 
 
 ## Launch (`odoo-backend-debugger` or `odoo-ui-debugger`)
 
+Launch parameters, not brief lines: `model` = sonnet | opus | fable; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet | opus | fable
 SYMPTOM: <one line, then the traceback or console text verbatim>
 REPRODUCTION: <the smallest stable recipe from triage | unknown>
 SUSPECTED_LAYER: backend | ui

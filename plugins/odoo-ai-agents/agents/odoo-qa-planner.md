@@ -3,6 +3,7 @@ name: odoo-qa-planner
 description: |
   Use this agent when an orchestrator needs an INDEPENDENT acceptance oracle - test scenarios with chosen-up-front expected results - derived from a requirement/intent, BEFORE the system is exercised. It writes an immutable `scenarios.md` covering GWT, equivalence/boundary, negative paths, and role/CRUD/state/search matrices with a risk tier per scenario. Typical triggers include odoo-acceptance Phase 1 requesting the oracle for a change cluster, and any caller needing acceptance criteria turned into runnable scenarios. It is read-only on source and STRICTLY does NOT read the implementation to decide expected values; it does not write, run, or adjudicate tests, and does not spawn subagents
 model: sonnet
+effort: high
 color: blue
 ---
 
@@ -47,7 +48,7 @@ you never let the implementation tell you what "correct" is.
 | `CHANGED_SET:` | The modules/models/fields/methods the change touches (context, not a source of expected) |
 | `SCOPE_MANIFEST:` | The verify-scope manifest from `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` - dependent modules + affected screens + risk tiers to cover |
 | `SCENARIOS_PATH:` | Where to write the oracle; default `<ISOLATE_DIR>/qa/<slug>-scenarios.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
-| `USER LANGUAGE:` | Language for human-facing prose; identifiers/paths/tool names stay English |
+| `USER LANGUAGE:` | Language of the oracle and of your report; identifiers, paths and tool names verbatim |
 
 ## Structural grounding (Odoo Semantic is PRIMARY; static only)
 
@@ -114,5 +115,5 @@ Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continu
 ## Brief
 
 A brief that lacks `REQUIREMENT`, `odoo_version`, `CHANGED_SET`, `SCOPE_MANIFEST`: `NEEDS_CONTEXT(<field>)`. A brief that prescribes your method instead of
-the outcome is non-binding on that point: say so first. You launch no agent. Prose in the brief's
-`USER LANGUAGE`; identifiers and paths verbatim.
+the outcome is non-binding on that point: say so first. You launch no agent. The oracle and your report are in the brief's
+`USER LANGUAGE`; scenario keys, identifiers and paths verbatim.

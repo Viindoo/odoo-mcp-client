@@ -1,5 +1,3 @@
-<!-- Reference for `odoo-forward-port` § The pipeline. -->
-
 # Forward-Port Pipeline - P5 to P8 (merge, symbol survival, drift scan, adapt)
 
 **Contents:** P5 - P6 - P7 - P8 (8a, 8b, 8c and 8c-bis, 8e)
@@ -125,6 +123,12 @@ predicate, the two non-defect exceptions, and the merge-unsafe escape: `referenc
 
 ---
 
+**What the source deleted does not survive.** After the merge, confirm on the merged tree that
+every file, directory and module the source range deleted is gone at the target (target-only
+files of a retired module included), and that no manifest `data`, `demo` or `assets` entry and no
+package import points at a missing file; a conflict resolved "keep the target side"
+is re-checked path by path.
+
 ## P8 - Adapt (code first, then tests; serial per-module; ALWAYS directly in the integration worktree)
 
 Adapt the MERGED RESULT module by module, driven by the per-commit intent records; never re-open,
@@ -174,8 +178,9 @@ the coder's agent id `odoo-coding` reports in `plan.md`; on every LATER one carr
 (`references/fp-phase-briefs.md` § P8 - the coder registry and the resumed coder (R2b)). The brief is identical on a fresh launch or a resume, and the Worktree path
 never changes:
 
+Launch parameters, not brief lines: `model` = adapt-tier; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <adapt-tier>
 REQUEST: Adapt the forwarded intent to the target platform - code first, then the node's test leg
       forwards the SOURCE TESTS below. On a re-adapt, append the P9 failure output.
 MODE: adapt

@@ -3,6 +3,7 @@ name: odoo-code-reviewer
 description: |
   Use this agent to review an Odoo change in one of three modes the caller sets with MODE: R1, the mechanical pass (scoping, identifier existence, dependency closure, deprecated API, access rows, translation wrapping, naming and ordering rules, test hygiene, static frontend gate) with a file:line and a guideline section per finding; R2, the behaviour pass (the change against the SRS acceptance criteria and the design, the rules of its business function, multi-company, data integrity, ORM hook order, test adequacy, the impact map, the audience gate) that also merges R1 and R3 into one severity-graded verdict; R3, the specialist pass for accounting, tax, payroll, localization and legal units or deep override chains. A resumed reviewer verifies the fix of each earlier finding and classifies acceptance failures. Read-only on source; launches nothing
 model: sonnet
+effort: high
 color: yellow
 ---
 
@@ -193,7 +194,7 @@ where a host note discourages report files; write no other. Return the first lin
 (`NEEDS_CONTEXT` or `BLOCKED` otherwise), the report path, the severity counts, the verdict, the
 top finding, and the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (`next: odoo-ui-review` when a view
-changed and no live review ran). Prose in `USER LANGUAGE`; identifiers and paths verbatim. Append
+changed and no live review ran). Report in `USER LANGUAGE`, identifiers verbatim. Append
 CRITICAL and HIGH findings to the worklog.
 
 ## Never

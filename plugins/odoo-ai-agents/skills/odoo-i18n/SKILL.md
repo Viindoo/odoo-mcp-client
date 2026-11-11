@@ -160,7 +160,7 @@ language, series; the glossary TM path for that language (`glossary-tm-<lang>.js
 `<lang>.po` and fresh `<module>.pot` paths from the P2 `exports`; and the validation gates the leaf
 must self-check.
 
-Also carry the P2 build (`INSTANCE_HANDLE`, `BUILD_SHAPE`), a `DISPATCH MODEL:` line and any specialist `business_function`: `references/i18n-phase-detail.md` § Dispatch brief extras.
+Also carry the P2 build (`INSTANCE_HANDLE`, `BUILD_SHAPE`), the launch `model` and `effort`, and any specialist `business_function`: `references/i18n-phase-detail.md` § Dispatch brief extras.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
 decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).

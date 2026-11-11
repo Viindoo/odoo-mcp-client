@@ -6,8 +6,9 @@ procedure.
 
 ## R1 - mechanical pass (`odoo-code-reviewer`, model haiku)
 
+Launch parameters, not brief lines: `model` = haiku; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: haiku
 MODE: R1
 TARGET: <abs path of the tree> <BASE>..<HEAD>
 CHANGED_SET: <repo-relative paths, one per line>   DIFF_PATH: <path | none>
@@ -20,8 +21,9 @@ USER LANGUAGE: <lang | omit>
 
 ## R2 - behaviour and verdict (`odoo-code-reviewer`, model sonnet)
 
+Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet
 MODE: R2
 TARGET, CHANGED_SET, DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
 R1_FINDINGS: <ISOLATE_DIR>/reviews/<slug>-<date>/r1-findings.md
@@ -35,8 +37,9 @@ USER LANGUAGE: <lang | omit>
 
 ## R3 - specialist pass (`odoo-code-reviewer`, model opus; only when due)
 
+Launch parameters, not brief lines: `model` = opus; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: opus
 MODE: R3
 TARGET, CHANGED_SET, DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
 R1_FINDINGS: <path>
@@ -57,8 +60,9 @@ ACCEPTANCE_EVIDENCE: <acceptance report path | none>   (R2 only)
 
 ## UI reviewer (`odoo-ui-reviewer`, model sonnet; when an instance exists and views changed)
 
+Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: sonnet
 USER LANGUAGE: <lang>
 ODOO_VERSION: <version>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>

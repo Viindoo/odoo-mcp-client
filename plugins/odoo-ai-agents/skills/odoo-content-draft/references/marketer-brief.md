@@ -5,8 +5,9 @@ skeleton (read by path) plus the fields below. Every path is the captured absolu
 
 ## Launch (`odoo-marketer`, `MODE: copy`)
 
+Launch parameters, not brief lines: `model` = haiku | sonnet | opus; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
+
 ```
-DISPATCH MODEL: <haiku | sonnet | opus, per concurrency-guard.md § Model-tier selection>
 MODE: copy
 CHANNEL: <linkedin | blog | youtube-script | email-sequence | landing-page-copy | social-caption>
 TOPIC: <the subject or product angle>

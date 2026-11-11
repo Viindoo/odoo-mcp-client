@@ -23,7 +23,7 @@ specialist on the next turn with no run file, and does not materialize its `next
    (the main agent fills the default tail into a plan file first). The `<id>` is
    `<short-intent-slug>-<YYYYMMDD>-<4 random chars>`.
 2. Emit ONE `nodes[]` entry per plan node, one-to-one, with every Block 1 field copied verbatim
-   (`id`, `repo`, `approach`, `approach_kind`, `agent`, `mode`, `model`, `build_tier_hint`,
+   (`id`, `repo`, `approach`, `approach_kind`, `agent`, `mode`, `model`, `effort`, `build_tier_hint`,
    `business_function`, `audience`, `when`, `modules`, `files_in_scope`, `depends_on`) and
    `inputs` holding `objective`, `acceptance` (with their SRS or design pointers), `survey`
    (`none` when none), `recon_findings` (the captured absolute path when Phase R persisted one)

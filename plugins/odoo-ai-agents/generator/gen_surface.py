@@ -315,7 +315,7 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
 
 def gen_orchestration_digest(orch: dict[str, dict]) -> str:
     """Tiny digest injected at SessionStart so the main agent knows, up front, which
-    skills launch subagents and that every agent launch passes `model` from the tier map.
+    skills launch subagents and that every agent launch passes `model` and `effort` from the tables.
     Kept terse on purpose; check-setup-deps.sh resolves ${CLAUDE_PLUGIN_ROOT} to the real root."""
     spawners = sorted(n for n, e in orch.items() if _may_spawn(e))
     lines = [
@@ -323,10 +323,14 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
         "- Skills that LAUNCH subagents - directly, or transitively by chaining a spawner skill via "
         "the Skill tool (let them; a worker doing delegated work should not re-launch them): "
         + (", ".join(spawners) or "none"),
-        "- Every agent launch (plugin or built-in, e.g. Explore, general-purpose) passes `model` "
-        "explicitly - an omitted model inherits yours. haiku = find/gather, instance ops, "
+        "- Every agent launch (plugin or built-in: Explore, general-purpose) passes `model` and "
+        "`effort` explicitly, chosen from the work and never from your own setting - an omitted model "
+        "inherits yours. Model by the kind of reasoning: haiku = find/gather, instance ops, "
         "well-specified code; sonnet = judgement, synthesis, translation, git rewrites; opus = design, "
-        "long complex plans, legal/accounting/specialist domains. Map: "
+        "long complex plans, legal/accounting/specialist domains. Effort by how far the work must "
+        "look: low = mechanical with its rule stated; medium = one module, the default; high = several "
+        "modules or business functions, a long override chain, many dependents, a review, a root-cause "
+        "hunt; xhigh = a specialist domain with such a spread. Tables: "
         "${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md",
         "- Full map: ${CLAUDE_PLUGIN_ROOT}/docs/reference/ORCHESTRATION-MAP.md",
     ]

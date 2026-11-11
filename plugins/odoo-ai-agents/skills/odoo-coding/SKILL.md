@@ -60,9 +60,9 @@ cross-run module-coordination ledger.
    Standalone work that needs more than one node: stop and invoke `odoo-planning`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request, rule 6).
    Two nodes that touch the same module never run at once.
-3. **Tier.** `model` = `build_tier_hint` from the design; absent, the table of
-   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (5.1 for
-   haiku, 5.2 for opus, else sonnet). Record it in `plan.md`. Fable is never set here.
+3. **Tier and effort.** `model` and `effort` = `build_tier_hint` from the design; absent, the
+   tables of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection
+   (5.1 for haiku, 5.2 for opus, else sonnet) and § Effort. Record them in `plan.md`. Fable is never set here.
 4. **Ledger.** For every NEW module the node creates (in neither OSM nor the addons path), claim
    it in `<SHARE_DIR>/coordination/modules` per
    `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` before launching; a lost claim

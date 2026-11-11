@@ -12,7 +12,7 @@ What the architect hands back, so this skill can gate it.
 - **Design** (`<SHARE_DIR>/designs/<slug>-<date>.md`): the HOW. Light (one `## Nodes` block) when
   the effort is Standard or Config and recon raised no flag; full (approach, data model,
   override strategy, module structure, sequencing, test outline, risks, grounding evidence)
-  otherwise. Every node carries `build_tier_hint` with the 5.1 checklist and the 5.2 answer.
+  otherwise. Every node carries `build_tier_hint`: the tier with the 5.1 checklist and the 5.2 answer, and the effort.
 
 The architect's own body owns the templates and the grounding steps; this file only names what
 crosses the gate.
