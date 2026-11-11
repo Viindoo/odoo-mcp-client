@@ -304,7 +304,7 @@ comparator's behavioral-equivalence proof (signal #5), not on a "Standard" gap-a
 Decision list: the SKILL.md pipeline bullet P2b (route-out to `odoo-solution-design`, opus). Match directly on the return block's `verdict:` field, never on the `proposed_classification` count aggregate. Precision the list omits:
 - `MERGE` and `SPLIT` route always; `RECONCILE` (data-divergence or new-feature wire-in) and `MIXED` (resolve the per-feature verdicts) route always, the whole module.
 - `REWRITE(api)` changes the PUBLIC MODEL SURFACE when it adds/removes/retypes a stored field or changes a public method signature on an extended core model.
-- A non-trivial `KEEP (with adaptation)` meets the `odoo-solution-design` § When to invoke criterion (overrides `create`/`write`/`unlink`, a method with >=3 override-chain entries, a cross-model computed chain, a multi-company/branch change).
+- A non-trivial `KEEP (with adaptation)` meets the `odoo-solution-design` § Before dispatch (step 3, `SRS_REQUIRED`) criterion (overrides `create`/`write`/`unlink`, a method with >=3 override-chain entries, a cross-model computed chain, a multi-company/branch change).
 - A trivial REWRITE(api)/KEEP (localized fix, <= 5 call sites, 1 module, no public-surface change) skips design and goes to P3.
 
 Continuation Contract payload (emit verbatim, one route-out per module):

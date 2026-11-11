@@ -1,14 +1,8 @@
-<!-- SSOT snippet. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md. -->
-
 # Odoo Platform Design Principles (binding checklist)
 
-Any design, code, review, test, acceptance or diagnosis touching business structure MUST respect
-the principles below - the architect, the planner, the coders, the reviewer, the test writer and
-the QA agents read this file before their first write. Verify each against OSM / live source -
-never assume (`osm-first-contract.md`). A change that cannot satisfy a principle is a deliberate
-deviation: state it and the justification in the worklog (`worklog-contract.md`), never let it
-pass silently.
+Every design, code change, review, test, acceptance and diagnosis that touches business structure
+respects the principles below, each checked against OSM or the source, never assumed. A change
+that cannot satisfy one is a deliberate deviation: state it with its justification in the worklog.
 
 ## 0. The user comes first
 
@@ -30,58 +24,54 @@ pass silently.
   integrity truly requires it, through the mechanism core provides (reversal, credit note,
   return), never a custom one. A module never narrows a lifecycle core allows (draft -> cancel ->
   draft) without a reason written in the SRS.
-- **Predictable behaviour.** The user can guess what a button, a field or a state does before
-  trying it, because it behaves as the same thing behaves everywhere else in the software.
-- **Consistent everywhere, as core does it.** One search bar behaviour in every app; one group
-  model per app (an inheriting set, defined the same way in every app); views of one design;
-  the same messages, menus and lifecycle shapes. A module follows the core convention of its
-  series for every surface it touches and invents no shape of its own; consistency is what makes
-  behaviour predictable.
+- **Predictable, because consistent with core.** The user can guess what a button, a field or a
+  state does before trying it, because it behaves as the same thing does everywhere else: one
+  search bar behaviour, one group model per app, views of one design, the same messages, menus
+  and lifecycle shapes. A module follows the core convention of its series for every surface it
+  touches and invents no shape of its own.
 
-## 1. Multi-company (and multi-branch from v17+)
+## 1. Multi-company and branches
 
-- If the model carries company-scoped data (it inherits `res.company` semantics, or peer core
-  models declare `company_id`), the design MUST scope it: a `company_id` field, `ir.rule`
-  company isolation, and company-aware defaults/domains. Verify with
-  `model_inspect(model=<model>, method='summary', odoo_version='<concrete>')` whether `company_id`
-  exists on the model or its peers.
-- **From Odoo 17+**, where the data is meaningfully branch-level (a sub-unit of a company -
-  `res.branch`), also evaluate branch scoping (`branch_id` + branch-aware rules). Check the
-  resolved version first; pre-17 has no `res.branch`. Do not bolt on a custom branch concept when
-  the standard `res.branch` exists for the target version.
-- Stored computes, defaults, and domains must respect the active company/branch context - a value
-  correct for one company must not leak across the boundary.
+- A model that carries company-scoped data (peer core models declare `company_id`) is scoped by
+  design: a `company_id` field, an `ir.rule` for company isolation, and company-aware defaults
+  and domains. Confirm at the target series whether `company_id` exists on the model or its peers.
+- A branch is a child company - `res.company` with a parent, on the series whose `res.company`
+  has that hierarchy. There is no separate branch model, and none is invented. Where a record of
+  a parent company must serve its branches (an account, a tax, a shared setting), the rule and
+  the domain follow the company hierarchy with the helpers core's own company-dependent models
+  use at that series.
+- Stored computes, defaults and domains respect the active company context - a value correct for
+  one company must not leak across the boundary.
 
 ## 2. Generic and international before localization
 
 The generic, country-neutral behavior lives in a **shared** module; a localization (`l10n_*`)
-module only **seeds** the rules/data/COA/taxes that differ per country.
+module only **seeds** the rules, data, chart and taxes that differ per country.
 
-- When a change touches a localized feature, FIRST evaluate reuse across countries: would >= 2
-  countries share this behavior? If yes, the behavior belongs in the **generic/shared** module and
-  each `l10n_*` only adds country-specific records (rules, data, sequences, tax/account templates).
-  Never build a parallel architecture inside one country's `l10n_*` module for something other
-  countries will also need.
-- Keep user-facing strings translatable (`_()`, no hardcoded language/currency/locale) so the
-  generic layer serves every locale.
+- A module without the `l10n_` prefix carries no content of one country: no law, account, form or
+  value of a country, and no hook, field or filter that exists only to serve one. It behaves as
+  core of the series does on the generic chart.
+- When a change touches a localized feature, first ask whether two or more countries would share
+  the behavior. If so it belongs in the generic module and each `l10n_*` only adds its country's
+  records; never a parallel architecture inside one country's module.
+- User-facing strings stay translatable.
 - **A value or rule set by law or regulation is a data record, never code** (§ 6).
 - **A generic accounting module runs on the generic chart of `account`** and is tested with it:
   accounts come from configuration, from the account type or from a partner or company property,
-  never from a code a localization assigns (`331`, `3388`); the `l10n_*` module fills the hook.
+  never from a code a localization assigns; the `l10n_*` module fills the hook.
 
 ## 3. Standard app menu architecture (modules with `application=True`)
 
-Any module marked `application=True` must present the standard Odoo app shape - verify the
-manifest flag and the menu tree (`module_inspect` / source) before signing off:
+A module marked `application=True` presents the standard Odoo app shape, checked on its manifest
+and menu tree:
 
-- **One root (top-level) menu** for the app; feature menus organized logically beneath it.
-- **A Reports menu is mandatory**: one top/overview report plus the child reports the business
-  needs (depth scaled to complexity).
+- **One root menu** for the app, feature menus beneath it.
+- **A Reports menu**: one overview report plus the child reports the business needs.
 - **A Configuration menu when the app has settings**: `Settings` (the `res.config.settings`
   extension for this app) plus the admin-only configuration models of the app. Operational data
   does not live under Configuration; admin setup does.
 
-A non-application module (a pure extension/bridge) is exempt from #3 but still bound by #1 and #2.
+A non-application module (an extension, a bridge) is exempt from this section.
 
 ## 4. Extension, access and data hygiene (every module)
 
@@ -95,11 +85,14 @@ A non-application module (a pure extension/bridge) is exempt from #3 but still b
   position) is designed as a snapshot taken at the business event, not a live recompute that
   silently rewrites history.
 - **`sudo()` carries its reason** in a comment on the same statement, and the narrowest scope
-  that works. `sudo()` without a reason is a review finding.
+  that works.
 - **No hardcoded locale, currency, company, timezone, date format or language** in a shared
   module: read them from the record, the company, the user or the context.
 - **A defect in Odoo core is reported, not patched in a downstream module.** The fix goes where
   the defect lives.
+- **An economic transaction belongs to the commercial partner.** Invoices, receivables and
+  payables, payments, reconciliation, credit limits and statements are recorded for and compared
+  by `commercial_partner_id`, never a child contact.
 
 ## 5. Change hygiene: versions, migrations, retirement
 
@@ -108,25 +101,34 @@ Within a series; a cross-series code upgrade follows
 
 - **Migrations are decided last (SSOT).** Within one PR, the plan's `migration` node is the ONLY
   step that edits a module's `version` or creates a `migrations/` folder; its `odoo-coder`
-  (`MODE: migration`) writes them. It runs after every
-  code, test, review, acceptance, debug and i18n node and immediately before `integrate` (the
-  pre-PR lint gate); no other node bumps or writes a migration script, and several nodes touching
-  one module never bump it separately - they record what existing data needs in the worklog for
-  that node. A module that was `installable` True before the PR (an absent key counts as True),
-  is proven on a FRESH install, and whose change alters data existing databases hold gets ONE
-  bump of its short `version` by the smallest step - `x.y.z` -> `x.y.(z+1)`, and a two-component
-  `x.y` -> `x.y.1`, never `x.(y+1)`; versions compare numerically, a missing component read as
-  0 (`0.3` < `0.3.1` < `0.4`) - and ONE folder
+  (`MODE: migration`) writes them, after every code, test, review, acceptance, debug, i18n and
+  docs node and immediately before `integrate`. Several nodes touching one module never bump it
+  separately - they record what existing data needs in the worklog for that node.
+- **One version bump per changed module.** Every module with a change outside its tests
+  (`tests/`, `static/tests/`) gets ONE bump of its short `version` per PR, by the smallest step -
+  `x.y.z` -> `x.y.(z+1)`, a two-component `x.y` -> `x.y.1`, never `x.(y+1)`; versions compare
+  numerically, a missing component read as 0 (`0.3` < `0.3.1` < `0.4`). The version is what tells
+  an existing database, and the platform hosting it, that the module must be reloaded. Not
+  bumped: a module new in the PR, a `test_*` module, a module not installable after the PR, and a
+  module the PR upgrades to this series (`installable` False before, True after). After a rebase
+  onto a base that moved, the bump is taken again from the new base.
+- **A migration script only when existing data must change.** A change that makes data the
+  databases of this series already hold wrong adds ONE folder
   `migrations/<series>.<new short version>/` holding at most one file per stage
   (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`), never a file named after a business
   topic and never an edit to a folder that already exists. A folder named in the short form runs
-  on every series the module ships on, and is written only when the SRS asks for that. A module
-  whose change moves no existing data, or that is `installable: False` before the PR or within
-  it, takes neither. `${CLAUDE_PLUGIN_ROOT}/scripts/lib/migration_gate.py check` proves the
-  result (`--help` states every rule).
-- **A database upgrade between series is never module work.** A module cannot move a database to
-  a higher series; that takes a dedicated upgrade tool and repository - never this plugin.
-  A module migration script only moves the data of the module's own change within one series.
+  on every series the module ships on, and is written only when the SRS asks for that.
+  `${CLAUDE_PLUGIN_ROOT}/scripts/lib/migration_gate.py check` proves the version and the folder
+  (`--help` states every rule).
+- **A released series keeps what its databases rely on.** No field, model or XML ID that holds
+  data is removed or renamed (retire it, below). A renamed method keeps its old name as a wrapper
+  that logs a deprecation warning, calls the new one and carries a TODO, and every caller moves to
+  the new name; code retired with no replacement is deleted outright. Views and layouts may
+  change. This binds a module that is already installable on the series whenever a PR changes it,
+  a PR that upgrades other modules to the series included.
+- **A database upgrade between series is never module work**: it takes a dedicated upgrade tool
+  and repository, never this plugin. A module migration script only moves the data of the
+  module's own change within one series.
 - **Retire, do not delete.** A module, model or field that customer databases hold data in stays
   in place with a TODO naming the next major that removes it - in `__manifest__.py` right under
   the `name` key for a module, a short comment on the definition for a model or field. Only a
@@ -141,12 +143,10 @@ Within a series; a cross-series code upgrade follows
 
 ## 6. Legal rules as data
 
-**Scope.** Anything a law or regulation sets that can change when the law changes. Values: a rate,
-a ceiling, a threshold, an amount, a deadline or payment term, an effective date, an account or
-form code a regulation assigns, a citation. Rules: a time window (night work), a weekly rest day,
-an hour limit, how a tax is treated, which account is used, a duty to ask consent or to notify.
-The test: can a new law or decree change it? Yes -> this section applies; a technical constant no
-law sets is out of scope.
+**Scope.** Anything a law or regulation sets and can change: values (a rate, a ceiling, a
+threshold, a deadline, an effective date, an account or form code) and rules (a time window, an
+hour limit, how a tax is treated, a duty to ask consent or to notify). The test: can a new law
+change it? A technical constant no law sets is out of scope.
 
 **Shape.**
 - An ordinary record, shipped as XML data and editable in the UI: a salary rule, an
@@ -177,5 +177,3 @@ before an upgraded database does.
   data in the same PR; one in another module is listed in the return (file:line, what it is).
 - Test writer: `test-behavior-contract.md` § Protect the outcome, never the implementation.
 - Reviewer: asks the four questions; a legal value or rule held in Python is a finding.
-
-A brief to an agent that does not read this file carries this section's path.

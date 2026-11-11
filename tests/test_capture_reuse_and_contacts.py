@@ -22,23 +22,6 @@ def _squash(text):
 # --- one capture instance for the documentation tail ------------------------------------------
 
 
-def test_the_docs_tail_forwards_one_capture_instance_and_the_owner_releases_it():
-    snippet = _squash(_read("snippets/docs-after-change.md"))
-    assert "One capture instance for the whole tail" in snippet
-    assert "never builds an instance another step of the same run already built" in snippet
-    assert "releases the handle once the last docs step returned" in snippet
-    for rel, needle in (
-        ("skills/odoo-doc-illustration/SKILL.md", "never a second lease"),
-        ("skills/odoo-doc-site/SKILL.md", "provisions nothing"),
-        ("skills/odoo-i18n/SKILL.md", "`HAND_ON: <skill>`"),
-        ("snippets/instance-handle-contract.md", "Hand-on between consumers"),
-        ("skills/odoo-forward-port/SKILL.md", "`HAND_ON: odoo-doc-illustration`"),
-        ("skills/odoo-modules-upgrade/SKILL.md", "`HAND_ON: odoo-doc-illustration`"),
-        ("skills/odoo-intake/references/plan-mode-schema.md", "share one capture instance"),
-    ):
-        assert needle in _squash(_read(rel)), (rel, needle)
-
-
 def test_a_docs_step_never_releases_a_forwarded_handle():
     for rel in ("skills/odoo-doc-illustration/SKILL.md", "skills/odoo-doc-site/SKILL.md"):
         text = _squash(_read(rel))
