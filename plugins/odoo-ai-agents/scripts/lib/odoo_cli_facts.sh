@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # odoo_cli_facts.sh - Source-only helper: the command-line facts of the Odoo checkout a launcher
-# runs from, READ from that checkout (odoo_source_facts.py cli-facts), never keyed on a series
+# runs from, READ from that checkout never keyed on a series
 # number. Shared by 50-instance-spinup.sh (odoo.conf port key, --dev shape) and
 # 55-instance-ops.sh (port flag, demo flag, logger namespace, the i18n export command line).
 #
@@ -15,7 +15,8 @@
 #                                   spell "no demo" explicitly), else 0
 #         ODOO_CLI_HTTP_PORT_KEY    main port odoo.conf key: http_port | xmlrpc_port
 #         ODOO_CLI_SECOND_PORT_KEY  second port odoo.conf key: gevent_port | longpolling_port
-#         ODOO_CLI_DEV_TAKES_VALUE  1 when `--dev=all` is valid, else 0
+#         ODOO_CLI_DEV_SHAPE        how the checkout declares --dev: value (`--dev=FEATURE,...`) |
+#                                   flag (a boolean `--dev`) | none (not declared)
 #         ODOO_CLI_HTTP_INTERFACE_KEY  listen-address odoo.conf key: http_interface |
 #                                   xmlrpc_interface (empty when undeclared)
 #         ODOO_CLI_HTTP_INTERFACE_PIN  the loopback address a launch must state (127.0.0.1) on a
@@ -33,6 +34,18 @@
 #       neither form - the caller refuses then, it never guesses.
 #   odoo_cli_flag <key>
 #       The odoo-bin flag of an odoo.conf key: `--` + key with `_` spelled `-`.
+#   odoo_developer_flag
+#       Print the odoo-bin argument that turns on Odoo's developer features for the checkout
+#       odoo_cli_facts read: `--dev=reload,qweb,xml` where --dev takes a value, `--dev` where it is
+#       a boolean switch; return 1 and print nothing where the checkout declares no --dev. The
+#       three features exist on every series that takes a value: reload restarts the server when
+#       a source file under the addons path is saved, xml reads views and templates from the
+#       files instead of the database, qweb logs the compiled template with its errors. Never
+#       `all`: before 16.0 it also adds pdb (an interactive post-mortem on every exception, which
+#       a server without a terminal cannot answer) and werkzeug (the in-browser console).
+#       A launch states this ONLY when its caller asked for a developer server; every other
+#       launch passes no --dev at all (and odoo_isolated_rc_env keeps the environment's ODOO_DEV
+#       out).
 #   odoo_isolated_rc_env <conf>
 #       Export, in the calling (sub)shell, the environment under which an Odoo launched from it
 #       reads <conf> - and no other config file. `-c <conf>` alone is not enough before 19.0:
@@ -42,8 +55,10 @@
 #       operator's rc (without_demo, data_dir, db_*, ...) survives. That import-time load reads
 #       $ODOO_RC (checked first from 10.0) or, on the `openerp` core package, $OPENERP_SERVER
 #       before the default file, so both name <conf>. On the `odoo` package OPENERP_SERVER is
-#       exported EMPTY: never read there (19.0+ only warns when it is non-empty). Needs
-#       odoo_cli_facts run first (ODOO_CLI_CORE_PACKAGE).
+#       exported EMPTY: never read there (19.0+ only warns when it is non-empty). The 19.0+
+#       option --dev also reads $ODOO_DEV: it is unset, so a developer's shell never turns the
+#       developer features on in a server the plugin launches. Needs odoo_cli_facts run first
+#       (ODOO_CLI_CORE_PACKAGE).
 #
 # Portable to bash 3.2 (macOS).
 
@@ -55,7 +70,7 @@ odoo_cli_facts() {
     ODOO_CLI_WITHOUT_DEMO=""
     ODOO_CLI_HTTP_PORT_KEY=""
     ODOO_CLI_SECOND_PORT_KEY=""
-    ODOO_CLI_DEV_TAKES_VALUE=""
+    ODOO_CLI_DEV_SHAPE=""
     ODOO_CLI_HTTP_INTERFACE_KEY=""
     ODOO_CLI_HTTP_INTERFACE_PIN=""
     local _ocf_out _ocf_line
@@ -67,7 +82,7 @@ odoo_cli_facts() {
             WITHOUT_DEMO=*)    ODOO_CLI_WITHOUT_DEMO="${_ocf_line#*=}" ;;
             HTTP_PORT_KEY=*)   ODOO_CLI_HTTP_PORT_KEY="${_ocf_line#*=}" ;;
             SECOND_PORT_KEY=*) ODOO_CLI_SECOND_PORT_KEY="${_ocf_line#*=}" ;;
-            DEV_TAKES_VALUE=*) ODOO_CLI_DEV_TAKES_VALUE="${_ocf_line#*=}" ;;
+            DEV_SHAPE=*)       ODOO_CLI_DEV_SHAPE="${_ocf_line#*=}" ;;
             HTTP_INTERFACE_KEY=*) ODOO_CLI_HTTP_INTERFACE_KEY="${_ocf_line#*=}" ;;
             HTTP_INTERFACE_PIN=*) ODOO_CLI_HTTP_INTERFACE_PIN="${_ocf_line#*=}" ;;
         esac
@@ -110,7 +125,16 @@ odoo_cli_flag() {
     echo "--${_ocfl_key//_/-}"
 }
 
+odoo_developer_flag() {
+    case "${ODOO_CLI_DEV_SHAPE:-}" in
+        value) echo "--dev=reload,qweb,xml" ;;
+        flag)  echo "--dev" ;;
+        *)     return 1 ;;
+    esac
+}
+
 odoo_isolated_rc_env() {
+    unset ODOO_DEV
     export ODOO_RC="${1:-}"
     if [[ "${ODOO_CLI_CORE_PACKAGE:-}" == "openerp" ]]; then
         export OPENERP_SERVER="${1:-}"

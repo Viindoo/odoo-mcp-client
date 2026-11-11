@@ -18,7 +18,7 @@
 | Change | Action | Why / trap |
 |--------|--------|------------|
 | First time loading a module into a DB | `-i` / `--init <module>` | registers in `ir_module_module`; loads all data incl. `noupdate`, runs demo data |
-| Python only (method, compute, onchange, business logic) | **restart server** (no `-i`/`-u` needed); leased: `lease_park` then `instance_serve(lease_token)` | code is re-imported on boot; `--dev=reload` for autoreload. Editing a method does NOT need `-u` |
+| Python only (method, compute, onchange, business logic) | **restart server** (no `-i`/`-u` needed); leased: `lease_park` then `instance_serve(lease_token)` | code is re-imported on boot. Editing a method does NOT need `-u`. A server the tools launch never restarts on a saved file; autoreload exists only on a developer server (`instance_serve` `developer_server: true`, your own lease, hand development or debugging - never capture, acceptance, review or recording) |
 | New/changed **field** (column add/drop/type) | `-u` / `--update <module>` | runs ORM schema sync |
 | Changed `__manifest__.py` `depends` / `data` | `-u <module>`; leased: `instance_build` operation `update` on the same lease | a brand-new dependency is auto-installed by `-u`; or `-i` the new dep explicitly |
 | XML / view / data record changed | `-u <module>` | **TRAP:** records in `<data noupdate="1">` (or a noupdate file) are written once at `-i` and **never** rewritten by `-u`. Editing them has no effect - flip noupdate, migrate, or delete the `ir_model_data` row |
@@ -51,7 +51,9 @@
 
 1. **noupdate data never reloads on `-u`** (see table).
 2. **Asset cache:** changing JS/CSS/SCSS regenerates the bundle on `-u`, but the browser may
-   serve a cached `/web/assets/...`. Use `--dev=assets` in dev or hard-refresh; in prod the
+   serve a cached `/web/assets/...`. A running server keeps its asset links until the module is
+   updated (`instance_build` `update` on the same lease) or the server restarts; `?debug=assets`
+   plus a refresh shows edits to files already in the bundle, never a new file; in prod the
    bundle hash changes on `-u`. **Where assets are declared differs by era** - confirm for
    the target version (manifest `assets` dict vs an XML `<template>`); do not assume.
 3. **`-u` without `-d <DB>`** does nothing useful - always target a database.

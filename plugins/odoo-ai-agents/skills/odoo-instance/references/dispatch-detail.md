@@ -99,6 +99,7 @@ js_runs: <n or null>          # run-tests only; from JS_RUNS= (browser-suite log
 js_scope: <scoped|unscoped or null>   # run-tests only; from JS_SCOPE=
 js_failed_reported: <n or null>       # run-tests only; from JS_FAILED_REPORTED= - never added to `failed`, it counts other units
 js_failed_tests: <n or null>          # run-tests only; from JS_FAILED_TESTS=
+js_result: <passed|failed|absent>     # run-tests only; from JS_RESULT= - `absent` = no browser unit suite ran, never a pass
 findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
 status: <one value of the agent's own enum, relayed as-is - never a Continuation status>

@@ -94,6 +94,16 @@ silently retarget the build at another database.
 Extra config keys (instance_build conf_options) go into the build's generated config file
 (55-instance-ops.sh --conf-option), never a key the tool owns: `_conf_options` / _TOOL_CONF_KEYS.
 
+Developer server (instance_serve developer_server): a server this tool launches serves exactly the
+build installed in its database - views and assets from the database, no restart when a source file
+changes. Only a caller that asks (a developer iterating by hand, a debugger) gets Odoo's developer
+features, and only on a lease of its own: the shared declared instance serves every reader and is
+never one (INVALID_ARGUMENTS). The flag's spelling is the checkout's own (odoo_cli_facts.sh
+odoo_developer_flag); a checkout that declares no --dev refuses (DEV_SERVER_UNSUPPORTED) and nothing
+starts. The output field developer_server says whether the serving server runs with them; a server
+that is already running keeps what it was launched with, and a request it does not match is refused
+(DEV_SERVER_NOT_APPLIED).
+
 Disclosure (instance_serve): serving by series hands back the shared lease's token and owner run
 only when this call LAUNCHED the server or the lease is disclosed to this caller under lease_find's
 rule (tools_lease module docstring); a parked lease anchored to another session is refused
@@ -148,7 +158,8 @@ MODULE_LIST_SEP = ","
 
 # The build script's own machine-readable summary keys (55-instance-ops.sh header).
 _SUMMARY_KEYS = ("STATUS", "TEST_RESULT", "TEST_FAILED", "TEST_ERROR", "TEST_WARNING", "TEST_SKIPPED",
-                 "JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS", "MODULES_LOADED",
+                 "JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS", "JS_RESULT",
+                 "MODULES_LOADED",
                  "TESTS_RUN", "TEST_TAGS_USED", "FINDINGS_PATH", "BUILD_SERVER_WIDE_MODULES",
                  "BUILD_LANGUAGES", "BUILD_DEMO", "BUILD_MODULES_LOADED", "EXPORT_COUNT",
                  "TEST_DEPS_MISSING", "TEST_DEPS_SKIPPED", "BUILD_CONF_KEYS")
@@ -171,7 +182,7 @@ _DEMO_FAILED_RE = re.compile(r"Module ([A-Za-z0-9_]+) demo data failed to instal
 _SERVE_KEYS = ("SERVE_STATE", "SERVE_HTTP_PORT", "SERVE_URL", "SERVER_PID", "SERVE_RESUMED",
                "SERVED_ADDONS_PATH", "SERVED_ADDONS_SOURCE", "SERVED_SERVER_WIDE_MODULES", "LOG_PATH",
                "SHARED_LEASE_TOKEN", "SHARED_LEASE_ERROR", "SERVE_REFUSED",
-               "RUNNING_SERVER_WIDE_MODULES")
+               "RUNNING_SERVER_WIDE_MODULES", "SERVE_DEVELOPER_SERVER")
 
 
 # --------------------------------------------------------------------------- #
@@ -1042,6 +1053,9 @@ def _serve(args, ctx):
     adjustment = server_wide_adjustment(args)
     if adjustment and series:
         raise ToolError("INVALID_ARGUMENTS", _SHARED_SET_WORDS % "series")
+    developer = bool(args.get("developer_server"))
+    if developer and series:
+        raise ToolError("INVALID_ARGUMENTS", _SHARED_DEV_WORDS % "series")
     extra_env = {"SPINUP_TIMEOUT": os.environ.get("SPINUP_TIMEOUT") or str(SERVE_POLL_S)}
     argv = ["apply"]
     lease = None
@@ -1064,6 +1078,8 @@ def _serve(args, ctx):
         if lease["mode"] == "shared":
             if adjustment:
                 raise ToolError("INVALID_ARGUMENTS", _SHARED_SET_WORDS % "a shared lease_token")
+            if developer:
+                raise ToolError("INVALID_ARGUMENTS", _SHARED_DEV_WORDS % "a shared lease_token")
             run_id = args.get("run_id") or lease.get("run_id")
             if run_id:
                 extra_env["INST_RUN_ID"] = run_id
@@ -1078,6 +1094,8 @@ def _serve(args, ctx):
             if len(ports) > 1:
                 argv += ["--gevent-port", str(ports[1]), "--gevent-port-key",
                          _second_port_key(row, lease, token)]
+            if developer:
+                argv += ["--dev-server"]
             if adjustment:
                 # The complete adjusted set: 50-instance-spinup.sh writes --load verbatim.
                 load = server_wide_for(row, lease, cwd, token, adjustment,
@@ -1106,6 +1124,10 @@ def _serve(args, ctx):
                             "the catalog declares server_wide_modules for this instance, but Odoo's "
                             "core --load default could not be read from its checkout; nothing was "
                             "launched", diagnostics)
+        if facts.get("SERVE_REFUSED") == "DEV_SERVER_UNSUPPORTED":
+            raise ToolError("DEV_SERVER_UNSUPPORTED",
+                            "this lease's Odoo checkout (or run mode) cannot start a developer "
+                            "server; nothing was launched", diagnostics)
         if series:
             _raise_if_undeclared(series, args.get("profile"), cwd, diagnostics)
         raise ToolError("SERVE_FAILED", "50-instance-spinup.sh apply exited %s" % rc, diagnostics)
@@ -1140,6 +1162,15 @@ def _serve(args, ctx):
                         {"token_prefix": token[:8], "running": None if running_unknown else served_load,
                          "requested": load,
                          "serve_state": facts.get("SERVE_STATE")})
+    running_developer = {"1": True, "0": False}.get(facts.get("SERVE_DEVELOPER_SERVER"))
+    if developer and running_developer is not True:
+        raise ToolError("DEV_SERVER_NOT_APPLIED",
+                        "lease %s: its server was already running %s; the developer server this "
+                        "call asked for was not applied" % (
+                            token[:8], "without developer features" if running_developer is False
+                            else "with developer features unknown"),
+                        {"token_prefix": token[:8], "running": running_developer,
+                         "serve_state": facts.get("SERVE_STATE")})
     http_port = _int_or_none(facts.get("SERVE_HTTP_PORT"))
     server_pid = _int_or_none(facts.get("SERVER_PID"))
     if token and lease is not None and lease.get("mode") != "shared":
@@ -1165,6 +1196,7 @@ def _serve(args, ctx):
         "served_addons_source": facts.get("SERVED_ADDONS_SOURCE") or "",
         "served_server_wide_modules": served_load,
         "server_wide_adjustment": adjustment,
+        "developer_server": running_developer is True,
         "log_path": facts.get("LOG_PATH") or None,
         "lease_token": lease_token,
         "shared_lease_error": facts.get("SHARED_LEASE_ERROR") or None,
@@ -1172,6 +1204,9 @@ def _serve(args, ctx):
     }
 
 
+_SHARED_DEV_WORDS = ("arguments.developer_server: not with %s - the shared declared instance serves "
+                     "every reader and never runs with developer features; serve a lease of your "
+                     "own (lease_acquire ports 1) for a developer server")
 _SHARED_SET_WORDS = ("arguments.server_wide: not with %s - the shared declared instance serves its "
                      "catalog row's server-wide set to every reader; serve a lease of your own "
                      "(lease_acquire ports 1) to adjust the set")
@@ -1435,6 +1470,24 @@ JOB_WAIT_OUTPUT = _obj({
                                                             "Odoo logged \"Modules loaded.\" or "
                                                             "its test-failed alternative; \"0\" = "
                                                             "it did not."},
+                    "JS_RESULT": {"type": "string", "enum": ["passed", "failed", "absent"],
+                                  "description": "op test: the Hoot/QUnit browser suites. failed = "
+                                                 "one published a failure; passed = at least one ran "
+                                                 "and none failed; absent = NO Hoot/QUnit suite is in "
+                                                 "the log (the test_tags left out the module that "
+                                                 "drives it, e.g. core web's WebSuite) - never read "
+                                                 "absent as a pass. Tours are Python tests and are "
+                                                 "counted in TESTS_RUN, not here."},
+                    "TESTS_RUN": {"type": "string",
+                                  "description": "op test: the tests started over the whole run, "
+                                                 "at-install and post-install, from Odoo's own "
+                                                 "\"<F> failed, <E> error(s) of <T> tests\" total. "
+                                                 "Empty = the log has no such line. Odoo's \"N "
+                                                 "post-tests\" line is the post-install phase "
+                                                 "alone, and its per-module \"odoo.tests.stats\" "
+                                                 "line counts tests plus 2 per test class "
+                                                 "(setUpClass, tearDownClass): neither is comparable "
+                                                 "to this."},
                     "TEST_DEPS_MISSING": {"type": "string",
                                           "description": "op test: the packages the checkout's "
                                                          "test framework imports optionally that "
@@ -1685,7 +1738,12 @@ def register(registry, ctx):
         "nothing is launched. On your own lease, server_wide adjusts the set for this call - pass "
         "the same one the build of that database used; a server of the lease that is already "
         "running keeps its set, and a different one asked for is refused "
-        "(SERVER_WIDE_NOT_APPLIED). Never with series or a shared lease (INVALID_ARGUMENTS).",
+        "(SERVER_WIDE_NOT_APPLIED). Never with series or a shared lease (INVALID_ARGUMENTS). "
+        "The server serves exactly the build installed in its database and does not restart when a "
+        "source file changes; developer_server (a lease of your own, hand development or "
+        "debugging only) starts it with Odoo's developer features instead, and developer_server in "
+        "the result says which one runs (a server already running keeps what it was launched "
+        "with: DEV_SERVER_NOT_APPLIED; a checkout without a --dev option: DEV_SERVER_UNSUPPORTED).",
         _obj({
             "lease_token": {"type": "string", "minLength": 8,
                             "description": "Full token of YOUR lease to serve. Exactly one of lease_token "
@@ -1703,6 +1761,18 @@ def register(registry, ctx):
                                                       "PROFILE_MISMATCH)."),
             "addons_path": _ADDONS_PROP,
             "server_wide": SERVER_WIDE_PROP,
+            "developer_server": {"type": "boolean",
+                                 "description": "Only on a lease of your own, only when YOU are "
+                                                "developing or debugging by hand: start the server "
+                                                "with Odoo's developer features - it restarts when "
+                                                "a source file under the addons path is saved, and "
+                                                "views and templates are read from the files, not "
+                                                "the database. Omit it for everything else "
+                                                "(screenshots, acceptance, UI review, recordings, "
+                                                "tests): the default server serves exactly the "
+                                                "build installed in its database and never "
+                                                "restarts on a file change. Never with series or "
+                                                "a shared lease (INVALID_ARGUMENTS)."},
             "cwd": _CWD_PROP,
         }),
         _obj({
@@ -1721,6 +1791,14 @@ def register(registry, ctx):
                                                           "empty = none, Odoo's own default "
                                                           "applies."},
             "server_wide_adjustment": SERVER_WIDE_ADJUSTMENT_OUT,
+            "developer_server": {"type": "boolean",
+                                 "description": "True when the serving server runs with Odoo's "
+                                                "developer features (it restarts on a saved source "
+                                                "file; views are read from the files). False for "
+                                                "every server launched without developer_server. "
+                                                "On an attach it is what that server was launched "
+                                                "with: do not capture evidence on a server where "
+                                                "it is true."},
             "log_path": {"type": ["string", "null"]},
             "lease_token": {"type": ["string", "null"],
                             "description": "Your lease's token; with series, non-null only when this "
@@ -1730,7 +1808,7 @@ def register(registry, ctx):
             "instance_handle": HANDLE_SCHEMA,
         }, ["state", "url", "http_port", "server_pid", "resumed", "served_addons_path",
             "served_addons_source", "served_server_wide_modules", "server_wide_adjustment",
-            "log_path", "lease_token", "shared_lease_error", "instance_handle"]),
+            "developer_server", "log_path", "lease_token", "shared_lease_error", "instance_handle"]),
         _serve, title="Serve an Odoo instance", long_running=True, destructive=False,
     )
     registry.add(

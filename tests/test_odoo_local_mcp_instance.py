@@ -282,6 +282,27 @@ def test_a_builds_verdict_is_its_exit_code_and_the_markers_the_script_reads(clie
     assert _wait(client, job_id)["result"] == "success"
 
 
+def test_a_test_runs_summary_states_from_structured_fields_whether_a_browser_suite_ran(client, world):
+    """job_wait's summary carries JS_RESULT beside the counts it was derived from: a run whose
+    selection drives no Hoot/QUnit suite says `absent` (no failure line is not a pass), a suite
+    that ran green says `passed`, and TESTS_RUN is the database total of Odoo's result line."""
+    lease = _lease(client, world, ports=1)
+    base = ('echo "odoo.modules.loading: Modules loaded."\n'
+            'echo "odoo.service.server: 1366 post-tests in 977.14s, 380231 queries"\n'
+            'echo "odoo.tests.stats: my_module: 2409 tests 907.85s 380231 queries"\n'
+            'echo "odoo.tests.result: 0 failed, 0 error(s) of 1369 tests when loading database"\n')
+    world["behavior"].write_text(base + "exit 0\n", encoding="utf-8")
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/my_mod"))["job_id"])
+    assert done["test_result"] == "passed" and done["summary"]["JS_RESULT"] == "absent", done["summary"]
+    assert done["summary"]["TESTS_RUN"] == "1369", done["summary"]
+
+    world["behavior"].write_text(
+        base + 'echo "odoo.addons.web.tests.test_js.WebSuite.browser: QUnit test suite done."\nexit 0\n',
+        encoding="utf-8")
+    done = _wait(client, _ok(_build(client, world, lease["token"], op="test", test_tags="/web:WebSuite"))["job_id"])
+    assert done["summary"]["JS_RESULT"] == "passed" and done["summary"]["JS_RUNS"] == "1", done["summary"]
+
+
 def test_job_survives_a_server_restart(world):
     gate = world["work"] / "build-gate"
     world["behavior"].write_text('while [[ ! -f "%s" ]]; do sleep 0.1; done\n'
@@ -569,6 +590,94 @@ def test_a_leases_server_is_launched_bound_reported_and_stopped_by_the_release(c
     while _alive(pid) and time.monotonic() < deadline:
         time.sleep(0.2)
     assert not _alive(pid)
+
+
+def _listener_argv(world):
+    """The argv of every LISTENING launch (a `-c <conf>` launch without --stop-after-init)."""
+    return [line for line in world["calls"].read_text().splitlines()
+            if " -c " in line and "--stop-after-init" not in line]
+
+
+def _set_dev_shape(world, shape):
+    """Rewrite the checkout's --dev declaration: "value" keeps the fixture's, "flag" makes it a
+    boolean switch, "none" removes it."""
+    config = next((world["odoo_bin"].parent).glob("*/tools/config.py"))
+    text = config.read_text(encoding="utf-8")
+    declared = "group.add_option('--dev', dest='dev_mode', type=\"string\")"
+    assert declared in text, "the fixture declares a value-taking --dev"
+    replacement = {"value": declared, "flag": "group.add_option('--dev', dest='dev_mode', action='store_true')",
+                   "none": ""}[shape]
+    config.write_text(text.replace(declared, replacement), encoding="utf-8")
+
+
+def test_a_leases_server_runs_without_developer_features_unless_asked(client, world):
+    """A served instance is what captures, acceptance and UI review are judged on, usually from a
+    worktree whose files are still being saved: by default it states no --dev (no restart on a saved
+    file, views from the database); only developer_server asks for Odoo's developer features, in
+    the spelling the checkout declares. The result says which kind runs, on an attach too."""
+    plain = _lease(client, world, ports=1)
+    out = _ok(client.call("instance_serve", {"lease_token": plain["token"], "cwd": str(world["work"])},
+                          timeout=120))
+    assert out["state"] == "launched" and out["developer_server"] is False
+    (launch,) = _listener_argv(world)
+    assert "--dev" not in launch, launch
+
+    dev = _lease(client, world, ports=1)
+    (world["curl_mode"].parent / "curl-count").unlink(missing_ok=True)  # nothing listens yet again
+    out = _ok(client.call("instance_serve", {"lease_token": dev["token"], "developer_server": True,
+                                             "cwd": str(world["work"])}, timeout=120))
+    assert out["state"] == "launched" and out["developer_server"] is True
+    assert "--dev=reload,qweb,xml" in _listener_argv(world)[-1]
+
+    # An attach launches nothing: the result reports what the running server was started with.
+    again = _ok(client.call("instance_serve", {"lease_token": dev["token"], "cwd": str(world["work"])},
+                            timeout=120))
+    assert again["state"] == "attached" and again["developer_server"] is True
+    plain_again = _ok(client.call("instance_serve", {"lease_token": plain["token"],
+                                                     "cwd": str(world["work"])}, timeout=120))
+    assert plain_again["state"] == "attached" and plain_again["developer_server"] is False
+    assert len(_listener_argv(world)) == 2, "an attach starts no server"
+
+    # A running server keeps what it was launched with: the developer server is not silently absent.
+    err = _err(client.call("instance_serve", {"lease_token": plain["token"], "developer_server": True,
+                                              "cwd": str(world["work"])}, timeout=120))
+    assert err["code"] == "DEV_SERVER_NOT_APPLIED" and err["diagnostics"]["running"] is False
+    assert len(_listener_argv(world)) == 2
+
+
+@pytest.mark.parametrize("shape,expected", [("flag", " --dev"), ("value", " --dev=reload,qweb,xml")])
+def test_the_developer_server_flag_follows_the_shape_the_checkout_declares(client, world, shape, expected):
+    _set_dev_shape(world, shape)
+    lease = _lease(client, world, ports=1)
+    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "developer_server": True,
+                                             "cwd": str(world["work"])}, timeout=120))
+    assert out["developer_server"] is True
+    launch = _listener_argv(world)[-1]
+    assert launch.endswith(expected), launch
+
+
+def test_a_developer_server_is_refused_where_the_checkout_has_no_dev_option(client, world):
+    _set_dev_shape(world, "none")
+    lease = _lease(client, world, ports=1)
+    err = _err(client.call("instance_serve", {"lease_token": lease["token"], "developer_server": True,
+                                              "cwd": str(world["work"])}, timeout=120))
+    assert err["code"] == "DEV_SERVER_UNSUPPORTED", err
+    assert not world["calls"].exists() or not _listener_argv(world), "nothing may be launched"
+    (world["curl_mode"].parent / "curl-count").unlink(missing_ok=True)  # nothing listens yet
+    ok = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"])},
+                         timeout=120))
+    assert ok["developer_server"] is False and "--dev" not in _listener_argv(world)[-1]
+
+
+def test_a_developer_server_is_never_the_shared_declared_instance(client, world):
+    err = _err(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "developer_server": True,
+                                              "cwd": str(world["work"])}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "developer_server" in err["message"]
+    shared = _lease(client, world, mode="shared")
+    err = _err(client.call("instance_serve", {"lease_token": shared["token"], "developer_server": True,
+                                              "cwd": str(world["work"])}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "developer_server" in err["message"]
+    assert not world["calls"].exists() or not _listener_argv(world), "nothing may be launched"
 
 
 def test_serve_with_an_addons_path_that_drops_the_core_addons_is_refused_before_anything_starts(

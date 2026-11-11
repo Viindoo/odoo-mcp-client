@@ -128,14 +128,15 @@ venv_python: <path>
 addons_path: <comma-separated path>
 log_path: <log_path returned by instance_build / instance_serve, verbatim>
 server_pid: <pid or null>    # the server's process-GROUP id; null for --stop-after-init builds
-failed: <n or null>          # run-tests only; from TEST_FAILED - null when that field arrived EMPTY (unmeasured), never 0
-errors: <n or null>          # run-tests only; from TEST_ERROR - null when that field arrived EMPTY (unmeasured), never 0
+failed: <n or null>          # run-tests only; from TEST_FAILED - null when the field arrived EMPTY (unmeasured), never 0
+errors: <n or null>          # run-tests only; from TEST_ERROR - null as for `failed`
 warnings: <n or null>        # run-tests only; from TEST_WARNING
 skipped: <n or null>         # run-tests only; from TEST_SKIPPED
-js_runs: <n or null>         # run-tests only; from JS_RUNS; null when no browser suite was measured
+js_runs: <n or null>         # run-tests only; from JS_RUNS
 js_scope: <scoped|unscoped or null>  # run-tests only; from JS_SCOPE
 js_failed_reported: <n or null>      # run-tests only; from JS_FAILED_REPORTED; never added to `failed`
-js_failed_tests: <n or null>         # run-tests only; from JS_FAILED_TESTS (distinct failing browser test NAMES); null when unmeasured, never 0
+js_failed_tests: <n or null>         # run-tests only; from JS_FAILED_TESTS (distinct failing test names); null when unmeasured
+js_result: <passed|failed|absent>    # run-tests only; from JS_RESULT; `absent` is not a pass
 findings_path: <path or null># run-tests only; from FINDINGS_PATH (failures + warnings + skips file)
 test_tags_used: <tags or 'untagged'>  # run-tests only; from TEST_TAGS_USED verbatim - never null
 test_tags_source: <caller | derived | full>  # run-tests only; provenance of test_tags_used (a full run names its exemption in notes)

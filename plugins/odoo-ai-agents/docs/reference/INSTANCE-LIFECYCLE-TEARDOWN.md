@@ -28,7 +28,7 @@ restate the contract's ownership matrix or DONE-gate wording.**
 - **Mechanism: stop the process group, THEN drop the database.** `release` is teardown-complete for
   a listening instance, not just a drop: it marks the row `reclaiming`, stops the server's process
   GROUP (SIGTERM, a bounded wait, then a group SIGKILL - the HTTP master, workers, cron, the
-  longpolling/gevent process, any `--dev=reload` watchdog), and only THEN drops a `drop_on_release`
+  longpolling/gevent process, the file watcher of a developer server), and only THEN drops a `drop_on_release`
   database through Odoo; stopping first frees the connections that would block `DROP DATABASE`.
   `lease_release` additionally stops any still-running `instance_build` job of that lease first.
   The same stop-then-drop order applies inside `gc`. **An unproven pid is never signalled:** only a
