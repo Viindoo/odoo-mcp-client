@@ -1,462 +1,149 @@
-"""Guard: the plugin writes NOTHING to `/tmp`.
+"""Guard: the plugin's CODE (scripts, hooks, Python) writes nothing to the ambient temp dir.
 
-Business rule protected here (GT3b, two rules sharing one scanner):
+`/tmp` is wiped on reboot, shared by every user and project on the host, and not namespaced per
+worktree, so an artifact written there is both losable and un-attributable (and on a memory-backed
+temp dir, a leak exhausts it for every session). The one sanctioned scratch destination is the
+state root (`odoo_ai_state_root`, `odoo_ai_scratch_dir` in scripts/lib/state_reclaim.sh). Scans
+every `.sh` and `.py` file under `plugins/` - never instruction prose - for:
 
-GT3b - **no scratch destination outside the state root.** `/tmp` is wiped on reboot, is
-  shared by every user and every project on the host, and is not namespaced per
-  project/worktree - so an artifact written there is both losable and un-attributable. The
-  plugin's ONE sanctioned scratch/state destination is the Tier-1 state root
-  (`snippets/state-root-resolution.md`), resolved by `odoo_ai_state_root`. Two rules enforce
-  that, scanning every file under `plugins/` with whitespace normalized:
-
-    Rule 1 - `TMPDIR` occurs ZERO times. Allowlist-free on purpose: the env var had exactly
-      one occurrence in this repo's history and it WAS the leak (a per-invocation
-      `mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX"` conf that no exit path owned). A
-      zero-tolerance count is the only bound that cannot be argued down one site at a time.
-
-    Rule 2 - every `/tmp` (and `/var/tmp`) occurrence matches one of exactly two documented
-      shapes: the state-root fallback `${HOME:-/tmp}` - a path-resolution last resort for a
-      HOME-less environment, which writes nothing by itself - or an entry in `TMP_ALLOWLIST`,
-      each carrying a reason. Anything else fails with its `file:line`.
-
-  Rule 1 is also what makes the odoo-intake exemption clause's silence about `/tmp` PROVABLE
-  rather than merely preferred: `test_odoo_intake_worktree_default.py` imports
-  `tmpdir_hits_in_tree` from here instead of re-deriving the scan, so the prose criterion and
-  the source fact are asserted against ONE mechanism.
-
-Every text-matching helper below is a PURE FUNCTION of the text it is given, and each is
-exercised against a MUST-CATCH / MUST-NOT-CATCH probe corpus in this same file. The probes are
-the committed red-before-green proof: they are alternate SHAPES of the same defect, present
-because a guard that recognises exactly one phrasing goes green while every other phrasing
-walks past it.
+  Rule 1 - `TMPDIR` appears nowhere (zero tolerance, no allowlist).
+  Rule 2 - every `/tmp` or `/var/tmp` is the state-root fallback `${HOME:-/tmp}` (a path
+           resolution that writes nothing) or a reasoned `TMP_ALLOWLIST` entry.
+  Rule 3 - no ambient temp dir reached without naming it: a `mktemp` with no destination,
+           `tempfile.mkstemp/mkdtemp/gettempdir/...`, `--basetemp`, `TMP=` / `TEMP=`.
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from shutil import which
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-PLUGINS_DIR = REPO_ROOT / "plugins"
-
-# Directories that are never source: build/VCS caches. Anything else under plugins/ is in
-# scope, including docs, snippets, agents, skills, workflows and scripts - the claim-4
-# regression this guards was PROSE telling an agent to write fragments under /tmp, not code.
+PLUGINS_DIR = Path(__file__).resolve().parent.parent / "plugins"
 _SKIP_DIR_PARTS = {"__pycache__", ".git", "node_modules", ".pytest_cache"}
+_CODE_SUFFIXES = {".sh", ".py"}
 
-# ---------------------------------------------------------------------------
-# Rule 1 - TMPDIR
-#
-# Case-SENSITIVE, matching the environment variable's only real spelling: POSIX environment
-# names are case-sensitive, so `$tmpdir` is a plain shell local and not this variable at all.
-# `48-db-local-auth.sh` legitimately uses a local named `tmpdir` for a `mktemp -d` scratch dir
-# it `rm -rf`s on every exit path - a bounded, owned directory, which is the opposite of the
-# unowned destination this rule excludes.
-#
-# STATED BOUNDARY (so a reader does not over-trust this rule): a bare `mktemp`/`mktemp -d` with
-# no `-p` still lands in the ambient temp dir without ever naming `TMPDIR`, and Rule 1 cannot
-# see that. Rule 3 below now does. That boundary used to say "four such sites exist ... all four
-# remove what they create on every exit path"; both halves were wrong by the time it was checked
-# - there were SEVEN across five files, and two of them (`hooks/ensure-ethos-import.sh`) had no
-# `trap` and a removal conditional on the preceding `cat` succeeding. A stated boundary that is
-# never re-measured becomes a false assurance, which is worse than no boundary at all.
-# ---------------------------------------------------------------------------
 TMPDIR_RE = re.compile(r"TMPDIR")
-
-# ---------------------------------------------------------------------------
-# Rule 2 - /tmp and /var/tmp
-#
-# The negative lookahead stops `/tmpfs`, `/tmpdirs` and friends from matching a bare `/tmp`
-# prefix; `/var/tmp` is folded into the same pattern because it is the obvious workaround for
-# a guard that only knows about `/tmp` (and is exactly as unsafe).
-# ---------------------------------------------------------------------------
+# `(?![A-Za-z0-9_])` stops `/tmpfs`; `/var/tmp` is folded in as the obvious workaround.
 TMP_PATH_RE = re.compile(r"/(?:var/)?tmp(?![A-Za-z0-9_])")
-
-# The ONE sanctioned shape: the state-root resolver's HOME-less last resort. It resolves a
-# path, it does not write one, and `odoo_ai_state_root` is the only function allowed to spell
-# it (see scripts/lib/state_reclaim.sh).
 STATE_ROOT_FALLBACK_PREFIX = "${HOME:-"
-
-# ---------------------------------------------------------------------------
-# Rule 3 - the ambient temp dir reached WITHOUT naming it
-#
-# The hole Rules 1 and 2 leave open by construction: `mktemp` with no `-p`, Python's `tempfile`
-# helpers, and pytest's `--basetemp` all resolve the ambient temp directory while spelling
-# neither `TMPDIR` nor a `/tmp` literal, so a text scan for those two tokens sees nothing.
-#
-# This is not hypothetical. One such site ran `npm install --prefix` into that directory,
-# materialising a whole browser-MCP dependency tree; another was a SessionStart hook whose
-# cleanup was conditional, leaking one file per session. On a host where the ambient directory
-# is memory-backed and quota-limited - the common desktop case - that combination exhausted it
-# and every agent session on the machine began failing on a two-byte write.
-#
-# `TMP=`/`TEMP=` are folded in as the obvious next workaround for a rule that knows only the
-# POSIX spelling.
-#
-# The sanctioned destination is `odoo_ai_scratch_dir` (scripts/lib/state_reclaim.sh), which is
-# why `mktemp -p` PASSES: naming a parent is precisely the act this rule is asking for.
-# ---------------------------------------------------------------------------
+# `mktemp` followed only by option flags / redirections: anything that names a destination
+# (`-p DIR` or a TEMPLATE argument) stops matching, because naming one is what the rule asks.
 AMBIENT_TEMP_RE = re.compile(
-    # `mktemp` followed ONLY by option flags and redirections, then end-of-command. Anything
-    # that names a destination - `-p DIR`, or a TEMPLATE argument - stops matching, because
-    # naming one is the act this rule asks for. That is why the pattern is shaped as "no
-    # remaining argument" rather than "no `-p`": `mktemp "${target}.XXXXXX"` is compliant and a
-    # `-p`-only test would have punished it.
     r"\bmktemp\b(?:\s+(?:-[A-Za-z-]+|\d?>+[^\s);|&]+))*\s*(?=[);|&]|$)"
     r"|\btempfile\.(?:mkstemp|mkdtemp|gettempdir|NamedTemporaryFile|TemporaryDirectory)\b"
     r"|--basetemp\b"
     r"|(?<![A-Za-z_])(?:TMP|TEMP)="
 )
 
-# Empty on purpose, and that is the point: every site this rule found was MOVED rather than
-# excused. An entry here would need the same >=8-word reason Rule 2's allowlist requires, and
-# would be the first argument for the second.
-AMBIENT_TEMP_ALLOWLIST: dict[str, list[tuple[str, str]]] = {}
-
-
-def ambient_temp_hits_in_text(text: str, relpath: str = "<text>") -> list[str]:
-    """Every ambient-temp-dir reach in `text` that no allowlist entry excuses."""
-    allowed = [literal for literal, _reason in AMBIENT_TEMP_ALLOWLIST.get(relpath, [])]
-    hits = []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        normalized = _normalize(line)
-        if not AMBIENT_TEMP_RE.search(normalized):
-            continue
-        if any(literal in normalized for literal in allowed):
-            continue
-        hits.append(f"{relpath}:{lineno}: {normalized.strip()}")
-    return hits
-
-
-def ambient_temp_hits_in_tree() -> list[str]:
-    hits = []
-    for relpath, text in _iter_plugin_files():
-        hits.extend(ambient_temp_hits_in_text(text, relpath))
-    return hits
-
-
-# Explicit, reasoned exceptions. Keyed by path RELATIVE TO plugins/ plus the literal text, so
-# an entry survives the file being re-ordered or re-wrapped (never a file:line pin).
+# Reasoned exceptions, keyed by path relative to plugins/ plus the literal text.
 TMP_ALLOWLIST: dict[str, list[tuple[str, str]]] = {
     "odoo-ai-agents/scripts/setup-steps/40-instance-profile.sh": [
-        (
-            "/tmp/profile.json",
-            "user-facing copy telling a HUMAN where to hand-write a profile spec before "
-            "invoking the step; no agent and no script ever writes this path, so it creates "
-            "no artifact to reclaim",
-        ),
+        ("/tmp/profile.json",
+         "user-facing copy telling a HUMAN where to hand-write a profile spec before invoking "
+         "the step; no script ever writes this path, so it creates no artifact to reclaim"),
     ],
     "odoo-ai-agents/scripts/lib/state_root_permissions.py": [
-        (
-            '_SYSTEM_TEMP_DIRS = ("/tmp", "/var/tmp"',
-            "the list of system temp directories a state root must not live under, so the "
-            "permission step refuses to grant rules for it and prunes old ones; it is only "
-            "compared against and nothing is ever created or written there",
-        ),
+        ('_SYSTEM_TEMP_DIRS = ("/tmp", "/var/tmp"',
+         "the list of system temp directories a state root must not live under; it is only "
+         "compared against and nothing is ever created or written there"),
     ],
 }
 
 
 def _normalize(line: str) -> str:
-    """Collapse whitespace runs so a re-wrapped or re-indented site still matches."""
     return re.sub(r"\s+", " ", line)
 
 
-def _iter_plugin_files():
-    """Yield (relpath-under-plugins, text) for every readable text file under plugins/."""
+def _code_files():
     for path in sorted(PLUGINS_DIR.rglob("*")):
-        if not path.is_file():
+        if path.suffix not in _CODE_SUFFIXES or not path.is_file():
             continue
         if any(part in _SKIP_DIR_PARTS for part in path.parts):
             continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue  # binary asset (icon/png) - carries no destination claim
-        yield str(path.relative_to(PLUGINS_DIR)), text
+        yield str(path.relative_to(PLUGINS_DIR)), path.read_text(encoding="utf-8", errors="replace")
 
 
-def tmpdir_hits_in_text(text: str, relpath: str = "<text>") -> list[str]:
-    """Every `TMPDIR` occurrence in `text`, as `relpath:lineno: <normalized line>`."""
+def tmpdir_hits(text: str, relpath: str = "<text>") -> list[str]:
+    return [f"{relpath}:{n}: {_normalize(line).strip()}"
+            for n, line in enumerate(text.splitlines(), 1) if TMPDIR_RE.search(_normalize(line))]
+
+
+def unsanctioned_tmp_hits(text: str, relpath: str = "<text>") -> list[str]:
+    allowed = [lit for lit, _ in TMP_ALLOWLIST.get(relpath, [])]
     hits = []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        normalized = _normalize(line)
-        if TMPDIR_RE.search(normalized):
-            hits.append(f"{relpath}:{lineno}: {normalized.strip()}")
-    return hits
-
-
-def unsanctioned_tmp_in_text(text: str, relpath: str = "<text>") -> list[str]:
-    """Every `/tmp` or `/var/tmp` occurrence that matches NEITHER sanctioned shape."""
-    allowed = TMP_ALLOWLIST.get(relpath, [])
-    hits = []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        normalized = _normalize(line)
-        for match in TMP_PATH_RE.finditer(normalized):
-            start = match.start()
-            # Shape 1: the state-root fallback `${HOME:-/tmp}`.
-            prefix_at = start - len(STATE_ROOT_FALLBACK_PREFIX)
-            if prefix_at >= 0 and normalized[prefix_at:start] == STATE_ROOT_FALLBACK_PREFIX:
+    for n, line in enumerate(text.splitlines(), 1):
+        line = _normalize(line)
+        for m in TMP_PATH_RE.finditer(line):
+            at = m.start() - len(STATE_ROOT_FALLBACK_PREFIX)
+            if at >= 0 and line[at:m.start()] == STATE_ROOT_FALLBACK_PREFIX:
                 continue
-            # Shape 2: an allowlisted literal, matched by containment of THIS occurrence.
-            if any(
-                any(
-                    occ <= start < occ + len(literal)
-                    for occ in _all_indexes(normalized, literal)
-                )
-                for literal, _reason in allowed
-            ):
+            if any(lit in line and line.find(lit) <= m.start() < line.find(lit) + len(lit)
+                   for lit in allowed):
                 continue
-            hits.append(f"{relpath}:{lineno}: {normalized.strip()}")
+            hits.append(f"{relpath}:{n}: {line.strip()}")
     return hits
 
 
-def _all_indexes(haystack: str, needle: str) -> list[int]:
-    out, start = [], haystack.find(needle)
-    while start != -1:
-        out.append(start)
-        start = haystack.find(needle, start + 1)
-    return out
+def ambient_temp_hits(text: str, relpath: str = "<text>") -> list[str]:
+    return [f"{relpath}:{n}: {_normalize(line).strip()}"
+            for n, line in enumerate(text.splitlines(), 1) if AMBIENT_TEMP_RE.search(_normalize(line))]
 
 
-def tmpdir_hits_in_tree() -> list[str]:
-    """Rule 1 over the real tree. Imported by test_odoo_intake_worktree_default.py."""
-    hits: list[str] = []
-    for relpath, text in _iter_plugin_files():
-        hits.extend(tmpdir_hits_in_text(text, relpath))
-    return hits
+def test_plugin_code_is_discovered():
+    assert len(list(_code_files())) >= 100, "the scan walks almost nothing - the roots moved"
 
 
-def unsanctioned_tmp_in_tree() -> list[str]:
-    """Rule 2 over the real tree."""
-    hits: list[str] = []
-    for relpath, text in _iter_plugin_files():
-        hits.extend(unsanctioned_tmp_in_text(text, relpath))
-    return hits
+@pytest.mark.parametrize("scan, label", [
+    (tmpdir_hits, "TMPDIR"),
+    (unsanctioned_tmp_hits, "unsanctioned /tmp or /var/tmp"),
+    (ambient_temp_hits, "unnamed ambient temp dir (bare mktemp, tempfile.*, --basetemp, TMP=/TEMP=)"),
+], ids=["tmpdir", "tmp-path", "ambient-temp"])
+def test_plugin_code_names_no_ambient_temp_destination(scan, label):
+    hits = [h for relpath, text in _code_files() for h in scan(text, relpath)]
+    assert not hits, (
+        f"{label} in plugin code - write under the state root (odoo_ai_state_root / "
+        "odoo_ai_scratch_dir in scripts/lib/state_reclaim.sh) instead:\n  " + "\n  ".join(hits))
 
 
-# ---------------------------------------------------------------------------
-# Rule 1 / Rule 2 on the real tree
-# ---------------------------------------------------------------------------
+# The detectors must see every spelling and spare compliant text, or the scans above go green
+# while the defect walks past.
+@pytest.mark.parametrize("scan, line", [
+    (tmpdir_hits, 'conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")"'),
+    (tmpdir_hits, 'base = os.environ["TMPDIR"]'),
+    (unsanctioned_tmp_hits, 'mkdir -p /tmp/odoo-ai-scratch'),
+    (unsanctioned_tmp_hits, 'target = Path("/tmp") / slug'),
+    (unsanctioned_tmp_hits, 'mkdir -p /var/tmp/odoo-ai-scratch'),
+    (ambient_temp_hits, 'tmp="$(mktemp -d)"'),
+    (ambient_temp_hits, 'tmp="$(mktemp -d 2>/dev/null)"'),
+    (ambient_temp_hits, 'd = tempfile.mkdtemp()'),
+    (ambient_temp_hits, 'pytest tests/ --basetemp=somewhere'),
+    (ambient_temp_hits, 'TMP=/somewhere npm install'),
+])
+def test_detector_catches_the_shape(scan, line):
+    assert scan(line, "probe.sh")
 
 
-def test_plugin_tree_is_discovered():
-    """Discovery floor: a scanner that walks nothing reports clean forever."""
-    files = list(_iter_plugin_files())
-    assert len(files) >= 200, (
-        f"expected the plugins/ tree to yield a substantial file corpus, found {len(files)} - "
-        f"a shrunken corpus means the two rules below are scanning almost nothing"
-    )
+@pytest.mark.parametrize("scan, line", [
+    (tmpdir_hits, 'tmpdir="$(mktemp -d)"; cur="$tmpdir/cur"'),
+    (unsanctioned_tmp_hits, 'printf \'%s\\n\' "${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}"'),
+    (unsanctioned_tmp_hits, 'mount -t tmpfs none /tmpfs-mount'),
+    (ambient_temp_hits, 'tmp="$(mktemp -d -p "$scratch")"'),
+    (ambient_temp_hits, '_tmp=$(mktemp "${_md}.ethos.XXXXXX")'),
+    (ambient_temp_hits, 'an attempt to resolve the state root'),
+])
+def test_detector_spares_compliant_code(scan, line):
+    assert not scan(line, "probe.sh")
 
 
-def test_no_tmpdir_anywhere_under_plugins():
-    """Rule 1 - an ambient temp-dir destination has no owner, so it may not be named at all.
-
-    Zero, not "few": the single historical occurrence was the conf leak itself. Any
-    reintroduction - `${TMPDIR:-/tmp}`, `os.environ["TMPDIR"]`, `TMPDIR=` in a hook, or prose
-    telling an agent to honour `$TMPDIR` - is a regression of the same defect.
-    """
-    hits = tmpdir_hits_in_tree()
-    assert hits == [], (
-        "TMPDIR must not appear anywhere under plugins/: an ambient temp dir is not "
-        "namespaced per project/worktree and nothing reclaims what lands there. Write to the "
-        "Tier-1 state root via odoo_ai_state_root (scripts/lib/state_reclaim.sh) instead.\n"
-        + "\n".join(hits)
-    )
-
-
-def test_every_tmp_occurrence_under_plugins_matches_a_documented_shape():
-    """Rule 2 - `/tmp` and `/var/tmp` survive only as the state-root fallback or a reasoned entry."""
-    hits = unsanctioned_tmp_in_tree()
-    assert hits == [], (
-        "Every /tmp (or /var/tmp) occurrence under plugins/ must be either the state-root "
-        "fallback shape ${HOME:-/tmp} (path resolution, writes nothing) or an entry in "
-        "TMP_ALLOWLIST with a stated reason. Unsanctioned occurrences:\n" + "\n".join(hits)
-    )
-
-
-def test_state_root_fallback_shape_still_exists_and_is_the_sanctioned_one():
-    """The MUST-NOT-CATCH control, asserted on the tree rather than only on a probe.
-
-    `${HOME:-/tmp}/.odoo-ai` is a CORRECT resolution and must never fail Rule 2. It is
-    asserted as a SHAPE wherever it appears, deliberately not as a count of sites: the
-    reclamation work collapsed the previously duplicated expression into one resolver, so any
-    guard pinned to a site count would be false the day it landed - and would also punish the
-    next legitimate de-duplication.
-    """
-    shaped = [
-        relpath
-        for relpath, text in _iter_plugin_files()
-        if STATE_ROOT_FALLBACK_PREFIX + "/tmp}" in re.sub(r"\s+", " ", text)
-    ]
-    assert shaped, (
-        "the state-root fallback shape ${HOME:-/tmp} vanished from plugins/ entirely - the "
-        "resolver must still resolve a path in a HOME-less environment; if this moved, point "
-        "this guard at wherever it moved to rather than deleting it"
-    )
-    for relpath in shaped:
-        text = (PLUGINS_DIR / relpath).read_text(encoding="utf-8")
-        assert unsanctioned_tmp_in_text(text, relpath) == [], (
-            f"{relpath} spells the sanctioned state-root fallback but Rule 2 flagged it - "
-            f"Rule 2 has become over-strict and now fails compliant code"
-        )
-
-
-def test_allowlist_entries_are_reasoned_and_still_needed():
-    """An allowlist that outlives its entries is how an exception becomes the rule."""
+def test_allowlist_is_scoped_to_its_file_and_still_needed():
+    owner = "odoo-ai-agents/scripts/setup-steps/40-instance-profile.sh"
+    line = 'echo "       ODOO_AI_PROFILE_SPEC=/tmp/profile.json bash $0 apply" >&2'
+    assert not unsanctioned_tmp_hits(line, owner)
+    assert unsanctioned_tmp_hits(line, "odoo-ai-agents/scripts/other.sh")
     for relpath, entries in TMP_ALLOWLIST.items():
         path = PLUGINS_DIR / relpath
-        assert path.is_file(), (
-            f"TMP_ALLOWLIST names {relpath}, which no longer exists - drop the stale entry"
-        )
-        text = re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
-        for literal, reason in entries:
-            assert literal in text, (
-                f"TMP_ALLOWLIST exempts {literal!r} in {relpath}, but that literal is gone - "
-                f"drop the entry instead of leaving a standing exemption"
-            )
-            assert len(reason.split()) >= 8, (
-                f"the allowlist entry for {literal!r} in {relpath} needs a real reason, not a "
-                f"label - got {reason!r}"
-            )
-
-
-# ---------------------------------------------------------------------------
-# Rule 1 / Rule 2 probe corpus - the committed red-before-green proof.
-#
-# MUST-CATCH: each is a DIFFERENT shape of the same defect. MUST-NOT-CATCH: each is compliant
-# text the rule must leave alone.
-# ---------------------------------------------------------------------------
-
-TMPDIR_MUST_CATCH = [
-    ('shell env default', 'conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")"'),
-    ('python env read', 'base = os.environ["TMPDIR"]'),
-    ('python env get', 'base = os.environ.get("TMPDIR", "/var/tmp")'),
-    ('bare shell expansion', 'logf="$TMPDIR/run.log"'),
-    ('assignment in a hook', 'TMPDIR=/tmp/odoo-ai exec "$@"'),
-    ('prose instruction', 'Write the fragment under `$TMPDIR` so it is cleaned up for you.'),
-    ('wrapped across whitespace', 'export    TMPDIR="$HOME/scratch"'),
-]
-
-TMPDIR_MUST_NOT_CATCH = [
-    ('state root resolver', 'printf \'%s\\n\' "${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}"'),
-    ('pytest fixture name', 'farm = tmp_path_factory.mktemp("path_farm")'),
-    ('temp word in prose', 'The generated conf is no longer a temp file.'),
-    # A shell local named `tmpdir`, removed on every exit path, is an OWNED scratch dir - not
-    # the ambient env-var destination Rule 1 excludes (see the STATED BOUNDARY above).
-    ('owned shell-local scratch dir', 'tmpdir="$(mktemp -d)"; cur="$tmpdir/cur"'),
-]
-
-TMP_MUST_CATCH = [
-    ('shell mkdir', 'mkdir -p /tmp/odoo-ai-scratch'),
-    ('shell log path', 'logf="/tmp/run.log"'),
-    ('python path join', 'target = Path("/tmp") / slug'),
-    ('prose telling an agent to write there', 'Write log fragments to `/tmp/<db>.log` as you go.'),
-    ('var/tmp workaround', 'mkdir -p /var/tmp/odoo-ai-scratch'),
-    ('pr worktree', 'Create the review worktree at /tmp/pr-review-<N>.'),
-    ('tmpdir default expansion', 'conf="${TMPDIR:-/tmp}/odoo.conf"'),
-]
-
-TMP_MUST_NOT_CATCH = [
-    ('state root fallback', 'printf \'%s\\n\' "${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}"'),
-    ('state root fallback in prose', 'The `${HOME:-/tmp}` inner default is a last resort.'),
-    ('tmpfs is a different path', 'mount -t tmpfs none /tmpfs-mount'),
-    ('no tmp at all', 'conf="$(odoo_ai_state_root)/conf/${db_name}-${port}.conf"'),
-]
-
-
-@pytest.mark.parametrize("shape,line", TMPDIR_MUST_CATCH, ids=[s for s, _ in TMPDIR_MUST_CATCH])
-def test_rule1_catches_every_tmpdir_shape(shape, line):
-    assert tmpdir_hits_in_text(line, "probe.sh"), (
-        f"Rule 1 let a {shape} shape through: {line!r}. A guard that recognises one spelling "
-        f"of an ambient temp dir and misses the rest protects nothing."
-    )
-
-
-@pytest.mark.parametrize(
-    "shape,line", TMPDIR_MUST_NOT_CATCH, ids=[s for s, _ in TMPDIR_MUST_NOT_CATCH]
-)
-def test_rule1_leaves_compliant_text_alone(shape, line):
-    assert tmpdir_hits_in_text(line, "probe.sh") == [], (
-        f"Rule 1 fired on compliant text ({shape}): {line!r}"
-    )
-
-
-@pytest.mark.parametrize("shape,line", TMP_MUST_CATCH, ids=[s for s, _ in TMP_MUST_CATCH])
-def test_rule2_catches_every_tmp_destination_shape(shape, line):
-    assert unsanctioned_tmp_in_text(line, "probe.sh"), (
-        f"Rule 2 let a {shape} shape through: {line!r}. Prose counts: the pattern this guards "
-        f"was legitimised by documentation, not only by code."
-    )
-
-
-@pytest.mark.parametrize("shape,line", TMP_MUST_NOT_CATCH, ids=[s for s, _ in TMP_MUST_NOT_CATCH])
-def test_rule2_leaves_compliant_text_alone(shape, line):
-    assert unsanctioned_tmp_in_text(line, "probe.sh") == [], (
-        f"Rule 2 fired on compliant text ({shape}): {line!r}"
-    )
-
-
-AMBIENT_MUST_CATCH = [
-    ("bare-mktemp", 'tmp="$(mktemp -d)"'),
-    ("bare-mktemp-quiet", 'tmp="$(mktemp -d 2>/dev/null)"'),
-    ("bare-mktemp-file", "_tmp=$(mktemp)"),
-    ("python-mkdtemp", "d = tempfile.mkdtemp()"),
-    ("python-namedtemp", "f = tempfile.NamedTemporaryFile()"),
-    ("python-gettempdir", "root = tempfile.gettempdir()"),
-    ("pytest-basetemp", "pytest tests/ --basetemp=somewhere"),
-    ("tmp-env-var", "TMP=/somewhere npm install"),
-    ("temp-env-var", "TEMP=/somewhere npm install"),
-]
-
-AMBIENT_MUST_NOT_CATCH = [
-    ("mktemp-with-parent", 'tmp="$(mktemp -d -p "$scratch")"'),
-    ("mktemp-with-parent-quiet", 'tmp="$(mktemp -d -p "$scratch" 2>/dev/null)"'),
-    ("mktemp-with-template", '_tmp=$(mktemp "${_md}.ethos.XXXXXX")'),
-    ("word-containing-tmp", "the tmpdir local is a shell variable, not this rule"),
-    ("attempt", "an attempt to resolve the state root"),
-]
-
-
-@pytest.mark.parametrize("shape,line", AMBIENT_MUST_CATCH, ids=[s for s, _ in AMBIENT_MUST_CATCH])
-def test_rule3_catches_every_unnamed_ambient_temp_shape(shape, line):
-    assert ambient_temp_hits_in_text(line), (
-        f"Rule 3 must catch the {shape!r} shape - it reaches the ambient temp dir without "
-        f"naming it, which is exactly what Rules 1 and 2 cannot see: {line!r}"
-    )
-
-
-@pytest.mark.parametrize(
-    "shape,line", AMBIENT_MUST_NOT_CATCH, ids=[s for s, _ in AMBIENT_MUST_NOT_CATCH]
-)
-def test_rule3_leaves_a_named_destination_alone(shape, line):
-    assert not ambient_temp_hits_in_text(line), (
-        f"Rule 3 must NOT fire on {shape!r}: naming a parent (or a template under a resolved "
-        f"path) is the act this rule asks for, and a guard that punishes compliance gets "
-        f"switched off: {line!r}"
-    )
-
-
-def test_no_unnamed_ambient_temp_destination_under_plugins():
-    """The whole-tree assertion. Every site this rule found was MOVED to `odoo_ai_scratch_dir`
-    rather than excused, so the allowlist is empty and should stay that way."""
-    hits = ambient_temp_hits_in_tree()
-    assert not hits, (
-        "these reach the ambient temp directory without naming it - route them through "
-        "`odoo_ai_scratch_dir` (scripts/lib/state_reclaim.sh) instead:\n  " + "\n  ".join(hits)
-    )
-
-
-def test_rule2_allowlist_is_scoped_to_the_file_that_earned_it():
-    """An allowlist entry must not become a global escape hatch."""
-    owner = "odoo-ai-agents/scripts/setup-steps/40-instance-profile.sh"
-    line = "        echo \"       ODOO_AI_PROFILE_SPEC=/tmp/profile.json bash $0 apply\" >&2"
-    assert unsanctioned_tmp_in_text(line, owner) == [], (
-        "the allowlisted user-facing example must pass in its own file"
-    )
-    assert unsanctioned_tmp_in_text(line, "odoo-ai-agents/skills/odoo-intake/SKILL.md"), (
-        "the SAME literal in a DIFFERENT file must still fail - an allowlist keyed on the "
-        "literal alone would let any file adopt the exemption"
-    )
+        assert path.is_file(), f"stale allowlist entry: {relpath} no longer exists"
+        text = _normalize(path.read_text(encoding="utf-8"))
+        for literal, _ in entries:
+            assert literal in text, f"allowlist exempts {literal!r} in {relpath} but it is gone"

@@ -66,11 +66,11 @@ def test_the_bound_elapses_with_124_and_kills_the_whole_group(no_timeout, tmp_pa
     status is timeout's own 124, which callers already read as 'no answer'."""
     marker = tmp_path / "grandchild-survived"
     started = time.monotonic()
-    p = _bash(f'run_bounded 1 sh -c "(sleep 3; touch {marker}) & sleep 30"', no_timeout)
+    p = _bash(f'run_bounded 1 sh -c "(sleep 2; touch {marker}) & sleep 30"', no_timeout)
     elapsed = time.monotonic() - started
     assert p.returncode == 124, p
     assert elapsed < 10, elapsed
-    time.sleep(3.5)
+    time.sleep(1.5)  # a surviving grandchild touches the marker 2s after the start
     assert not marker.exists(), "a grandchild outlived the bound"
 
 

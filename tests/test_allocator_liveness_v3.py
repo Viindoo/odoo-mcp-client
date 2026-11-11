@@ -134,8 +134,10 @@ class World:
                               text=True, env=env, timeout=timeout)
 
     def acquire(self, env, *extra, run_id="run-A", mode="ephemeral"):
-        p = self.run(env, "acquire", "--series", "17.0", "--mode", mode, "--run-id", run_id,
-                     *extra)
+        """`run_id=None` acquires an UNOWNED lease (`--allow-unowned`): the shape gc still
+        reclaims when its owner is gone - a lease that belongs to a run is parked instead."""
+        owner = ["--allow-unowned"] if run_id is None else ["--run-id", run_id]
+        p = self.run(env, "acquire", "--series", "17.0", "--mode", mode, *owner, *extra)
         return p, _kv(p.stdout)
 
     def registry_path(self):
@@ -247,7 +249,7 @@ def test_an_alive_session_protects_a_lease_whose_server_is_dead_and_ttl_expired(
 
 def test_an_ended_session_is_condemned_as_owner_session_ended(world):
     a, b = world.session("sess-A"), world.session("sess-B")
-    p, out = world.acquire(world.env(a), "--no-create")
+    p, out = world.acquire(world.env(a), "--no-create", run_id=None)
     token = out["ALLOC_TOKEN"]
     a.end()
 
@@ -263,7 +265,7 @@ def test_the_automatic_path_waits_out_the_grace_window_after_a_session_ends(worl
     (the automatic reclaimer) spares it for ANCHOR_GRACE_S, then takes it."""
     alloc = _import_allocator()
     a, b = world.session("sess-A"), world.session("sess-B")
-    _p, out = world.acquire(world.env(a), "--no-create")
+    _p, out = world.acquire(world.env(a), "--no-create", run_id=None)
     token = out["ALLOC_TOKEN"]
     a.end()
 
@@ -339,7 +341,7 @@ def test_a_capacity_reclaim_frees_ports_only_and_keeps_the_row_and_database(worl
     database is not dropped, and the record says dropped_db=false."""
     alloc = _import_allocator()
     a, b = world.session("sess-A"), world.session("sess-B")
-    p, out = world.acquire(world.env(a), "--ports", str(len(POOL)))
+    p, out = world.acquire(world.env(a), "--ports", str(len(POOL)), run_id=None)
     assert p.returncode == 0, p.stderr
     token = out["ALLOC_TOKEN"]
     assert world.lease(token)["drop_on_release"] is True
@@ -394,7 +396,7 @@ def test_gc_does_not_hold_the_registry_lock_while_it_drops(slow_world):
     a, b = w.session("sess-A"), w.session("sess-B")
     # Condemnable by EVERY arm a gc has ever had (ended session AND an expired
     # explicit TTL), so the lock property is what this test isolates.
-    _p, out = w.acquire(w.env(a), "--ports", str(len(POOL)), "--ttl", "1")
+    _p, out = w.acquire(w.env(a), "--ports", str(len(POOL)), "--ttl", "1", run_id=None)
     token = out["ALLOC_TOKEN"]
     w.age(token, 100_000)
     a.end()
@@ -429,7 +431,7 @@ def test_gc_does_not_hold_the_registry_lock_while_it_drops(slow_world):
 def test_gc_dry_run_destroys_nothing(world):
     alloc = _import_allocator()
     a, b = world.session("sess-A"), world.session("sess-B")
-    _p, out = world.acquire(world.env(a))
+    _p, out = world.acquire(world.env(a), run_id=None)
     token = out["ALLOC_TOKEN"]
     a.end()
     before = world.registry_path().read_bytes()
@@ -449,11 +451,12 @@ def test_gc_dry_run_destroys_nothing(world):
 
 def test_gc_scope_anchor_touches_only_that_sessions_running_leases(world):
     """What SessionEnd runs for the session that just ended: its running and
-    reserved leases go; its PARKED lease (deliberately preserved), another ended
-    session's lease and an unanchored stale lease all stay."""
+    reserved leases (without a run here - gc still reclaims those) go; its PARKED
+    lease (deliberately preserved), another ended session's lease and an
+    unanchored stale lease all stay."""
     a, other = world.session("sess-A"), world.session("sess-C")
-    _p, mine = world.acquire(world.env(a), "--no-create")
-    _p, parked = world.acquire(world.env(a), "--no-create")
+    _p, mine = world.acquire(world.env(a), "--no-create", run_id=None)
+    _p, parked = world.acquire(world.env(a), "--no-create", run_id=None)
     world.edit(parked["ALLOC_TOKEN"], lambda lz: lz.update(parked_at=int(time.time()),
                                                             park_ttl_s=86400))
     _p, theirs = world.acquire(world.env(other), "--no-create", run_id="run-C")

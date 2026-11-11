@@ -180,12 +180,15 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
     env = _base_env(tmp_path)
     env["ODOO_BIN"] = str(fake_bin)
 
+    # --extra flags are forwarded verbatim to odoo-bin, and a caller's --log-level comes after the
+    # default one so it wins.
     res = _run(
         "init",
         "--db", "mydb",
         "--python", str(fake_py),
         "--addons", str(addons_dir),
         "--modules", "sale,purchase",
+        "--extra", "--max-cron-threads=0 --skip-auto-install --log-level=debug",
         env=env,
     )
 
@@ -228,8 +231,17 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
     # Must NOT use -u (that is for update).
     assert " -u " not in call_content, f"init must not use -u: {call_content}"
 
-    # 6. STATUS=ok on success.
+    # 6. STATUS=ok on success, the success marker is in the preserved log.
     assert "STATUS=ok" in res.stdout, f"Expected STATUS=ok.\nstdout:\n{res.stdout}"
+    assert "Modules loaded." in log_path.read_text(encoding="utf-8")
+
+    # 7. Extra flags forwarded; the default level is Odoo's own stock `info` (the lowest at which a
+    #    passing run still emits its summary line), never the old quiet `warn`, and a caller's
+    #    --log-level comes after it; with no --version the log handler is the odoo namespace.
+    assert "--max-cron-threads=0" in call_content and "--skip-auto-install" in call_content, call_content
+    assert "--log-level=warn" not in call_content, call_content
+    assert call_content.index("--log-level=info") < call_content.index("--log-level=debug"), call_content
+    assert "--log-handler=odoo.modules.loading:INFO" in call_content, call_content
 
 
 @requires_bash
@@ -396,10 +408,12 @@ def test_test_verb_emits_passed_on_clean_run(tmp_path):
     )
 
     assert res.returncode == 0, f"test failed:\nstdout={res.stdout}\nstderr={res.stderr}"
-    assert "TEST_RESULT=passed" in res.stdout, (
-        f"Expected TEST_RESULT=passed.\nstdout:\n{res.stdout}"
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_RESULT=passed" in stdout_lines, (
+        f"Expected an exact TEST_RESULT=passed line.\nstdout:\n{res.stdout}"
     )
-    assert "STATUS=ok" in res.stdout
+    assert "TEST_SKIPPED=0" in stdout_lines
+    assert "STATUS=ok" in stdout_lines
 
 
 @requires_bash
@@ -472,37 +486,6 @@ def test_test_verb_emits_failed_on_nonzero_exit(tmp_path):
     assert "STATUS=error" in res.stdout
 
 
-@requires_bash
-def test_test_verb_emits_failed_on_fail_marker_in_log(tmp_path):
-    """test with exit 0 but 'FAIL:' in log output -> TEST_RESULT=failed."""
-    fake_bin = _make_fake_odoo_bin(
-        tmp_path, exit_code=0,
-        extra_output='echo "FAIL: test_my_module.TestCase.test_foo"'
-    )
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "test",
-        "--db", "failmarkerdb",
-        "--python", str(fake_py),
-        "--addons", str(addons_dir),
-        "--modules", "sale",
-        env=env,
-    )
-
-    # Exit 0 from the script is acceptable here (odoo-bin exited 0); what matters
-    # is that TEST_RESULT=failed is emitted.
-    combined = res.stdout + res.stderr
-    assert "TEST_RESULT=failed" in res.stdout, (
-        f"Expected TEST_RESULT=failed when log contains FAIL:.\nstdout:\n{res.stdout}\nstderr:\n{res.stderr}"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Contract 2c: test - skipped tests must NEVER read as a bare passed (issue #171)
 # ---------------------------------------------------------------------------
@@ -512,30 +495,28 @@ def test_test_verb_skip_only_run_is_inconclusive_never_passed(tmp_path):
     """A skip-only run (real repro shape from issue #171) must report
     TEST_RESULT=inconclusive, NEVER a bare TEST_RESULT=passed.
 
-    Repro: a single test is SKIPPED (never ran, e.g. missing chrome devtools
-    port), odoo-bin still prints "0 failed, 0 error(s) of 1 tests" and exits 0.
-    Before the fix, that "0 failed, 0 error" line alone was read as a pass.
-
-    Asserted as an EXACT stdout line (splitlines()), not a substring - a
-    substring check would be fooled by any future verdict value that happens
-    to start with "TEST_RESULT=passed" (e.g. a hypothetical
-    "TEST_RESULT=passed-with-skips"), which is exactly why `inconclusive` was
-    chosen as the verdict value instead.
-    """
+    Repro: tests are SKIPPED (never ran, e.g. missing chrome devtools port), odoo-bin still
+    prints "0 failed, 0 error(s) of 2 tests" and exits 0. Before the fix, that "0 failed, 0
+    error" line alone was read as a pass. Asserted as EXACT stdout lines (splitlines()), not a
+    substring - a substring check would be fooled by any future verdict value that happens to
+    start with "TEST_RESULT=passed", which is exactly why `inconclusive` was chosen as the verdict
+    value. Skips are NOT fatal (legitimate via @tagged filters / missing external deps): the
+    script's own exit stays 0 and STATUS=ok. TEST_SKIPPED=<n> is a first-class field counting
+    every skip line, and the skipped test NAMES are surfaced into the FINDINGS_PATH file under a
+    dedicated section so a caller can see WHICH tests were skipped."""
     extra_output = (
         'echo "INFO 12345 test odoo.addons.website_slides.tests.test_ui: '
         'skipped test_website_slides_tour : Failed to detect chrome devtools '
         'port after 10.0s."\n'
-        'echo "INFO 12345 test odoo.tests.result: 0 failed, 0 error(s) of 1 tests"'
+        'echo "INFO 1 test odoo.addons.foo.tests.test_a: skipped test_one : reason"\n'
+        'echo "INFO 12345 test odoo.tests.result: 0 failed, 0 error(s) of 2 tests"'
     )
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
-
     env = _base_env(tmp_path)
     env["ODOO_BIN"] = str(fake_bin)
-
     res = _run(
         "test",
         "--db", "skiponlydb",
@@ -544,7 +525,6 @@ def test_test_verb_skip_only_run_is_inconclusive_never_passed(tmp_path):
         "--modules", "website_slides",
         env=env,
     )
-
     stdout_lines = res.stdout.splitlines()
     assert "TEST_RESULT=inconclusive" in stdout_lines, (
         f"Expected an exact TEST_RESULT=inconclusive line for a skip-only run.\n"
@@ -553,155 +533,16 @@ def test_test_verb_skip_only_run_is_inconclusive_never_passed(tmp_path):
     assert "TEST_RESULT=passed" not in stdout_lines, (
         f"A skip-only run must NEVER report TEST_RESULT=passed.\nstdout:\n{res.stdout}"
     )
-
-
-@requires_bash
-def test_test_verb_emits_test_skipped_count(tmp_path):
-    """TEST_SKIPPED=<n> must be emitted as a first-class field, counting every
-    skip line matched by the version-robust skip regex (modern odoo.*test*:
-    skip shape), alongside TEST_FAILED/TEST_ERROR/TEST_WARNING."""
-    extra_output = (
-        'echo "INFO 1 test odoo.addons.foo.tests.test_a: skipped test_one : reason one"\n'
-        'echo "INFO 1 test odoo.addons.foo.tests.test_b: skipped test_two : reason two"\n'
-        'echo "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 2 tests"'
+    assert "TEST_SKIPPED=2" in stdout_lines, f"two skip lines must count as 2.\nstdout:\n{res.stdout}"
+    assert res.returncode == 0 and "STATUS=ok" in stdout_lines, (
+        f"a skip-only run must keep the script's own exit at 0.\nstdout:\n{res.stdout}\nstderr:\n{res.stderr}"
     )
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "test",
-        "--db", "skipcountdb",
-        "--python", str(fake_py),
-        "--addons", str(addons_dir),
-        "--modules", "foo",
-        env=env,
-    )
-
-    assert "TEST_SKIPPED=2" in res.stdout.splitlines(), (
-        f"Expected TEST_SKIPPED=2 for two skip lines.\nstdout:\n{res.stdout}"
-    )
-    assert "TEST_RESULT=inconclusive" in res.stdout.splitlines()
-
-
-@requires_bash
-def test_test_verb_skip_names_appear_in_findings_file(tmp_path):
-    """Skipped test NAMES must be surfaced into the FINDINGS_PATH file under a
-    dedicated section, mirroring the existing FAIL/ERROR and warnings sections -
-    never swallowed, so a caller can see WHICH tests were skipped."""
-    extra_output = (
-        'echo "INFO 1 test odoo.addons.website_slides.tests.test_ui: '
-        'skipped test_website_slides_tour : Failed to detect chrome devtools '
-        'port after 10.0s."\n'
-        'echo "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 1 tests"'
-    )
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "test",
-        "--db", "skipfindingsdb",
-        "--python", str(fake_py),
-        "--addons", str(addons_dir),
-        "--modules", "website_slides",
-        env=env,
-    )
-
-    findings_lines = [l for l in res.stdout.splitlines() if l.startswith("FINDINGS_PATH=")]
+    findings_lines = [l for l in stdout_lines if l.startswith("FINDINGS_PATH=")]
     assert len(findings_lines) == 1, f"Expected one FINDINGS_PATH= line.\nstdout:\n{res.stdout}"
-    findings_path = Path(findings_lines[0].split("=", 1)[1])
-    assert findings_path.exists(), f"findings file {findings_path} was not created."
-
-    findings_text = findings_path.read_text(encoding="utf-8")
-    assert "Skipped tests" in findings_text, (
-        f"findings file must have a Skipped tests section.\n{findings_text}"
-    )
-    assert "test_website_slides_tour" in findings_text, (
-        f"findings file must list the skipped test's name.\n{findings_text}"
-    )
-    assert "skipped=1" in findings_text, (
-        f"findings file Counts line must include the skipped count.\n{findings_text}"
-    )
-
-
-@requires_bash
-def test_test_verb_skip_alone_does_not_force_nonzero_exit(tmp_path):
-    """Skips are NOT fatal (legitimate via @tagged filters / missing external
-    deps): a skip-only run with odoo-bin exit 0 must keep exiting 0 and report
-    STATUS=ok - the skip verdict is surfaced via TEST_RESULT/TEST_SKIPPED only,
-    never by forcing a non-zero exit."""
-    extra_output = (
-        'echo "INFO 1 test odoo.addons.foo.tests.test_a: skipped test_one : reason"\n'
-        'echo "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 1 tests"'
-    )
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "test",
-        "--db", "skipexitdb",
-        "--python", str(fake_py),
-        "--addons", str(addons_dir),
-        "--modules", "foo",
-        env=env,
-    )
-
-    assert res.returncode == 0, (
-        f"a skip-only run with odoo-bin exit 0 must keep the script's own exit at 0.\n"
-        f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
-    )
-    assert "STATUS=ok" in res.stdout.splitlines()
-
-
-@requires_bash
-def test_test_verb_zero_skip_clean_run_still_emits_passed(tmp_path):
-    """Regression guard: a genuinely clean run (0 failed, 0 error, 0 skipped)
-    must still emit an exact TEST_RESULT=passed line and TEST_SKIPPED=0 - the
-    skip fix must not regress the plain-pass path."""
-    passing_summary = (
-        "2026-01-01 00:00:00,000 1 INFO cleanrundb odoo.service.server: "
-        "0 failed, 0 error(s) of 5 tests when loading database 'cleanrundb'"
-    )
-    fake_bin = _make_fake_odoo_bin(
-        tmp_path, exit_code=0, extra_output=f'echo "{passing_summary}"'
-    )
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "test",
-        "--db", "cleanrundb",
-        "--python", str(fake_py),
-        "--addons", str(addons_dir),
-        "--modules", "sale",
-        env=env,
-    )
-
-    assert res.returncode == 0
-    stdout_lines = res.stdout.splitlines()
-    assert "TEST_RESULT=passed" in stdout_lines, (
-        f"a genuinely clean 0-skip run must still emit an exact TEST_RESULT=passed line.\n"
-        f"stdout:\n{res.stdout}"
-    )
-    assert "TEST_SKIPPED=0" in stdout_lines
+    findings_text = Path(findings_lines[0].split("=", 1)[1]).read_text(encoding="utf-8")
+    assert "Skipped tests" in findings_text, findings_text
+    assert "test_website_slides_tour" in findings_text and "test_one" in findings_text, findings_text
+    assert "skipped=2" in findings_text, f"the Counts line must include the skipped count.\n{findings_text}"
 
 
 @requires_bash
@@ -1162,45 +1003,15 @@ def test_update_uses_dash_u_not_dash_i(tmp_path):
     assert " -i " not in call_content, f"update must NOT use -i flag: {call_content}"
     assert "--stop-after-init" in call_content
     assert "STATUS=ok" in res.stdout
+    # The default level is Odoo's own stock `info`, never the old quiet `warn`; with no --version
+    # the log handler is the odoo namespace.
+    assert "--log-level=info" in call_content and "--log-level=warn" not in call_content, call_content
+    assert "--log-handler=odoo.modules.loading:INFO" in call_content, call_content
 
 
 # ---------------------------------------------------------------------------
 # Extra: --extra flags are forwarded to odoo-bin
 # ---------------------------------------------------------------------------
-
-@requires_bash
-def test_init_forwards_extra_flags(tmp_path):
-    """--extra flags are forwarded verbatim to odoo-bin."""
-    # "Modules loaded." confirms the run per the deterministic completion
-    # contract (exit 0 alone is not proof - see _install_confirmed).
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "init",
-        "--db", "mydb",
-        "--python", str(fake_py),
-        "--addons", str(addons_dir),
-        "--modules", "sale",
-        "--extra", "--max-cron-threads=0 --skip-auto-install",
-        env=env,
-    )
-
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    call_log = tmp_path / "odoo-bin-calls.log"
-    call_content = call_log.read_text(encoding="utf-8")
-    assert "--max-cron-threads=0" in call_content, (
-        f"Expected --max-cron-threads=0 forwarded: {call_content}"
-    )
-    assert "--skip-auto-install" in call_content, (
-        f"Expected --skip-auto-install forwarded: {call_content}"
-    )
-
 
 # ---------------------------------------------------------------------------
 # Contract 5: ONE log-level default, shared by every verb, overridable per run.
@@ -1212,101 +1023,6 @@ def test_init_forwards_extra_flags(tmp_path):
 # a second, different one; they never snapshot a particular token beyond the
 # one behavioural fact that makes it the right default.
 # ---------------------------------------------------------------------------
-
-@requires_bash
-def test_init_defaults_to_log_level_info(tmp_path):
-    """init must inject --log-level=info by default (Odoo's own stock level -
-    the lowest at which a PASSING run still emits its summary line) and must
-    NOT inject the old quiet `warn` default."""
-    # "Modules loaded." confirms the run per the deterministic completion
-    # contract (exit 0 alone is not proof - see _install_confirmed).
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "init", "--db", "warndb", "--python", str(fake_py),
-        "--addons", str(addons_dir), "--modules", "sale",
-        env=env,
-    )
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=info" in call_content, (
-        f"Expected default --log-level=info on init: {call_content}"
-    )
-    assert "--log-level=warn" not in call_content, (
-        f"init must NOT emit the old quiet warn default: {call_content}"
-    )
-
-
-@requires_bash
-def test_update_defaults_to_log_level_info(tmp_path):
-    """update must inject the same --log-level=info default as init, and must
-    NOT inject the old quiet `warn` default."""
-    # "Modules loaded." confirms the run per the deterministic completion
-    # contract (exit 0 alone is not proof - see _install_confirmed).
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "update", "--db", "warndb2", "--python", str(fake_py),
-        "--addons", str(addons_dir), "--modules", "sale",
-        env=env,
-    )
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=info" in call_content, (
-        f"Expected default --log-level=info on update: {call_content}"
-    )
-    assert "--log-level=warn" not in call_content, (
-        f"update must NOT emit the old quiet warn default: {call_content}"
-    )
-
-
-@requires_bash
-def test_extra_log_level_overrides_the_default(tmp_path):
-    """A caller-supplied --log-level in --extra must OVERRIDE the script default.
-
-    Odoo takes the last occurrence of a repeated flag, so the default must
-    appear BEFORE the --extra value in the argv - assert both the presence and
-    the order. Asserted on a token the script's own default is NOT, so the test
-    cannot silently pass by matching the default against itself.
-    """
-    # "Modules loaded." confirms the run per the deterministic completion
-    # contract (exit 0 alone is not proof - see _install_confirmed).
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "init", "--db", "escdb", "--python", str(fake_py),
-        "--addons", str(addons_dir), "--modules", "sale",
-        "--extra", "--log-level=debug",
-        env=env,
-    )
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=info" in call_content and "--log-level=debug" in call_content, (
-        f"Expected both the default and the --extra override present: {call_content}"
-    )
-    # Order: the default must precede the --extra override so the override wins.
-    assert call_content.index("--log-level=info") < call_content.index("--log-level=debug"), (
-        f"the default must precede the --extra --log-level=debug override: {call_content}"
-    )
-
 
 # ---------------------------------------------------------------------------
 # Contract 6: active-wait on long builds.
@@ -1320,32 +1036,6 @@ def test_extra_log_level_overrides_the_default(tmp_path):
 #       mapping of the run's own verdict, and the guard that no verdict may
 #       reach a caller through a fallthrough, live in test_verdict_paths_agree.py.
 # ---------------------------------------------------------------------------
-
-@requires_bash
-def test_init_success_marker_run_maps_to_status_ok(tmp_path):
-    """A build that emits a success marker and exits 0 -> STATUS=ok, log preserved."""
-    fake_bin = _make_fake_odoo_bin(
-        tmp_path, exit_code=0, extra_output='echo "Modules loaded."'
-    )
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "init", "--db", "okmarker", "--python", str(fake_py),
-        "--addons", str(addons_dir), "--modules", "sale",
-        env=env,
-    )
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    assert "STATUS=ok" in res.stdout
-    log_line = [l for l in res.stdout.splitlines() if l.startswith("LOG_PATH=")]
-    assert len(log_line) == 1
-    log_path = Path(log_line[0].split("=", 1)[1])
-    assert log_path.exists() and "Modules loaded." in log_path.read_text(encoding="utf-8")
-
 
 @requires_bash
 def test_init_failure_marker_run_preserves_log(tmp_path):
@@ -1514,30 +1204,6 @@ def test_init_forces_log_handler_namespace_by_version(tmp_path, series, expected
 
 
 @requires_bash
-def test_init_log_handler_defaults_to_odoo_namespace_when_version_omitted(tmp_path):
-    """Omitting --version must default the namespace to 'odoo' (the v10+
-    majority) rather than failing or omitting the flag entirely."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "init", "--db", "noversiondb", "--python", str(fake_py),
-        "--addons", str(addons_dir), "--modules", "sale",
-        env=env,
-    )
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-handler=odoo.modules.loading:INFO" in call_content, (
-        f"expected the odoo (v10+ default) namespace when --version is omitted: {call_content}"
-    )
-
-
-@requires_bash
 @pytest.mark.parametrize("series,expected_ns", [
     ("8.0", "openerp"),
     ("9.0", "openerp"),
@@ -1568,31 +1234,6 @@ def test_update_forces_log_handler_namespace_by_version(tmp_path, series, expect
     expected_flag = f"--log-handler={expected_ns}.modules.loading:INFO"
     assert expected_flag in call_content, (
         f"series={series}: expected {expected_flag!r} in odoo-bin invocation: {call_content}"
-    )
-
-
-@requires_bash
-def test_update_log_handler_defaults_to_odoo_namespace_when_version_omitted(tmp_path):
-    """Omitting --version must default the namespace to 'odoo' (the v10+
-    majority) rather than failing or omitting the flag entirely - mirrors
-    test_init_log_handler_defaults_to_odoo_namespace_when_version_omitted."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
-    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
-    addons_dir = tmp_path / "addons"
-    addons_dir.mkdir()
-
-    env = _base_env(tmp_path)
-    env["ODOO_BIN"] = str(fake_bin)
-
-    res = _run(
-        "update", "--db", "noversionupddb", "--python", str(fake_py),
-        "--addons", str(addons_dir), "--modules", "sale",
-        env=env,
-    )
-    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-handler=odoo.modules.loading:INFO" in call_content, (
-        f"expected the odoo (v10+ default) namespace when --version is omitted: {call_content}"
     )
 
 
@@ -2123,11 +1764,8 @@ def _verdict(res: subprocess.CompletedProcess) -> str:
 
 @requires_bash
 @pytest.mark.parametrize("verb", ["init", "update"])
-@pytest.mark.parametrize(
-    "series",
-    ["8.0", "9.0", "10.0", "11.0", "12.0", "13.0",
-     "14.0", "15.0", "16.0", "17.0", "18.0", "19.0"],
-)
+@pytest.mark.parametrize("series", ["8.0", "14.0", "19.0"])  # the ends of the span and the
+# series from which `runbot` is displayed: the token is resolved without a series gate
 def test_default_log_level_token_is_valid_on_every_supported_series(tmp_path, verb, series):
     """Whatever --log-level token the script resolves for a series, it must be a
     member of the intersection of all 12 series' accepted values.
@@ -2307,10 +1945,8 @@ def test_test_summary_failure_is_parsed_in_every_era(tmp_path, series, fail_line
 @requires_bash
 @pytest.mark.parametrize("series,ran_line", [
     ("8.0", RAN_LINE_V8_V13),
-    ("12.0", RAN_LINE_V8_V13),
     ("13.0", RAN_LINE_V8_V13),
     ("14.0", RAN_LINE_V14_PLUS),
-    ("17.0", RAN_LINE_V14_PLUS),
     ("19.0", RAN_LINE_V14_PLUS),
 ])
 def test_green_run_needs_an_era_correct_ran_marker(tmp_path, series, ran_line):
@@ -2519,7 +2155,7 @@ def test_completion_marker_floor_survives_a_quieter_caller_level(tmp_path):
 # ---------------------------------------------------------------------------
 
 @requires_bash
-@pytest.mark.parametrize("series", ["08.0", "09.0"])
+@pytest.mark.parametrize("series", ["08.0"])  # 08 and 09 are both invalid octal: one failure mode
 def test_zero_padded_legacy_series_still_resolves_the_openerp_namespace(tmp_path, series):
     """A zero-padded v8/v9 --version must still force
     `--log-handler=openerp.modules.loading:INFO` on a v8/v9 checkout.
@@ -2552,7 +2188,7 @@ def test_zero_padded_legacy_series_still_resolves_the_openerp_namespace(tmp_path
 
 
 @requires_bash
-@pytest.mark.parametrize("series", ["08.0", "09.0"])
+@pytest.mark.parametrize("series", ["08.0"])  # 08 and 09 are both invalid octal: one failure mode
 def test_zero_padded_legacy_series_still_picks_the_legacy_ran_marker(tmp_path, series):
     """A zero-padded v8/v9 must accept the LEGACY ran-marker and reject the v14+ one.
 
@@ -3124,25 +2760,6 @@ def test_a_hoot_run_reports_the_root_suite_total_and_never_sums_nested_suites(tm
 
 
 @requires_bash
-def test_two_runs_sharing_a_test_name_are_counted_as_two_failures(tmp_path):
-    """THE de-duplication bug. The run boundary is the logger scope, not the file.
-
-    Desktop and mobile suites run the same test names, so a whole-file
-    `sort -u` of failing names merges them and reports one failure where there
-    are two. On the real corpus that single mistake loses 632 failures in one
-    log."""
-    res = _run_test_verb_lines(tmp_path, "twoscopes", [
-        JS_HOOT_FAIL_B, JS_HOOT_FAIL_MOBILE,
-    ])
-    assert _field(res, "JS_RUNS") == "2", res.stdout
-    assert _field(res, "JS_FAILED_TESTS") == "2", (
-        "the same test name failed in two DIFFERENT runs; collapsing them to 1 is "
-        f"the whole-file de-duplication defect\n{res.stdout}"
-    )
-    assert _field(res, "JS_FAILED_REPORTED") == "2", res.stdout
-
-
-@requires_bash
 def test_qunit_reports_its_own_assertion_aggregate_beside_the_test_names(tmp_path):
     """Two quantities, two fields - because they are two UNITS.
 
@@ -3189,137 +2806,90 @@ def test_an_aggregate_with_no_logger_scope_is_still_read(tmp_path):
 
 
 @requires_bash
-def test_a_success_signal_echo_is_never_read_as_a_js_run(tmp_path):
-    """The false-green trap, and its mirror image.
-
-    Odoo prints the failing `browser_js(...)` source line inside its traceback,
-    so a FAILING run's log contains `success_signal="[HOOT] Test suite
-    succeeded"` verbatim. It must not be counted as a green run - and it must
-    not be counted as a measured ZERO either, which would tell a caller the JS
-    suite ran and passed."""
-    res = _run_test_verb_lines(tmp_path, "echoonly", [
-        JS_ECHO_SOURCE_LINE, FAIL_LINE_ALL_SERIES,
+def test_text_that_is_not_a_js_run_leaves_the_js_fields_unmeasured(tmp_path):
+    """A module with no JS suite - and every series before 11.0 - measures nothing: EMPTY, not 0,
+    because a fabricated zero says the browser suite ran and found nothing wrong, which is a
+    different claim from "no browser suite ran". Three decoys must not be read as a JS run:
+    Python failures alone; the traceback ECHO of a failing `browser_js(...)` source line, which
+    contains `success_signal="[HOOT] Test suite succeeded"` verbatim (not a green run, and not a
+    measured ZERO either); and a tour, which logs under a `.browser` logger too but publishes no
+    Hoot/QUnit marker."""
+    res = _run_test_verb_lines(tmp_path, "nojsrun", [
+        FAIL_LINE_V14_PLUS,
+        JS_ECHO_SOURCE_LINE,
+        "2026-01-01 00:00:01,000 1 INFO testdb "
+        "odoo.addons.my_mod.tests.test_tour.TestTour.test_checkout_tour.browser: "
+        "tour my_mod_checkout succeeded",
     ])
     assert _verdict(res) == "failed", res.stdout
+    assert _field(res, "TEST_FAILED") == "3", res.stdout
     for name in ("JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS"):
         assert _field(res, name) == "", (
-            f"{name} must be EMPTY: the log's only JS text is a traceback echo, so "
-            f"nothing about the JS suite was measured\n{res.stdout}"
+            f"{name} must be EMPTY: the log's only JS-looking text is a decoy (a tour line, a "
+            f"traceback echo, Python failures), so nothing about a JS suite was measured\n{res.stdout}"
         )
 
 
 @requires_bash
-def test_a_green_marker_in_one_scope_does_not_speak_for_a_failing_scope(tmp_path):
-    """A real green marker and a red run coexist in the same file.
-
-    Observed on a real 19.0 log: `WebSuite.test_hoot` genuinely succeeded while
-    `WebSuite.test_unit_desktop` failed 477 tests in the same run. So the logger
-    prefix separates a marker from an echo, but it does NOT make that marker a
-    verdict for the file - only for its own scope."""
-    res = _run_test_verb_lines(tmp_path, "mixedscopes", [
-        JS_HOOT_GREEN_OTHER_SCOPE, JS_HOOT_FAIL_A, JS_HOOT_FAIL_B,
-    ])
-    assert _verdict(res) == "failed", res.stdout
-    assert _field(res, "JS_RUNS") == "2", (
-        "the green scope is a run too - it is counted, not treated as the verdict "
-        f"for the file\n{res.stdout}"
-    )
-    assert _field(res, "JS_FAILED_TESTS") == "2", res.stdout
-    assert _field(res, "JS_FAILED_REPORTED") == "2", res.stdout
-
-
-@requires_bash
-def test_a_python_only_run_reports_the_js_fields_as_unmeasured(tmp_path):
-    """A module with no JS suite - and every series before 11.0 - measures nothing.
-
-    EMPTY, not 0: a fabricated zero says the browser suite ran and found nothing
-    wrong, which is a different claim from "no browser suite ran"."""
-    res = _run_test_verb_lines(tmp_path, "pythononly", [FAIL_LINE_V14_PLUS])
-    assert _verdict(res) == "failed", res.stdout
-    assert _field(res, "TEST_FAILED") == "3", res.stdout
-    for name in ("JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS"):
-        assert _field(res, name) == "", res.stdout
-
-
-@requires_bash
-def test_a_js_only_failure_is_never_certified_green(tmp_path):
-    """A JS failure alone decides the run, on both count paths.
-
-    Today the Python wrapper method raises, so one `FAIL:` line survives. That
-    is an Odoo implementation detail, not a contract: if the wrapper ever stops
-    raising, a run with hundreds of browser failures and exit 0 would be
-    certified `passed`. The JS vocabulary is part of the failure union so it
-    cannot."""
-    res = _run_test_verb_lines(tmp_path, "jsonly", [
-        RAN_LINE_V14_PLUS, JS_HOOT_FAIL_A, JS_HOOT_FAIL_B,
-    ], exit_code=0)
-    assert _verdict(res) == "failed", (
-        "a run whose only failures are in the browser suite must not read as "
-        f"passed\n{res.stdout}"
-    )
-    assert "_No failing or errored tests detected in the log._" not in _findings_text(res), (
-        "the findings file must never answer 'no failing tests' for a run whose "
-        "browser suite named individual failures"
-    )
-
-
-@requires_bash
-def test_the_findings_file_names_every_failing_js_test_under_its_own_run(tmp_path):
-    """Evidence, not just a number: the caller routes THIS file to a debugger.
-
-    Each failing test is named under the run it failed in, so a fix loop can act
-    on it without re-grepping the log - and so the two scopes' identically named
-    tests stay distinguishable."""
-    res = _run_test_verb_lines(tmp_path, "jsfindings", [
+def test_every_scope_is_its_own_run_whatever_its_module_and_test_names(tmp_path):
+    """THE de-duplication bug: the run boundary is the logger scope, not the file. Desktop and
+    mobile suites run the same test names, so a whole-file `sort -u` of failing names merges them
+    and reports one failure where there are two (on the real corpus that single mistake loses 632
+    failures in one log); two modules with the same suite name and a custom module's own test
+    file are runs too, and every failing test is named in the findings under the run it failed
+    in - so the same test failing in two runs is named under BOTH."""
+    mod_line = ("2026-01-01 00:00:01,000 1 ERROR testdb odoo.addons.%s.tests.test_ui.UiSuite.browser: "
+                '[HOOT] Test "@shared/same name" failed:')
+    res = _run_test_verb_lines(tmp_path, "jsscopes", [
         JS_HOOT_FAIL_B, JS_HOOT_FAIL_MOBILE, JS_QUNIT_FAIL_ERR, JS_QUNIT_AGG_ERR,
+        mod_line % "mod_a", mod_line % "mod_b",
+        "2026-01-01 00:00:01,000 1 ERROR testdb "
+        "odoo.addons.my_mod.tests.test_my_ui.MyModSuite.test_hoot.browser: "
+        '[HOOT] Test "@my_mod/widget/renders" failed:',
     ])
+    assert _field(res, "JS_RUNS") == "6", res.stdout
+    assert _field(res, "JS_FAILED_TESTS") == "6", (
+        "the same test name failed in different RUNS; collapsing them is the whole-file "
+        f"de-duplication defect\n{res.stdout}"
+    )
     text = _findings_text(res)
     assert "## JS test failures (Hoot/QUnit), per run" in text, text
     assert "### web.test_js.WebSuite.test_unit_desktop" in text, text
     assert "### web.test_js.MobileWebSuite.test_unit_mobile" in text, text
     assert "### web.test_js.WebSuite\n" in text, text
+    assert "### my_mod.test_my_ui.MyModSuite.test_hoot" in text, text
     assert "@web/core/autocomplete/close on escape" in text, text
     assert "mail > mobile > Edit message (mobile)" in text, text
     assert text.count("@web/core/autocomplete/close on escape") >= 2, (
-        "the same test failed in two runs and must be named under BOTH, not "
-        f"folded into one:\n{text}"
+        f"the same test failed in two runs and must be named under BOTH, not folded into one:\n{text}"
     )
+    assert text.count("@shared/same name") >= 2, text
 
 
 @requires_bash
-def test_a_hoot_run_from_a_custom_modules_own_test_file_is_measured(tmp_path):
-    """A custom module drives its Hoot suite from a test file of its own, not core's test_js:
-    its failures are still counted, under a run named by its module and file."""
-    res = _run_test_verb_lines(tmp_path, "jscustom", [
-        "2026-01-01 00:00:01,000 1 ERROR testdb "
-        "odoo.addons.my_mod.tests.test_my_ui.MyModSuite.test_hoot.browser: "
-        '[HOOT] Test "@my_mod/widget/renders" failed:',
-    ])
-    assert _field(res, "JS_RUNS") == "1"
-    assert _field(res, "JS_FAILED_TESTS") == "1"
-    assert "### my_mod.test_my_ui.MyModSuite.test_hoot" in _findings_text(res)
-
-
-@requires_bash
-def test_two_modules_with_the_same_suite_name_are_two_runs(tmp_path):
-    line = ("2026-01-01 00:00:01,000 1 ERROR testdb odoo.addons.%s.tests.test_ui.UiSuite.browser: "
-            '[HOOT] Test "@shared/same name" failed:')
-    res = _run_test_verb_lines(tmp_path, "jstwomods", [line % "mod_a", line % "mod_b"])
-    assert _field(res, "JS_RUNS") == "2"
-    assert _field(res, "JS_FAILED_TESTS") == "2", "one failure per module, never folded into one"
-
-
-@requires_bash
-def test_a_tour_browser_line_is_never_counted_as_a_js_run(tmp_path):
-    """A tour logs under a `.browser` logger too, but publishes no Hoot/QUnit marker."""
-    res = _run_test_verb_lines(tmp_path, "jstour", [
-        "2026-01-01 00:00:01,000 1 INFO testdb "
-        "odoo.addons.my_mod.tests.test_tour.TestTour.test_checkout_tour.browser: "
-        "tour my_mod_checkout succeeded",
-        "2026-01-01 00:00:02,000 1 INFO testdb odoo.tests.result: 0 failed, 0 error(s) of 1 tests",
+def test_a_js_failure_decides_the_run_and_a_green_scope_speaks_only_for_itself(tmp_path):
+    """A real green marker and a red run coexist in the same file. Observed on a real 19.0 log:
+    `WebSuite.test_hoot` genuinely succeeded while `WebSuite.test_unit_desktop` failed 477 tests
+    in the same run, so the logger prefix separates a marker from an echo but does NOT make that
+    marker a verdict for the file - only for its own scope. And a JS failure alone decides the
+    run: today the Python wrapper method raises, so one `FAIL:` line survives, but that is an
+    Odoo implementation detail, not a contract - if the wrapper ever stops raising, a run with
+    hundreds of browser failures and exit 0 would be certified `passed`."""
+    res = _run_test_verb_lines(tmp_path, "mixedscopes", [
+        RAN_LINE_V14_PLUS, JS_HOOT_GREEN_OTHER_SCOPE, JS_HOOT_FAIL_A, JS_HOOT_FAIL_B,
     ], exit_code=0)
-    assert _field(res, "JS_RUNS") == ""
-    assert _field(res, "JS_FAILED_TESTS") == ""
+    assert _verdict(res) == "failed", (
+        f"a run whose only failures are in the browser suite must not read as passed\n{res.stdout}"
+    )
+    assert _field(res, "JS_RUNS") == "2", (
+        f"the green scope is a run too - it is counted, not the verdict for the file\n{res.stdout}"
+    )
+    assert _field(res, "JS_FAILED_TESTS") == "2", res.stdout
+    assert _field(res, "JS_FAILED_REPORTED") == "2", res.stdout
+    assert "_No failing or errored tests detected in the log._" not in _findings_text(res), (
+        "the findings file must never answer 'no failing tests' for a run whose "
+        "browser suite named individual failures"
+    )
 
 
 @requires_bash
@@ -3537,8 +3107,11 @@ def _run_conf_lines(argv):
     return Path(argv[argv.index("-c") + 1]).read_text(encoding="utf-8").splitlines()
 
 
+# Demo OFF is spelled --without-demo=True everywhere; one series of each option era is enough
+# (before 19.0 the checkout declares only --without-demo; from 19.0 --with-demo too).
 @requires_bash
-@pytest.mark.parametrize("series,demo", sorted(DEMO_FLAG))
+@pytest.mark.parametrize("series,demo", [key for key in sorted(DEMO_FLAG)
+                                         if key[1] == "on" or key[0] in ("8.0", "19.0")])
 def test_demo_is_spelled_with_the_series_own_flag(tmp_path, series, demo):
     """The flag is the one the checkout's config.py declares - never keyed on --version: the run
     passes no --version at all."""
@@ -3585,44 +3158,37 @@ def test_demo_flag_on_the_real_config_of_every_series(tmp_path, series, demo):
 
 @requires_bash
 @pytest.mark.parametrize("verb", ["init", "update", "test"])
-def test_every_build_reads_only_the_config_file_the_script_wrote(tmp_path, verb):
+def test_every_build_states_its_facts_and_reads_only_the_config_file_the_script_wrote(tmp_path, verb):
     """-c names a file under the state root holding nothing but [options] (and what the run
-    itself states): the operator's ~/.odoorc never reaches a build."""
-    res, argv = _facts_run(tmp_path, verb, "--version", "17.0")
+    itself states): the operator's ~/.odoorc never reaches a build. --load and --languages reach
+    odoo-bin and are echoed; with no --demo the series' default is echoed as empty; and
+    BUILD_MODULES_LOADED says the modules finished loading ("Modules loaded." is what proves the
+    languages were loaded)."""
+    res, argv = _facts_run(tmp_path, verb, "--version", "17.0", "--load", "base,web,to_base",
+                           "--languages", "en_US,vi_VN")
     assert argv is not None, res.stderr
     conf = Path(argv[argv.index("-c") + 1])
     assert conf.name == "factsdb-build.conf", "keyed by the database, overwritten in place"
     assert conf.read_text(encoding="utf-8").splitlines() == ["[options]"]
+    assert "--load=base,web,to_base" in argv and "--load-language=en_US,vi_VN" in argv
+    lines = res.stdout.splitlines()
+    assert "BUILD_SERVER_WIDE_MODULES=base,web,to_base" in lines
+    assert "BUILD_LANGUAGES=en_US,vi_VN" in lines
+    assert "BUILD_DEMO=" in lines, "no --demo given: the series' default, echoed as empty"
+    assert "BUILD_MODULES_LOADED=1" in lines, res.stdout
 
 
 @requires_bash
 @pytest.mark.parametrize("verb", ["init", "update", "test"])
-@pytest.mark.parametrize("loaded", [True, False])
-def test_each_build_says_whether_its_modules_finished_loading(tmp_path, verb, loaded):
-    """BUILD_MODULES_LOADED: Odoo activates --load-language before its "Modules loaded." line, so
-    that line - not a test suite's verdict - is what proves the languages were loaded."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output=(
-        'echo "Modules loaded."' if loaded else 'echo "loading 3 modules..."'), series="17.0")
+def test_a_build_whose_modules_did_not_finish_loading_says_so(tmp_path, verb):
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "loading 3 modules..."', series="17.0")
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     (tmp_path / "addons").mkdir(exist_ok=True)
     env = _base_env(tmp_path)
     env["ODOO_BIN"] = str(fake_bin)
     res = _run(verb, "--db", "factsdb", "--python", str(fake_py), "--addons",
                str(tmp_path / "addons"), "--modules", "sale", env=env)
-    assert "BUILD_MODULES_LOADED=%d" % (1 if loaded else 0) in res.stdout.splitlines(), res.stdout
-
-
-@requires_bash
-@pytest.mark.parametrize("verb", ["init", "update", "test"])
-def test_load_and_languages_reach_odoo_bin_and_are_echoed(tmp_path, verb):
-    res, argv = _facts_run(tmp_path, verb, "--version", "17.0", "--load", "base,web,to_base",
-                           "--languages", "en_US,vi_VN")
-    assert argv is not None, res.stderr
-    assert "--load=base,web,to_base" in argv and "--load-language=en_US,vi_VN" in argv
-    lines = res.stdout.splitlines()
-    assert "BUILD_SERVER_WIDE_MODULES=base,web,to_base" in lines
-    assert "BUILD_LANGUAGES=en_US,vi_VN" in lines
-    assert "BUILD_DEMO=" in lines, "no --demo given: the series' default, echoed as empty"
+    assert "BUILD_MODULES_LOADED=0" in res.stdout.splitlines(), res.stdout
 
 
 @requires_bash

@@ -30,6 +30,15 @@ of re-implementing it.
 `model_context` reads the text a Stop / SubagentStop hook hands the MODEL and
 `handback_records` builds a delivered SubagentHandback, so the hook test files
 share one reading of the channel contract instead of a copy each.
+
+## The serial set (timing-sensitive tests)
+
+`make test` runs the suite in two passes: every test NOT marked `serial` in parallel
+(`pytest -n <workers> --dist loadfile`, one worker per file at a time so a module-scoped fixture is
+built once per file), then the marked set alone, one process, nothing else running. A test that
+asserts something finishes well inside a time bound is reliable only when the machine is not
+loaded by sibling workers, so it belongs in `SERIAL_TESTS` below - the ONE place that list lives.
+A plain `python -m pytest tests/` still runs everything in one process and needs no plugin.
 """
 
 from __future__ import annotations
@@ -416,3 +425,64 @@ def brief_record(text: str = "Do the task and report.") -> str:
     """A dispatched agent's first prompt, the record its first turn starts at."""
     import json
     return json.dumps({"type": "user", "message": {"role": "user", "content": text}})
+
+
+# ---------------------------------------------------------------------------
+# The serial set: tests that assert "finishes well inside a time bound" (or drive a real browser
+# with long waits) and so are reliable only when the machine is not loaded by parallel workers.
+#
+# ADD AN ENTRY HERE AND NOWHERE ELSE. Each entry is an fnmatch pattern over the pytest node id
+# (`tests/<file>.py::<test name>[<param id>]`); end a name with `*` to take every parametrized
+# case or every test with that prefix, and never write `[` in a pattern (it is a character class).
+# `tests/<file>.py::*` serializes a whole file. `tests/test_serial_set.py` fails when a pattern
+# matches no collected test, so a renamed or deleted test cannot silently leave the set.
+# ---------------------------------------------------------------------------
+SERIAL_TESTS = (
+    # Elapsed-time bound tests of the bounded runner.
+    "tests/test_pg_mode.py::test_bounded_run_*",
+    "tests/test_pg_mode.py::test_pg_hba_file_path_is_bounded_*",
+    # Real Chromium; the module-scoped `unmet_waits` fixture holds two 30 s waits.
+    "tests/test_video_recorder.py::test_a_selector_wait_gives_up_after_30_seconds_by_default",
+    "tests/test_video_recorder.py::test_an_unmet_selector_exits_3_naming_the_step",
+    "tests/test_video_recorder.py::test_network_idle_ignores_the_long_lived_bus_connection_of_a_web_client",
+    "tests/test_video_recorder.py::test_ui_user_signs_in_off_camera_and_the_clip_starts_at_the_scene",
+    "tests/test_video_recorder.py::test_language_switch_runs_off_camera_before_the_take",
+    # Readiness, spin-up and probe time bounds.
+    "tests/test_step45_50_harden.py::test_step50_readiness_poll_is_bounded_never_hangs",
+    "tests/test_step45_50_harden.py::test_step50_a_timed_out_exclusive_spinup_binds_its_pid_and_reaps_the_whole_group",
+    "tests/test_step45_50_harden.py::test_step50_a_probe_that_does_not_answer_is_never_a_reachability_verdict*",
+    "tests/test_step45_50_harden.py::test_step50_falls_back_to_web_login_when_selector_never_ready",
+    # A hook or tool refusal that must land well inside its timeout on a long input.
+    "tests/test_unowned_lease_mutation_gate.py::test_a_forwarded_lease_release_is_refused_well_inside_the_timeout_on_a_long_dispatch",
+    "tests/test_enforce_teardown.py::test_a_live_lease_on_a_long_transcript_is_blocked_well_inside_the_timeout",
+    # Port and row timing of the two-phase release; failed once each under five-way load.
+    "tests/test_allocator_release_two_phase.py::*",
+    "tests/test_report_terminal_status.py::*",
+    "tests/test_enforce_grounding.py::*",
+    # A hook returning at once from a detached session; a bound that elapses and kills its group.
+    "tests/test_enforce_teardown.py::test_session_end_gc_returns_at_once_and_reaps_from_a_detached_session",
+    "tests/test_run_bounded.py::test_the_bound_elapses_with_124_and_kills_the_whole_group",
+    # Elapsed bounds, a 1 s grace and a 60000-line flood.
+    "tests/test_instance_ops_test_shutdown.py::*",
+    # The local MCP server answers promptly while long waits block, and stops its waits when cancelled.
+    "tests/test_odoo_local_mcp_protocol.py::test_short_calls_answer_promptly_while_more_long_waits_than_workers_block",
+    "tests/test_odoo_local_mcp_protocol.py::test_a_lease_mutation_answers_promptly_while_forty_long_waits_block",
+    "tests/test_odoo_local_mcp_protocol.py::test_a_cancelled_call_stops_waiting_and_gets_no_response",
+    "tests/test_odoo_local_mcp_protocol.py::test_stdin_eof_stops_cancellable_waits_so_the_server_exits_promptly",
+    "tests/test_odoo_local_mcp_protocol.py::test_job_wait_returns_early_when_its_call_is_cancelled",
+    "tests/test_odoo_local_mcp_protocol.py::test_run_timeout_kills_the_whole_process_group",
+    # Allocates 900 MB inside 256 MB capped scopes, plus a wall-clock bound.
+    "tests/test_memory_capped_launch.py::*",
+    # Probe bounds of the allocator.
+    "tests/test_allocator.py::test_the_probe_bound_is_the_same_knob_the_shell_half_uses",
+    "tests/test_allocator.py::test_ephemeral_acquire_returns_a_verdict_when_the_createdb_probe_hangs",
+)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    """Mark every test in `SERIAL_TESTS` `serial`, before `-m` selects by mark."""
+    from fnmatch import fnmatchcase
+    for item in items:
+        if any(fnmatchcase(item.nodeid, pattern) for pattern in SERIAL_TESTS):
+            item.add_marker(pytest.mark.serial)

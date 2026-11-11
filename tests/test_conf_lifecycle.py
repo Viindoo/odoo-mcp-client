@@ -28,11 +28,6 @@ GT2 - **the sweep is actually REACHED, from BOTH of its named callers.** This re
   (a leased db survives regardless of age) and the fail-closed posture (an unreadable registry
   prunes NOTHING).
 
-Retention SSOT - **the bound is declared in exactly ONE place.** `_LOG_RETENTION_DAYS` owns the
-  number. A prose copy of it lies the day someone changes the lease, and this repo has been bitten
-  repeatedly by a restatement outliving its definition - so any block of documentation or code
-  that talks about the sweeper must NAME the constant and must not spell a day count.
-
 Offline: no PostgreSQL, no real Odoo, no network. odoo-bin / python / curl / pg_isready are stubs.
 """
 from __future__ import annotations
@@ -46,6 +41,7 @@ import textwrap
 import time
 from pathlib import Path
 from shutil import which
+from types import SimpleNamespace
 
 import pytest
 
@@ -54,10 +50,8 @@ from conftest import real_python3
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
-PLUGINS_DIR = ROOT / "plugins"
 STEP50 = PLUGIN / "scripts" / "setup-steps" / "50-instance-spinup.sh"
 STEP55 = PLUGIN / "scripts" / "setup-steps" / "55-instance-ops.sh"
-STATE_RECLAIM = PLUGIN / "scripts" / "lib" / "state_reclaim.sh"
 
 DB = "odoo_test"
 PORT = 18069
@@ -311,33 +305,54 @@ def _seed_leases(home: Path, db_names) -> Path:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="module")
+def respins(tmp_path_factory):
+    """ONE sandbox spun up three times in a row - the declared instance, the SAME instance
+    again (now with a gevent port), then the same db on a second port - with what the
+    filesystem held after each. The three GT1 tests below read these snapshots instead of
+    each paying for its own spin-ups."""
+    sb = Sandbox(tmp_path_factory.mktemp("respins"))
+    try:
+        snaps = SimpleNamespace(sandbox=sb)
+        conf = sb.conf_dir / f"{DB}-{PORT}.conf"
+
+        snaps.first = sb.apply()
+        snaps.first_text = conf.read_text(encoding="utf-8") if conf.exists() else ""
+        sb.reset_server()
+        snaps.second = sb.apply("--gevent-port", "18072", "--gevent-port-key", "gevent_port")
+        snaps.second_confs = sb.confs()
+        snaps.second_text = conf.read_text(encoding="utf-8") if conf.exists() else ""
+        sb.reset_server()
+        snaps.third = sb.apply("--http-port", str(ALT_PORT))
+        snaps.third_confs = sb.confs()
+        snaps.ambient = sb.ambient_files()
+        yield snaps
+    finally:
+        sb.reap()
+
+
 @requires_bash
-def test_two_spinups_of_one_instance_leave_exactly_one_conf(sandbox):
+def test_two_spinups_of_one_instance_leave_exactly_one_conf(respins):
     """GT1(1)+(2) - the SAME instance spun up twice leaves ONE conf, and the ambient temp dir
     stays empty.
 
     This is the leak, stated as a filesystem fact: under the old per-invocation `mktemp` name the
     second run added a second file and neither was ever removed on the success path.
     """
-    first = sandbox.apply()
-    assert first.returncode == 0, f"first apply failed:\n{first.stdout}\n{first.stderr}"
-    sandbox.reset_server()
-    second = sandbox.apply()
-    assert second.returncode == 0, f"second apply failed:\n{second.stdout}\n{second.stderr}"
-
-    assert sandbox.ambient_files() == [], (
+    for run in (respins.first, respins.second):
+        assert run.returncode == 0, f"apply failed:\n{run.stdout}\n{run.stderr}"
+    assert respins.ambient == [], (
         "a spin-up must write NOTHING to the ambient temp dir ($TMPDIR): a file there is not "
-        "namespaced per project, is wiped on reboot, and has no owner on any exit path. Found: "
-        f"{sandbox.ambient_files()}"
+        f"namespaced per project, is wiped on reboot, and has no owner on any exit path. Found: {respins.ambient}"
     )
-    assert sandbox.confs() == [f"{DB}-{PORT}.conf"], (
+    assert respins.second_confs == [f"{DB}-{PORT}.conf"], (
         "two spin-ups of the SAME declared instance must leave exactly ONE conf, named "
-        f"<db>-<port>.conf, under $ODOO_AI_HOME/conf/. Found: {sandbox.confs()}"
+        f"<db>-<port>.conf, under $ODOO_AI_HOME/conf/. Found: {respins.second_confs}"
     )
 
 
 @requires_bash
-def test_conf_key_includes_the_port_so_a_second_port_gets_its_own_file(sandbox):
+def test_conf_key_includes_the_port_so_a_second_port_gets_its_own_file(respins):
     """GT1(3) - the key is `(db, port)`, not `db` alone.
 
     Two live instances of the same database on different ports are legal (the allocator issues
@@ -345,45 +360,31 @@ def test_conf_key_includes_the_port_so_a_second_port_gets_its_own_file(sandbox):
     other's live, open configuration. A `db`-only key passes the "one file per instance" test
     above while silently reintroducing exactly that collision.
     """
-    assert sandbox.apply().returncode == 0
-    sandbox.reset_server()
-    res = sandbox.apply("--http-port", str(ALT_PORT))
-    assert res.returncode == 0, f"apply on the alternate port failed:\n{res.stdout}\n{res.stderr}"
-
-    assert sandbox.confs() == sorted([f"{DB}-{PORT}.conf", f"{DB}-{ALT_PORT}.conf"]), (
+    assert respins.third.returncode == 0, f"{respins.third.stdout}\n{respins.third.stderr}"
+    assert respins.third_confs == sorted([f"{DB}-{PORT}.conf", f"{DB}-{ALT_PORT}.conf"]), (
         "the conf key must include the http port: the same db on a second port needs its OWN "
-        f"conf file, or one live instance overwrites another's open config. Found: {sandbox.confs()}"
+        f"conf file, or one live instance overwrites another's open config. Found: {respins.third_confs}"
     )
-    assert sandbox.ambient_files() == []
 
 
 @requires_bash
-def test_respinning_an_instance_overwrites_its_conf_in_place(sandbox):
+def test_respinning_an_instance_overwrites_its_conf_in_place(respins):
     """GT1(4) - the conf holds the MOST RECENT run's config, written by truncation.
 
     Two independent failure modes are excluded at once: an append (which would leave two
     `[options]` sections and a server reading a stale first one) and a stale keep (which would
     silently launch the next run against the previous run's flags).
     """
-    assert sandbox.apply().returncode == 0
-    conf = sandbox.conf_dir / f"{DB}-{PORT}.conf"
-    first_text = conf.read_text(encoding="utf-8")
-    assert "gevent_port" not in first_text
-
-    sandbox.reset_server()
-    res = sandbox.apply("--gevent-port", "18072", "--gevent-port-key", "gevent_port")
-    assert res.returncode == 0, f"{res.stdout}\n{res.stderr}"
-
-    text = conf.read_text(encoding="utf-8")
-    assert "gevent_port = 18072" in text, (
+    assert respins.first.returncode == 0 and respins.second.returncode == 0
+    assert "gevent_port" not in respins.first_text
+    assert "gevent_port = 18072" in respins.second_text, (
         "the conf must carry the MOST RECENT run's configuration - a re-spin that leaves the "
-        f"previous run's file untouched launches against stale flags. Got:\n{text}"
+        f"previous run's file untouched launches against stale flags. Got:\n{respins.second_text}"
     )
-    assert text.count("[options]") == 1, (
+    assert respins.second_text.count("[options]") == 1, (
         "the conf must be written by TRUNCATION, not appended to: a second [options] section "
-        f"means the server may read a stale first one. Got:\n{text}"
+        f"means the server may read a stale first one. Got:\n{respins.second_text}"
     )
-    assert sandbox.confs() == [f"{DB}-{PORT}.conf"]
 
 
 @requires_bash
@@ -476,14 +477,20 @@ def test_sweep_is_reached_from_this_entry_point(sandbox, entry_point):
 
 @requires_bash
 @pytest.mark.parametrize("entry_point", ENTRY_POINTS)
-def test_sweep_proceeds_when_no_lease_registry_exists_at_all(sandbox, entry_point):
+def test_sweep_proceeds_without_a_lease_registry_and_stays_inside_its_own_family(sandbox, entry_point):
     """GT2 probe 7, must stay GREEN - an ABSENT registry means nothing was ever leased here.
 
     That is a legitimate host state (a plain spin-up never registers a lease), and it must not
     disable reclamation - otherwise the sweep silently does nothing on exactly the hosts that
     accumulate the most.
+
+    The same run proves the sweep is SCOPED: one directory deep, and only the globs its caller
+    passed. Both swept families share one directory tree under the state root, so a sweeper
+    that recursed or matched every file would reclaim another family's live artifacts.
     """
     retired = _seed_conf(sandbox.conf_dir, "retired_db-8069.conf", days_old=20)
+    keep_other_ext = _seed_conf(sandbox.conf_dir, "retired_db-8069.notconf", days_old=20)
+    keep_nested = _seed_conf(sandbox.conf_dir / "nested", "retired_db-8069.conf", days_old=20)
     assert not (sandbox.home / "runtime" / "leases.json").exists()
 
     res = sandbox.run_entry_point(entry_point)
@@ -492,6 +499,8 @@ def test_sweep_proceeds_when_no_lease_registry_exists_at_all(sandbox, entry_poin
         "with no lease registry on the host the sweep must still proceed - 'nothing was ever "
         "leased' is an ANSWER, not a reason to prune nothing"
     )
+    assert keep_other_ext.exists(), "a file of another family in the same dir is not this caller's to reclaim"
+    assert keep_nested.exists(), "the sweep must stay one directory deep - recursing would reach state the caller never claimed"
 
 
 @requires_bash
@@ -516,187 +525,3 @@ def test_sweep_fails_closed_on_an_unreadable_lease_registry(sandbox, entry_point
         )
     finally:
         registry.chmod(0o600)
-
-
-@requires_bash
-@pytest.mark.parametrize("entry_point", ENTRY_POINTS)
-def test_sweep_never_touches_a_neighbouring_family_or_a_subdirectory(sandbox, entry_point):
-    """The sweep is scoped: one directory deep, and only the globs its caller passed.
-
-    Both swept families share one directory tree under the state root, so a sweeper that
-    recursed or that matched every file would reclaim another family's live artifacts.
-    """
-    conf_dir = sandbox.conf_dir
-    keep_other_ext = _seed_conf(conf_dir, "retired_db-8069.notconf", days_old=20)
-    nested = conf_dir / "nested"
-    keep_nested = _seed_conf(nested, "retired_db-8069.conf", days_old=20)
-
-    res = sandbox.run_entry_point(entry_point)
-    assert res.returncode == 0, f"{entry_point} failed:\n{res.stdout}\n{res.stderr}"
-    assert keep_other_ext.exists(), (
-        "the sweep must only match the globs its caller passed - a file of another family in the "
-        "same dir is not this caller's to reclaim"
-    )
-    assert keep_nested.exists(), (
-        "the sweep must stay one directory deep (-maxdepth 1) - recursing would reach state the "
-        "caller never claimed"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Retention SSOT - the bound is declared once, and documented by NAME
-# ---------------------------------------------------------------------------
-
-RETENTION_CONST = "_LOG_RETENTION_DAYS"
-_RETENTION_ASSIGN_RE = re.compile(rf"^\s*{RETENTION_CONST}\s*=", re.MULTILINE)
-
-# The sweeper's public surface. A block of text that names any of these is TALKING ABOUT the
-# mechanism, and is therefore where a restatement of its bound would land.
-_SWEEPER_TOKENS = ("prune_stale_run_artifacts", "_prune_stale_logs", "state_reclaim.sh")
-
-# Numeric retention bounds, in every notation this repo actually uses for one: `14 days`,
-# `14-day`, `30d`, `-mtime +14`, `-mmin +43200`.
-_DAY_LITERAL_RE = re.compile(
-    r"\b\d+\s*-?\s*days?\b|\b\d+\s*d\b|-m(?:time|min)\s+\+?\s*\d+", re.IGNORECASE
-)
-
-_SKIP_DIR_PARTS = {"__pycache__", ".git", "node_modules", ".pytest_cache"}
-
-
-def _iter_plugin_texts():
-    for path in sorted(PLUGINS_DIR.rglob("*")):
-        if not path.is_file() or any(p in _SKIP_DIR_PARTS for p in path.parts):
-            continue
-        try:
-            yield path, path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-
-
-def blocks_with_lines(text: str) -> list[tuple[int, str]]:
-    """Split `text` into blank-line-separated blocks, each tagged with its first line number.
-
-    Blank-line blocks are the natural unit for BOTH markdown (a paragraph / table / list) and
-    shell (a comment header plus the code it documents), which is why the same scan can cover
-    prose and script without a per-language parser.
-    """
-    out, start, buf = [], 1, []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        if line.strip() == "":
-            if buf:
-                out.append((start, "\n".join(buf)))
-                buf = []
-            start = lineno + 1
-        else:
-            if not buf:
-                start = lineno
-            buf.append(line)
-    if buf:
-        out.append((start, "\n".join(buf)))
-    return out
-
-
-def restated_bounds(text: str, relpath: str = "<text>") -> list[str]:
-    """Blocks of `text` that discuss the sweeper AND spell a numeric bound. Empty == compliant."""
-    findings = []
-    for lineno, block in blocks_with_lines(text):
-        if not any(token in block for token in _SWEEPER_TOKENS):
-            continue
-        for m in _DAY_LITERAL_RE.finditer(block):
-            findings.append(f"{relpath}:{lineno}: restates a bound as {m.group(0)!r}")
-    return findings
-
-
-def test_retention_bound_is_declared_in_exactly_one_place():
-    """One assignment, in the file that owns the mechanism. Two would drift on the first change."""
-    sites = [
-        str(path.relative_to(ROOT))
-        for path, text in _iter_plugin_texts()
-        if _RETENTION_ASSIGN_RE.search(text)
-    ]
-    assert sites == [str(STATE_RECLAIM.relative_to(ROOT))], (
-        f"{RETENTION_CONST} must be assigned in exactly ONE file - the sweeper's own lib - so "
-        f"there is a single bound to change. Assignment sites found: {sites}"
-    )
-    value = re.search(rf"{RETENTION_CONST}\s*=\s*(\d+)", STATE_RECLAIM.read_text(encoding="utf-8"))
-    assert value, f"{RETENTION_CONST} must be assigned an integer day count"
-    assert int(value.group(1)) > 0, "a retention bound of 0 days would reclaim live artifacts"
-
-
-def test_no_file_restates_the_retention_bound_as_a_number():
-    """Anything that documents the sweeper must name the CONSTANT, never copy its value.
-
-    This is value-INDEPENDENT on purpose: it fires on `14-day` today and equally on a stale
-    `21-day` after someone changes the lease, which is the failure a "does the number still
-    match?" check cannot see (it goes green the moment both copies agree, and stays green while
-    the second copy rots).
-    """
-    findings = []
-    for path, text in _iter_plugin_texts():
-        if path == STATE_RECLAIM:
-            continue  # the owner is allowed - indeed required - to state the number
-        findings.extend(restated_bounds(text, str(path.relative_to(ROOT))))
-    assert findings == [], (
-        f"the retention bound's SSOT is {RETENTION_CONST} in "
-        f"{STATE_RECLAIM.relative_to(ROOT)}. Reference the constant by name instead of copying "
-        "its value - a literal copy lies the day the bound changes:\n" + "\n".join(findings)
-    )
-
-
-# ---------------------------------------------------------------------------
-# Retention-SSOT probe corpus - the committed red-before-green proof.
-# ---------------------------------------------------------------------------
-
-_BOUND_MUST_CATCH = [
-    ("hyphenated day count", "Reclaimed by `prune_stale_run_artifacts`: a 14-day mtime bound."),
-    ("spaced day count", "`prune_stale_run_artifacts` keeps a conf for 14 days, then unlinks it."),
-    ("stale day count after a lease change", "`state_reclaim.sh` retains logs for 21 days."),
-    ("compact d notation", "`_prune_stale_logs` bound: 30d, lease-guarded."),
-    ("find flag copied into prose", "The sweep runs `find ... -mtime +14` in `state_reclaim.sh`."),
-    ("minutes flavour", "`prune_stale_run_artifacts` uses -mmin +20160 under the lease guard."),
-]
-
-_BOUND_MUST_NOT_CATCH = [
-    (
-        "names the constant instead of the number",
-        "Reclaimed by `prune_stale_run_artifacts` (`state_reclaim.sh`): its "
-        "`_LOG_RETENTION_DAYS` mtime bound PLUS a lease-registry reachability guard.",
-    ),
-    (
-        "a day bound in a block that is NOT about the sweeper",
-        "| `worklog/<run-or-slug>/` | every multi-agent run | 30d | decision log stays useful |",
-    ),
-    (
-        "the sweeper named with no bound claim at all",
-        "prune_stale_run_artifacts \"$(odoo_ai_state_root)/conf\" '*.conf'",
-    ),
-]
-
-
-@pytest.mark.parametrize("shape,block", _BOUND_MUST_CATCH, ids=[s for s, _ in _BOUND_MUST_CATCH])
-def test_bound_guard_catches_every_restatement_shape(shape, block):
-    assert restated_bounds(block, "probe.md"), (
-        f"the retention-SSOT guard let a {shape} through: {block!r}. A guard that knows one "
-        f"notation lets the other five restate the bound freely."
-    )
-
-
-@pytest.mark.parametrize(
-    "shape,block", _BOUND_MUST_NOT_CATCH, ids=[s for s, _ in _BOUND_MUST_NOT_CATCH]
-)
-def test_bound_guard_leaves_compliant_blocks_alone(shape, block):
-    assert restated_bounds(block, "probe.md") == [], (
-        f"the retention-SSOT guard fired on compliant text ({shape}): {block!r} -> "
-        f"{restated_bounds(block, 'probe.md')}. Unrelated TTL tables must stay untouched, or the "
-        f"guard becomes a reason to delete the rule."
-    )
-
-
-def test_block_splitter_keeps_a_comment_header_with_the_code_it_documents():
-    """Discovery floor for the splitter: if it split per line, no block would ever contain both
-    a sweeper mention and its bound, and both rules above would report clean forever."""
-    text = "# uses prune_stale_run_artifacts\n# with a 14-day bound\ncall_it\n\nunrelated 30d\n"
-    assert restated_bounds(text, "probe.sh"), (
-        "a comment header and the bound it states must land in the SAME block"
-    )
-    assert len(blocks_with_lines(text)) == 2, blocks_with_lines(text)

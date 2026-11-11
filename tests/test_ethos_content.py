@@ -3,18 +3,14 @@
 These tests protect the (separately authored) plugin principles file against:
   - accidental deletion or empty-out;
   - Vietnamese language leaking in (must be English-only, depersonalized);
-  - de-personalization tokens that would reveal internal Viindoo/vault context;
-  - silent removal of any of the 11 principle headings.
+  - de-personalization tokens that would reveal internal Viindoo/vault context.
 
 They also guard ETHOS#0 (ASCII hyphen only, U+002D) - not just in ODOO-AI-ETHOS.md, but across
 every decodable text file in the repository. A guard scoped to the one file that stated the rule
 misses every other file the rule applies to just as strongly; see `test_no_banned_unicode_dashes`
 below for the whole-tree scan and its allowlist.
 
-This test suite is intentionally RED until the other agent writes ODOO-AI-ETHOS.md.
-Only the missing-file assertion will fail; all other ETHOS-specific tests are guarded by
-pytest.importorskip / skip marks so they produce clear SKIP not ERROR when the
-file is absent. The whole-tree dash guard below does not depend on ETHOS.md and always runs.
+The whole-tree dash guard below does not depend on ETHOS.md and always runs.
 """
 import re
 import unicodedata
@@ -223,10 +219,3 @@ def test_no_banned_token(token):
     text = _text()
     assert token.lower() not in text.lower(), \
         f"de-personalization token {token!r} found - must be stripped from the public plugin file"
-
-
-# ---------------------------------------------------------------------------
-# Positive presence: all 11 principle headings must survive trimming
-# ---------------------------------------------------------------------------
-
-

@@ -165,14 +165,19 @@ def _new_rows(world, server):
     return a, bound, anchored, parked
 
 
-def test_the_old_release_does_not_condemn_a_lease_bound_to_a_live_server(world, old_alloc, monkeypatch):
-    """THE BLOCKER: the old release compares owner.pid_started with `==` against the
-    ambient `ps -o lstart=`. A TZ-free fingerprint written there never matches,
-    so the old release read every live bound server as `owner-pid-recycled`."""
+def test_the_old_release_condemns_none_of_the_rows_the_current_allocator_writes_for_a_live_session(
+        world, pre_anchor_lib, old_alloc, monkeypatch):
+    """Three row shapes written by the CURRENT allocator in a live session - a lease bound to a
+    live server, a pid-less lease anchored to its session, a parked lease - are read by the OLD
+    release (and swept by its acquire) without being condemned."""
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     server = _server()
     try:
-        _a, bound, _anchored, _parked = _new_rows(world, server)
+        a, bound, anchored, parked = _new_rows(world, server)
+
+        # THE BLOCKER: the old release compares owner.pid_started with `==` against the ambient
+        # `ps -o lstart=`. A TZ-free fingerprint written there never matches, so the old release
+        # read every live bound server as `owner-pid-recycled`.
         row = world.lease(bound)
         assert row["owner"]["pid"] == server.pid
         assert old_alloc._condemn_reason(row) is None, (
@@ -180,20 +185,15 @@ def test_the_old_release_does_not_condemn_a_lease_bound_to_a_live_server(world, 
             "allocator (reason {r!r}); owner.pid_started = {v!r}".format(
                 r=old_alloc._condemn_reason(row), v=row["owner"].get("pid_started")))
         assert old_alloc._is_stale(row) is False
-    finally:
-        _stop(server)
 
+        row = world.lease(parked)
+        assert row.get("parked_at") is not None and row["owner"].get("pid") is None
+        assert old_alloc._condemn_reason(row) is None, "the old release condemns a parked lease"
 
-def test_the_old_release_does_not_condemn_a_heartbeating_pid_less_anchored_lease(
-        world, old_alloc, monkeypatch):
-    """A pid-less lease is judged by the old release's TTL arm alone: ttl_s against
-    heartbeat_at. The session's periodic `heartbeat --session mine` must keep
-    heartbeat_at fresh - refreshing only the anchor's seen_at would leave the old release
-    to reap it once its TTL lapsed."""
-    monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
-    server = _server()
-    try:
-        a, _bound, anchored, _parked = _new_rows(world, server)
+        # A pid-less lease is judged by the old release's TTL arm alone: ttl_s against
+        # heartbeat_at. The session's periodic `heartbeat --session mine` must keep heartbeat_at
+        # fresh - refreshing only the anchor's seen_at would leave the old release to reap it once
+        # its TTL lapsed.
         world.age(anchored, 30 * 3600)  # beyond the old release's 2h default and the 24h floor
         assert old_alloc._condemn_reason(world.lease(anchored)) is not None, (
             "test setup: an unrefreshed row this old must be condemned by the old release")
@@ -204,30 +204,11 @@ def test_the_old_release_does_not_condemn_a_heartbeating_pid_less_anchored_lease
         assert old_alloc._condemn_reason(row) is None, (
             "after the session heartbeat the old release must see a fresh heartbeat_at, got "
             "reason {r!r}".format(r=old_alloc._condemn_reason(row)))
-    finally:
-        _stop(server)
 
-
-def test_the_old_release_does_not_condemn_a_parked_lease(world, old_alloc, monkeypatch):
-    monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
-    server = _server()
-    try:
-        _a, _bound, _anchored, parked = _new_rows(world, server)
-        row = world.lease(parked)
-        assert row.get("parked_at") is not None and row["owner"].get("pid") is None
-        assert old_alloc._condemn_reason(row) is None
-    finally:
-        _stop(server)
-
-
-def test_the_old_releases_acquire_sweep_reclaims_none_of_the_new_rows(world, pre_anchor_lib):
-    """End to end, the way the incident happens: another session still on the
-    released plugin acquires. Its acquire sweeps the machine-wide registry and
-    drops what it condemns. Nothing written by the current allocator for a live
-    session may be reclaimed, and no database may be dropped."""
-    server = _server()
-    try:
-        a, bound, anchored, parked = _new_rows(world, server)
+        # End to end, the way the incident happens: another session still on the released plugin
+        # acquires. Its acquire sweeps the machine-wide registry and drops what it condemns.
+        # Nothing written by the current allocator for a live session may be reclaimed, and no
+        # database may be dropped.
         env = world.env(None)
         p = subprocess.run(
             [sys.executable, str(pre_anchor_lib / "allocator.py"), "acquire", "--series", "17.0",
@@ -245,6 +226,42 @@ def test_the_old_releases_acquire_sweep_reclaims_none_of_the_new_rows(world, pre
         # And the registry is still one the current allocator reads unchanged.
         listed = json.loads(world.run(world.env(a), "list", "--show-tokens").stdout)
         assert {bound, anchored, parked} <= {lz["token"] for lz in listed["leases"]}
+    finally:
+        _stop(server)
+
+
+def test_a_lease_gc_parked_for_its_run_is_read_as_a_plain_park_by_the_old_release(
+        world, pre_anchor_lib, old_alloc, monkeypatch):
+    """A running lease that belongs to a run and recorded a build is parked by gc when its session
+    ends. gc writes only
+    the keys `park` has always written (parked_at, park_ttl_s, parked_boot_id; the server pid
+    cleared), so the old release judges it by its park budget: not condemned, not swept by its
+    acquire, no database dropped."""
+    monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
+    a = world.session("sess-A")
+    server = _server()
+    try:
+        p, out = world.acquire(world.env(a), "--pid", str(server.pid), run_id="run-A")
+        assert p.returncode == 0, p.stderr
+        token = out["ALLOC_TOKEN"]
+        assert world.run(world.env(a), "record-build", token, "--demo", "off").returncode == 0
+        before = set(world.lease(token))
+        anchor = a.anchor
+        a.end()
+        p = world.run(world.env(None), "gc", "--scope", "anchor", "--anchor", anchor)
+        assert p.returncode == 0, p.stderr
+        row = world.lease(token)
+        assert row.get("parked_at") is not None and row["owner"].get("pid") is None
+        assert set(row) - before <= {"parked_at", "park_ttl_s", "parked_boot_id"}, (
+            "gc's park must add no key an older reader does not know")
+        assert old_alloc._condemn_reason(row) is None and old_alloc._is_stale(row) is False
+
+        p = subprocess.run(
+            [sys.executable, str(pre_anchor_lib / "allocator.py"), "acquire", "--series", "17.0",
+             "--mode", "ephemeral", "--no-create", "--run-id", "run-old"],
+            capture_output=True, text=True, env=world.env(None), timeout=60)
+        assert p.returncode == 0, p.stderr
+        assert world.lease(token) is not None and world.drops() == [], p.stderr
     finally:
         _stop(server)
 
@@ -299,11 +316,14 @@ def _verdict(world, env, token):
     return listed["leases"][0]["verdict"]
 
 
-def test_the_old_release_protects_a_live_sessions_lease_after_its_server_died_and_the_session_heartbeat(
-        world, old_alloc, monkeypatch):
-    """The current allocator protects this row by its live anchor; the old release knows
-    no anchor and reads the dead bound pid as `owner-pid-dead`. The session's
-    periodic heartbeat must leave the row in a shape the old release protects too."""
+def test_a_live_sessions_lease_whose_server_died_is_protected_from_the_old_release_and_can_be_parked(
+        world, pre_anchor_lib, old_alloc, monkeypatch):
+    """The current allocator protects this row by its live anchor; the old release knows no anchor
+    and reads the dead bound pid as `owner-pid-dead`. The session's periodic heartbeat must leave
+    the row in a shape the old release protects too - against its judgement and against its
+    machine-wide acquire sweep (nothing reclaimed, no database dropped) - and shedding the pid must
+    not turn a lease that was RUNNING into one park refuses as never-run: parking is how the owner
+    keeps the database past its session."""
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     a, token, _pid = _bound_then_server_dies(world)
     assert _verdict(world, world.env(a), token)["protected_by"] == "session"
@@ -321,14 +341,8 @@ def test_the_old_release_protects_a_live_sessions_lease_after_its_server_died_an
     assert verdict["protected_by"] == "session" and verdict["condemn"] is None
     assert verdict["state"] == "reserved"
 
-
-def test_the_old_releases_acquire_sweep_keeps_a_live_sessions_lease_whose_server_died(world, pre_anchor_lib):
-    """End to end, the incident: the bound server died, session A heartbeats,
-    then a session still on the released plugin acquires. Its sweep must not
-    reclaim A's lease nor drop A's database."""
-    a, token, _pid = _bound_then_server_dies(world)
-    p = world.run(world.env(a), "heartbeat", "--session", "mine")
-    assert p.returncode == 0, p.stderr
+    # End to end, the incident: a session still on the released plugin acquires; its sweep must
+    # not reclaim A's lease nor drop A's database.
     old = subprocess.run(
         [sys.executable, str(pre_anchor_lib / "allocator.py"), "acquire", "--series", "17.0",
          "--mode", "ephemeral", "--no-create", "--run-id", "run-old"],
@@ -338,6 +352,12 @@ def test_the_old_releases_acquire_sweep_keeps_a_live_sessions_lease_whose_server
         "the old release's acquire reclaimed a live session's lease:\n" + old.stderr)
     assert world.drops() == [], "the old release's acquire dropped a database: " + old.stderr
     assert "RECLAIMED" not in old.stderr, old.stderr
+
+    assert world.lease(token)["owner"].get("pid") is None
+    p = world.run(world.env(a), "park", token, "--run-id", "run-A")
+    assert p.returncode == 0, p.stderr
+    assert world.lease(token).get("parked_at") is not None
+    assert world.drops() == []
 
 
 def test_another_sessions_acquire_also_sheds_the_dead_server_pid(world, old_alloc, monkeypatch):
@@ -350,20 +370,6 @@ def test_another_sessions_acquire_also_sheds_the_dead_server_pid(world, old_allo
     p, _out = world.acquire(world.env(b), "--no-create", run_id="run-B")
     assert p.returncode == 0, p.stderr
     assert old_alloc._condemn_reason(world.lease(token)) is None, world.lease(token)["owner"]
-
-
-def test_a_lease_whose_server_died_can_still_be_parked(world):
-    """Shedding the pid must not turn a lease that was RUNNING into one park
-    refuses as never-run: parking is how the owner keeps the database past its
-    session."""
-    a, token, _pid = _bound_then_server_dies(world)
-    assert world.run(world.env(a), "heartbeat", "--session", "mine").returncode == 0
-    assert world.lease(token)["owner"].get("pid") is None
-    p = world.run(world.env(a), "park", token, "--run-id", "run-A")
-    assert p.returncode == 0, p.stderr
-    row = world.lease(token)
-    assert row.get("parked_at") is not None
-    assert world.drops() == []
 
 
 def test_an_ended_sessions_lease_and_a_live_server_are_left_as_they_are(world):
@@ -456,12 +462,17 @@ def _row_with_build_facts(world, env, *extra):
     return token
 
 
-def test_the_released_allocator_keeps_the_build_facts_through_its_own_writes(world, released_lib):
+def test_the_released_allocator_keeps_lists_and_releases_a_row_with_the_build_facts(world, released_lib):
     a = world.session("sess-A")
     env = world.env(a)
     server = _server()
     try:
         token = _row_with_build_facts(world, env)
+        # list
+        listed = json.loads(_released(world, released_lib, env, "list", "--show-tokens").stdout)
+        row = next(lz for lz in listed["leases"] if lz["token"] == token)
+        assert {k: row.get(k) for k in BUILD_FACTS} == BUILD_FACTS
+        # its own writes
         for args in (("heartbeat", token), ("heartbeat", "--session", "mine"),
                      ("bind", token, "--pid", str(server.pid)),
                      ("acquire", "--series", "17.0", "--mode", "ephemeral", "--no-create",
@@ -472,22 +483,13 @@ def test_the_released_allocator_keeps_the_build_facts_through_its_own_writes(wor
             row = world.lease(token)
             assert row is not None, "the released allocator removed the row on %r" % (args,)
             assert {k: row.get(k) for k in BUILD_FACTS} == BUILD_FACTS, args
-        assert world.drops() == []
+        # release
+        p = _released(world, released_lib, env, "release", token, "--run-id", "run-A")
+        assert p.returncode == 0, p.stderr
+        assert world.lease(token) is None
+        assert world.drops() == [], "a --no-create lease created no database to drop"
     finally:
         _stop(server)
-
-
-def test_the_released_allocator_lists_and_releases_a_row_with_the_build_facts(world, released_lib):
-    a = world.session("sess-A")
-    env = world.env(a)
-    token = _row_with_build_facts(world, env)
-    listed = json.loads(_released(world, released_lib, env, "list", "--show-tokens").stdout)
-    row = next(lz for lz in listed["leases"] if lz["token"] == token)
-    assert {k: row.get(k) for k in BUILD_FACTS} == BUILD_FACTS
-    p = _released(world, released_lib, env, "release", token, "--run-id", "run-A")
-    assert p.returncode == 0, p.stderr
-    assert world.lease(token) is None
-    assert world.drops() == [], "a --no-create lease created no database to drop"
 
 
 def test_a_row_an_allocator_without_build_facts_wrote_reads_as_no_build_facts_here(
@@ -692,7 +694,7 @@ def test_the_ci_jobs_running_pytest_check_out_the_full_history():
     import re
     text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
     jobs = re.split(r"\n  (?=[A-Za-z0-9_-]+:\n)", text.split("\njobs:\n", 1)[1])
-    running = [j for j in jobs if re.search(r"run:.*\bpytest\b", j)]
-    assert running, "premise: some job runs pytest"
+    running = [j for j in jobs if re.search(r"run:.*\b(pytest|make test(-run)?)\b", j)]
+    assert running, "premise: some job runs the test suite (pytest, or make test / make test-run)"
     for job in running:
         assert re.search(r"fetch-depth:\s*0\b", job), job.splitlines()[0]

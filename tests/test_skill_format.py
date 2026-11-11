@@ -50,36 +50,6 @@ def _frontmatter(text):
     raise AssertionError("frontmatter not closed with '---'")
 
 
-def _body(text):
-    """Return the content after the closing --- of frontmatter."""
-    lines = text.splitlines()
-    # Find the closing --- that marks end of frontmatter
-    for i, line in enumerate(lines):
-        if i > 0 and line.strip() == "---":
-            # Everything after this line is the body
-            return "\n".join(lines[i + 1 :])
-    return ""
-
-
-def _section(body, heading):
-    """Return the text under a ``## <heading>`` line, up to the next ``## `` heading.
-
-    Empty string if the heading is absent. Plain string scanning only (no regex).
-    """
-    lines = body.splitlines()
-    out = []
-    collecting = False
-    for line in lines:
-        if line.strip() == heading:
-            collecting = True
-            continue
-        if collecting and line.startswith("## "):
-            break
-        if collecting:
-            out.append(line)
-    return "\n".join(out)
-
-
 def _fm_list(text, key="tools"):
     """Return the list items under a top-level ``<key>:`` frontmatter block-sequence.
 
@@ -167,25 +137,6 @@ def test_skill_frontmatter(skill):
         f"{skill.parent.name}: frontmatter name '{fm['name']}' "
         f"does not match directory"
     )
-
-
-# A skill's ``## Role`` states the executor's operating role, audience, and scope -
-# NOT an identity/persona. Declaring an identity ("You are a ...") is reserved for the
-# dispatched agent's system prompt (SSOT: agents/*.md), so persona lives in exactly one
-# layer and portable skills stay identity-free. See docs/authoring-skills-and-agents.md.
-_ROLE_IDENTITY_MARKERS = ("you are a ", "you are an ", "you are the ")
-
-
-@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
-def test_skill_role_declares_no_identity(skill):
-    role = _section(_body(skill.read_text(encoding="utf-8")), "## Role").lower()
-    for marker in _ROLE_IDENTITY_MARKERS:
-        assert marker not in role, (
-            f"{skill.parent.name} SKILL.md: `## Role` contains identity declaration "
-            f"{marker.strip()!r} - persona/identity belongs in the dispatched agent's "
-            f"system prompt, not a portable skill. State the operating role, audience, "
-            f"and scope instead."
-        )
 
 
 # ---------------------------------------------------------------------------

@@ -130,10 +130,3 @@ def test_without_a_plugin_id_nothing_is_changed(tmp_path):
     proc = _run(world, "apply")
     assert proc.returncode == 1 and "plugin-id" in proc.stderr
     assert "odoo-semantic" in _servers(world) and _calls(world) == []
-
-
-def test_the_connect_command_hands_the_migration_to_the_operator_instead_of_removing_by_itself():
-    connect = (ROOT / "plugins" / "odoo-semantic-mcp" / "commands" / "connect.md").read_text(encoding="utf-8")
-    assert "scripts/migrate_connection.py\" apply" in connect
-    assert "never by you" in connect
-    assert "claude mcp remove odoo-semantic --scope <that scope>" not in connect

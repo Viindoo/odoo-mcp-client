@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -85,64 +86,96 @@ def state_rules(allow):
     return [a for a in allow if a.startswith(("Read(//", "Edit(//"))]
 
 
-def test_ephemeral_root_under_system_temp_gets_no_rules(world):
-    world.run(world.systemp / "run1" / ".odoo-ai")
-    assert state_rules(world.allow()) == []
-    world.lay_bash_rules()
-    assert world.run(world.systemp / "run2" / ".odoo-ai").stdout == "", (
-        "an ephemeral root must not trigger the restart nudge"
-    )
+# One machine, one settings file, a chain of sessions: each step's outcome is recorded and the
+# tests below read it (the hook is a bash + python startup per call, so replaying the same
+# machine state for every assertion would cost one launch per assertion).
+@pytest.fixture(scope="module")
+def sessions(tmp_path_factory):
+    w = World(tmp_path_factory.mktemp("sessions"))
+    real = w.home / ".odoo-ai"
+    rec = SimpleNamespace(world=w, real=real)
 
+    # Ephemeral roots: a throwaway root under a system temp dir, twice, then a scratch dir of
+    # the default root. Nothing is granted and the second session has nothing to announce.
+    w.run(w.systemp / "run1" / ".odoo-ai")
+    rec.after_temp_run = state_rules(w.allow())
+    rec.second_temp_run = w.run(w.systemp / "run2" / ".odoo-ai")
+    w.run(w.home / ".odoo-ai" / "scratch" / "live-run")
+    rec.after_scratch_run = state_rules(w.allow())
 
-def test_scratch_dir_of_default_root_gets_no_rules(world):
-    root = world.home / ".odoo-ai" / "scratch" / "live-run"
-    world.run(root)
-    assert state_rules(world.allow()) == []
-
-
-def test_real_default_root_gets_its_rules(world):
-    world.run()  # ODOO_AI_HOME unset: the default root under HOME
-    assert pair(world.home / ".odoo-ai") == [
-        a for a in world.allow() if a.startswith(("Read(//", "Edit(//"))
-    ]
-
-
-def test_real_root_rules_survive_a_scratch_session(world):
-    real = world.home / ".odoo-ai"
-    real.mkdir()
-    world.seed(pair(real))
-    world.run(real / "scratch" / "live-run")
-    assert state_rules(world.allow()) == pair(real)
-
-
-def test_vanished_plugin_rules_are_pruned_and_the_real_root_added(world):
-    gone = world.home / "old-state-root"  # never created
-    world.seed(pair(gone))
-    world.run()
-    assert state_rules(world.allow()) == pair(world.home / ".odoo-ai")
-    assert world.backups(), "pruning must back the settings file up first"
-
-
-def test_existing_root_under_system_temp_is_pruned_too(world):
-    leftover = world.systemp / "kept-on-disk"
+    # The real default root (ODOO_AI_HOME unset) over a settings file holding: the plugin's pair
+    # for a root that is gone, its pair for a root under a system temp dir that still exists,
+    # and user rules of look-alike shapes.
+    gone = w.home / "old-state-root"  # never created
+    leftover = w.systemp / "kept-on-disk"
     leftover.mkdir()
-    world.seed(pair(leftover))
-    world.run()
-    assert not any(str(leftover) in a for a in world.allow())
-
-
-def test_user_written_rules_are_never_touched(world):
-    gone = world.home / "vanished"
-    user = [
+    lone = w.home / "vanished"
+    rec.user_rules = [
         "Bash(git status)",
-        f"Read(/{gone}/**)",  # no Edit(.../projects/**) beside it: not the plugin's pair
-        f"Edit(/{gone}/notes/**)",  # a different shape
-        f"Read(/{world.systemp}/user-data/**)",  # a user rule on a temp path
-        f"Edit(/{world.systemp}/user-data/**)",
+        f"Read(/{lone}/**)",  # no Edit(.../projects/**) beside it: not the plugin's pair
+        f"Edit(/{lone}/notes/**)",  # a different shape
+        f"Read(/{w.systemp}/user-data/**)",  # a user rule on a temp path
+        f"Edit(/{w.systemp}/user-data/**)",
     ]
-    world.seed(user)
-    world.run()
-    assert all(rule in world.allow() for rule in user)
+    rec.gone, rec.leftover = gone, leftover
+    w.seed(pair(gone) + pair(leftover) + rec.user_rules)
+    w.run()
+    rec.after_default_run = w.allow()
+    rec.backups_after_default_run = len(w.backups())
+
+    # A session on a scratch dir of the real root, once the real root exists: its rules stay.
+    real.mkdir()
+    w.run(real / "scratch" / "live-run")
+    rec.after_scratch_session = w.allow()
+
+    # A run that only prunes (the real root exists, a second vanished pair is seeded) announces
+    # nothing, and a further run changes nothing.
+    w.seed(w.allow() + pair(w.home / "vanished-too"))
+    rec.prune_run = w.run()
+    rec.after_prune_run = w.allow()
+    first = w.settings.read_text(encoding="utf-8")
+    w.run()
+    rec.second_prune_run_changed_nothing = w.settings.read_text(encoding="utf-8") == first
+    return rec
+
+
+def test_ephemeral_root_under_system_temp_gets_no_rules(sessions):
+    assert sessions.after_temp_run == []
+    assert sessions.second_temp_run.stdout == "", "an ephemeral root must not trigger the restart nudge"
+
+
+def test_scratch_dir_of_default_root_gets_no_rules(sessions):
+    assert sessions.after_scratch_run == []
+
+
+def test_real_default_root_gets_its_rules(sessions):
+    allow = sessions.after_default_run
+    assert all(rule in allow for rule in pair(sessions.world.home / ".odoo-ai"))
+
+
+def test_real_root_rules_survive_a_scratch_session(sessions):
+    assert all(rule in sessions.after_scratch_session for rule in pair(sessions.real))
+
+
+def test_vanished_plugin_rules_are_pruned(sessions):
+    assert not any(str(sessions.gone) in a for a in sessions.after_default_run)
+    assert sessions.backups_after_default_run, "pruning must back the settings file up first"
+
+
+def test_existing_root_under_system_temp_is_pruned_too(sessions):
+    assert not any(str(sessions.leftover) in a for a in sessions.after_default_run)
+
+
+def test_user_written_rules_are_never_touched(sessions):
+    assert all(rule in sessions.after_default_run for rule in sessions.user_rules)
+
+
+def test_pruning_alone_is_silent_and_a_second_run_changes_nothing(sessions):
+    r = sessions.prune_run
+    assert r.stdout == "" and r.stderr == "", "a prune-only run has nothing to announce"
+    assert not any("vanished-too" in a for a in sessions.after_prune_run)
+    assert all(rule in sessions.after_prune_run for rule in pair(sessions.real))
+    assert sessions.second_prune_run_changed_nothing
 
 
 def test_session_root_that_does_not_exist_yet_is_not_pruned(world):
@@ -164,19 +197,6 @@ def test_opt_out_neither_writes_nor_prunes(world):
     r = world.run(ODOO_AI_NO_AUTO_PERMS="1")
     assert world.settings.read_text(encoding="utf-8") == before
     assert r.stdout == "" and not world.backups()
-
-
-def test_pruning_alone_is_silent_and_a_second_run_changes_nothing(world):
-    real = world.home / ".odoo-ai"
-    real.mkdir()
-    world.lay_bash_rules()
-    world.seed(world.allow() + pair(real) + pair(world.home / "vanished"))
-    r = world.run()
-    assert r.stdout == "" and r.stderr == "", "a prune-only run has nothing to announce"
-    assert state_rules(world.allow()) == pair(real)
-    first = world.settings.read_text(encoding="utf-8")
-    world.run()
-    assert world.settings.read_text(encoding="utf-8") == first
 
 
 @pytest.mark.parametrize("root", ["/tmp/odoo-ai-never-created", "/var/tmp/odoo-ai-never-created"])

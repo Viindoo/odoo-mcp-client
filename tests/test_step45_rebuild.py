@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import farm_path
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 LIB = PLUGIN / "scripts" / "lib"
@@ -23,6 +25,11 @@ sys.path.insert(0, str(LIB))
 import venv_facts  # noqa: E402
 
 SERIES = "17.0"
+
+# The step ends by asking whether Postgres answers. A client installed on the host would
+# question whatever cluster it finds there (a password prompt on a pipe sits out the whole probe
+# bound), so the world is built WITHOUT any client: the answer then comes from the stub python.
+_PG_CLIENT_BINS = ("pg_isready", "psql", "createdb", "dropdb", "pg_dump", "pg_restore", "docker")
 
 
 def _write_exec(path: Path, text: str):
@@ -40,7 +47,7 @@ def _fake_venv(path: Path, python_ok=True):
 
 
 @pytest.fixture()
-def world(tmp_path):
+def world(tmp_path, path_farm):
     """state root + a stub Odoo checkout + a declared row whose python lives in a fake venv."""
     home = tmp_path / "state"; home.mkdir()
     odoo = tmp_path / "odoo"; (odoo / "addons").mkdir(parents=True)
@@ -75,7 +82,7 @@ def world(tmp_path):
         ''' % log)
     env = {k: v for k, v in os.environ.items() if not k.startswith("ODOO_AI_")}
     env.update({"ODOO_AI_HOME": str(home), "ODOO_AI_INSTANCES": str(home / "instances.toml"),
-                "PATH": "%s:%s" % (bindir, env.get("PATH", "")), "ODOO_AI_PROJECT_DIR": str(tmp_path / "share"),
+                "PATH": farm_path(path_farm(drop=_PG_CLIENT_BINS), bindir), "ODOO_AI_PROJECT_DIR": str(tmp_path / "share"),
                 "ODOO_BIN": str(odoo / "odoo-bin")})
     return {"home": home, "venv": venv, "odoo": odoo, "addons": addons, "env": env, "log": log, "tmp": tmp_path}
 

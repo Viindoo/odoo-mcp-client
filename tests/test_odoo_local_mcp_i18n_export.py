@@ -38,6 +38,8 @@ Contracts protected:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -130,12 +132,19 @@ def _export(c, world, token, **over):
     return c.call("instance_i18n_export", args)
 
 
-def _ready_lease(c, world, series=SERIES, languages=("vi_VN", "fr_BE"), demo="on"):
-    """A lease whose database a finished build filled with demo and the given languages."""
-    lease = _lease(c, world, series=series)
-    done = _wait(c, _ok(_build(c, world, lease["token"], demo=demo,
-                               languages=list(languages)))["job_id"])
-    assert done["result"] == "success", done
+def _record_build(world, token, *args):
+    """What a finished build leaves on the lease (allocator record-build, the verb job_wait uses)."""
+    alloc = Path(__file__).resolve().parent.parent / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "allocator.py"
+    subprocess.run([sys.executable, str(alloc), "record-build", token, *args], env=world["env"](),
+                   check=True, capture_output=True, timeout=60)
+
+
+def _ready_lease(c, world, series=SERIES, languages=("vi_VN", "fr_BE"), demo="on", **over):
+    """A lease whose database a finished build filled with demo and the given languages. The build
+    is recorded the way job_wait records it rather than run: what the export judges is the
+    record, and building it is test_odoo_local_mcp_build_facts.py's subject."""
+    lease = _lease(c, world, series=series, **over)
+    _record_build(world, lease["token"], "--demo", demo, "--languages", ",".join(("en_US",) + tuple(languages)))
     return lease
 
 
@@ -150,6 +159,18 @@ def _flag(argv, name):
 
 def _leftovers(directory):
     return [p.name for p in Path(directory).rglob(".odoo-ai-export-*")]
+
+
+def _fresh_i18n_dir(world, *committed):
+    """The module's i18n/ directory, emptied and holding the named files (each committed text)."""
+    i18n_dir = world["module"] / "i18n"
+    shutil.rmtree(i18n_dir, ignore_errors=True)
+    if committed:
+        i18n_dir.mkdir()
+        for name in committed:
+            (i18n_dir / name).write_text("committed %s\n" % name, encoding="utf-8")
+    world["calls"].write_text("", encoding="utf-8")
+    return i18n_dir
 
 
 # --------------------------------------------------------------------------- #
@@ -190,6 +211,7 @@ def test_the_pot_then_each_po_is_exported_from_the_one_database_with_the_checkou
             assert argv[argv.index("--addons-path") + 1] == str(i18n["addons"])
             assert _flag(argv, "--i18n-export").endswith(".po"), (
                 "the oldest exporters take the format from the extension and know no .pot")
+            assert _flag(argv, "--load") is None, "nothing declared server-wide: no --load"
         assert _flag(template, "--language") is None, "no language = the template"
         assert (_flag(vi, "--language"), _flag(fr, "--language")) == ("vi_VN", "fr_BE")
         assert "i18n" not in template[:1]
@@ -204,297 +226,208 @@ def test_the_pot_then_each_po_is_exported_from_the_one_database_with_the_checkou
         conf = i18n["conf_copy"].read_text()
         assert "addons_path = %s" % i18n["addons"] in conf and "db_host = localhost" in conf
         assert "db_user = odoo" in conf and "password" not in conf
+        assert "server_wide_modules" not in conf, "nothing declared server-wide: no set at all"
 
 
-def test_output_dir_puts_each_modules_files_in_its_own_subdirectory(i18n, tmp_path):
-    out = tmp_path / "isolate"
+# --------------------------------------------------------------------------- #
+# where the files go and what they are called
+# --------------------------------------------------------------------------- #
+def test_each_po_is_written_under_the_name_the_module_already_uses(i18n):
+    """Odoo loads vi.po then vi_VN.po, so a module that ships vi_VN.po reads its Vietnamese terms
+    from THAT file: exporting into vi.po beside it would leave every edit overridden. A module
+    holding both names is refused before any file is written."""
     with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        for ships, written in (((), "vi.po"), (("vi.po",), "vi.po"), (("vi_VN.po",), "vi_VN.po")):
+            i18n_dir = _fresh_i18n_dir(i18n, *ships)
+            done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))["job_id"])
+            assert done["result"] == "success", (ships, done)
+            assert [e["path"] for e in done["exports"]] == [str(i18n_dir / "my_mod.pot"),
+                                                           str(i18n_dir / written)], ships
+            assert (i18n_dir / written).read_text(encoding="utf-8") == _exported_bytes("vi_VN")
+            other = {"vi.po": "vi_VN.po", "vi_VN.po": "vi.po"}[written]
+            assert not (i18n_dir / other).exists(), ("no second file for the language is created", ships)
+
+        i18n_dir = _fresh_i18n_dir(i18n, "vi.po", "vi_VN.po")
+        done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
+        assert done["result"] == "failure"
+        assert done["exports"] == [] and _export_calls(i18n) == [], "not even the template"
+        line = next(ln for ln in done["output_tail"] if "I18N_PO_FILE_AMBIGUOUS" in ln)
+        assert "vi.po" in line and "vi_VN.po" in line, line
+        assert sorted(p.name for p in i18n_dir.iterdir()) == ["vi.po", "vi_VN.po"]
+        for name in ("vi.po", "vi_VN.po"):
+            assert (i18n_dir / name).read_text() == "committed %s\n" % name
+
+
+def test_destinations_modules_and_the_operators_config_file(i18n, tmp_path):
+    """output_dir puts each module's files in its own subdirectory, using the name the module
+    itself uses; several modules each get their template first; no language exports only the
+    template; a module found in two addons directories is refused (Odoo's code-term walk reads the
+    source of every copy it finds, so its export would resurrect the other copy's terms); and the
+    exporter never reads the operator's own config file."""
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    (home / ".odoorc").write_text("[options]\naddons_path = /elsewhere\n", encoding="utf-8")
+    other = i18n["addons"] / "other_mod"
+    other.mkdir()
+    (other / "__openerp__.py").write_text("{}\n", encoding="utf-8")
+    out = tmp_path / "isolate"
+    with McpClient(i18n["env"](HOME=str(home)), i18n["work"]) as c:
         c.initialize()
         lease = _ready_lease(c, i18n)
         job = _ok(_export(c, i18n, lease["token"], languages=["vi_VN"], output_dir=str(out)))
         assert job["destinations"] == [{"module": "my_mod", "directory": str(out / "my_mod")}]
         done = _wait(c, job["job_id"])
-    assert done["result"] == "success", done
-    assert [e["path"] for e in done["exports"]] == [str(out / "my_mod" / "my_mod.pot"),
-                                                   str(out / "my_mod" / "vi.po")]
-    assert not (i18n["module"] / "i18n").exists(), "the module's own i18n/ dir is left untouched"
+        assert done["result"] == "success", done
+        assert [e["path"] for e in done["exports"]] == [str(out / "my_mod" / "my_mod.pot"),
+                                                       str(out / "my_mod" / "vi.po")]
+        assert not (i18n["module"] / "i18n").exists(), "the module's own i18n/ dir is left untouched"
 
+        exports = _export_calls(i18n)
+        i18n_dir = _fresh_i18n_dir(i18n, "vi_VN.po")
+        shutil.rmtree(out)
+        done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=["vi_VN"], output_dir=str(out)))["job_id"])
+        assert done["result"] == "success", done
+        assert done["exports"][-1]["path"] == str(out / "my_mod" / "vi_VN.po")
+        assert (i18n_dir / "vi_VN.po").read_text() == "committed vi_VN.po\n"
 
-def test_several_modules_each_get_their_template_first(i18n):
-    other = i18n["addons"] / "other_mod"
-    other.mkdir()
-    (other / "__openerp__.py").write_text("{}\n", encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
         done = _wait(c, _ok(_export(c, i18n, lease["token"], modules=["my_mod", "other_mod"],
                                     languages=["vi_VN"]))["job_id"])
-    assert [(e["module"], e["kind"]) for e in done["exports"]] == [
-        ("my_mod", "pot"), ("my_mod", "po"), ("other_mod", "pot"), ("other_mod", "po")]
+        assert [(e["module"], e["kind"]) for e in done["exports"]] == [
+            ("my_mod", "pot"), ("my_mod", "po"), ("other_mod", "pot"), ("other_mod", "po")]
 
-
-def test_no_language_exports_only_the_template(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n, languages=())
         done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=[]))["job_id"])
-    assert done["result"] == "success"
-    assert [e["kind"] for e in done["exports"]] == ["pot"]
+        assert done["result"] == "success" and [e["kind"] for e in done["exports"]] == ["pot"]
 
+        # Every export read the tool's own config file, never the operator's.
+        exports += _export_calls(i18n)
+        for argv in exports:
+            assert "-c" in argv or any(a.startswith("--config=") for a in argv), argv
+        conf = i18n["confs"].read_text() if i18n["confs"].exists() else ""
+        conf += i18n["conf_copy"].read_text() if i18n["conf_copy"].exists() else ""
+        assert "addons_path = %s" % i18n["addons"] in conf and "/elsewhere" not in conf
+        rc = [ln for ln in i18n["rc_env"].read_text().splitlines() if ".i18n.conf|" in ln]
+        assert len(rc) == len(exports), "the import-time rc load of every export reads the tool's conf"
 
-# --------------------------------------------------------------------------- #
-# the .po name follows the module
-# --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("ships,written", [((), "vi.po"), (("vi.po",), "vi.po"),
-                                           (("vi_VN.po",), "vi_VN.po")])
-def test_each_po_is_written_under_the_name_the_module_already_uses(i18n, ships, written):
-    """Odoo loads vi.po then vi_VN.po, so a module that ships vi_VN.po reads its Vietnamese terms
-    from THAT file: exporting into vi.po beside it would leave every edit overridden."""
-    i18n_dir = i18n["module"] / "i18n"
-    i18n_dir.mkdir()
-    for name in ships:
-        (i18n_dir / name).write_text("committed %s\n" % name, encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))["job_id"])
-    assert done["result"] == "success", done
-    assert [e["path"] for e in done["exports"]] == [str(i18n_dir / "my_mod.pot"),
-                                                   str(i18n_dir / written)]
-    assert (i18n_dir / written).read_text(encoding="utf-8") == _exported_bytes("vi_VN")
-    other = {"vi.po": "vi_VN.po", "vi_VN.po": "vi.po"}[written]
-    assert not (i18n_dir / other).exists(), "no second file for the language is created"
-
-
-def test_output_dir_uses_the_name_the_module_itself_uses(i18n, tmp_path):
-    i18n_dir = i18n["module"] / "i18n"
-    i18n_dir.mkdir()
-    (i18n_dir / "vi_VN.po").write_text("committed\n", encoding="utf-8")
-    out = tmp_path / "isolate"
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=["vi_VN"],
-                                    output_dir=str(out)))["job_id"])
-    assert done["result"] == "success", done
-    assert done["exports"][-1]["path"] == str(out / "my_mod" / "vi_VN.po")
-    assert (i18n_dir / "vi_VN.po").read_text() == "committed\n"
-
-
-def test_a_module_holding_both_names_for_a_language_is_refused_before_any_file_is_written(i18n):
-    i18n_dir = i18n["module"] / "i18n"
-    i18n_dir.mkdir()
-    for name in ("vi.po", "vi_VN.po"):
-        (i18n_dir / name).write_text("committed %s\n" % name, encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
-    assert done["result"] == "failure"
-    assert done["exports"] == [] and _export_calls(i18n) == [], "not even the template"
-    line = next(ln for ln in done["output_tail"] if "I18N_PO_FILE_AMBIGUOUS" in ln)
-    assert "vi.po" in line and "vi_VN.po" in line and "operator" in line, line
-    assert sorted(p.name for p in i18n_dir.iterdir()) == ["vi.po", "vi_VN.po"]
-    for name in ("vi.po", "vi_VN.po"):
-        assert (i18n_dir / name).read_text() == "committed %s\n" % name
-
-
-def test_a_module_found_in_two_addons_directories_is_refused(i18n, tmp_path):
-    """Odoo's code-term walk reads the source of every copy it finds, so a shadowed module's
-    export would carry the other copy's references and resurrect its terms."""
-    second = tmp_path / "second-addons"
-    (second / "my_mod").mkdir(parents=True)
-    (second / "my_mod" / "__manifest__.py").write_text("{}\n", encoding="utf-8")
-    toml = i18n["home"] / "instances.toml"
-    toml.write_text(toml.read_text().replace('addons_path = ["%s"]' % i18n["addons"],
-                                             'addons_path = ["%s", "%s"]' % (i18n["addons"], second)),
-                    encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        err = _err(_export(c, i18n, lease["token"]))
-    assert err["code"] == "MODULE_SHADOWED", err
-    assert err["diagnostics"]["paths"] == [str(i18n["addons"] / "my_mod"), str(second / "my_mod")]
-    assert _export_calls(i18n) == []
-
-
-def test_the_exporter_never_reads_the_operators_config_file(i18n, tmp_path):
-    home = tmp_path / "operator-home"
-    home.mkdir()
-    (home / ".odoorc").write_text("[options]\naddons_path = /elsewhere\n", encoding="utf-8")
-    with McpClient(i18n["env"](HOME=str(home)), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))["job_id"])
-    assert done["result"] == "success", done
-    for argv in _export_calls(i18n):
-        assert "-c" in argv or any(a.startswith("--config=") for a in argv), argv
-    conf = i18n["confs"].read_text() if i18n["confs"].exists() else ""
-    conf += i18n["conf_copy"].read_text() if i18n["conf_copy"].exists() else ""
-    assert "addons_path = %s" % i18n["addons"] in conf and "/elsewhere" not in conf
-    exports = [ln for ln in i18n["rc_env"].read_text().splitlines() if ".i18n.conf|" in ln]
-    assert len(exports) == 2, "the import-time rc load of every export reads the tool's conf"
+        second = tmp_path / "second-addons"
+        (second / "my_mod").mkdir(parents=True)
+        (second / "my_mod" / "__manifest__.py").write_text("{}\n", encoding="utf-8")
+        toml = i18n["home"] / "instances.toml"
+        toml.write_text(toml.read_text().replace('addons_path = ["%s"]' % i18n["addons"],
+                                                 'addons_path = ["%s", "%s"]' % (i18n["addons"], second)),
+                        encoding="utf-8")
+        shadowed = _ready_lease(c, i18n)
+        before = len(_export_calls(i18n))
+        err = _err(_export(c, i18n, shadowed["token"]))
+        assert err["code"] == "MODULE_SHADOWED", err
+        assert err["diagnostics"]["paths"] == [str(i18n["addons"] / "my_mod"), str(second / "my_mod")]
+        assert len(_export_calls(i18n)) == before
 
 
 # --------------------------------------------------------------------------- #
 # the build must be fit for an export
 # --------------------------------------------------------------------------- #
-def test_a_database_built_without_demo_is_refused_before_anything_starts(i18n):
+def test_an_export_is_refused_before_anything_starts_unless_the_database_is_fit(i18n):
     with McpClient(i18n["env"](), i18n["work"]) as c:
         c.initialize()
+        # A database built without demo.
         lease = _ready_lease(c, i18n, demo="off")
-        before = len(_export_calls(i18n))
         err = _err(_export(c, i18n, lease["token"]))
-    assert err["code"] == "I18N_EXPORT_NEEDS_DEMO", err
-    assert "demo" in err["remedy"] and "op init" in err["remedy"]
-    assert len(_export_calls(i18n)) == before
-
-
-def test_a_language_the_build_did_not_prove_loaded_is_refused_naming_it(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
+        assert err["code"] == "I18N_EXPORT_NEEDS_DEMO", err
+        assert "demo" in err["remedy"] and "op init" in err["remedy"]
+        # A language the build did not prove loaded.
         lease = _ready_lease(c, i18n, languages=("vi_VN",))
         err = _err(_export(c, i18n, lease["token"]))
-    assert err["code"] == "I18N_LANGUAGE_NOT_LOADED", err
-    assert "fr_BE" in err["message"]
-    assert err["diagnostics"]["missing"] == ["fr_BE"], "only the language not proved loaded"
-    assert "languages" in err["remedy"]
-
-
-def test_a_module_installed_without_its_own_demo_is_refused_though_the_database_has_demo(i18n):
-    """Demo is a fact of each module: another module's demo data says nothing about this one's,
-    so the export is judged by the EXPORTED module's own flag."""
-    i18n["db_facts"].write_text("DB_EXISTS=1\nDEMO=1\nLANGUAGES=en_US,vi_VN,fr_BE\n"
-                                "MODULE=my_mod STATE=installed DEMO=0\n", encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
+        assert err["code"] == "I18N_LANGUAGE_NOT_LOADED", err
+        assert "fr_BE" in err["message"]
+        assert err["diagnostics"]["missing"] == ["fr_BE"], "only the language not proved loaded"
+        assert "languages" in err["remedy"]
+        # A lease with no recorded build.
+        assert _err(_export(c, i18n, _lease(c, i18n)["token"]))["code"] == "I18N_EXPORT_NEEDS_DEMO"
+        # Demo is a fact of each module: another module's demo data says nothing about this one's,
+        # so the export is judged by the EXPORTED module's own flag.
         lease = _ready_lease(c, i18n)
+        i18n["db_facts"].write_text("DB_EXISTS=1\nDEMO=1\nLANGUAGES=en_US,vi_VN,fr_BE\n"
+                                    "MODULE=my_mod STATE=installed DEMO=0\n", encoding="utf-8")
         err = _err(_export(c, i18n, lease["token"]))
-    assert err["code"] == "I18N_EXPORT_NEEDS_DEMO", err
-    assert err["diagnostics"]["modules_without_demo"] == ["my_mod"]
-    assert "my_mod" in err["message"] and err["diagnostics"]["facts_source"] == "database"
-    calls = i18n["db_calls"].read_text()
-    assert "--modules my_mod" in calls, "the exported modules are asked about, per module"
-    assert _export_calls(i18n) == []
+        assert err["code"] == "I18N_EXPORT_NEEDS_DEMO", err
+        assert err["diagnostics"]["modules_without_demo"] == ["my_mod"]
+        assert "my_mod" in err["message"] and err["diagnostics"]["facts_source"] == "database"
+        assert "--modules my_mod" in i18n["db_calls"].read_text(), "the exported modules are asked about"
+        i18n["db_facts"].unlink()
+        # Bad arguments.
+        for over, needle in (({"languages": ["en_US"]}, "en_US"),
+                             ({"languages": ["vi VN"]}, "arguments.languages"),
+                             ({"modules": ["no_such_module"]}, "no_such_module"),
+                             ({"modules": ["bad-name"]}, "arguments.modules"),
+                             ({"output_dir": "relative/dir"}, "arguments.output_dir")):
+            err = _err(_export(c, i18n, lease["token"], **over))
+            assert err["code"] == "INVALID_ARGUMENTS" and needle in err["message"], (over, err)
+        assert _export_calls(i18n) == [], "every refusal came before anything started"
 
-
-def test_the_job_refuses_a_module_the_database_holds_without_demo(i18n):
-    """When the database could not be read up front (lease records answered), the job asks the
-    database per module itself before any file is written."""
-    i18n["state"].write_text(STATE_DEFAULT.replace("MODULE=my_mod STATE=installed DEMO=1",
-                                                   "MODULE=my_mod STATE=installed DEMO=0"),
-                             encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
-    assert done["result"] == "failure"
-    assert done["exports"] == [] and _export_calls(i18n) == []
-    assert any("I18N_EXPORT_NEEDS_DEMO" in ln and "my_mod" in ln for ln in done["output_tail"])
-
-
-def test_a_lease_with_no_recorded_build_is_refused(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _lease(c, i18n)
-        assert _err(_export(c, i18n, lease["token"]))["code"] == "I18N_EXPORT_NEEDS_DEMO"
-
-
-def test_a_forwarded_database_is_judged_by_the_build_its_provider_ran(i18n):
-    """The export runs on a lease an agent took on a database another lease built: the database's
-    facts decide, so a fit database exports and nothing is re-built."""
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        provider = _ready_lease(c, i18n)
-        consumer = _lease(c, i18n, mode="exclusive", db_name=provider["db_name"])
+        # A forwarded database is judged by the build its provider ran: a fit database exports.
+        consumer = _lease(c, i18n, mode="exclusive", db_name=lease["db_name"])
         done = _wait(c, _ok(_export(c, i18n, consumer["token"]))["job_id"])
-    assert done["result"] == "success", done
-    assert all(_flag(argv, "--i18n-export") for argv in _export_calls(i18n))
+        assert done["result"] == "success", done
+        assert all(_flag(argv, "--i18n-export") for argv in _export_calls(i18n))
 
-
-@pytest.mark.parametrize("over,needle", [
-    ({"languages": ["en_US"]}, "en_US"),
-    ({"languages": ["vi VN"]}, "arguments.languages"),
-    ({"modules": ["no_such_module"]}, "no_such_module"),
-    ({"modules": ["bad-name"]}, "arguments.modules"),
-    ({"output_dir": "relative/dir"}, "arguments.output_dir"),
-])
-def test_bad_arguments_are_refused_before_anything_starts(i18n, over, needle):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        err = _err(_export(c, i18n, lease["token"], **over))
-    assert err["code"] == "INVALID_ARGUMENTS" and needle in err["message"], err
-    assert _export_calls(i18n) == []
-
-
-def test_a_checkout_declaring_no_export_command_line_is_refused(i18n):
-    config = i18n["odoo_bin"].parent / "odoo" / "tools" / "config.py"
-    config.write_text("\n".join(ln for ln in config.read_text().splitlines()
-                                if "--i18n-export" not in ln), encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
+        # A checkout declaring no export command line is refused (last: it edits the checkout).
+        config = i18n["odoo_bin"].parent / "odoo" / "tools" / "config.py"
+        config.write_text("\n".join(ln for ln in config.read_text().splitlines()
+                                    if "--i18n-export" not in ln), encoding="utf-8")
+        before = len(_export_calls(i18n))
         err = _err(_export(c, i18n, lease["token"]))
-    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "i18n" in err["message"], err
-    assert _export_calls(i18n) == []
+        assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "i18n" in err["message"], err
+        assert len(_export_calls(i18n)) == before
 
 
 # --------------------------------------------------------------------------- #
 # what the database itself says, and a failing exporter
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("state,code", [
-    (STATE_DEFAULT.replace("MODULE=my_mod STATE=installed", "MODULE=my_mod STATE=uninstalled"),
-     "I18N_MODULE_NOT_INSTALLED"),
-    (STATE_DEFAULT.replace("LANG=fr_BE ISO=fr_BE ACTIVE=1", "LANG=fr_BE ISO=fr_BE ACTIVE=0"),
-     "I18N_LANGUAGE_NOT_ACTIVE"),
-    (STATE_DEFAULT.replace("LANG=vi_VN ISO=vi ACTIVE=1\n", ""), "I18N_LANGUAGE_NOT_ACTIVE"),
-])
-def test_what_the_database_does_not_hold_fails_the_job_before_any_file_is_written(i18n, state, code):
-    i18n["state"].write_text(state, encoding="utf-8")
+def test_what_the_database_does_not_hold_fails_the_job_before_any_file_is_written(i18n):
+    """When the database could not be read up front (lease records answered), the job asks the
+    database per module itself before any file is written."""
+    states = (
+        (STATE_DEFAULT.replace("MODULE=my_mod STATE=installed", "MODULE=my_mod STATE=uninstalled"),
+         "I18N_MODULE_NOT_INSTALLED"),
+        (STATE_DEFAULT.replace("LANG=fr_BE ISO=fr_BE ACTIVE=1", "LANG=fr_BE ISO=fr_BE ACTIVE=0"),
+         "I18N_LANGUAGE_NOT_ACTIVE"),
+        (STATE_DEFAULT.replace("LANG=vi_VN ISO=vi ACTIVE=1\n", ""), "I18N_LANGUAGE_NOT_ACTIVE"),
+        (STATE_DEFAULT.replace("MODULE=my_mod STATE=installed DEMO=1", "MODULE=my_mod STATE=installed DEMO=0"),
+         "I18N_EXPORT_NEEDS_DEMO"))
     with McpClient(i18n["env"](), i18n["work"]) as c:
         c.initialize()
         lease = _ready_lease(c, i18n)
+        for state, code in states:
+            i18n["state"].write_text(state, encoding="utf-8")
+            done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
+            assert done["result"] == "failure", code
+            assert done["exports"] == [] and _export_calls(i18n) == [], code
+            assert any(code in line and ("my_mod" in line or code != "I18N_EXPORT_NEEDS_DEMO")
+                       for line in done["output_tail"]), (code, done["output_tail"])
+            assert not (i18n["module"] / "i18n").exists(), code
+
+
+def test_a_failing_export_stops_the_run_and_a_file_is_replaced_only_by_a_finished_export(i18n):
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        i18n["fail_on"].write_text("vi_VN", encoding="utf-8")
+        i18n_dir = _fresh_i18n_dir(i18n, "vi.po")
         done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
-    assert done["result"] == "failure"
-    assert done["exports"] == [] and _export_calls(i18n) == []
-    assert any(code in line for line in done["output_tail"]), done["output_tail"]
-    assert not (i18n["module"] / "i18n").exists()
+        assert done["result"] == "failure"
+        assert [e["kind"] for e in done["exports"]] == ["pot"], "the template was written before the failure"
+        assert sorted(p.name for p in i18n_dir.iterdir()) == ["my_mod.pot", "vi.po"], "no partial file"
+        assert (i18n_dir / "vi.po").read_text() == "committed vi.po\n", (
+            "a failed export must not truncate the file it was going to replace")
+        assert len(_export_calls(i18n)) == 2, "nothing is exported after a failed file"
+        assert any("vi_VN" in line for line in done["output_tail"])
 
-
-def test_a_failing_export_stops_the_run_keeps_what_was_written_and_leaves_no_partial_file(i18n):
-    i18n["fail_on"].write_text("vi_VN", encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
-    i18n_dir = i18n["module"] / "i18n"
-    assert done["result"] == "failure"
-    assert [e["kind"] for e in done["exports"]] == ["pot"], "the template was written before the failure"
-    assert sorted(p.name for p in i18n_dir.iterdir()) == ["my_mod.pot"]
-    assert len(_export_calls(i18n)) == 2, "nothing is exported after a failed file"
-    assert any("vi_VN" in line and "failed" in line for line in done["output_tail"])
-
-
-def test_an_existing_file_is_replaced_only_by_a_finished_export(i18n):
-    i18n_dir = i18n["module"] / "i18n"
-    i18n_dir.mkdir()
-    (i18n_dir / "vi.po").write_text("committed translation\n", encoding="utf-8")
-    i18n["fail_on"].write_text("vi_VN", encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
-    assert (i18n_dir / "vi.po").read_text() == "committed translation\n", (
-        "a failed export must not truncate the file it was going to replace")
-
-
-def test_releasing_the_lease_stops_a_running_export(i18n):
-    """An export is a job of the lease: releasing the lease stops it mid-write, and neither the
-    half-written file nor a final one is left in the module."""
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
+        # An export is a job of the lease: releasing the lease stops it mid-write, and neither the
+        # half-written file nor a final one is left in the module.
+        i18n["fail_on"].unlink()
+        i18n_dir = _fresh_i18n_dir(i18n)
         i18n["slow"].write_text("1", encoding="utf-8")
         job = _ok(_export(c, i18n, lease["token"]))
         assert _wait(c, job["job_id"], timeout_s=3)["result"] == "timeout"
@@ -506,14 +439,6 @@ def test_releasing_the_lease_stops_a_running_export(i18n):
     assert _leftovers(i18n["module"]) == [], "the interrupted export's temporary file is removed"
 
 
-def test_job_wait_of_a_build_reports_no_exports(i18n):
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _lease(c, i18n)
-        done = _wait(c, _ok(_build(c, i18n, lease["token"], demo="on"))["job_id"])
-    assert done["exports"] == []
-
-
 def test_the_export_hands_the_script_the_declared_odoo_root(i18n, tmp_path):
     """The export script locates the Odoo launcher on the served addons_path and falls back to the
     instance's declared odoo_root - which instance_i18n_export must therefore hand it, or an
@@ -523,12 +448,10 @@ def test_the_export_hands_the_script_the_declared_odoo_root(i18n, tmp_path):
     core = i18n["addons"].parent
     toml = i18n["home"] / "instances.toml"
     toml.write_text(toml.read_text() + 'odoo_root = "%s"\n' % core, encoding="utf-8")
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
     stand_in, record = _ops_recorder(tmp_path)
     with McpClient(i18n["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), i18n["work"]) as c:
         c.initialize()
+        lease = _ready_lease(c, i18n)
         _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
     argv = json.loads(record.read_text())["argv"]
     assert argv[0] == "i18n-export"
@@ -549,7 +472,8 @@ def _loads(world):
 @pytest.mark.parametrize("series", ["17.0", "19.0"])
 def test_an_export_runs_on_the_core_default_plus_the_declared_server_wide_modules(i18n, series):
     """The database was built with the deployment's server-wide set; exporting from it without
-    that set runs Odoo differently from every build and serve of the deployment."""
+    that set runs Odoo differently from every build and serve of the deployment. The set is
+    adjusted for the call by `server_wide`, with the build's refusals."""
     _declare_series(i18n, series)
     _declare_server_wide(i18n, DECLARED_WIDE)
     expected = ",".join(trees.CORE_LOAD[series] + DECLARED_WIDE)
@@ -558,48 +482,25 @@ def test_an_export_runs_on_the_core_default_plus_the_declared_server_wide_module
         lease = _ready_lease(c, i18n, series=series)
         job = _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))
         done = _wait(c, job["job_id"])
-    assert done["result"] == "success", done
-    assert ",".join(job["server_wide_modules"]) == ",".join(done["server_wide_modules"]) == expected
-    assert job["server_wide_adjustment"] is None
-    if series == "17.0":
-        assert _loads(i18n) == [expected, expected], "the template and the .po alike"
-    else:
-        assert _loads(i18n) == [None, None], "the i18n export subcommand takes no --load"
-        conf = i18n["conf_copy"].read_text()
-        assert conf.count("server_wide_modules = %s\n" % expected) == 2, conf
-
-
-def test_an_export_honours_an_exclude_of_a_declared_module(i18n):
-    _declare_server_wide(i18n, DECLARED_WIDE)
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        job = _ok(_export(c, i18n, lease["token"], languages=[],
-                          server_wide={"exclude": ["viin_brand"]}))
+        assert done["result"] == "success", done
+        assert ",".join(job["server_wide_modules"]) == ",".join(done["server_wide_modules"]) == expected
+        assert job["server_wide_adjustment"] is None
+        if series == "17.0":
+            assert _loads(i18n) == [expected, expected], "the template and the .po alike"
+        else:
+            assert _loads(i18n) == [None, None], "the i18n export subcommand takes no --load"
+            conf = i18n["conf_copy"].read_text()
+            assert conf.count("server_wide_modules = %s\n" % expected) == 2, conf
+            return
+        # Excluding a declared module leaves it out for the call; a core default module cannot be.
+        i18n["calls"].write_text("", encoding="utf-8")
+        job = _ok(_export(c, i18n, lease["token"], languages=[], server_wide={"exclude": ["viin_brand"]}))
         done = _wait(c, job["job_id"])
-    assert done["result"] == "success", done
-    assert _loads(i18n) == ["base,web,to_base"]
-    assert done["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": []}
-
-
-def test_an_export_excluding_a_core_default_module_is_refused_before_anything_starts(i18n):
-    _declare_server_wide(i18n, DECLARED_WIDE)
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
+        assert done["result"] == "success", done
+        assert _loads(i18n) == ["base,web,to_base"]
+        assert done["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": []}
+        before = len(_export_calls(i18n))
         err = _err(_export(c, i18n, lease["token"], server_wide={"exclude": ["web"]}))
-    assert err["code"] == "INVALID_ARGUMENTS", err
-    assert "arguments.server_wide.exclude" in err["message"] and "core" in err["message"], err
-    assert _export_calls(i18n) == []
-
-
-def test_an_export_with_nothing_declared_passes_no_server_wide_set(i18n):
-    """As for a build: with nothing declared Odoo's own default applies, so no --load is passed."""
-    with McpClient(i18n["env"](), i18n["work"]) as c:
-        c.initialize()
-        lease = _ready_lease(c, i18n)
-        job = _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))
-        done = _wait(c, job["job_id"])
-    assert done["result"] == "success", done
-    assert _loads(i18n) == [None, None]
-    assert job["server_wide_modules"] == done["server_wide_modules"] == []
+        assert err["code"] == "INVALID_ARGUMENTS", err
+        assert "arguments.server_wide.exclude" in err["message"] and "core" in err["message"], err
+        assert len(_export_calls(i18n)) == before

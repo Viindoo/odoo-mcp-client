@@ -179,7 +179,6 @@ def test_synthetic_oversize_file_is_flagged(tmp_path, monkeypatch):
     monkeypatch.setattr(co, "SHARED_DIR", fake_root / "skills" / "_shared")
     monkeypatch.setattr(co, "SKILLS_DIR", fake_root / "skills")
     monkeypatch.setattr(co, "AGENTS_DIR", fake_root / "agents")
-    monkeypatch.setattr(co, "REFERENCES_DIR", fake_root / "snippets" / "references")
     monkeypatch.setattr(co, "CARD_BUDGET_GRANDFATHER_FILE", tmp_path / "does-not-exist.json")
 
     findings: list[str] = []
@@ -213,7 +212,6 @@ def test_synthetic_declared_file_outside_the_corpus_is_flagged(tmp_path, monkeyp
     monkeypatch.setattr(co, "SHARED_DIR", fake_root / "skills" / "_shared")
     monkeypatch.setattr(co, "SKILLS_DIR", fake_root / "skills")
     monkeypatch.setattr(co, "AGENTS_DIR", fake_root / "agents")
-    monkeypatch.setattr(co, "REFERENCES_DIR", fake_root / "snippets" / "references")
     monkeypatch.setattr(co, "CARD_BUDGET_GRANDFATHER_FILE", fixture)
 
     findings: list[str] = []
@@ -255,7 +253,6 @@ def test_synthetic_undersize_file_is_clean(tmp_path, monkeypatch):
     monkeypatch.setattr(co, "SHARED_DIR", fake_root / "skills" / "_shared")
     monkeypatch.setattr(co, "SKILLS_DIR", fake_root / "skills")
     monkeypatch.setattr(co, "AGENTS_DIR", fake_root / "agents")
-    monkeypatch.setattr(co, "REFERENCES_DIR", fake_root / "snippets" / "references")
     monkeypatch.setattr(co, "CARD_BUDGET_GRANDFATHER_FILE", tmp_path / "does-not-exist.json")
 
     findings: list[str] = []
@@ -277,7 +274,6 @@ def _fake_tree(tmp_path, monkeypatch, size: int, budget: int):
     monkeypatch.setattr(co, "SHARED_DIR", fake_root / "skills" / "_shared")
     monkeypatch.setattr(co, "SKILLS_DIR", fake_root / "skills")
     monkeypatch.setattr(co, "AGENTS_DIR", fake_root / "agents")
-    monkeypatch.setattr(co, "REFERENCES_DIR", fake_root / "snippets" / "references")
     monkeypatch.setattr(co, "CARD_BUDGET_GRANDFATHER_FILE", fixture)
     return fake_root, fixture
 

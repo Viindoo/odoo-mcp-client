@@ -1,5 +1,11 @@
-# Dependencies for odoo-mcp-client (runtime + dev/test). Single source of truth.
+# Development and CI only: read by `make setup` (the venv) and by the CI jobs. Nothing here is installed on a
+# plugin user's machine - the plugins run on the user's own Python, and Pillow stays optional there.
 pytest
+# Runs the suite in parallel (`make test`: -n, --dist loadfile).
+pytest-xdist
+# Pillow-backed tests (tests/test_image_sheet.py, test_image_optimize.py, test_icon_gate.py,
+# test_email_image.py, test_docs_site_images.py) skip without it and protect nothing.
+Pillow
 # Required to load/validate workflows/*.workflow.yaml - used by both
 # tests/test_workflow_format.py and plugins/.../generator/check_workflows.py.
 # Without it the workflow tests silently skip (CI was masking this).

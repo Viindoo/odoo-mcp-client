@@ -47,7 +47,6 @@ def _findings_for(body: str, tmp_path: Path, monkeypatch) -> list[str]:
 
     monkeypatch.setattr(co, "PLUGIN_ROOT", fake_root)
     monkeypatch.setattr(co, "SNIPPETS_DIR", fake_root / "snippets")
-    monkeypatch.setattr(co, "REFERENCES_DIR", fake_root / "snippets" / "references")
     for name in ("SKILLS_DIR", "AGENTS_DIR", "COMMANDS_DIR", "WORKFLOWS_DIR", "DOCS_DIR"):
         monkeypatch.setattr(co, name, fake_root / "absent")
 

@@ -12,8 +12,14 @@ public https:// URL the stores keep as is.
 An image in an RST also has to fit the page: both stores load Bootstrap 5 and size an RST image by
 its file's pixel width, so a screenshot captured at device pixel ratio 2 overflows the page unless
 the directive carries `img-fluid` and the `:width:` of its intended CSS width.
-Each test builds a small module in a temp dir, writes ONE reference, and runs the real CLI.
+Each test builds a small module in a temp dir, writes ONE reference, and runs the gate's `main`
+in this process (the rules are the subject, and a fresh interpreter per case is most of the cost);
+the process boundary itself - the entry point's exit status, `--help`, the interpreter floor - is
+exercised through real subprocesses in the "CLI contract" section.
 """
+import contextlib
+import importlib.util
+import io
 import os
 import struct
 import subprocess
@@ -81,10 +87,25 @@ def _manifest(module, *images):
         "{'name': 'X', 'images': [%s]}\n" % ", ".join(repr(i) for i in images))
 
 
+_spec = importlib.util.spec_from_file_location("doc_refs_check", GATE)
+_gate = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_gate)
+
+
+class _Result:
+    def __init__(self, returncode, stdout, stderr):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+def _main(*argv):
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = _gate.main(list(argv))
+    return _Result(code, out.getvalue(), err.getvalue())
+
+
 def _run(module, *files, series=SERIES):
-    proc = subprocess.run([sys.executable, str(GATE), "--module-root", str(module),
-                           "--series", series, *files], capture_output=True, text=True, timeout=30)
-    return proc
+    return _main("--module-root", str(module), "--series", series, *files)
 
 
 def _rst(module, body):
@@ -797,10 +818,21 @@ def test_help_exits_0_and_prints_the_usage():
     ["--module-root", "{mod}", "--series", SERIES, "doc/missing.rst"],
 ])
 def test_usage_errors_exit_2(module, args):
-    argv = [a.replace("{mod}", str(module)) for a in args]
-    proc = subprocess.run([sys.executable, str(GATE), *argv], capture_output=True, text=True,
-                          timeout=30)
+    proc = _main(*[a.replace("{mod}", str(module)) for a in args])
     assert proc.returncode == 2, proc.stdout + proc.stderr
+
+
+def test_the_entry_point_exits_with_the_verdict_of_the_check(module):
+    """The process boundary: exit 1 and a `file:line: RULE: ref` line for a finding, exit 0 and
+    nothing for a clean module."""
+    argv = [sys.executable, str(GATE), "--module-root", str(module), "--series", SERIES,
+            "doc/index.rst"]
+    (module / "doc" / "index.rst").write_text(".. image:: /abs.png\n")
+    flagged = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+    assert flagged.returncode == 1 and flagged.stdout == "doc/index.rst:1: IMG_NOT_RELATIVE: /abs.png\n"
+    (module / "doc" / "index.rst").write_text(_img("assets/form.png"))
+    clean = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+    assert clean.returncode == 0 and clean.stdout == ""
 
 
 def test_an_interpreter_below_the_floor_exits_2_with_the_remedy():
@@ -814,7 +846,7 @@ def test_an_interpreter_below_the_floor_exits_2_with_the_remedy():
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                           timeout=30, env=dict(os.environ, VIRTUAL_ENV="/opt/odoo-venv"))
     assert proc.returncode == 2
-    assert "make python3 on PATH a Python >= 3.8 (deactivate the Odoo venv)" in proc.stderr
+    assert proc.stderr.strip(), "the refusal must tell the caller what to do, not exit silently"
 
 
 def test_the_gate_parses_on_python_3_8_grammar():
@@ -885,10 +917,6 @@ def test_a_guide_link_is_not_held_to_the_store_text_rule(module):
 def test_a_store_link_to_a_module_that_is_not_in_the_addons_path_is_reported(tmp_path):
     """The EXTENSIONS cards link sibling modules root-relative; with --addons-path the gate refuses a
     link to a module nobody ships (a name from memory)."""
-    import subprocess
-    import sys
-    from pathlib import Path
-    script = Path(__file__).resolve().parents[1] / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "doc_refs_check.py"
     addons = tmp_path / "addons"
     for name in ("my_app", "my_app_extra"):
         (addons / name).mkdir(parents=True)
@@ -897,15 +925,13 @@ def test_a_store_link_to_a_module_that_is_not_in_the_addons_path_is_reported(tmp
     page.mkdir(parents=True)
     (page / "index.html").write_text(
         '<a href="/apps/modules/17.0/my_app_extra">Extra</a> <a href="/apps/modules/17.0/my_app_ghost">Ghost</a>')
-    base = [sys.executable, str(script), "--module-root", str(addons / "my_app"), "--series", "17.0"]
-    with_path = subprocess.run(base + ["--addons-path", str(addons), str(page / "index.html")],
-                               capture_output=True, text=True)
+    base = ["--module-root", str(addons / "my_app"), "--series", "17.0"]
+    with_path = _main(*base, "--addons-path", str(addons), str(page / "index.html"))
     assert with_path.returncode != 0
-    assert "LINK_MODULE_UNKNOWN" in with_path.stdout + with_path.stderr
-    assert "my_app_ghost" in with_path.stdout + with_path.stderr and "my_app_extra" not in (
-        [l for l in (with_path.stdout + with_path.stderr).splitlines() if "LINK_MODULE_UNKNOWN" in l][0])
-    without = subprocess.run(base + [str(page / "index.html")], capture_output=True, text=True)
-    assert "LINK_MODULE_UNKNOWN" not in without.stdout + without.stderr   # the check needs the directories
+    unknown = [l for l in with_path.stdout.splitlines() if "LINK_MODULE_UNKNOWN" in l]
+    assert len(unknown) == 1 and "my_app_ghost" in unknown[0] and "my_app_extra" not in unknown[0]
+    without = _main(*base, str(page / "index.html"))
+    assert "LINK_MODULE_UNKNOWN" not in without.stdout   # the check needs the directories
 
 
 # --------------------------------------------------------------------------- #

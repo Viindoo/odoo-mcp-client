@@ -29,8 +29,7 @@ token set, or a diff); none judges the meaning of prose.
                        tests/fixtures/card_budget_grandfather.json) stays within its byte
                        budget, and every entry equals the real size (a trim lowers its entry);
                        growth is a deliberate budget bump in that file.
- 14. ref-scope       - (a) WARN-ONLY: a citation of a large file carries a section anchor;
-                       (b) STRICT: no consumer file points at snippets/references/.
+ 14. ref-scope       - WARN-ONLY: a citation of a large file carries a section anchor.
  15. no-provenance   - agent-facing prose carries no plugin-self changelog or tracker
                        provenance (closed token list).
  16. instance-truth  - instance_touching is checked against what the skill body does.
@@ -44,6 +43,8 @@ token set, or a diff); none judges the meaning of prose.
  21. agent-body     - an agent body (after the frontmatter) stays within 200 lines and 12,000
                        bytes; a dimension over its limit is recorded in tests/fixtures/
                        agent_body_budget.json, and that figure only goes down.
+ 22. agent-effort   - an agent's frontmatter `effort`, when present, is one of low, medium, high,
+                       xhigh; `max` and any unknown value are refused, an absent field is fine.
 
 Run: python3 generator/check_orchestration.py [--strict]   (ORCH_STRICT=1 also enforces)
 Sync: python3 generator/check_orchestration.py --sync-budgets   (make sync-budgets) lowers every
@@ -68,7 +69,6 @@ SNIPPETS_DIR = PLUGIN_ROOT / "snippets"
 COMMANDS_DIR = PLUGIN_ROOT / "commands"
 WORKFLOWS_DIR = PLUGIN_ROOT / "workflows"
 DOCS_DIR = PLUGIN_ROOT / "docs"
-REFERENCES_DIR = SNIPPETS_DIR / "references"
 SHARED_DIR = SKILLS_DIR / "_shared"
 
 # --- The agent-facing corpus (what a content rule is allowed to see) --------------------------
@@ -89,14 +89,10 @@ AGENT_FACING_DOCS_EXCLUDED = ("docs/authoring-skills-and-agents.md",)
 
 
 def _doc_citing_files() -> list[Path]:
-    """The PER-INVOCATION corpus whose citations define which docs/ files are agent-facing.
-
-    `snippets/references/` is excluded as a citer on purpose: per M9 / [ref-scope] half (b) it is
-    the read-if-you-need-the-why tier that no executing agent is ever pointed at, so what IT cites
-    says nothing about what an agent is handed mid-run."""
+    """The PER-INVOCATION corpus whose citations define which docs/ files are agent-facing."""
     files = list(SKILLS_DIR.rglob("*.md")) if SKILLS_DIR.exists() else []
     if SNIPPETS_DIR.exists():
-        files += [f for f in SNIPPETS_DIR.rglob("*.md") if f.parent != REFERENCES_DIR]
+        files += list(SNIPPETS_DIR.rglob("*.md"))
     if AGENTS_DIR.exists():
         files += list(AGENTS_DIR.glob("*.md"))
     if COMMANDS_DIR.exists():
@@ -120,11 +116,8 @@ def agent_facing_docs() -> list[Path]:
     return sorted(p for p in (PLUGIN_ROOT / rel for rel in cited) if p.is_file())
 
 
-def agent_facing_files(include_docs: bool = True) -> list[Path]:
-    """Every file a running agent may be handed - the scan corpus for the content rules.
-
-    `include_docs=False` is for [ref-scope] half (b), whose own contract exempts `docs/` (the
-    reference tree is meant to stay discoverable from the authoring guide and from this lint)."""
+def agent_facing_files() -> list[Path]:
+    """Every file a running agent may be handed - the scan corpus for the content rules."""
     files = list(SKILLS_DIR.rglob("*.md")) if SKILLS_DIR.exists() else []
     if SNIPPETS_DIR.exists():
         files += list(SNIPPETS_DIR.rglob("*.md"))
@@ -134,28 +127,9 @@ def agent_facing_files(include_docs: bool = True) -> list[Path]:
         files += list(COMMANDS_DIR.glob("*.md"))
     if WORKFLOWS_DIR.exists():
         files += list(WORKFLOWS_DIR.glob("*.md")) + list(WORKFLOWS_DIR.glob("*.yaml"))
-    if include_docs:
-        files += agent_facing_docs()
+    files += agent_facing_docs()
     return sorted(set(files))
 
-# M9 (12-design-final.md): the 13 files inverted to their measured minimum. Each earns a sibling
-# `snippets/references/<name>.md` carrying the explanation moved out of the per-invocation path.
-# Data-driven single list - both the [ref-target] existence check and (informationally) the
-# card-budget grandfather generator key off this same set.
-INVERTED_SNIPPETS = (
-    "snippets/dispatch-brief.md",
-    "snippets/module-coordination-ledger.md",
-    "snippets/git-delegation.md",
-    "snippets/resource-teardown-contract.md",
-    "skills/_shared/concurrency-guard.md",
-    "snippets/worker-brief.md",
-    "snippets/spawner-completion-contract.md",
-    "snippets/continuation-contract.md",
-    "snippets/worklog-contract.md",
-    "snippets/test-sensitivity-contract.md",
-    "snippets/state-root-resolution.md",
-    "snippets/instance-handle-contract.md",
-)
 
 OSM_SNIPPET = "osm-first-contract"
 DESIGN_DOC = "odoo-frontend-fidelity"
@@ -462,15 +436,10 @@ def _card_budget_candidates() -> list[Path]:
     entry is a DECLARATION of the same fact, so it is an entry ticket in its own right. That second
     door is the only way in for a hot contract the heuristic structurally cannot see - notably a
     top-level `skills/<name>/SKILL.md` runtime contract, whose basename `SKILL.md` is shared by
-    every skill and so makes any basename-keyed citer count meaningless.
-
-    `snippets/references/*.md` is excluded on purpose: per M9/[ref-scope], no consumer-facing file
-    may ever cite it, so it can never reach the >=3-citer threshold and including it would only
-    slow the scan."""
+    every skill and so makes any basename-keyed citer count meaningless."""
     files = list(SNIPPETS_DIR.glob("*.md"))
     if SHARED_DIR.exists():
         files += list(SHARED_DIR.glob("*.md"))
-    files = [f for f in files if f.parent != REFERENCES_DIR]
     files += [
         p for p in (PLUGIN_ROOT / rel for rel in _load_card_budget_grandfather()) if p.is_file()
     ]
@@ -612,6 +581,38 @@ def check_agent_body(findings: list[str]) -> None:
     findings.extend(agent_body_findings(figures, _load_agent_body_record(AGENT_BODY_RECORD_FILE)))
 
 
+# --- [agent-effort] (rule 22) ---------------------------------------------------------------------
+
+VALID_AGENT_EFFORT = ("low", "medium", "high", "xhigh")
+
+
+def agent_effort_findings(agent_files: list[Path], base: Path) -> list[str]:
+    """An agent definition may declare `effort:` in its frontmatter; the value is one of
+    VALID_AGENT_EFFORT. `max` is never a definition's default, so it is refused with the rest."""
+    found: list[str] = []
+    for path in agent_files:
+        text = path.read_text(encoding="utf-8")
+        match = re.match(r"---\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.S)
+        if not match:
+            continue
+        for line in match.group(1).splitlines():
+            m = re.match(r"effort:[ \t]*(.*?)[ \t]*$", line)
+            if m:
+                value = m.group(1).strip("'\"")
+                if value not in VALID_AGENT_EFFORT:
+                    rel = path.relative_to(base).as_posix()
+                    found.append(
+                        f"[agent-effort] '{rel}' declares effort '{value}' (not in "
+                        f"{list(VALID_AGENT_EFFORT)}) - an agent never defaults to max")
+    return found
+
+
+def check_agent_effort(findings: list[str]) -> None:
+    """22. [agent-effort] - see agent_effort_findings."""
+    findings.extend(agent_effort_findings(
+        sorted(REPO_ROOT.glob("plugins/*/agents/*.md")), REPO_ROOT))
+
+
 def sync_budgets(
     card_file: Path, plugin_root: Path, record_file: Path, agent_files: list[Path], base: Path
 ) -> tuple[list[str], list[str]]:
@@ -683,11 +684,10 @@ LARGE_FILE_CITE_RE = re.compile(
 LARGE_FILE_THRESHOLD = 20480
 SECTION_ANCHOR_CHARS = "§"
 REF_SCOPE_WINDOW = 150
-REFERENCES_PATH_SUBSTRING = "snippets/references/"
 
 
 def check_ref_scope_citation_anchor(warn_only_findings: list[str]) -> None:
-    """14a. [ref-scope] half (a) - WARN-ONLY FOR ONE RELEASE (see module docstring rationale below).
+    """14. [ref-scope] - WARN-ONLY FOR ONE RELEASE (see module docstring rationale below).
     A SKILL.md/agents/*.md body citing another real file over the size threshold should carry a
     '§ <anchor>' within REF_SCOPE_WINDOW chars of the citation - a whole-file citation for one
     clause is exactly the X-64 pattern this half exists to catch.
@@ -728,26 +728,6 @@ def check_ref_scope_citation_anchor(warn_only_findings: list[str]) -> None:
                     f"{LARGE_FILE_THRESHOLD}B threshold) with no '§ <anchor>' within "
                     f"{REF_SCOPE_WINDOW} chars"
                 )
-
-
-def check_ref_scope_no_reference_pointer(findings: list[str]) -> None:
-    """14b. [ref-scope] half (b) - LIVE and enforcing (part of `findings`, gates --strict). No
-    skills/agents/snippets file may name the 'snippets/references/' path shape at all - the
-    read-both hazard closure at the heart of M9's safety design: an executing agent must never be
-    handed a pointer to the reference sibling it could follow instead of the (now-inverted)
-    decidable rule file. Scanned over the agent-facing corpus MINUS docs/ - docs/ is exempt because
-    the reference tree is meant to stay discoverable from docs/authoring-skills-and-agents.md and
-    from this lint, by design; commands/ and workflows/ ARE in scope (an agent reads them in
-    full)."""
-    for f in agent_facing_files(include_docs=False):
-        text = f.read_text(encoding="utf-8")
-        rel = f.relative_to(PLUGIN_ROOT)
-        if REFERENCES_PATH_SUBSTRING in text:
-            findings.append(
-                f"[ref-scope] {rel} names the '{REFERENCES_PATH_SUBSTRING}' path - a "
-                f"consumer-facing file must never be handed a pointer to a reference sibling it "
-                f"could read-both instead of the decidable rule"
-            )
 
 
 # --- [no-provenance] (rule 15, M10, X-50) -------------------------------------------------------
@@ -1091,6 +1071,7 @@ VERSION_CLAIM_RE = re.compile(
 BOUNDARY_SSOT_FILES = (
     "odoo-era-boundaries.md",
     "odoo-version-pivots.md",
+    "odoo-build-facts.md",
     "odoo-frontend-fidelity.md",
     "odoo-ui-knowledge.md",
     # The odoo-bin memory/time resource-limit boundary (v8-v11 no in-Odoo cap vs v12+ setrlimit
@@ -1529,19 +1510,6 @@ def main(argv: list[str]) -> int:
         if not (PLUGIN_ROOT / rel).is_file():
             findings.append(f"[ref-target] shared contract file '{rel}' is referenced but missing on disk")
 
-    # 1d. [ref-target] learns the `snippets/references/` path shape (M9): every one of the 13 M9
-    # wave-inverted files must have moved its explanation to a sibling `snippets/references/<name>.md`
-    # - without this, a rename/typo leaves the sibling orphaned (created under the wrong name) with
-    # no mechanical check ever noticing, since [ref-scope] rule (b) forbids any CONSUMER file from
-    # naming this path (the read-both hazard), so nothing else on the tree points at it either.
-    for rel in INVERTED_SNIPPETS:
-        ref_path = REFERENCES_DIR / Path(rel).name
-        if not ref_path.is_file():
-            findings.append(
-                f"[ref-target] '{rel}' is an M9-inverted snippet but its reference sibling "
-                f"'{ref_path.relative_to(PLUGIN_ROOT)}' is missing on disk"
-            )
-
     for name in sorted(set(orch) & dirs):
         e = orch[name]
         body = skill_body(name) or ""
@@ -1629,11 +1597,11 @@ def main(argv: list[str]) -> int:
     check_agent_roles(findings)
 
 
-    # 13, 14b, 15. [card-budget] / [ref-scope] half (b) / [no-provenance] (M9/M10,
+    # 13, 15. [card-budget] / [no-provenance] (M9/M10,
     # 12-design-final.md) - LIVE and enforcing, part of `findings` like rules 1-8 and 11.
     check_card_budget(findings)
     check_agent_body(findings)
-    check_ref_scope_no_reference_pointer(findings)
+    check_agent_effort(findings)
     check_no_provenance(findings)
 
 
@@ -1652,7 +1620,7 @@ def main(argv: list[str]) -> int:
     version_claim_advisory_findings: list[str] = []
     check_version_claim(findings, version_claim_advisory_findings)
 
-    # 14a. [ref-scope] half (a) (M9) - WARN-FIRST for one release, SEPARATE list from 9/10 so the
+    # 14. [ref-scope] (M9) - WARN-FIRST for one release, SEPARATE list from 9/10 so the
     # print label stays accurate (see check_ref_scope_citation_anchor's own docstring).
     ref_scope_warn_only_findings: list[str] = []
     check_ref_scope_citation_anchor(ref_scope_warn_only_findings)
@@ -1676,7 +1644,7 @@ def main(argv: list[str]) -> int:
 
     if ref_scope_warn_only_findings:
         print(f"check_orchestration: {len(ref_scope_warn_only_findings)} warn-only finding(s) "
-              f"([ref-scope] half (a), citation-anchor, ships warn-first for one release - "
+              f"([ref-scope], citation-anchor, ships warn-first for one release - "
               f"NEVER gates --strict):")
         for fnd in ref_scope_warn_only_findings:
             print(f"  - {fnd}")

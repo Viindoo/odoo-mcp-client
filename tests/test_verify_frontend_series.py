@@ -103,8 +103,29 @@ def _make_target_repo(
     return repo
 
 
+_TOOLS: dict = {}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _stub_node_tooling(tmp_path_factory):
+    """These cases are about WHICH checkout supplies the eslint config, not about eslint.
+
+    A `npx` that answers every `--no-install <bin> ...` call with exit 0 stands in for the
+    host's node toolchain, so the run neither pays eslint's start-up (seconds, three times per
+    run) nor depends on whether the host has node at all.
+    """
+    d = tmp_path_factory.mktemp("node-stub")
+    npx = d / "npx"
+    npx.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    npx.chmod(0o755)
+    _TOOLS["bin"] = d
+    yield
+    _TOOLS.clear()
+
+
 def _run(repo: Path, git_base: Path, js_file: Path, *series_args: str, **env_extra):
     env = dict(os.environ)
+    env["PATH"] = f"{_TOOLS['bin']}{os.pathsep}{env.get('PATH', '')}"
     env.update(
         {
             "ODOO_GIT_BASE": str(git_base),

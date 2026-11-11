@@ -288,10 +288,13 @@ def test_each_condemn_arm_names_itself_in_the_notice(harness, env_home):
     other = ("proc:" + real[len("proc:"):].rpartition(":")[0] + ":1"
              if real.startswith("proc:") else "ps:Thu Jan  1 00:00:00 1970")
 
+    # No run id: a lease that belongs to a run is PARKED when its owner is gone, and this
+    # test is about the notice of the reclaims that remain.
     dead, recycled, unprovable = _seed_many(harness, home, [
-        (dead_pid, {"token": "2a" * 16, "db_name": "odoo_17_0_t_aaaaaaaa"}),
+        (dead_pid, {"token": "2a" * 16, "db_name": "odoo_17_0_t_aaaaaaaa",
+                    "owner": {"run_id": ""}}),
         (recycled_leader, {"token": "2b" * 16, "db_name": "odoo_17_0_t_bbbbbbbb",
-                           "owner": {"pid_started": other}}),
+                           "owner": {"pid_started": other, "run_id": ""}}),
         (DEAD_PID, {"host": FOREIGN_HOST, "token": "2c" * 16,
                     "db_name": "odoo_17_0_t_cccccccc"}),
     ])

@@ -24,7 +24,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - run: python -m pytest tests/ -q
+      # The same two passes as `make test`: the tests in parallel (pytest-xdist, one worker per CPU,
+      # a file per worker), then the timing-sensitive set (SERIAL_TESTS in tests/conftest.py) alone.
+      - run: make test-run PYTEST="python -m pytest"
 
   deps-check:
     name: Skill ↔ Tool dependency check
