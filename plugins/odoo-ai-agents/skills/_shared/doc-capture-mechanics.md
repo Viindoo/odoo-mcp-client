@@ -147,7 +147,10 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
    - **What may be hidden.** CSS or a blur hides only a VALUE that must not be published (an
      address, an identifier, a key-shaped string); an unwanted AREA is framed out or cropped from
      the image file, never hidden in the page. Whether an element is the module's is read from
-     its view or field definition (`entity_lookup`, the XML), never from its label.
+     its view or field definition (`entity_lookup`, the XML), never from its label. The
+     instance's own local address is such a value wherever the system writes it into content (a
+     link in a generated answer, an email preview, a share link): frame the shot without that
+     line, else hide the address - a published image never shows it.
 6. **Final format at capture time.** A screenshot is captured as PNG (chrome-devtools
    `take_screenshot` `format` `png`; playwright `type` `png`), so text stays sharp. A GIF's width = the slot width: record at a
    viewport within the step-3 cap and pass the slot width as `record_and_gif` `gifWidth` /

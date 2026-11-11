@@ -133,9 +133,11 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
    except the S9 carve-out; neither field present -> BLOCKED. Before the first mutating command,
    run the S11 positional self-check: compare the repo root of the write target against the
    brief's worktree path; STOP on mismatch.
-2. Clean-tree check (S4): `git status --porcelain` not empty -> STOP, return BLOCKED with
-   `gate_hit: S4 dirty tree` and the output in the findings file.
-3. If destructive: backup branch + record pre-op SHA. If the op changes a protected branch and the
+2. Clean-tree check (S4), before an integration op or a rewrite only: `git status --porcelain`
+   not empty -> STOP, return BLOCKED with `gate_hit: S4 dirty tree` and the output in the
+   findings file. A commit of the paths the brief names proceeds on a dirty tree and stages
+   exactly those paths.
+3. If destructive: backup branch + record pre-op SHA (S1; no backup for any other op). If the op changes a protected branch and the
    brief has no `confirmed:` -> STOP, return BLOCKED.
 4. Execute the op headlessly; follow `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` (and
    its recipes) for any large diff pass (summary-first, cluster, never read a huge diff whole). Resolve conflicts

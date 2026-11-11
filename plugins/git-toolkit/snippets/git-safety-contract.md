@@ -17,6 +17,11 @@ date -u +%Y%m%d%H%M%S                         # <ts>
 git branch --no-track backup/<branch>-<ts> <sha>
 ```
 
+A backup exists only for a destructive op, under that name, and is local: it is never pushed. The
+report names it. It lives until the rewritten branch is pushed; the dispatch that pushes the
+branch deletes that branch's backups and lists them in its report, so no backup is left for the
+caller to find.
+
 ## S2 - force-with-lease, never force
 
 ```bash
@@ -43,6 +48,9 @@ git status --porcelain
 Any output: STOP and return BLOCKED (`gate_hit: S4 dirty tree`) with that output in the findings
 file. Never stash - `refs/stash` is one stack shared by every worktree of the repository - and
 never commit, discard or move changes that are not yours: the caller decides.
+
+A commit of the paths a brief names is not an integration op: other modified or untracked paths
+never block it. Stage exactly the named paths and leave the rest as found.
 
 ## S5 - Abort flows are always available
 

@@ -35,6 +35,18 @@ Apply the ARTEFACT test BEFORE ruling WRONG: an identity entry passes the WRONG 
 every time a module contains one. Adjudicate `msgid`/`msgstr` changes only - header, `#:` and
 ordering differences are Odoo's export format, never edited.
 
+Two shapes the export build produces by itself; neither is a loss and neither is a translation
+choice of the run:
+
+- **A removed entry of a record a module outside the dependency closure supplies** - a field or
+  view that module adds to this module's models (a mixin field, for example). The committed file
+  got it from a wider build; the isolated build of the recipe has no such record, and Odoo's own
+  catalogs carry none. Ruling: CORRECT.
+- **A changed `msgstr` on a record a dependency owns and translates** - the `#:` line names a model,
+  field or record this module only extends. Loading a catalog never replaces a translation the
+  database already holds, so the dependency's value, loaded first, is what the export reads back.
+  Ruling: restore the committed `msgstr`; the run changes no translation it did not write.
+
 ## Fuzzy and placeholders
 
 - A `fuzzy` flag makes Odoo IGNORE the entry at load time. Clear it only after confirming or
