@@ -137,3 +137,10 @@ users field is `user_ids`, the transitive implied set `all_implied_ids`, and the
 - Canonical reference (core `hr/security/hr_security.xml`): `group_hr_user` and `group_hr_manager`
   share `res_groups_privilege_employees` (category `base.module_category_human_resources`), the
   manager implying the officer.
+
+## Two sensitive domains
+
+A group that opens one sensitive domain (payroll data, accounting entries) never implies, and is
+never implied by, the group of another, and no access row, record rule or `sudo` shows one
+domain's data to the other's users. A menu or button that needs both requires both groups, and
+the tests cover a user with only one, only the other, and both.

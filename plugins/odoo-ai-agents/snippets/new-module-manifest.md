@@ -39,6 +39,11 @@ fill only what is needed, preserve what is not yet needed.
 
 ---
 
+A key that is present with its default value (an empty `data` or `demo` list, `application:
+False`, an empty `summary`) fails the manifest lint of a series that has one, for every addon on
+the addons path: after scaffolding, delete such a live key. A commented placeholder line is not a
+key and stays.
+
 ## 3. Version field - data-driven, short form
 
 The `version` key in `__manifest__.py` uses the **short form** everywhere this snippet's scope

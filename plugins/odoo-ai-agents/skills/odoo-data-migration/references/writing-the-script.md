@@ -46,4 +46,7 @@ base; `--help` states every rule): `MIGRATION_GATE=FAIL` is fixed before you ret
 upgrade within the series through `Skill(odoo-instance)`: a database built from the PR base with
 records the script moves, the module updated from `WORKTREE_PATH`, and the moved data read back
 against the expected values. The verification checklist of `output-templates.md` goes in your
-return.
+return. A `-u` that fails partway leaves the modules it had loaded at their new version without
+their end-migrate, and a re-run skips them (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md`,
+Install / Upgrade / Migration): on a database you keep, reset their recorded version before
+running again.

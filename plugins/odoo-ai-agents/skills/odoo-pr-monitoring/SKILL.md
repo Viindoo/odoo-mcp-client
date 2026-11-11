@@ -121,6 +121,10 @@ Root-cause comes before any fix, and the fix is NEVER pushed autonomously.
    per request, rule 7, still bounded by `max_review_rounds`.
 6. After an approved re-push, return to Phase 2 (poll the re-triggered CI).
 
+A CI build lists a warning without naming its test: attribute every warning to the test-start
+line that precedes it in the log, then search the repository for every place that produces the
+message, and put every test on that list into the verification run.
+
 ## Phase 4 - Dispatched as `merge`: the merge approval gate -> merge -> cleanup
 
 1. **Present the merge approval gate (always human).** The autonomy dial can NEVER lower this gate

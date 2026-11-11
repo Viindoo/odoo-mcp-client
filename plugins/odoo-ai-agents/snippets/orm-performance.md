@@ -33,3 +33,14 @@ for r in self:
 ```
 
 Severity in review: **HIGH**.
+
+## Hot paths
+
+- `env.ref(xmlid)` costs a query on every call. In a compute, an override of a read path or a
+  `filtered` lambda, resolve the id once with `env['ir.model.data']._xmlid_to_res_id(xmlid)`
+  (cached) and `browse` it outside the loop. A change that overrides a compute core reads under a
+  query-count assertion runs those core suites too.
+- `modified()` is not called from inside a compute: it walks the trigger tree and can run a
+  `search` per relation hop, a cost that depends on which modules are installed. To re-mark one
+  dependant on the same records use `env.add_to_compute(field, records - env.protected(field))`,
+  and measure the query delta with the neighbouring modules installed.

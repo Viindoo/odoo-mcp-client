@@ -31,12 +31,29 @@ A legal value or rule (`odoo-platform-design-principles.md` § 6) is tested by c
 or setting and asserting that the result follows - raise the ceiling record, the computed
 allowance follows - never by asserting the value it holds.
 
+A test double sits below the layer that holds the defect, so the code under test still runs: a
+double that wraps the defective code passes whatever the code does. A stand-in for an object many
+layers probe (the HTTP request, the session) answers only what it was given - a bare class whose
+other attributes raise, a real mapping for the session - never a `Mock`, whose truthy answer to
+every attribute steers production code into branches it never takes.
+
 ## Drive the real workflow
 
 Reach a state through its real transition - `action_confirm()`, `action_post()`,
 `button_validate()` - never by seeding the end `state` in `create()`. Run the action under test as
 the real user with `with_user()`; `sudo()` is for arrange data only, because on the action under test
 it silently passes a broken access rule. Example: BAD vs GOOD below.
+
+A test user of a role holds the internal-user group plus the role's group: created with an
+application group alone it is a share user, denied almost everything, so a denial test passes for
+the wrong reason. Before a test expects a denial, name a real set of groups that reaches the
+denied branch - a mandatory dependency may grant the same access to every group that can open the
+model; when no real group is denied, build the denial with a record rule or by lowering the access
+row inside the test, never with a weaker user who is stopped earlier by another check.
+
+A module that ships groups, access rows or record rules has ONE access test per relevant business
+group - what the group may and may not do, record rules and multi-company included; extend the
+existing one, never add a second.
 
 ## Simulate the user with Form
 
@@ -67,6 +84,11 @@ repo-owned records is a floor with an emptiness guard, never an equality. A migr
 proven by a real upgrade (seed data on the old code, update on the new, read the state back),
 never by a test. A test of a scenario the product never produces for a real person is deleted;
 deleted tests are not converted into new ones to fill a gap - the gap is reported.
+
+Under the registry test mode an `HttpCase` enables, a cursor taken from the registry is a savepoint
+of the test's own transaction: a test cannot tell a commit that escaped from one rolled back with
+it. Do not write that assertion; prove the claim by listing every `cr.commit()` call in the source
+and say in the report that it is proof by enumeration.
 
 ## Never assert TRANSLATED or DISPLAY text (HARD RULE)
 
@@ -106,6 +128,9 @@ literals from the business rule - never computed in the test, no loops or helper
 expectations, no re-implemented rule. Register each test file in `tests/__init__.py` per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py` import order; never import `tests` from the module's own `__init__.py` (Odoo's loader imports
 it). Example: the GOOD tests below.
+
+Sample sentences, record names and throwaway strings are English, the source language of Odoo
+strings; another language appears only when language itself is under test.
 
 ## Odoo BAD vs GOOD (confirm workflow)
 

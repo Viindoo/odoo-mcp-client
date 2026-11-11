@@ -104,6 +104,13 @@ API or CLI reported as written is read back from the platform and compared with 
 it is reported done; an exit code is not proof, and a flag that takes a file may store the literal
 path instead of the content.
 
+**Outward writes stay on what the run owns.** Comment, open an issue or push only on a pull
+request or issue this run opened or the caller named; a defect seen in someone else's work goes
+into the report, not onto their PR. Before adding commits to an existing PR branch, confirm the PR
+is still open: after a merge the work goes to a new branch from the updated base and a new PR that
+references the merged one. Outward text cites only what its reader can open - a path in the
+repository, a URL, or the excerpt itself - never a machine-local path.
+
 ## Attachments on a PR or issue
 
 A brief that names a local file to ATTACH to a PR or issue body or comment (a demo video, a
