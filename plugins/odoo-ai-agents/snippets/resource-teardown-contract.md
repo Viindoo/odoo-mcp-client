@@ -1,132 +1,87 @@
-<!-- SSOT snippet: teardown before DONE - browser pages (T2), instance leases (T3), the DONE-gate
-     (T0), ownership (T1), failure paths (T4), and browser single-flight. Edit here only; consumers
-     point at ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md. -->
+# Resource teardown contract (close and release before a terminal status)
 
-# Resource Teardown Contract (close/release before DONE)
+Two resource classes, two verb sets, never mixed: you CLOSE a browser page, tab or context and
+STOP a recording or trace; you RELEASE, PARK or hand off an Odoo instance lease. Closing a page
+never touches a lease, and a "never release the lease" instruction never excuses an open page.
 
-## Verb glossary - read this first
+## T0 - The gate
 
-Two resource classes, two disjoint verb sets. Never mix them:
+You do not emit a terminal status - `DONE`, `BLOCKED`, `NEEDS_CONTEXT`, `NEEDS_NEXT` alike - while:
 
-- **CLOSE** - browser verbs. You CLOSE a page/tab/context and STOP a recording/trace.
-  These verbs never apply to an Odoo instance or its lease.
-- **RELEASE / DROP** - Odoo instance verbs. You RELEASE a lease (which may DROP the DB and
-  stop the server). These verbs never apply to a browser page.
+(a) a page, tab, context, recording or trace you drove this dispatch is still open or running; or
+(b) a lease you obtained this dispatch (`lease_acquire`, `lease_adopt`, or an `instance_serve` by
+    series that leased it for you), or one a child you launched handed back up to you, is still
+    live: neither released, nor parked, nor handed off by name (T1 § The three exits).
 
-Closing a browser page never touches the lease. Every "never drop or release the lease"
-instruction refers to the INSTANCE only and never excuses skipping the browser CLOSE rules below.
-
-## T0 - The DONE-gate
-
-You may not emit `status: DONE` while:
-(a) a browser page, tab, context, recording, or trace that YOU drove this dispatch (T1) is still
-    open or running, or
-(b) an Odoo instance lease that YOU obtained this dispatch (`lease_acquire`, `lease_adopt`, or
-    an `instance_serve` by series that leased it for you; serving a forwarded token is consumption,
-    not obtaining), or that a child you launched handed back UP to you, is still live - i.e. you neither released it, nor
-    PARKED THE LEASE (T1 § The three exits - this is the instance-lease exit, not the same-spelled
-    dispatch discipline in `context-handoff-protocol.md`), nor handed it off by name.
-
-A finished report with a live leftover page or instance is NOT done - finish the teardown, then
-emit the status. This gate binds every terminal status path (see T4 for BLOCKED / NEEDS_CONTEXT /
-handoff).
-
-**The two tiers behind this gate are enforced differently:**
-- **(b) Instance teardown is HARD-blocked, and the gate is STATUS-BLIND.** The `SubagentStop`
-  `enforce-teardown.sh` hook BLOCKS **any** turn end, whatever its status - a
-  `BLOCKED`/`NEEDS_CONTEXT` stop report included, a missing status worst of all - while a live,
-  non-shared lease that THIS agent's own tool calls obtained, or a child it launched handed back UP, remains and no T4 named handoff
-  forwards it. A parked lease is not a live lease here. A turn end that WAITS for a still-running teammate you launched
-  (`spawner-completion-contract.md` R0 move 3) keeps your lease through that stop; your final
-  report (`SubagentHandback`) stays gated.
-- **(a) Browser-page teardown is ADVISORY** (`enforce-teardown.sh` nudges, never blocks). You
-  remain bound to close every page you drove before DONE.
+(b) is enforced: a hook refuses your turn end, whatever its status, while such a lease is live
+and not forwarded. A turn end that only waits for a teammate you launched
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0 move 3) keeps the lease; your final report
+stays gated. (a) is reminded, not enforced; it binds you the same.
 
 ## T1 - Ownership: who tears down what
 
-Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used it. A T4 named handoff moves that ownership to the named catcher; forwarding a handle DOWN to a consumer never does.
+Teardown belongs to whoever acquired the resource, never to whoever merely used it. A named
+handoff (T4) moves that ownership to the catcher; forwarding a handle down to a consumer does not.
 
 | How you hold it | Who tears it down | When |
 |---|---|---|
-| Browser page/context/recording you DROVE this dispatch - opened, or reused by navigating it (navigating acquires it) | YOU (T2) | as you go + before your terminal status |
-| Lease you obtained yourself (any mode but `shared` - including a test-build port lease on a forwarded handle's database) | YOU (one of the three exits below) | before your terminal status |
-| `INSTANCE_HANDLE` forwarded DOWN to you in your brief | NEVER you | the agent that acquired it |
-| Lease acquired for YOUR run and handed back UP to you (you dispatched its provisioning), or one you acquired AND forwarded to children - you are the run-level owner | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
-| `MODE_HINT: path-incremental` lease | the skill that drives the path, inline (`odoo-instance` step E) | at path completion - never between steps |
-| `shared` lease (multi-reader render server), even one you launched | NO single consumer, ever; its launcher only on an explicit user request to stop it | `lease_gc` once its server is dead |
-| A lease you parked (`lease_park`) | YOU, or whoever resumes it by `lease_adopt` + `instance_serve` | at your terminal status the park is the teardown; then the adopter owns it, or `lease_gc` once its park budget lapses. |
+| A page, context or recording you drove this dispatch - opened, or reused by navigating it | you (T2) | as you go, and before your terminal status |
+| A lease you obtained yourself, a test-build lease on a forwarded handle's database included | you, by one of the three exits | before your terminal status |
+| An `INSTANCE_HANDLE` forwarded down to you in your brief | never you | its acquirer |
+| A lease acquired for your run and handed back up to you, or one you acquired and forwarded to children | you, the run-level owner | after every child returned and the run's verdict is final |
+| A `MODE_HINT: path-incremental` lease | the skill that drives the path, inline | at the end of the path, never between steps |
+| A `shared` lease (a multi-reader render server) | no single consumer; its launcher only on the user's explicit request | `lease_gc` once its server is dead |
+| A lease you parked | you, or whoever resumes it by `lease_adopt` + `instance_serve` | the park is your teardown; then the adopter owns it |
 
-**Release directly only what you own.** Call `lease_release` / `lease_park` yourself on a lease
-YOU acquired, or on one handed back UP to you as the run-level owner (the rows above). A lease that
-reached you DOWN, as a forwarded `INSTANCE_HANDLE`, is never yours to release or park - even though
-its `lease_token` and `run_id` would let the call succeed; leave it and name it in your report.
-Pass the `run_id` you were given, never one you made up.
+Release or park only what you own, with the `run_id` you were given. A handle that reached you
+down is never yours to release or park, although its token would let the call succeed: leave it
+and name it in your report.
 
 ### The three exits
 
-A live, non-shared lease you own is cleared by exactly one of THREE exits.
+- **`release`** (`lease_release`): stops the server and drops the database of an `ephemeral` lease.
+  For a database you are finished with.
+- **`park`** (`lease_park`): stops the server and keeps the database, filestore and ports for a
+  later resume. For a database still wanted.
+- **`handoff`**: forward the `INSTANCE_HANDLE` to a named catcher in `next.inputs` (T4). The only
+  exit that leaves the server running.
 
-- **`release`** - `lease_release`: stops the server's whole process group, then drops the DB of
-  an `ephemeral` lease. Use it when a database you own is finished with.
-- **`park`** - `lease_park`: stops the process group if any and KEEPS the database, filestore and ports for a later resume
-  (T3); a lease built and never served parks too. Use it when the instance is done for now and the
-  database is still wanted.
-- **`handoff`** - forward `INSTANCE_HANDLE` to a NAMED catcher in your continuation `next.inputs`
-  (T4). The only exit that leaves the server RUNNING, and the only one needing a named owner.
-
-Choose on a fact about the DATABASE, not on convenience: still wanted -> park; finished with ->
-release; wanted by a named next step, still running -> handoff.
-
-A build that does not listen leaves the LEASE (db + ports) yours - release it so the DB is dropped.
-Never keep a lease alive yourself; you still release.
+Choose on a fact about the database, not on convenience. A build that never listened still holds
+a lease: release it.
 
 ## T2 - Browser: close what you drove
 
-- **Close pages, never the server.** Your teardown scope is INSIDE the browser MCP server: pages, tabs,
-  contexts, recordings, traces. NEVER kill, restart, or "clean up" the MCP server process itself.
-- **End of dispatch, by family:** chrome-devtools -> `close_page` each page you drove; if it is
-  the last open page, `navigate_page` it to `about:blank` instead (it cannot close its last page);
-  playwright -> `browser_close` (plus `browser_stop_video` / `browser_stop_tracing` if you
-  started either); pagecast -> `stop_recording` for every session you started.
-- **Clean up as you go, not just at the end.** Reuse ONE page across a sweep instead of opening a
-  page per screen/breakpoint/role; close an extra page/context when that step ends.
-- **Single-flight (exclusivity) - PER FAMILY.** At most ONE browser-driving agent runs at a
-  time **per MCP family** (chrome-devtools, playwright, pagecast; each headed/headless variant
-  is its own family - 6 total). Dispatch same-family browser agents as exclusive, serial steps,
-  never a parallel fan-out. Across DISTINCT families, parallel drivers ARE allowed up to the pool
-  cap `W` in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity;
-  state-mutating (CRUD) drives stay at most 2 simultaneous regardless of family mix.
-- **Headed exception (human-watch).** When the human explicitly asked to WATCH, you may leave the
-  watched page open at the human's request - state that you did, and name the human as the owner
-  who closes it (a T4 named-catcher handoff). Default (nobody asked to watch): close, headed or
-  not.
+- **Close pages, never the server.** You never kill or restart a browser MCP server.
+- **By family, at the end:** chrome-devtools - `close_page` each page you drove; the last open
+  page is navigated to `about:blank` instead. playwright - `browser_close` (and stop a video or
+  trace you started). pagecast - `stop_recording` for every session you started.
+- **As you go:** reuse one page across a sweep instead of one per screen, breakpoint or role.
+- **One driver per family at a time.** Each family (chrome-devtools, playwright, pagecast; headed
+  and headless variants each count) carries at most one browser-driving agent; distinct families
+  may run in parallel up to the cap of
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, and at most two
+  state-changing drives run at once.
+- **A page the human asked to watch** may stay open: say so, and name the human as the owner who
+  closes it.
 
 ## T3 - Instance: release what you provisioned
 
-- **Route the teardown through the lease tools.** Never signal processes, `pkill` an `odoo-bin`,
-  or run `dropdb` yourself, and never hardcode a series' flags - resolve per-version CLI via OSM `cli_help`.
-- **A refused release is not done.** When `lease_release` returns an error code (e.g. the database
-  survived and the lease was kept), follow its remedy; until it succeeds, T4's failure path
+- Teardown goes through the lease tools: never signal a process, kill an `odoo-bin` or drop a
+  database yourself. Tools unavailable: the allocator CLI of
+  `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md`.
+- A refused release is not done: follow the remedy of its error code; until it succeeds, T4
   applies.
-- Per-mode rule: T1's matrix.
-- **Resume a parked lease, never rebuild beside it:** `lease_find` (state `parked`, your
-  `run_id`) -> `lease_adopt` its token -> `instance_serve` it.
-- If the odoo-local tools are unavailable, use the allocator CLI documented in
-  ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md.
+- Resume a parked lease, never rebuild beside it: its token (from the handle, else `lease_find`
+  with your `run_id`), `lease_adopt`, then `instance_serve`.
 
-## T4 - Failure and handoff paths
+## T4 - Failure and handoff
 
-- **BLOCKED / NEEDS_CONTEXT do not waive teardown.** Before emitting any terminal status -
-  including after an error, a failed oracle, or a REJECTED verdict - close your pages and
-  release or park the leases you own.
-- **The only exception is an EXPLICIT, NAMED handoff, and it rides ANY status** - T0(b) reads the
-  forwarded handle, never the status word (`NEEDS_NEXT` is the usual carrier, not a requirement).
-  You may leave a lease you own running ONLY when your continuation forwards
-  `INSTANCE_HANDLE` (incl. `lease_token`, `run_id`) in `next.inputs`, naming the catcher that
-  needs the live state. An unnamed "forward the token for later release" is not a handoff. Browser pages get no such exception, with one narrow
-  carve-out: T2's headed human-watch case, which is itself a NAMED handoff - outside that one
-  case, close pages even when handing off.
-- **If teardown itself fails** (release errors, a process refuses to die, or the HARNESS REFUSES
-  the give-back before it runs), you are BLOCKED, not DONE: quote the refusal AND take the named
-  handoff above, with your **dispatching caller** as catcher. Never re-issue or reword a refused
-  give-back.
+- A failure does not waive teardown: after an error, a failed oracle or a rejected verdict, close
+  your pages and release or park your leases before the terminal status.
+- The one exception rides any status: a lease you own may stay running only when your
+  continuation forwards its `INSTANCE_HANDLE` (with `lease_token` and `run_id`) in `next.inputs`
+  to a named catcher that needs the live state. "Forwarded for later release" names nobody and is
+  not a handoff. Pages get no such exception, except the watched page of T2.
+- When teardown itself fails - the release errors, a process will not die, or the harness denies
+  the call - you are `BLOCKED`: quote the refusal and take the named handoff with your caller as
+  catcher. Never re-issue or reword a refused give-back.

@@ -13,13 +13,6 @@ scope, from scoping to signature). Turns technical effort estimates and customer
 clear, credible pricing document a decision-maker can approve. Audience: the CFO or CEO first,
 not the IT team - the document reads for the economic buyer.
 
-## When to use
-
-- AE has a scoped deal (module list + effort estimate) and needs a formal or semi-formal commercial proposal
-- An `odoo-gap-analysis` was already run - this skill consumes that output directly
-- AE wants to explore pricing options before a negotiation call (CE vs EE? multi-year discount?)
-- Manager needs a quick price sanity-check before approving a quote
-
 ## Out of Scope
 
 - Effort estimation / gap classification → `odoo-gap-analysis`

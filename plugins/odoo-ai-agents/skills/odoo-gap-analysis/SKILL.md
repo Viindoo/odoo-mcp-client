@@ -40,7 +40,7 @@ Consultant / Project Manager
 
 **Index coverage is not ground truth.** A module ABSENT from the OSM index is NOT proof the product lacks the feature. Confirm coverage with `profile_inspect(method='repos', ...)` and fall back to a local checkout (§ Standalone-first fallback).
 
-## When to invoke the gap-analyzer subagent
+## Fan-out
 
 This skill is an ORCHESTRATOR. It does NOT classify requirements inline - it dispatches the
 `odoo-gap-analyzer` worker agent and synthesizes the workers' output from disk.
@@ -87,7 +87,7 @@ the artifact dir is `<SHARE_DIR>/gap-analysis/<slug>-<date>/`.
 call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `share` and `cwd` = the project root.
 Capture the returned absolute path as `SHARE_DIR` for the rest of this run and substitute that literal into every Read/Write/Edit below - never the `<SHARE_DIR>` placeholder, a `$VAR`, or a bare `.odoo-ai/` path. Pass it as an explicit `SHARE_DIR:` field into every dispatch brief.
 
-**Cluster.** Partition the requirements by functional area (§ When to invoke). Assign each
+**Cluster.** Partition the requirements by functional area (§ Fan-out). Assign each
 cluster a 2-digit `<NN>` and a short `<area>` label.
 
 **Dispatch.** Fill each worker's prompt from the caller-side skeleton in
@@ -114,7 +114,7 @@ The `odoo-gap-analyzer` agent owns the per-requirement OSM method (the `check_mo
 `model_inspect` / `module_inspect` -> `find_examples` / `suggest_pattern` rounds) and the
 OSM-First Grounding Contract; the orchestrator does not run those calls itself.
 
-**Synthesize + write artifacts.** Per § When to invoke: merge shards, dedup by build signature,
+**Synthesize + write artifacts.** Per § Fan-out: merge shards, dedup by build signature,
 run the aggregation cross-check, then write the three artifacts in § Output. Finally print the
 compact chat summary plus the artifact paths.
 
@@ -157,7 +157,7 @@ Keys EXACTLY: `{"req_id","requirement","coverage","classification","effort_tier"
   `BLOCKED - needs OSM index or checkout` marker.
 
 Built by concatenating the worker shards (`clusters/<NN>-<area>/gap-matrix.jsonl`), deduped per
-§ When to invoke.
+§ Fan-out.
 
 ### `gap-report.md` (human deliverable)
 
