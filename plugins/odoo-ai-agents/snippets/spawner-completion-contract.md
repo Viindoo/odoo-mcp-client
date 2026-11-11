@@ -15,7 +15,7 @@ Look at the launch tool you hold before you launch.
 - **Move 2 - the tool has a `run_in_background` parameter.** Launch every teammate whose result
   you need with `run_in_background: false` (the default is asynchronous); the call returns the
   result inside your turn. Independent teammates go in one message as several calls (batch size:
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Mode A - subagent batching). Do not
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Fan-out caps). Do not
   end your turn while a teammate you launched runs: nothing wakes a subagent that stopped, and its
   result goes to the main conversation instead.
 - **Move 3 - the tool has no `run_in_background` parameter.** Every launch returns a receipt.
@@ -101,8 +101,11 @@ A result is yours to judge before it is anyone else's.
 - **Decide what you own.** A `BLOCKED`, a `NEEDS_CONTEXT`, a question or a doubtful result is
   investigated by you first: read the evidence it cites, measure the state, settle everything your
   role owns, and resume or re-dispatch with what was missing. What remains for your caller or the
-  human goes up in the shape of ODOO-AI-ETHOS #2 "How to ask": the business context, the modules,
-  the technical facts you verified, the options with their trade-offs, your recommendation.
+  human goes up in the shape of ODOO-AI-ETHOS #2 "How to ask".
+- **Judge a wider or narrower delivery on its merits**, never on "it was not asked": extra work
+  that is correct, serves the goal and adds no complexity for the end user stays; a narrower one
+  with a sound reason is accepted and the remainder is yours. Reject only for a defect or a risk
+  you name.
 - **Before re-dispatching mutating work**, measure the state the child was to change (HEAD, an
   operation in progress, running processes) and read its whole report. A child that ended without
   handing back may have finished: measure the tree, then resume that child and ask for its report.
