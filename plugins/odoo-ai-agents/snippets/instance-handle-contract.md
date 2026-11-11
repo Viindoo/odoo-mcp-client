@@ -1,112 +1,96 @@
 # Instance Handle Contract
 
-`INSTANCE_HANDLE` is the run-scoped descriptor of the ONE live Odoo instance a multi-agent run
-shares. It carries exactly:
+`INSTANCE_HANDLE` describes the ONE live Odoo instance a multi-agent run shares. Copy every field
+from the latest `instance_handle` a tool returned (after a build, the final `job_wait`'s):
 
-- `db_name` - the database the run operates against
-- `http_port` - the bound HTTP port (null for a build that does not listen)
-- `gevent_port` - the second (longpolling/gevent) port of a prefork build; null otherwise
-- `db_port` - the Postgres port the instance's cluster is bound to (empty when the lease omits
-  it - never assume `5432`)
-- `addons_path` - the comma-separated addons path (Odoo's own `--addons-path` format)
-- `venv_python` - the Python interpreter of the target series
-- `demo` - whether the DATABASE holds demo data (`null` = not known)
-- `languages_loaded` - the languages active in the DATABASE (every tool build loads `en_US`)
-- `facts_source` - who answered `demo` / `languages_loaded`: `database` (read from it) or
-  `leases` (it could not be read, so the builds its leases recorded)
-- `log_path` - the persistent build/test log path
-- `lease_token` - the lease that owns the instance lifecycle
-- `run_id` - the run that owns the lease
-- `server_pid` (optional) - the server's process-group id; null for a build that does not listen
-- `ui_user` (optional) - the account a browser consumer acts as on a demo build; never asked for, never sought on disk
-
-Copy every field from the latest `instance_handle` a tool returned (after a build, the final
-`job_wait`'s).
+- `db_name`; `http_port` (null for a build that does not listen); `gevent_port` (the second port
+  of a prefork build, else null); `db_port` (the Postgres port; empty when the lease omits it,
+  never assumed)
+- `addons_path` (comma-separated, Odoo's own format); `venv_python` (the interpreter of the
+  target series)
+- `demo` (whether the DATABASE holds demo data; `null` = not known); `languages_loaded`;
+  `facts_source` - `database` when those two were read from it, `leases` when only the builds
+  its leases recorded could answer
+- `log_path`; `lease_token` (the lease that owns the instance); `run_id` (the run that owns the
+  lease)
+- optional: `server_pid` (the server's process group; null when nothing listens); `ui_user` (the
+  account a browser consumer acts as on a demo build; never asked for, never sought on disk)
 
 ## Provision once, forward everywhere
 
-The orchestrator provisions ONE instance via the `odoo-instance` skill, captures its canonical
-`instance-ops` output block ONCE, and forwards it as an `INSTANCE_HANDLE:` field in EVERY downstream
-brief that touches code or tests (coder, test-author, verify, debug).
+The orchestrator provisions one instance through the `odoo-instance` skill and forwards its handle
+as `INSTANCE_HANDLE:` in every downstream brief that touches code or tests.
 
 ## Downstream agents consume, never self-provision
 
-An agent receiving an `INSTANCE_HANDLE` MUST use it for every Odoo operation: `init` / `update` /
-serve by passing its `lease_token` to `instance_build` / `instance_serve`; a test run per § Test
-build on a forwarded handle. It never invents a `db_name` or port and never re-derives
-`addons_path`.
-When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
-context (an `ephemeral` lease by default; a listening one when the process must stay up), applying
-the instance HARD RULES per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo
-instance allocation; `odoo-test-writer` never self-provisions (no handle -> `NEEDS_NEXT`). A provided
-handle always wins (consume, never re-provision) - with exactly ONE exception, § Worktree-addons
-carve-out below.
+A receiver uses the handle for every Odoo operation: `init`, `update` and serve by passing its
+`lease_token` to `instance_build` / `instance_serve`; a test run per § Test build on a forwarded
+handle. It never invents a `db_name` or a port and never re-derives `addons_path`. With no handle
+it provisions through `Skill(odoo-instance)` in its own context (an `ephemeral` lease by default,
+a listening one when the process must stay up;
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation);
+`odoo-test-writer` never does (no handle -> `NEEDS_NEXT`). A worker never waits for a resource
+another session owns: it gets its own port, database, config and log.
 
-**Isolation, not exclusivity.** Never instruct a worker to wait for a resource another session
-owns; give it its own port, database, config and log.
+### Worktree-addons carve-out
 
-### Worktree-addons carve-out (the ONE sanctioned self-provision under a handle)
+A verification instance loads the tree the work was written in. One exception lets a receiver
+provision although its launcher could have forwarded a handle; the DISPATCHER declares it, a
+receiver never infers it:
 
-A verification instance must load the tree the work was written in. Exactly one rule releases the
-paragraph above, DISPATCHER-declared, never receiver-inferred:
-
-- **Dispatcher, node coding fan-out.** When dispatching a node's coder against its own
-  worktree, do NOT forward an `INSTANCE_HANDLE`; instead set the brief field
-  `SELF_PROVISION: worktree-addons`. A node gets ONE instance for its whole module set. Never send
-  both a handle and the token.
-- **Dispatcher, every other receiver.** Acquire the lease with `cwd` = the ONE target worktree and
-  `addons_path` covering it, and state the resulting value in the brief as
+- **A node's coder** gets `SELF_PROVISION: worktree-addons` instead of a handle, never both: one
+  instance for the node's whole module set, provisioned through `Skill(odoo-instance)` with
+  `WORKTREE_PATH`, released by the coder before its terminal status.
+- **Every other receiver** gets a handle whose lease the dispatcher acquired with `cwd` = the one
+  target worktree and an `addons_path` covering it, stated in the brief as
   `ADDONS_PATH: <comma-joined dirs>`.
-- **Receiver.** `SELF_PROVISION: worktree-addons` present (and no handle) -> self-provision as
-  authorized. `INSTANCE_HANDLE` present -> use it, after the coverage assertion below.
-  Never self-provision on your own judgment.
-- **The authorized self-provision goes through `Skill(odoo-instance)`.** Pass `WORKTREE_PATH`. The
-  `INSTANCE_HANDLE` it returns is yours; what you acquire here you release before your terminal
-  status.
 
-### Addons coverage assertion (ONE rule, every consumer points here)
+The exception covers the provenance of the addons and nothing else: no invented `db_name` or
+port, no `addons_path` re-derived from the catalog, no provisioning to change the series, to add
+a module or because a handle looks stale.
 
-Before any Odoo run that decides a verdict (`test`, an i18n export, a doc capture), assert the
-resolved addons list contains a directory `D` such that `D/<module>/__manifest__.py` exists AND `D`
-is inside the tree you were told to work in (`WORKTREE_PATH` when named, else the catalog tree;
-compare `pwd -P`-normalized absolute paths, a prefix match is sufficient). On a miss, STOP with
-`BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH>)`. For a served instance,
-assert it against `instance_serve`'s `served_addons_path`.
+### Addons coverage assertion
 
-This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
-a `db_name` or a port (`lease_acquire` mints both), MUST NOT re-derive `addons_path` from the
-catalog, and MUST NOT self-provision to change the series, add a module, or because a handle looks
-stale.
+Before an Odoo run that decides a verdict (a test, an i18n export, a doc capture), assert that the
+resolved addons list holds a directory `D` with `D/<module>/__manifest__.py` AND `D` inside the
+tree you were told to work in (`WORKTREE_PATH` when named, else the catalog tree; compare
+`pwd -P`-normalized absolute paths, a prefix match suffices). A miss:
+`BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH>)`. For a served
+instance assert it against `instance_serve`'s `served_addons_path`.
 
-## Test build on a forwarded handle (ONE rule, every consumer points here)
+## Test build on a forwarded handle
 
-A consumer that RUNS tests on a forwarded `INSTANCE_HANDLE`
-(`odoo-test-writer`'s break-checks, a verify run) judges by the handle's port: when no server listens
-on it, build on the handle's own `lease_token`; otherwise take ONE small lease of your own on the
-handle's database (`lease_acquire` mode `exclusive`, `no_create` true, `ports` 1, the handle's
-`db_name`, `addons_path`, series and `run_id`, `cwd` = your `WORKTREE_PATH`), run your test builds
-on it, and `lease_release` it before you return, on every exit. Never release, park or adopt the
-handle's lease, and never provision a new database.
+A consumer that runs tests on a forwarded handle (`odoo-test-writer`'s break-checks, a verify
+run) judges by the handle's port. No server listens on it: build on the handle's own
+`lease_token`. A server listens: take ONE small lease of your own on the handle's database
+(`lease_acquire` mode `exclusive`, `no_create` true, `ports` 1, the handle's `db_name`,
+`addons_path`, series and `run_id`, `cwd` = your `WORKTREE_PATH`), run your test builds on it and
+`lease_release` it before you return, on every exit. Never release, park or adopt the handle's
+lease.
 
-## One build or export per database (ONE rule, every parallel fan-out points here)
+A database a browser has driven (an acceptance, a capture, a debug session) carries no test
+verdict: the UI moved records out of the state the tests expect. A suite or a break-check that
+decides a verdict there runs on an `ephemeral` lease of its own; a red seen on a driven database
+is re-run on a clean one before any code or data is touched.
 
-Workers sharing ONE database (one forwarded handle) never build or export on it at the same time.
-When a tool reports the database busy, `job_wait` the job it names, then retry the call. Never
-release or park a lease you do not own to free the database.
+## One build or export per database
+
+Workers sharing one database never build or export on it at the same time. When a tool reports
+the database busy, `job_wait` the job it names, then retry. Never release or park a lease you do
+not own to free the database.
 
 ## Prefork (`--workers>0`) needs a second port
 
-Threaded mode (`workers=0`) needs one port. Prefork (`--workers>0`) MUST acquire with
-`ports` 2. Prefork stays OPT-IN.
+Threaded mode needs one port; prefork acquires with `ports` 2 and stays opt-in.
 
 ## Lifecycle
 
-One instance per run. Release rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
-`lease_release` / `lease_park` take the handle's `lease_token` + `run_id`.
+One instance per run, released per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+T1; `lease_release` and `lease_park` take the handle's `lease_token` and `run_id`.
 
-**Hand-on between consumers.** A caller that sequences several consumers of one build (an i18n
-export, then the module docs, then the site docs) names the next consumer to the current one as
-`HAND_ON: <skill>`: that consumer keeps the lease running, returns the handle in its
-Continuation `next.inputs`, and the caller forwards it as `INSTANCE_HANDLE` to the next consumer
-when the build covers it (series, demo, languages, addons path), else provisions anew. The caller releases the handle after the last consumer; no consumer releases a handle it
-was forwarded or asked to hand on.
+**Hand-on between consumers.** A caller that sequences several consumers of one build names the
+next one to the current one as `HAND_ON: <skill>`: that consumer keeps the lease running and
+returns the handle in its Continuation `next.inputs`; the caller forwards it when the build covers
+the next consumer (series, demo, languages, addons path, auto-install shape), else provisions
+anew, and releases the handle after the last consumer. No consumer releases a handle it was
+forwarded or asked to hand on.

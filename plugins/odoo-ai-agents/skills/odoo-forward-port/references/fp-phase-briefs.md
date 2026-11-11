@@ -1,5 +1,3 @@
-<!-- Reference for `odoo-forward-port` § The pipeline. -->
-
 # Forward-Port Pipeline - dispatch briefs, checkpoint/resume and caveats
 
 **Contents:** Dispatch-brief skeleton - P1 one extractor per module (R2b retry, Tier-C) - P6 TEST-survival - P8 coder registry - P9.5 i18n reconcile - P11 acceptance - Checkpoint, resume - Frontend/i18n/data-XML caveats

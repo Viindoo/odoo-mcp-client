@@ -77,7 +77,7 @@ skill.
   Phase 3 (trigger: § Phase 3 item 3). This call populates tiers (i) own-module and (ii)
   dependency tests of the **test-protection map** (`references/survey-lenses.md` § Test-protection
   map); tier (iii) framework-validation + lint gates (the framework-validation classes the target
-  series ships - ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test
+  series ships - ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md § Framework-validation test
   classes - plus the lint-class modules) is assembled at synthesis. All three feed
   the synthesis `tests_protecting` section.
 

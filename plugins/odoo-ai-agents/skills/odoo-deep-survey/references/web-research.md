@@ -1,9 +1,3 @@
-<!-- SSOT for the deep-survey Phase W (web research) procedure. The orchestrator (main
-     context) reads this and INLINES the relevant parts into each dispatched web-research fork
-     worker (leaf subagents cannot resolve ${CLAUDE_PLUGIN_ROOT}). Phase W is CONDITIONAL (fires
-     only on an external-dimension sub-question) and BOUNDED. This is reconnaissance, NOT the
-     built-in `deep-research` skill - do NOT dispatch or depend on that heavy workflow. -->
-
 # Deep-Survey Phase W - bounded web reconnaissance
 
 Phase W is a LIGHT, conditional external-evidence pass. It is reconnaissance, not exhaustive

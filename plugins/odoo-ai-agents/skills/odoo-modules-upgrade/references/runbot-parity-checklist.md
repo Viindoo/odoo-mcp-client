@@ -140,7 +140,7 @@ find <addons_path1> <addons_path2> ... -maxdepth 2 \( -name __manifest__.py -o -
 
 When a module flips `installable: False -> True`, the full gate suite (Gates 1-6) runs on Runbot
 with `--init <module>`. Its demo shape is the automation-test row of
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE, which is the
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Demo data by build PURPOSE, which is the
 RECORDED Runbot shape for each series - and it is also the only shape this gate can actually run,
 because a test build takes no `demo`: `instance_build` applies the series default read from the
 lease's checkout. So pass no `DEMO` on this dispatch. If you have Runbot's own config
@@ -186,7 +186,7 @@ as `OPERATION: init`, `DEMO: on`, no `TEST_TAGS` and no
 `GATE_ROLE` - that field is required only for a build whose purpose is running tests, which this one
 is not, so supplying it here would misdescribe the build. Without `--test-enable` no suite runs at
 all, tags or none, so the untagged-run hazard the scope contract warns about cannot arise here. The
-demo-load row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build
+demo-load row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Demo data by build
 PURPOSE is what authorises `DEMO: on` here, and it authorises it ONLY because this build runs no
 tests.
 
@@ -218,7 +218,7 @@ instead, taking its wording from that build's own `load_demo`.
 > (The `-i`/`-u` note that follows applies to GATE 7, above, not to Gate 7b: `-i` there reproduces
 > the Runbot FRESH-init scenario, and re-running Gate 7 against a DB where the module is ALREADY
 > installed uses `-u <module>` instead - `-i` on an installed module runs none of its tests on
-> recent series, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database.) Confirm the flags via `cli_help`; see
+> recent series, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Test run on an existing database.) Confirm the flags via `cli_help`; see
 > `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 Do NOT add a `--test-tags` line naming individual framework-validation classes here. This gate is
@@ -226,7 +226,7 @@ already UNTAGGED, so every installed module's suite runs - the `base` and `hr` f
 included. Naming them would add no coverage at all, and would add a name that has to be re-checked
 against every series forever.
 
-See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply
+See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Build facts the odoo-local tools apply
 for the demo default per series. See `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for the
 upgrade-time authoring gates (hr.employee groups, always-invisible comment).
 

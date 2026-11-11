@@ -13,6 +13,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | Change | New API | From | Old |
 |---|---|---|---|
 | Unified access check | `check_access(operation)` / `has_access(operation)` | v18 | `check_access_rights(operation)` + `check_access_rule(operation)` = alias (DeprecationWarning v18+) |
+| Record rules on new (onchange) records | call `records._origin.check_access(op)`; on new ids `check_access` / `has_access` check access rows only | v18-v19 (v20 checks the origin itself) | earlier series evaluate the rule on the new record |
 | Filtered access | `_filtered_access(mode)` | v18 | `_filter_access_rules()` / `_filter_access_rules_python()` = alias |
 | User group test - single xmlid | `user.has_group('mod.xmlid')` | v8 | -- (present since v8) |
 | User group test - plural / env shorthand | `user.has_groups('a.x,b.y')` | v18 | `user_has_groups(xmlid)` **REMOVED v18** |
@@ -34,6 +35,8 @@ Which model a group hangs on, and how to declare it: `access-groups-conventions.
 | Change | New API | From | Old |
 |---|---|---|---|
 | Cycle check | `_has_cycle(field)` | v18 | `_check_recursion(field)` = alias |
+| `translate=True` on a stored field | the column is `jsonb`: every raw SQL that reads it as text breaks, so grep core and the repository for its raw readers before making a core column translatable | v16 | a text column, translations in `ir.translation` |
+| Default taxes on plain journal-entry lines | not applied unless the context carries `account_default_taxes` | v19 | v16-v18 apply the account's default taxes on create |
 | Display name | `_compute_display_name` override | v12 | `name_get()` deprecated v17, **REMOVED v18** |
 | Record-style API | `@api.model`, `@api.model_create_multi`, plain multi-record methods | v13 | `@api.one`, `@api.multi`, `_columns` dict, `fields.function`, `osv.osv` **REMOVED v13** |
 | Progress and commit inside a scheduled job | `ir.cron._notify_progress(done=, remaining=)`; `ir.cron._commit_progress(...)` | v18; v19 | a hand-written `cr.commit()` in the job's loop |
@@ -70,93 +73,6 @@ Which model a group hangs on, and how to declare it: `access-groups-conventions.
 | Forward-port version | C1: `max(M + 1, S)` when installable on both series; the source version when dormant at the target | CORE | `[[fp-merge-absorption]]` C1 |
 
 > `adapt_version` above is the install-gate version-string validation; the same function also series-prefixes the manifest for the migration runner (C2 in `[[fp-merge-absorption]]`).
-
-## Build facts the odoo-local tools apply
-
-`instance_build` and `instance_serve` apply three build facts themselves, on every series: the
-server-wide modules (`--load`), the languages (`--load-language`) and the series' demo flag. Never
-put any of them in `extra_args` and never compose them by hand. The judgement left to you is which
-`demo` and which `languages` to ask for, and what to do with the warnings `job_wait` reports.
-
-- **Server-wide modules.** The tools load the series' core default (read from the lease's Odoo
-  checkout) plus the catalog row's `server_wide_modules`, fixed on the lease when it is acquired:
-  the default for every build. Another set for one task: `server_wide` exclude/include on each
-  build and serve of that DB. A `job_wait` server-wide warning: `server_wide.include` it for
-  the task, or follow its catalog remedy (`/odoo-ai-agents:odoo-setup refresh`), then release the
-  lease and acquire a new one before trusting it. Never answer it by installing the module with `-i`.
-- **Languages.** Pass the target codes as `languages`; the tool adds `en_US` to every build.
-  `job_wait` reports `languages_loaded` and `languages_failed`, proven from the build log; a code in
-  `languages_failed` is not loaded, whatever you asked for.
-- **Demo.** Pass `demo` (`on` | `off`) on every `init` build by its PURPOSE, per the table below,
-  and never on a test build (the tool applies the series default; `job_wait` reports it). Demo data
-  never leaves a database; `INSTANCE_HANDLE.demo` is the DATABASE's, from any lease.
-
-| Series default | Series |
-|---|---|
-| Demo data loaded by default | v8-v18 |
-| NO demo data by default | v19+ |
-
-### Demo data by build PURPOSE
-
-Resolve the purpose from the dispatch brief's own signals, never from the operation name alone.
-
-| Build purpose - the signal that decides it | `demo` on a series whose default loads demo | `demo` on a series whose default loads none |
-|---|---|---|
-| Automation test run that gates code - ANY `--test-enable` build, at BOTH `GATE_ROLE: node-verify` and `GATE_ROLE: pre-pr-lint-gate` | series default (omit `demo`): demo, as its own CI runs; an `init` a test build reuses passes `on` | series default (omit `demo`): none; an `init` a test build reuses passes `off`; `on` and a demo database (`TEST_DB_HAS_DEMO`) are refused |
-| Translation export / `.pot` / `.po` work | `on` | `on` |
-| Documentation capture (`CONTEXT: doc`), demo recording, UI review | `on` | `on` |
-| Acceptance live-UI sweep | `on` | `on` |
-| Demo-load verification - proving a module's own `demo/` data still loads. INSTALL ONLY: this build NEVER carries `--test-enable` | `on` | `on` |
-| Anything whose OUTPUT does not depend on demo records - a debug reproduction, an ensure-up, a language activation, a bare create, a no-code-change smoke run | `on` - the series default | `off` - the series default |
-
-A demo-carrying build and a code-gating test build are two SEPARATE builds on two leases: loading
-demo proves the `demo/` XML installs; the suite proves the code works. Where the default loads no
-demo, never test on a database holding demo (a handle whose `demo` is `true`, an acceptance or
-documentation instance): test on a fresh lease.
-
-> **A v19+ automation-test build carries NO demo data, and the test suite must not want any.** Demo
-> records are absent there, so a test that reads one fails. Every durable test authored for a v19+
-> target - Python `TransactionCase` / `HttpCase`, Python tour, JS tour - MUST create its own records
-> in `setUpClass` / `setUp` and MUST NOT reference a demo record by xmlid or by name. This holds even
-> when the test was authored while driving a demo-carrying acceptance instance: the file it leaves
-> behind runs demo-less in the gate.
-
-### Test run on an existing database - `-i` vs `-u`
-
-| Database state | Test build (`instance_build` op `test`) | Series |
-|---|---|---|
-| Scope modules NOT installed yet (a new database) | `test_mode` `fresh` (`-i`) | every series |
-| Scope modules ALREADY installed | `test_mode` `reuse` (`-u`) for a re-run of the scope's own tests. A suite that gates builds a new database (`fresh`): an install-time test of an updated module runs before the modules loaded after it are back in the registry, so a required column one of them added makes its inserts fail spuriously | every series; from v19 `-i` skips an installed module and runs none of its tests |
-
-## Framework-validation test classes (named in `--test-tags` beside module tags)
-
-**Only two classes are listed here, and the list stays that size on purpose.** A class earns a row
-ONLY if all three hold: it is a FRAMEWORK class (lives in `base`/`hr`, not in the module under
-test), it enforces a convention THIS plugin teaches, and a module-scoped `--test-tags /<module>` run
-SKIPS it so nothing else would catch the violation. Odoo ships hundreds of thousands of tests;
-this is not a mirror of them, and a class that fails any of the three does not belong.
-
-| Convention it enforces | Class, per series | Tag spec to pass |
-|---|---|---|
-| Always-invisible view field needs an explanatory XML comment | `TestInvisibleField` (in `base`), v18+ only - absent below; rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/xml.md` § Always-invisible field carries a comment | `/base:TestInvisibleField` |
-| Custom `hr.employee` field needs `groups="hr.group_hr_user"` | in `hr`: `TestSelfAccessProfile` v13-v18, RENAMED to `TestSelfAccessPreferences` at v19 | `/hr:TestSelfAccessProfile` or `/hr:TestSelfAccessPreferences` per series |
-
-> **The `hr` class was RENAMED, not removed.** Its file and its `test_employee_fields_groups` method
-> both still exist at v19 under the new class name, so the enforcement is live there - dropping the
-> tag because the old name no longer resolves silently stops the check. (That method itself only
-> exists from v18; below that the class is present but enforces the convention through other tests.)
-
-> **The class separator in a tag spec is a COLON.** The grammar is `[-][tag][/module][:class][.method]`
-> (`odoo/tests/tag_selector.py`, `filter_spec_re`), so `base.TestInvisibleField` does NOT name a
-> class - it parses as tag `base` plus METHOD `TestInvisibleField`, matches no test method that
-> exists, and selects NOTHING. Copy the tag-spec column; never re-derive it from a dotted name.
-
-> **A tag that matches nothing is a SILENT no-op, not an error** - whether the spec is misspelled or
-> the series ships a different name. The run exits 0 having tested nothing. So CONFIRM the class name
-> against the target build's own `addons/<module>/tests/` before tagging it: this table has been
-> wrong twice, once on a bound and once by reading "the old name is absent" as "the thing is gone".
-> An UNTAGGED run needs none of this - it already includes every framework class - so prefer it
-> wherever the cost of running the full closure is acceptable.
 
 ## JavaScript / OWL / tests
 
@@ -197,6 +113,18 @@ class HrEmployee(models.Model):
 
 ---
 
+### Fields of the employee form's Payroll tab - manager groups (v19+)
+
+From v19 the Payroll tab of the employee form is manager-only and a core test requires every field
+placed in it to carry manager or payroll groups, while `groups=` on a field also blocks its ORM
+reads for other users. Only real payroll fields go in that tab; an operational field an officer or
+a compute reads goes in the Settings tab's application group and keeps its groups.
+
+### Point-of-sale test cashier (v17+)
+
+The PoS user group implies the internal-user group only from v20: on v17-v19 a cashier fixture
+lists `base.group_user` and `point_of_sale.group_pos_user`.
+
 ## gettext placeholders (named required for multi-arg; E8505 lint failure v18+)
 
 CORE Odoo rule enforced by a core test. Applies to ALL distributions.
@@ -226,13 +154,3 @@ raise UserError(_("Answer to %s is not valid, expected %s.", name, "int"))
 - Treat an E8505 finding as a BUILD FAILURE - fix by switching to named placeholders, never by
   suppressing the lint check.
 
----
-
-## Backend lint-class gate - core module per series
-
-| Module | Source | Present at |
-|---|---|---|
-| `test_lint` | Odoo core (`odoo/addons/test_lint`) | v10+ ONLY - absent below that, where a `/test_lint` tag silently matches nothing |
-
-Selection of every lint-class module a build tags, and the false-green trap:
-`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`.

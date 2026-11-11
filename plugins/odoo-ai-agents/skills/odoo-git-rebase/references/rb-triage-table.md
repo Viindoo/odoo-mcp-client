@@ -1,6 +1,3 @@
-<!-- Reference for `odoo-git-rebase` § Model triage. Loaded as needed.
-     Two deterministic tables: EXTRACT (P1) and ADAPT (P8) + bucket-(c) upgrade-scale gate. -->
-
 # Git-Rebase Model Triage - full tables
 
 **Contents:** Table 1 - EXTRACT tier (P1 intent extraction) - Table 2 - ADAPT tier (P8 conflict resolution) - How the two tables interact per commit - Bucket-(c) upgrade-scale defer-or-do gate - Design-trigger table

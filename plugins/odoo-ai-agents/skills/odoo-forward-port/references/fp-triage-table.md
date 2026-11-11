@@ -1,6 +1,3 @@
-<!-- Reference for `odoo-forward-port` § Model triage. Loaded as needed.
-     Two deterministic tables: EXTRACT (P0/P1) and ADAPT (P8). -->
-
 # Forward-Port Model Triage - full tables
 
 **Contents:** Table 1 - EXTRACT tier (P0 triage -> P1 intent extraction) - Table 2 - ADAPT tier (P8 code adapt) - How the two tables interact per commit - Bucket-(c) upgrade-scale defer-or-do gate - Bucket-(c) same-module inherit-view check (view-topology)

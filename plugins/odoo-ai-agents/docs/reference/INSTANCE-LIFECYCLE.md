@@ -38,7 +38,7 @@
 - `-i` never resets an already-installed module; to truly reset, uninstall or drop the DB. To
   RE-RUN tests on a DB that already has the module installed, use
   `-u <module> --test-enable --test-tags /<module>` on every series - `-i` there runs none of its
-  tests on recent series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database; invocation: `ODOO-TESTING.md` § Core test invocation).
+  tests on recent series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Test run on an existing database; invocation: `ODOO-TESTING.md` § Core test invocation).
 - **`auto_install` fires on install only.** `-u` never pulls a bridge module into a running
   database; on an existing database install the bridge explicitly with `-i <bridge>`, and verify
   `auto_install` itself on a fresh database with `-i`.
@@ -56,7 +56,7 @@
    the target version (manifest `assets` dict vs an XML `<template>`); do not assume.
 3. **`-u` without `-d <DB>`** does nothing useful - always target a database.
 4. **Demo data** loads only at `-i`, and whether a build gets it is decided by PURPOSE, not habit -
-   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE owns that
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Demo data by build PURPOSE owns that
    decision, and `instance_build` spells the series' flag from its `demo` argument. Whichever way
    the first install went, `-u` does not reverse it.
 5. **API-compat gate:** a module using a removed decorator/API (e.g. `@api.multi`) only runs on

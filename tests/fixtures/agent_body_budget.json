@@ -14,17 +14,6 @@
     },
     "plugins/odoo-ai-agents/agents/odoo-translator.md": {
       "bytes": 16805
-    },
-    "plugins/odoo-ai-agents/agents/odoo-diff-comparator.md": {
-      "lines": 225
-    },
-    "plugins/odoo-ai-agents/agents/odoo-doc-writer.md": {
-      "lines": 212,
-      "bytes": 14575
-    },
-    "plugins/odoo-ai-agents/agents/odoo-marketer.md": {
-      "lines": 219,
-      "bytes": 16937
     }
   }
 }

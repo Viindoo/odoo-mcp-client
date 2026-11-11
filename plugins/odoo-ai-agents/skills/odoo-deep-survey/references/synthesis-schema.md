@@ -1,8 +1,3 @@
-<!-- SSOT for the deep-survey synthesis.md output contract. The orchestrator (main
-     context) reads every phase*/*.md + the worklog and writes synthesis.md to this schema.
-     Consumer = the next execute agent (architect / coder / reviewer), never a human - every
-     field is actionable without re-derivation. Edit the schema here, not in SKILL.md. -->
-
 # Deep-Survey Synthesis Schema (synthesis.md output contract)
 
 Each section is few-token and agent-readable. Every finding carries a `file:line` or an OSM citation and is marked

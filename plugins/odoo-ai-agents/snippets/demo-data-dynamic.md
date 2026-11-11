@@ -12,7 +12,7 @@ feature is demo-ready the moment the module installs on a build that carries dem
 the module itself ships (real data: its stages, templates, default records) already illustrate it
 for a prospect and for the user guide; a demo record that only duplicates a shipped record is
 removed, not maintained. Which builds those are, and how each series spells the flag:
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. Note that an
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Demo data by build PURPOSE. Note that an
 automation-test build never REQUIRES demo, and on the series where demo defaults off it has none
 at all - so demo data serves demo-readiness only, and a test must never depend on it.
 

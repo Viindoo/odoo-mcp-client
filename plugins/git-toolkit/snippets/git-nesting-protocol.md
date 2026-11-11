@@ -1,157 +1,110 @@
 # Git Nesting Protocol (SSOT)
 
-The phased pipeline runs BELOW the caller so the caller's context stays pristine even for
-thousand-file ops. This snippet defines how the nesting stays bounded and how it degrades when the
-spawn tool is unavailable.
+How git work runs below its caller: who may launch, how a result is collected, what a brief
+carries.
 
 ## N0 - Launch and collect: the launch tool you hold decides
 
-**Before launching, read your own toolset** - look at the agent-launch tool you hold. It alone
-decides how you collect a child's result:
+Read your own toolset before launching. The agent-launch tool you hold decides how a child's
+result reaches you:
 
-- **No agent-launch capability** -> if you are a dispatcher, return `NEEDS_CONTEXT` (N4); a git
-  agent that holds no launch tool never launches (N2) and simply does its own scoped job. Never
-  report a dispatch you could not make.
-- **Your agent-launch tool HAS a `run_in_background` parameter** -> launch every child whose result
-  you need with `run_in_background: false`, at any depth. That call returns the child's result
-  inside your own turn. Put independent children in ONE message as several launch calls: they run
-  concurrently and every result returns in this turn. Always pass the parameter - its default is
-  asynchronous. Never end your turn while a child you launched is still running: on this surface
-  nothing wakes an agent that stopped, so the child's result goes to the main conversation instead
-  of to you.
-- **Your agent-launch tool has NO `run_in_background` parameter** -> every launch is asynchronous:
-  the call returns a receipt, not a result. LAUNCH, THEN END YOUR TURN - you are woken with each
-  child's result as it completes, once per child, whether you are the main conversation or a
-  dispatched agent yourself. On every wake, re-check which children are still outstanding; never
-  assume all are done. Never poll and never sleep for them. Launch and then keep working in the
-  same turn and you never stop, so nothing is ever handed back to you and the result is lost.
+- **You hold none**: a dispatcher returns `NEEDS_CONTEXT` (N4); a leaf never launches (N2) and
+  does its own scoped job. Never report a dispatch you could not make.
+- **The tool has a `run_in_background` parameter**: launch every child whose result you need with
+  `run_in_background: false` (the default is asynchronous); the call returns the result inside
+  your turn. Independent children go in one message as several calls. Never end your turn while a
+  child you launched runs: nothing wakes an agent that stopped, and its result goes to the main
+  conversation instead.
+- **The tool has no such parameter**: every launch returns a receipt. Launch, then end your turn;
+  you are woken once per child as each completes. On every wake check which children are still
+  outstanding. Never poll, never sleep for them, and never keep working in the same turn after
+  the launch: a launcher that does not stop is never handed a result.
 
-**An async receipt while you hold the parameter.** If a launch still hands back an asynchronous
-receipt instead of the child's result, do NOT end your turn. Keep making tool calls in this turn -
-a bounded wait, then a look at what has arrived - until the child's completion notice reaches you,
-then read its result. Every response you emit before you hold it carries a tool call.
+**An async receipt while you hold the parameter**: do not end your turn. Keep making tool calls -
+a bounded wait, then a look at what arrived - until the completion notice reaches you, then read
+the result.
 
-**The main conversation** (the session the user talks to) is notified of every completion on every
-surface. If a completion notice reaches it for a child that a dispatched agent launched, do not act
-on that result yourself: resume that agent - send it a message by its id - so it collects the result
-and finishes its own work.
+**The main conversation** is notified of every completion. When a notice reaches it for a child a
+dispatched agent launched, it does not act on that result: it resumes that agent by id so the
+agent collects it.
 
-A shell tool's flag of the same name is a different tool's parameter; it never decides this rule.
-Under every branch: never do a child's work while it runs, never re-launch a child that is still
-running, and never end a turn with uncommitted work.
+A shell tool's flag of the same name decides nothing here. Always: never do a child's work while
+it runs, never re-launch a running child, never end a turn with uncommitted work.
 
 ## N1 - Cold-spawn handoff (the default handoff mode)
 
-Every dispatch is a stateless COLD spawn by launching an agent: self-contained brief in, compact
-summary + findings-file path out. The worker reconstructs its model from the brief plus the findings
-files on disk - no warm team-resume. This is the DEFAULT and always-correct baseline: robust at ANY
-caller depth and needing no roster, so it works whether the caller is the main agent or itself a
-subagent.
+Every dispatch is a stateless cold spawn: a self-contained brief in, a compact summary and a
+findings-file path out. The worker rebuilds its picture from the brief and the findings files on
+disk, so the handoff works at any caller depth.
 
-- A brief carries: the REQUEST and the expected RESULT, in business terms - what is wanted, which
-  repository, worktree and branch, the outcome behind it, the constraints, what the caller needs
-  back. It NEVER carries git or GitHub-CLI commands or flags: the receiving agent owns that
-  know-how in its own files, and a command in a brief overrides it, confuses the agent and forks
-  the source of truth. A brief also carries the safety contract pointer
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`), the scale pointer
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`), the scoped target (paths/range/refs),
-  and the chosen model.
-- A return carries: a 5-line summary + the absolute findings-file path. Nothing else.
-
-Every dispatched agent ends the same way: it hands its completion report back once, as the last act
-of its dispatch - `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`. There is no addressed
-upward channel and no mode that adds one, so a leaf's result is delivered to the launcher that
-collects it per N0. It goes past `git-pipeline-lead` to the main conversation only when the lead
-ends its turn while that leaf still runs and the lead's launch tool has the `run_in_background`
-parameter - the N0 rule that branch forbids.
+- **A brief carries** the request and the expected result in business terms - what is wanted,
+  which repository, worktree and branch, the outcome behind it, the constraints, what the caller
+  needs back - plus the scoped target (paths, range, refs) and the chosen model. It never carries
+  git or GitHub-CLI commands or flags: the receiving agent owns that know-how, and a command in a
+  brief overrides it.
+- **A return carries** a five-line summary and the absolute findings-file path, handed back once
+  as the last act of the dispatch (`${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`), to
+  the launcher that collects it per N0.
 
 ## N2 - Depth guard (anti-runaway)
 
-ONLY `git-pipeline-lead` holds agent-launch capability. The three leaf agents -
-`git-surveyor`, `git-operator`, `github-operator` - declare a `tools:` allowlist that EXCLUDES it,
-so a leaf physically CANNOT spawn another agent. This caps nesting at two levels (lead -> leaf) and
-makes a runaway spawn-storm impossible by construction.
-
-- A leaf that "wants" to fan out CANNOT. It does its one scoped job and returns.
-- Only the lead orchestrates a multi-worker pipeline.
+Only `git-pipeline-lead` can launch agents. The leaves - `git-surveyor`, `git-operator`,
+`github-operator` - declare a `tools:` allowlist without the launch tool, so nesting stops at two
+levels (lead -> leaf). A leaf does its one scoped job and returns.
 
 ## N3 - Per-phase model map (PHASED-PIPELINE)
 
-The lead's tier is fixed by the CALLER at launch (git-model-tiers.md row 1). It assigns each phase its
-model; this table is the only copy:
+The caller fixes the lead's tier at launch (`git-model-tiers.md` row 1); the lead assigns each
+phase its model, and this table is the only copy:
 
-| Phase | Worker | Model | Why |
-|---|---|---|---|
-| P1 MAP | `git-surveyor` x N (parallel) | haiku | mechanical file-list and line-count clustering |
-| P2 EVALUATE | `git-surveyor` per cluster | haiku (sonnet for a cluster flagged high-risk) | read a scoped diff, assess conflict/risk/intent |
-| P3 STRATEGY | `git-pipeline-lead` (self) | the lead | synthesize the safe execution plan + sequencing |
-| P4 EXECUTE | `git-operator` per cluster | sonnet (haiku for a conflict-free cherry-pick/merge cluster) | apply with backup + per-batch verify |
-| P5 VERIFY | `git-surveyor` | sonnet | safety gate: tree-identity + range-diff + no-loss proof |
+| Phase | Worker | Model |
+|---|---|---|
+| P1 MAP - cluster files and line counts | `git-surveyor` x N, in parallel | haiku |
+| P2 EVALUATE - read a scoped diff, assess conflict, risk, intent | `git-surveyor` per cluster | haiku (sonnet for a cluster flagged high-risk) |
+| P3 STRATEGY - the safe execution plan and its sequencing | `git-pipeline-lead` itself | the lead's |
+| P4 EXECUTE - apply with backup and per-batch verify | `git-operator` per cluster | sonnet (haiku for a conflict-free cherry-pick or merge cluster) |
+| P5 VERIFY - tree identity, range-diff, no-loss proof | `git-surveyor` | sonnet |
 
-Tier vocabulary and the single-delegate op-class table: `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`.
-
-P3 strategy AND, when the plan changes a protected branch without a pull request, the
-human-confirm gate are the LEAD's job, never a leaf's.
+Tier vocabulary and the single-delegate table: `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`.
+P3 and, when the plan changes a protected branch without a pull request, the human-confirm gate
+are the lead's job, never a leaf's.
 
 ## N4 - Agent-unavailable fallback (dispatchers only)
 
-A context that dispatches git work (the `git-ops` skill, or any caller) and cannot launch agents
-returns `NEEDS_CONTEXT` ("needs a context that can launch git-ops agents") and runs nothing
-itself - no git or GitHub command, not even a bounded read. It never degrades to doing the op
-inline. Every nested op is a fresh cold spawn, so there is no warm-resume to fall back to either.
-
-This applies only to a context whose job is to dispatch: the `git-ops` skill, a caller, and
-`git-pipeline-lead` (without a launch tool it cannot run P1-P5, so it returns the same
-`NEEDS_CONTEXT` rather than doing leaf work itself). A leaf agent - `git-surveyor`, `git-operator`,
-`github-operator` - runs git under its own contract; its missing launch tool is the N2 depth
-guard, not a gap to report.
+A context whose job is to dispatch git work - the `git-ops` skill, a caller, `git-pipeline-lead`
+- and that cannot launch agents returns `NEEDS_CONTEXT` ("needs a context that can launch git-ops
+agents") and runs nothing itself, not even a bounded read. A leaf runs git under its own contract;
+its missing launch tool is the N2 guard, not a gap to report.
 
 ## N5 - Brief contract (Git family delta)
 
-Every brief a caller hands to a git-toolkit agent - leaf or lead - carries the Git family's own
-required fields, on top of the cold-spawn contents already listed in N1:
+On top of N1, a brief to a git-toolkit agent carries:
 
-- **BASE ref + TARGET ref.** The ref/branch the op starts from (BASE - e.g. the pre-op tip, the
-  branch being integrated) and the ref/branch the change must land on (TARGET - e.g. the
-  integration branch, the upstream branch, the PR base). Both are required whenever the op
-  integrates, rebases, or forward-ports; a bare "rebase this" or "forward-port that" with no
-  BASE/TARGET pair is under-specified.
-- **`confirmed:` for the protected-branch gate.** A push that moves or deletes a protected
-  branch, or a pull-request merge into one, requires the brief to carry `confirmed: <verbatim
-  human approval>`. Absent it, the agent MUST stop at the human-confirm gate in
-  `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` - it never self-authorizes that op.
-  Every other rewrite (interactive rebase, squash, split, amend, reset, `filter-repo`,
-  force-with-lease to a feature or fork branch) needs no confirmation; it runs under S1 + S6.
-- **Detect the commit convention, do not invent one.** The brief may point at a project
-  guideline, but the agent always resolves the ACTUAL convention per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` C3 (explicit guideline -> history
-  inference -> repo-type). A caller-stated preference is a hint, never a license to skip
-  detection or invent a format the repo does not use.
-- **What must NOT be touched.** The primary/shared checkout (S9 worktree-always in
-  `git-safety-contract.md` - every mutation runs in a dedicated worktree, never in-place, except
-  the narrow S9 carve-out); any path or cluster outside the agent's assigned scope; and, inside a
-  phased pipeline, any step outside the P3-approved plan slice.
+- **BASE ref and TARGET ref** whenever the op integrates, rebases or forward-ports: the ref the op
+  starts from and the ref the change must land on. A bare "rebase this" is under-specified.
+- **`confirmed: <verbatim human approval>`** for a push that moves or deletes a protected branch
+  or a pull-request merge into one. Without it the agent stops at the human-confirm gate of
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`. Every other rewrite needs no
+  confirmation and runs under S1 and S6.
+- **The commit convention is detected, never invented**: the agent resolves the actual one per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md` C3; a preference the caller states is a
+  hint.
+- **What must not be touched**: the primary checkout (S9), any path or cluster outside the
+  agent's assigned scope and, inside a phased pipeline, any step outside the P3-approved slice.
 
 ## N6 - Brief self-check
 
-Every git-toolkit agent checks its inbound brief before acting, graduated by how recoverable the
-gap is:
+Before acting, an agent checks its brief:
 
-- **A missing field with a safe, reversible default** (e.g. TARGET left implicit when the
-  assigned scope already makes it unambiguous) - PROCEED and state the assumption as the first
-  line of the return.
-- **A missing OBJECTIVE, a missing done-condition, or a missing load-bearing Git-family field with
-  no safe default** (no BASE/TARGET for an integration or rewrite op, no `confirmed:` ahead of
-  the protected-branch gate, a commit convention that cannot be resolved) - STOP and return
-  `NEEDS_CONTEXT(<field>)` (the caller can re-brief) or `BLOCKED(<field>)` (the gap is
-  irreversible or large). Never silently guess, never invent a convention, and never
-  self-authorize the gated op to fill the gap.
-- **A supplied commit message that does not match the convention you detected, with no business
-  outcome to rewrite it from** - STOP and return `NEEDS_CONTEXT(business-outcome)`. A supplied
-  message is never a license to skip C6.
+- **A missing field with a safe, reversible default** (a TARGET the assigned scope makes
+  unambiguous): proceed and state the assumption as the first line of the return.
+- **A missing objective or done-condition, or a missing Git-family field with no safe default**
+  (no BASE/TARGET for an integration or rewrite op, no `confirmed:` ahead of the gate, a commit
+  convention that cannot be resolved): return `NEEDS_CONTEXT(<field>)`, or `BLOCKED(<field>)`
+  when the gap is irreversible or large. Never guess, never invent a convention, never
+  self-authorize the gated op.
+- **A supplied commit message that does not match the detected convention, with no business
+  outcome to rewrite it from**: return `NEEDS_CONTEXT(business-outcome)`.
 
-This is the git-toolkit equivalent of a caller-side dispatch-brief schema. There is intentionally
-no reference to `dispatch-brief.md` here - `git-toolkit` is a separate, dependency-free plugin
-(see CLAUDE.md); this file is the SOLE home for both the Git family's brief delta (N5) and its
-self-check (N6). Each of the 4 git-toolkit agents carries a short `## Brief self-check` body
-section that points back at this file, never at `dispatch-brief.md`.
+`git-toolkit` depends on no other plugin: this file is the one home of the Git family's brief
+delta and self-check.

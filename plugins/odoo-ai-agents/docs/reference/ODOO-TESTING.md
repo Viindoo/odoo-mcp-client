@@ -43,7 +43,7 @@ below; neither of those restates them.
 the not-yet-installed module and runs its `at_install` tests in one pass. To RE-RUN the suite on a
 DB where the module is **already installed**, use `-u <module> --test-enable` instead - it re-runs
 them on every series, while `-i` on an already-installed module runs none of its tests on recent
-series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database). So: a fresh DB / not-yet-installed module uses
+series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Test run on an existing database). So: a fresh DB / not-yet-installed module uses
 `-i ... --test-enable` (init + test in one pass); an already-installed DB uses
 `-u ... --test-enable`. Confirm the exact flag semantics via `cli_help` for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.)

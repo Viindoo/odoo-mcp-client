@@ -1,8 +1,3 @@
-<!-- SSOT reference. The single source for the non-destructive Odoo i18n (.pot/.po) recipe.
-     Referenced (not copy-pasted) by the odoo-i18n skill AND by odoo-forward-port's P4 i18n step
-     via ${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md. Edit here only.
-     Cross-ref: docs/reference/INSTANCE-LIFECYCLE.md, docs/reference/ODOO-TESTING.md -->
-
 # Odoo i18n recipe - non-destructive .pot/.po (SSOT)
 
 **Contents:** L1 - Build ONE instance, then export every artifact from it - Keep Odoo's export format - Multi-language loop order - L2 - Diff-review reconcile (the non-destructive core - no polib) - L3 - Hand-translate the residual - Validation before commit (every gate is a hard BLOCK on failure) - Glossary and term choice
@@ -128,7 +123,7 @@ re-export and the committed file comparable at all.
 Demo loads at `-i` and NEVER at `-u`, so a build that came up without demo cannot be repaired -
 provision a new one. Ask for the export build with `demo` `on` (the `odoo-instance` dispatch field,
 `instance_build`'s argument): the tool spells the series' own demo flag, whose default and arity
-moved across the span (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the
+moved across the span (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Build facts the
 odoo-local tools apply). Never compose a demo flag by hand for the export build.
 
 **KT5 - the `.pot` and every `.po` of one run come from ONE build.** The L2 reconcile compares a
@@ -331,7 +326,7 @@ and the `fuzzy` flag per entry as you write it (no full-file polib scan) - both 
 
    - **Demo:** the build's `INSTANCE_HANDLE` reads `demo: true` - a fact of the database, which
      `instance_i18n_export` also checks before it writes anything
-     (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools
+     (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md` § Build facts the odoo-local tools
      apply). Corroborate against the instance rather than the handle alone - a module in
      scope whose manifest declares `demo` files must have its demo records present
      (`ir.model.data` rows for that module pointing at records those files define). Absent -> the
@@ -352,6 +347,12 @@ and the `fuzzy` flag per entry as you write it (no full-file polib scan) - both 
    from Odoo's export and re-apply only the `msgstr` content.
 
 ---
+
+A `_t()` msgid present in a changed `static/src/**/*.js` file and missing from the re-export is a
+lexing loss, not a removed term: the JS extractor reads a regex literal written right after a
+keyword (`return`, `typeof`, `case`, `throw`) as a division and silently drops every later term of
+the file. Declare the regex as a constant and use it; reproduce with the series' own extractor on
+that file.
 
 ## Glossary and term choice
 

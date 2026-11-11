@@ -1,7 +1,3 @@
-<!-- SSOT reference for adapt mode. Loaded by odoo-test-writing (adapt mode).
-     Edit here only; SKILL.md carries the summary + pointer.
-     Dau gach ASCII `-`. -->
-
 # odoo-test-writing - Adapt Mode (Forward-Port Test Forwarding)
 
 **Contents:** When adapt mode applies - Inputs - Step 1 - Classify each assertion - Step 2 - Strip capture-code - Step 3 - Translate API to target - Step 4 - Prove it after the code - What is BANNED in adapt mode - Linking back to fp-merge-absorption - Continuation Contract for adapt mode
