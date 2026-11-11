@@ -198,9 +198,8 @@ def _load_skill_tool_deps() -> None:
 
     The JSON is the SSOT for which MCP tools each skill uses, and (in the
     "orchestration" block) for each skill's spawn class and stack.
-    Session bootstrap tools (set_active_version, set_active_profile) are included
-    in each skill's mcp_tools list and separated at render time in
-    gen_skill_tools_block() - same logic as before, just data-driven now.
+    Pinning tools (set_active_version, set_active_profile) sit in a skill's
+    mcp_tools list like any other tool and render as ordinary bullets.
     """
     with open(SKILL_TOOL_DEPS_FILE, encoding="utf-8") as fh:
         data = json.load(fh)
@@ -335,53 +334,21 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
 
 
 def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
-    """Generate the ## MCP tools section body for one skill."""
+    """Generate the ## MCP tools section body for one skill: its own tool bullets only."""
     tool_names = SKILL_TO_TOOLS.get(skill_name, [])
     callers = SKILL_TOOL_CALLERS.get(skill_name, {})
     tools_by_name = {t["name"]: t for t in surface["tools"]}
 
     lines = []
-
-    dis_block = gen_disambiguation_block(surface)
-    if dis_block:
-        lines.append(dis_block)
-        lines.append("")
-
-    # Session bootstrap
-    session_tools = [n for n in tool_names if n in ("set_active_version", "set_active_profile")]
-    work_tools = [n for n in tool_names if n not in ("set_active_version", "set_active_profile")]
-
-    if session_tools:
-        lines.append("**Session bootstrap** (call once at session start):")
-        for st in session_tools:
-            t = tools_by_name.get(st)
-            if t:
-                lines.append(f"- `{t['example_call']}` - {_first_sentence(t['description'])}")
-        lines.append("")
-
-    if work_tools:
-        lines.append("**Primary tools:**")
-        if any(tn in callers for tn in work_tools):
-            lines.append("")
-            lines.append(
-                "> **Listing a tool here does NOT license every context to call it.** A bullet "
-                "carrying a **Caller:** clause is QUALIFIED: that clause names who may issue the "
-                "call and where, and it overrides this list. Where a phase of this skill assigns "
-                "the call to a dispatched delegate, the delegate issues it and the orchestrating "
-                "context records only what comes back."
-            )
-            lines.append("")
-        for tn in work_tools:
-            t = tools_by_name.get(tn)
-            if t:
-                label = tool_group_label(t)
-                label_str = f" {label}" if label else ""
-                qual = callers.get(tn)
-                qual_str = f" **Caller:** {qual}." if qual else ""
-                lines.append(
-                    f"- `{tn}`{label_str} - {_first_sentence(t['description'])}{qual_str}"
-                )
-        lines.append("")
+    for tn in tool_names:
+        t = tools_by_name.get(tn)
+        if not t:
+            continue
+        label = tool_group_label(t)
+        label_str = f" {label}" if label else ""
+        qual = callers.get(tn)
+        qual_str = f" **Caller:** {qual}." if qual else ""
+        lines.append(f"- `{tn}`{label_str} - {_first_sentence(t['description'])}{qual_str}")
 
     return "\n".join(lines).rstrip()
 
