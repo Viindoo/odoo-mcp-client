@@ -6,6 +6,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.9.0] - 2026-11-11
+
+### Added
+
+- Reasoning effort per launch: `concurrency-guard.md` § Effort picks `low`, `medium`, `high` or
+  `xhigh` from the blast radius (recon flags, the number of modules and business functions, a
+  specialist domain) while the model tier keeps following the kind of reasoning. The architect
+  writes the effort beside the tier in `build_tier_hint`, the plan node carries `effort`, every
+  launcher passes it, and the session-start digest states the rule for built-in agents too. Six
+  agents declare a default in their frontmatter; lint `[agent-effort]` refuses `max` and unknown
+  values in a definition.
+- Documents a human reads or approves (SRS, design, plan, acceptance oracle, review and acceptance
+  reports) are written in the user's language: the one they write in, else the response language
+  configured in Claude Code (`scripts/lib/response_language.py`, stated in the session-start
+  context), else English. Code, tests, comments, docstrings and agent working files stay English.
+- `scripts/lib/image_sheet.py`: one command to review many screenshots (`sheet`, named flags,
+  scales down only, refuses an oversized canvas) and to read an image's pixel size (`size`, no
+  Pillow needed for PNG, GIF and JPEG). Capture agents write no image script of their own (#313).
+- The design session computes the scope itself and chooses how to ground it: a direct read, one
+  recon, or `odoo-deep-survey`, which `odoo-intake` runs on the user's ask and the architect now
+  runs on its own judgement.
+
+### Changed
+
+- Before a question, every asker - the main agent to a human, a subagent to its caller - studies
+  the business flow and the technical structure the question turns on, applies a rule that already
+  settles it, and says what it studied.
+- Work that comes back wider or narrower than its brief is judged against the goal: it is kept
+  when it is sound and adds no complexity for the end user, and rejected only for a defect or a
+  risk the launcher names. An agent that goes beyond or stops short of its brief says so.
+- A session that ends or is killed no longer drops the databases of a run that can resume: a lease
+  that belongs to a run and records a build is parked (server stopped, database and ports kept)
+  for its park budget, found again with `lease_find` by run id, adopted and served; a lease with
+  no run or no build is reclaimed as before (#313).
+- Every `odoo-bin` the tools launch (build, test, serve, translation export) runs under a memory
+  cap of its own: in a transient systemd scope where a user manager enforces one, so a process
+  that exceeds the cap is killed alone and the session and its other processes keep running, else
+  under an address-space limit. `run_bounded.sh capped <command>` gives an agent the same cap for
+  a heavy command of its own (#313).
+- A command that exits 137 was killed for memory: an agent shrinks the work and never re-runs it
+  unchanged (#313).
+- The model of a launch is a launch parameter everywhere: the `DISPATCH MODEL` line is gone from
+  every brief template.
+- Instruction text is smaller again: `git-safety-contract.md`, `git-nesting-protocol.md`,
+  `module-coordination-ledger.md` and `instance-handle-contract.md` are rewritten as rules;
+  `odoo-marketer`, `odoo-doc-writer` and `odoo-diff-comparator` read the procedure of their mode
+  from a reference file, so no agent body exceeds 200 lines; the build facts per series move from
+  `odoo-version-pivots.md` to `odoo-build-facts.md`; the human-only `snippets/references/` copies
+  are removed.
+- A database a browser has driven carries no test verdict: a suite or a break-check that decides
+  one runs on an `ephemeral` lease of its own.
+- Forty-five rules are added where the plugin owns the topic, the Odoo facts among them checked
+  against the Odoo source on the series each names: failure modes (a no-op
+  write after raw SQL, class-wide transaction time, a `groups=` field breaking copy), hot-path
+  query costs, the SQL-injection check, manifest lint, access checks on new records, translated
+  columns, frontend bundle scope, test fixtures and doubles, bridge modules, pull-request hygiene.
+
+- The test suite runs in parallel (`pytest-xdist`, one worker per test file) and then runs the
+  timing-sensitive tests alone (`SERIAL_TESTS` in `tests/conftest.py`); CI runs the same two
+  passes. On an eight-core machine the suite takes 12 to 15 minutes where the serial run took 31
+  to 41.
+
+### Fixed
+
+- `monitor-site` is off unless the user asked for the pull request to be watched, like `monitor`.
+- A subagent resumed with a new request after its report was delivered answers with a new
+  hand-back: the report rules say so, the gates read the report of the current dispatch instead
+  of the first one ever delivered, and a resumed turn that ends without a hand-back is stopped
+  once. Before, such an answer reached nobody and the launcher waited for it.
+- A turn that ends while a build or translation-export job the same agent started is still
+  running is stopped once and told to collect it with `job_wait`: a finished job notifies no one,
+  so a session that stopped there stayed idle until a human asked.
+- A server the tools launch serves the installed build: it gets no developer option, so it no
+  longer restarts when a file is saved and no longer reads views from the files of the worktree
+  while agents capture, accept, review or record on it. `instance_serve` takes
+  `developer_server: true` for hand development on the caller's own lease and states in its
+  result which kind of server answered.
+- The test summary states `JS_RESULT` (`passed`, `failed`, `absent`) on every run, so a run whose
+  tags selected no browser unit suite is no longer read as a JS pass; `TESTS_RUN` is documented
+  as the database total Odoo prints.
+- `odoo-i18n`: the skill obtains the diff of a re-exported catalog and the translator adjudicates
+  it (the translator runs no git); two shapes the export build produces by itself are ruled the
+  same way every time - an entry of a record a module outside the dependency closure supplies,
+  and a changed translation on a record a dependency owns.
+- `odoo-doc-illustration`: the plan states the layers and the scope per module and leaves
+  sections, emphasis and screens to the writer and the marketer; the App Store page sells and
+  never reads like the user guide; a published image never shows the instance's local address.
+- `git-toolkit`: a commit of the paths a brief names proceeds on a tree with other changes; a
+  backup branch exists only for a destructive operation and is deleted by the dispatch that
+  pushes the rewritten branch. (`git-toolkit` 0.9.4 -> 0.9.5.)
+
+### Removed
+
+- Tests that asserted the wording of instruction files or of text an agent writes.
+
 ## [8.8.0] - 2026-11-11
 
 ### Added
