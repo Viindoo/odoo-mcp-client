@@ -1,7 +1,3 @@
-<!-- SSOT snippet: what a document or marketing text that ships to the public may not contain.
-     Read by odoo-doc-writer, odoo-doc-site-writer and odoo-marketer before they write. Edit here
-     only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md. -->
-
 # Public docs contract
 
 A module guide, an App Store page, a docs-site page and every marketing piece are published to

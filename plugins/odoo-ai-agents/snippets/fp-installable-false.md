@@ -1,7 +1,3 @@
-<!-- SSOT snippet. Referenced by forward-port agents for new modules and ANY module with
-     installable:False at the target. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md. -->
-
 # Forward-Port: installable=False Rule
 
 ## Scope - applies to ALL installable:False modules at target

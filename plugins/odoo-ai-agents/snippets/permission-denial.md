@@ -1,6 +1,3 @@
-<!-- SSOT snippet: what an agent does when the permission classifier refuses a tool call.
-     Consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md. -->
-
 # A refused tool call
 
 When the permission classifier refuses a call (the refusal carries a bracketed `[<label>]`):

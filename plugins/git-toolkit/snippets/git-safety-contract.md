@@ -1,11 +1,3 @@
-<!-- SSOT snippet. The single home for the git safety contract: backup, force-with-lease,
-     no-TTY rebase, clean-tree precondition (never stash), abort flows, reflog/ORIG_HEAD
-     recovery, filter-repo fresh-clone rule, tree-identity verify, conflict driver, command
-     shape, no inherited upstream on a new branch, and the one human-confirm gate (protected
-     branch). Referenced (never copy-pasted) by
-     skills/git-ops/SKILL.md and every operator agent via
-     ${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md. Edit here only. -->
-
 # Git Safety Contract (SSOT)
 
 Never lose code. Every destructive op is reversible by construction: back up first, verify

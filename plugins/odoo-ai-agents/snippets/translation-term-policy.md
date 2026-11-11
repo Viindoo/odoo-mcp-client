@@ -1,11 +1,3 @@
-<!-- SSOT snippet. The single home for how a translator CHOOSES the wording: the three glossary
-     layers and their precedence, and the independent-regime guard.
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md.
-     BOUNDARY - this file decides WHICH WORDS. What a `.po` entry MEANS (identity rule, empty-msgstr
-     rule, adjudication buckets, fuzzy, placeholders) is owned by
-     ${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md; what you DO and in what ORDER is owned by
-     ${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md. Neither is restated here. -->
-
 # Translation term policy (SSOT)
 
 Consult when assembling the translation memory and when hand-translating the residual.

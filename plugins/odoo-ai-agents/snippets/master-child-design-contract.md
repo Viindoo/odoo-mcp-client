@@ -1,7 +1,3 @@
-<!-- SSOT snippet. Contract for master-child design decomposition in odoo-solution-architect /
-     odoo-solution-design. Consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md; edit here only. -->
-
 # Master-Child Design Contract
 
 ## When to use

@@ -1,6 +1,3 @@
-<!-- SSOT snippet. Comment + docstring rules for shipped SOURCE; prose ARTIFACTS stay in
-     artifact-voice.md. Edit here only; consumers cross-ref, never restate. -->
-
 # Code Comment and Docstring Contract
 
 Governs every comment and docstring you write into source - Python, JS/OWL, XML, SCSS, tests,
@@ -36,14 +33,17 @@ respects, the reason that still holds. It never narrates steps the reader can se
   tomorrow.
 - **Commented-out code**, and banner or separator comment blocks.
 
+The same bans bind every string a user sees that lives in source - a field `string` or `help`, a
+selection label, a view label, a message: it describes the product as it is, with no internal
+marker, requirement label, review note or "new"/"old" wording.
+
 These bans bind the lines a change adds; an existing reference stays until its target is deleted,
 and a review reads only the added lines.
 
 ## 4. Volume ceiling
 
-One short line is the norm. Never a multi-paragraph docstring, nor a multi-line block where one
-line carries the point. A block over three lines needs a reason you can state; absent one, cut it.
-A docstring's field list (§ 5) is the contract, not a block in this sense.
+One short line is the norm; a block over three lines needs a reason you can state. A docstring's
+field list (§ 5) is the contract, not a block in this sense.
 
 ## 5. Docstrings
 

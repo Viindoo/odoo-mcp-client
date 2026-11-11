@@ -1,10 +1,3 @@
-<!-- SSOT snippet. The single home for the command recipes behind the git scale protocol: the
-     name/count views that come before any content read, the scoped read, and the huge-repo
-     fetch strategies. AGENT-FACING: read by git-surveyor, git-operator and git-pipeline-lead,
-     never by a dispatcher and never copied into a brief. The rules (never read a huge diff
-     whole, the numeric trigger, cluster-then-delegate) live in git-scale-protocol.md. Referenced
-     via ${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-recipes.md. Edit here only. -->
-
 # Git Scale Recipes (SSOT, agent-facing)
 
 How the agents carry out `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`. Each command runs

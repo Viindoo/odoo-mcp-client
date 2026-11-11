@@ -1,8 +1,3 @@
-<!-- SSOT snippet. Two recon modes for ingesting a source document: faithful SSOT-extraction
-     vs interpretive summary. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md.
-     Consumers are DERIVED, never listed here - re-derive with `grep -rl "ssot-extraction-contract.md" plugins/odoo-ai-agents/`. -->
-
 # SSOT-Extraction Contract (faithful vs interpretive recon)
 
 A recon pass that reads a source document runs in ONE of two modes. Pick the mode BEFORE reading.

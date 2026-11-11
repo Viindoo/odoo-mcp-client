@@ -1,10 +1,3 @@
-<!-- SSOT snippet. The single home for the EXECUTOR'S OWN live, in-session progress checklist -
-     distinct from resuming a child you launched (context-handoff-protocol.md Tier A) and from the
-     durable run-<id>.json blackboard / worklog (worklog-contract.md, the state SSOT). Referenced
-     (not copy-pasted) by the plan runner, workflow-chaining, odoo-planning, and every spawner.
-     Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md. -->
-
 # Execution Task-List Contract (live, in-session progress checklist)
 
 When you begin executing a multi-step plan - nodes or phases - create a

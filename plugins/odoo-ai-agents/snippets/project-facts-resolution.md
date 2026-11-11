@@ -1,6 +1,3 @@
-<!-- SSOT snippet. The ordered, terminating ladder Round 0 uses for the four project facts. Edit
-     here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md. -->
-
 # Resolve project facts (before you ask)
 
 Every Odoo task needs four facts: the **Odoo series**, the **OSM profile**, the **module/addons

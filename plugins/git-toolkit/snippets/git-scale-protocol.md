@@ -1,9 +1,3 @@
-<!-- SSOT snippet. The single home for the git scale protocol RULES: never read a huge diff into
-     context, the numeric large-change trigger, cluster-then-delegate, the huge-repo strategy
-     and the compact return. Outcomes only - the commands that carry them out live in a sibling
-     snippet that only agents read. Referenced via
-     ${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md. Edit here only. -->
-
 # Git Scale Protocol (SSOT)
 
 Git churn must happen in a delegated context so the caller stays clean; the fastest way to defeat

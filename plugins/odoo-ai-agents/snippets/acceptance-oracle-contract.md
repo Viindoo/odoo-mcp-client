@@ -1,11 +1,3 @@
-<!-- SSOT snippet. The anti-bias contract for acceptance: how an oracle is DERIVED, who
-     owns each role, and what counts as a verdict. Referenced (not copy-pasted) by
-     odoo-qa-planner, odoo-qa-tester, odoo-acceptance, odoo-test-writing, and odoo-qa-suite.
-     Orthogonal to test-behavior-contract.md (that one governs HOW a written test is arranged
-     to exercise behavior; this one governs WHERE the expected result comes from and who may
-     decide PASS). Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md. -->
-
 # Acceptance Oracle Contract (derive the truth from intent, never from the code)
 
 An acceptance oracle is the source of truth that decides whether an observed result is CORRECT

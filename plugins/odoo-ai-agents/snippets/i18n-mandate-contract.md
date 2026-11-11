@@ -1,11 +1,3 @@
-<!-- SSOT snippet. The single home for the MANDATORY i18n reconcile step its callers share:
-     the mandate wording, the caller obligations, the enumerated escapes, the decidable trigger,
-     and the orchestrator's must-not-instruct list (what a CALLER may never tell the i18n leaf,
-     each row pointing at the SSOT that owns the fact). Edit here only;
-     consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md.
-     The i18n PROTOCOL itself (export, load, diff-review, adjudicate) is owned by
-     ${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md and is NOT restated here. -->
-
 # i18n mandate contract (SSOT)
 
 A module carried across a major Odoo series needs its catalog re-exported and reconciled on the

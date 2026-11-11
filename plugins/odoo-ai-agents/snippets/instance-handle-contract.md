@@ -1,7 +1,3 @@
-<!-- SSOT snippet. The INSTANCE_HANDLE contract: one provisioned instance per run,
-     forwarded to every downstream brief. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md. -->
-
 # Instance Handle Contract
 
 `INSTANCE_HANDLE` is the run-scoped descriptor of the ONE live Odoo instance a multi-agent run

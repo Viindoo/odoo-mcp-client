@@ -1,6 +1,3 @@
-<!-- SSOT snippet. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md. -->
-
 # Modularity Contract
 
 An Odoo module works on its own, for the purpose its manifest states, using only what it declares.

@@ -1,14 +1,3 @@
-<!-- SSOT snippet. The boundary for RUNNING tests/instance work: who runs, when to keep it
-     inline vs delegate, INSTANCE_HANDLE precedence, the NEEDS_NEXT escalation, and the
-     output-volume rule that keeps the caller's context clean. Referenced (not copy-pasted) by
-     odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-code-reviewer, and the coding agents:
-     odoo-coder owns the stand-alone and whole-node instance runs of its node through the
-     odoo-instance skill; odoo-frontend-coder is instance-free (static verify-frontend.sh gate
-     only); the lint-class gate runs once at the plan's pre-PR lint gate; odoo-test-writer
-     runs only its own break-check runs, inline, on the forwarded handle. Canonical NEEDS_NEXT
-     example lives in skills/odoo-test-writing/references/no-instance.md.
-     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
-
 # Test-Execution Handoff Contract (who runs the suite, and where the output goes)
 
 Writing a test, running a test and judging the result are three jobs. Folding the run into the

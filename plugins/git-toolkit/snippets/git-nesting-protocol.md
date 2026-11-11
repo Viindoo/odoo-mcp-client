@@ -1,10 +1,3 @@
-<!-- SSOT snippet. The single home for the git-toolkit nesting model: the launch-and-collect
-     rule (N0 - how a launcher collects a child's result, keyed on its own launch tool), cold-spawn
-     handoff, the depth guard (only the pipeline lead spawns), leaf-no-spawn, the per-phase model map,
-     the Agent-unavailable fallback (dispatchers: NEEDS_CONTEXT), the Git family's brief delta, and the Brief self-check
-     every git-toolkit agent runs. Referenced via
-     ${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md. Edit here only. -->
-
 # Git Nesting Protocol (SSOT)
 
 The phased pipeline runs BELOW the caller so the caller's context stays pristine even for

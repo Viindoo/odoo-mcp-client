@@ -1,10 +1,3 @@
-<!-- SSOT snippet. Everyday all-stack currency-check companion to
-     `fp-symbol-survival-check.md` (forward-port-scoped: P6 of /odoo-forward-port, one merge
-     window). This file is for EVERY code/test/review generation, forward-port or not. The
-     currency PRINCIPLE ("existence is not currency") lives in `osm-first-contract.md` §1 - this
-     file does NOT restate it, only the per-phase combo + tiering + blind-spot fallbacks. Edit
-     here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md. -->
-
 # Symbol Currency Check - per-phase combo + tiering
 
 Param-safe per `generator/server-surface.json`: `lookup_core_api` requires `name,odoo_version`;

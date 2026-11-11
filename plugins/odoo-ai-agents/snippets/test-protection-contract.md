@@ -1,7 +1,3 @@
-<!-- SSOT for "what tests guard what" methodology.
-     Never restate the tier definitions or tool names in consuming files - cross-ref this file.
-     Consumers are DERIVED, never listed here - re-derive with `grep -rl "test-protection-contract.md" plugins/odoo-ai-agents/`. -->
-
 # Test-Protection Contract
 
 For every model/field/method/view/component you **touch**, identify which tests already guard it

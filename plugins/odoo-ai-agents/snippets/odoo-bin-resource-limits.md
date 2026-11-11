@@ -1,11 +1,3 @@
-<!-- SSOT snippet. odoo-bin memory/time resource-limit POLICY.
-     The numeric resolution logic lives ONLY in
-     scripts/lib/resource_limits.sh - this file documents the policy those
-     values implement; it does not restate full command lines. Consumers
-     (55-instance-ops.sh, 50-instance-spinup.sh, and any runnable odoo-bin
-     doc literal) point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md. Edit here only. -->
-
 # odoo-bin resource limits
 
 `instance_build` / `instance_serve` apply this policy for you; to override the cap for one build,

@@ -1,8 +1,3 @@
-<!-- SSOT snippet. RST-validity contract for every third-party `doc/*.rst` an agent writes
-     (`odoo-doc-writer`). Referenced (not copy-pasted) by any writer of Odoo module end-user
-     documentation. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/rst-validity-contract.md. -->
-
 # RST-Validity Contract
 
 Every `doc/*.rst` file you write is rendered by a PLAIN docutils reader - there is no Sphinx

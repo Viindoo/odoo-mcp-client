@@ -1,6 +1,3 @@
-<!-- SSOT snippet: where a video a run produced is published and embedded. Consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md; edit here only. -->
-
 # Where a video goes
 
 A video a run produced (`video-produce`, `odoo-demo-recording`) lives under

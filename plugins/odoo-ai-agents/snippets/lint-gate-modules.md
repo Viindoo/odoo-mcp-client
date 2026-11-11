@@ -1,6 +1,3 @@
-<!-- SSOT snippet: the backend lint-class gate's modules, their selection and scoping, and how a
-     run is read. Consumers point here; never restate the module set elsewhere. -->
-
 # Backend lint-class gate - module selection
 
 This snippet decides WHICH modules make up the backend code-quality gate and how a run of them is

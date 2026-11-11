@@ -1,8 +1,3 @@
-<!-- SSOT snippet. How a `--test-enable` run's scope is decided. WHICH modules enter the set is
-     owned by ${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md; flag syntax per version by
-     ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md. -->
-
 # Test-Scope Contract (`--test-enable` runs a scope, never "everything installed")
 
 `--test-enable` runs every test the registry loaded, and dependency resolution plus `auto_install`

@@ -1,6 +1,3 @@
-<!-- SSOT snippet. References in a module's shipped docs, which app stores publish. Edit here
-     only; consumers cross-ref, never restate. -->
-
 # Module doc references (images, manifest images, links to other modules)
 
 ## Images

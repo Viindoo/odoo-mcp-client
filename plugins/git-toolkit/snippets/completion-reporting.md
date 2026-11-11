@@ -1,7 +1,3 @@
-<!-- SSOT snippet. The single home for how a git-toolkit agent ENDS its turn. Self-contained and
-     provider-agnostic. Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md.
-     Edit here only. -->
-
 # Completion Reporting (SSOT)
 
 Your launcher receives your completion report ONCE, as the last act of your dispatch: your
