@@ -1,4 +1,4 @@
-.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check help setup bump bump-dry bump-patch bump-minor bump-major FORCE
+.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check sync-budgets help setup bump bump-dry bump-patch bump-minor bump-major FORCE
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -12,6 +12,7 @@ help:
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
 	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema (hard rules always fatal; warn-first by default here - set WORKFLOWS_STRICT=1 to also enforce the content rules locally; 'make validate' always runs this strict)"
 	@echo "make orchestration-check - lint the capability/contract layer (warn-first by default here - set ORCH_STRICT=1 to enforce locally; 'make validate' always runs this strict)"
+	@echo "make sync-budgets - lower every recorded size figure (card budgets, agent body record) to the real size after a trim; never raises one"
 	@echo "make setup           - create .venv (Python >= 3.12) and install requirements.txt"
 	@echo "make bump            - auto-classify the level from commits since last VERSION bump, then bump"
 	@echo "make bump-dry        - preview the auto-classified level + resulting version (writes nothing)"
@@ -81,6 +82,9 @@ deps-check: $(VENV_STAMP)
 # always runs this checker strict regardless of this env var.
 orchestration-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_orchestration.py $(if $(ORCH_STRICT),--strict,)
+
+sync-budgets: $(VENV_STAMP)
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_orchestration.py --sync-budgets
 
 # Version bump + release cut. Keeps VERSION and the odoo-ai-agents
 # plugin.json in lockstep (enforced by tests/test_version_consistency.py) and
