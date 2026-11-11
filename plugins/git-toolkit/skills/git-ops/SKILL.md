@@ -48,8 +48,8 @@ Apply `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation-decision.md`. Every op goes
 | LARGE or COMPLEX (past the M2 trigger in `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`) | `git-pipeline-lead` |
 
 Resolve the tier from `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` (first-match-wins; a read
-takes the cheapest tier the table allows; for the lead the CALLER decides, row 1). Pass it as the
-launch's `model` param AND put `DISPATCH MODEL: <tier>` as the first line of the brief.
+takes the cheapest tier the table allows; for the lead the CALLER decides, row 1) and pass it as
+the launch's `model` parameter.
 
 Collect the worker's result by the N0 rule in `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 This skill runs in whatever context invoked it - the main conversation or a dispatched agent - so

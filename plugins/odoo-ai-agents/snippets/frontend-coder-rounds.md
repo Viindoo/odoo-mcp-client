@@ -16,9 +16,9 @@ output format; it points here after the version gate. Read ONLY the section of t
 
 **Round 3 - write the boilerplate.** Write the legacy JS for Odoo v<N> using the right pattern (`odoo.define` / `AbstractField` / `Widget.include`), grounded in the Rounds 1-2 examples + API diff. Use the `find_examples` snippets as the structural template so import paths and lifecycle hooks match the target version.
 
-**Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · registration in `<descriptor>` per the agent's Workflows asset rule (Round 0 step 8 resolves the descriptor filename, boundary `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6; edit the one it has, create neither).
+**Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · registration in `<descriptor>` (the agent's step 2 resolves the filename; how the series registers assets: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6).
 
-**Round 5 - suggest visual verification (forward-wiring).** After presenting, add the `next:` entry per the agent's § Continuation Contract.
+**Round 5 - suggest visual verification (forward-wiring).** After presenting, add the `next:` entry of the agent's § Return.
 
 ## OWL workflow
 
@@ -31,7 +31,7 @@ output format; it points here after the version gate. Read ONLY the section of t
 - [ ] **`Dialog` body** - body content goes in the default slot; only `header`/`footer` are named slots.
 - [ ] **Inherited QWeb templates** - an xpath into a `t-if`/`t-elif` -> `t-elif`/`t-else` chain follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/xml.md` § Inheriting QWeb templates (Round 6 BLOCKs a `before`/`after` that splits the chain).
 
-**Round 1 - detect OWL sub-version (parallel when porting).** The `patch()` form per version is the agent's § Version gate table; lifecycle hooks come from `@odoo/owl` in every OWL version. The series is the one Round 0 resolved (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`); never assume one. If porting between versions, call `api_version_diff` to surface breaking changes first.
+**Round 1 - detect OWL sub-version (parallel when porting).** The `patch()` form of the series comes from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; lifecycle hooks come from `@odoo/owl` in every OWL version. The series is the one Round 0 resolved (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`); never assume one. If porting between versions, call `api_version_diff` to surface breaking changes first.
 
 **Round 2 - discover existing components + gather examples (parallel, all independent):**
 1. `module_inspect(name=<module>, method='owl', odoo_version='<version>')` - enumerate OWL components; check naming collisions.
@@ -39,15 +39,15 @@ output format; it points here after the version gate. Read ONLY the section of t
 3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='<version>')` - real import paths and hook names (trust this over training memory for syntax).
 4. `find_override_point(model=<Component>, method=<method>, odoo_version='<version>')` - only when patching an existing component; skip for brand-new ones.
 
-Confirm currency of every core registry/service/hook API you call at the target version by the agent's § Workflows JS currency authority: `api_version_diff(symbol='<symbol>', from_version='<older>', to_version='<version>')` when the code crosses versions, plus `find_examples(query='<hook/registry usage>', odoo_version='<version>')` for real indexed usage AT the target.
+Confirm currency of every core registry/service/hook API you call at the target version (JS and OWL have no core-API table: `lookup_core_api` covers Python only): `api_version_diff(symbol='<symbol>', from_version='<older>', to_version='<version>')` when the code crosses versions, plus `find_examples(query='<hook/registry usage>', odoo_version='<version>')` for real indexed usage AT the target.
 
 **Round 3 - write the component.** Write the OWL `<1.x|2.x>` component - `setup()` + lifecycle hooks + template, any `patch()` block, and the `registry.category('…').add(…)` registration - grounded in the Rounds 1-2 example snippets, registry category, and verified import paths. Reason step by step before writing when: logic crosses multiple components via `useChildSubEnv`/`useBus`; a custom service holds state surviving unmount; or a `patch` must call `super` at a position-sensitive point relative to side effects.
 
 **Round 4 - assemble complete output.**
 
-**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: per the agent's Version gate table; SCSS: no `--bs-*` tokens") drawn from `odoo-version-pivots.md` and `odoo-frontend-fidelity.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
+**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: per `odoo-frontend-fidelity.md`; SCSS: no `--bs-*` tokens") drawn from `odoo-version-pivots.md` and `odoo-frontend-fidelity.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
 
 1. **JS file** - `/** @odoo-module **/` first line per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests row "JS module header" (and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), then `import`s from verified paths, then the component class, then registry `.add()`.
 2. **XML template file** - separate file preferred for templates over ~10 lines.
-3. **Manifest assets block** - register per the agent's Workflows asset rule.
+3. **Manifest assets block** - register the way the series does, in the descriptor of the agent's step 2.
 4. **OWL version notes** - briefly note any 1.x→2.x differences relevant to the generated code.

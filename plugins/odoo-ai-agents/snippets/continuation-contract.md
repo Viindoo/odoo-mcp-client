@@ -1,95 +1,43 @@
-<!-- SSOT snippet. The single source for the Continuation Contract that every skill/agent
-     emits at the end of its output so the plan runner can advance a run. Referenced
-     via ${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md instead of pasting the block
-     into every SKILL.md and agent file that emits a continuation contract - grep the plugin
-     tree for the literal path `snippets/continuation-contract.md` to enumerate the current set
-     (spans SKILL.md and agents/*.md; the set grows as skills/agents are added, so this comment
-     states no count of its own). The run loop that reads it: skills/odoo-intake/references/plan-mode-schema.md § Running the plan. -->
+# Continuation contract (the last block of your output)
 
-# Continuation Contract (emit at the very end of your output)
-
-After your normal output (the artifact/answer this step produces), append ONE fenced block
-tagged `continuation`. It is a machine-readable handoff the plan runner (the main agent) reads to
-decide what runs next, and the only one: a status or a next step written outside the block
-reaches no driver. It does NOT replace or alter anything above it - it is purely additive.
+After your normal output, append one fenced block tagged `continuation`. The plan runner (the main
+agent) reads it to decide what runs next; a status or a next step written outside it reaches no
+driver.
 
 ````
 ```continuation
 status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT
-concerns:                                   # OPTIONAL, DONE only: one line per caveat on an
-                                             # otherwise-complete run - each names the dimension
-                                             # and an evidence path (log/artifact/finding). [] or
-                                             # omit when there is nothing to flag. See Rules below.
-produced: [<real artifact path>, ...]      # files you actually wrote; [] for chat-only
-next:                                       # [] when nothing to add; REQUIRED (>=1 entry) on
-                                             # NEEDS_NEXT; DONE MAY also carry a low-confidence
-                                             # (<0.5) advisory entry - the runner's "materialize
-                                             # next[] -> dynamic node" step (plan-mode-schema.md
-                                             # § Running the plan, step 4) reads next[] regardless of your own status
-  - skill: <skill-or-workflow-name>
-    reason: <why this is the next step>
-    inputs: {<key>: <value>}                 # odoo_version, osm_profile are RESERVED - see Rules
-    confidence: 0.0..1.0                     # <0.5 ⇒ driver surfaces it as a suggestion, not auto-run
-blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
+concerns:                     # optional, DONE only: one line per caveat - the dimension and an evidence path
+produced: [<path you wrote>, ...]          # [] for chat-only work
+next:                         # [] when nothing follows; at least one entry on NEEDS_NEXT
+  - skill: <skill or workflow name>
+    reason: <why this is next>
+    inputs: {<key>: <value>}
+    confidence: 0.0..1.0      # under 0.5 the runner offers it as a suggestion
+blocked_reason: <required on BLOCKED and NEEDS_CONTEXT, else null>
 ```
 ````
 
-`status` has exactly four values: `DONE`, `NEEDS_NEXT`, `BLOCKED`, `NEEDS_CONTEXT`.
-
-There is no fifth value. To report a caveat on completed work, emit `status: DONE` plus a
-`concerns:` list - one line per caveat, each naming the dimension and an evidence path. The runner
-schedules `DONE` + `concerns` as DONE and surfaces the list. (ODOO-AI-ETHOS #10's completion
-status is a different field - a human-facing self-report, not this DAG signal.)
-
-This is the ONE declaring file for `status` (`continuation_status`) and its `concerns:` qualifier;
-every other file in this plugin that mentions either POINTS here rather than restating the values -
-`${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md` indexes it alongside the gate-reply sets and the
-other overloaded terms.
-
-Rules:
-- **You only EMIT this - you never dispatch the next step yourself, with one narrow category
-  exception.** Advancing ANOTHER agent's `next` is always the plan runner's job. The
-  exception: a front-door ORCHESTRATOR skill that drives its OWN bounded next/fix loop when it is
-  NOT running as a plan node MAY self-dispatch its next spawner - its own instructions carry
-  the exact condition and iteration bound for doing so. A leaf worker/agent NEVER self-dispatches.
-  See `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
-- **Spawner completion barrier (distinct from the no-self-dispatch rule above).** If you launched
-  any agent this turn, `status: DONE` is legal only when every child you launched returned
-  DONE/BLOCKED; while a child runs you are not done. Full rule:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1/R2.
-- `status: DONE` when the run's goal is met (add `concerns:` when a caveat remains worth
-  flagging - never a fifth status value); `NEEDS_NEXT` when more work should follow (fill
-  `next`); `BLOCKED` when you cannot proceed; `NEEDS_CONTEXT` when you need a human decision.
-- **Teardown gate on every terminal status.** `DONE` (and `BLOCKED`/`NEEDS_CONTEXT`) is legal
-  only after the resources this dispatch acquired are returned - browser pages/recordings you
-  opened CLOSED, self-provisioned instance leases RELEASED (or explicitly handed off by
-  name). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
-- **Completion report is three parts, always - unconditional on toolset or depth.** ODOO-AI-ETHOS #10
-  (Completion Status) is cited here ONLY for the general evidence-over-assertion principle it
-  states for every domain - it is NOT the authority for the four-value `status` enum above, which
-  this file declares in its own right and which diverges from ETHOS #10's own value set (see the
-  no-fifth-value note above). Your output, in order, is
-  (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
-  evidence, (c) this fenced `continuation` block. Your report IS that output, delivered once - as
-  the `message` of `SubagentHandback` when that tool is in your toolset, else as your final
-  message; never send it to anyone (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`
-  R3).
-- `produced` is your evidence (ODOO-AI-ETHOS #10) - list the real paths you wrote.
-- **"Waiting" is never a bare statement, and a technically-shaped `blocked_reason` is not
-  automatically a real one.** `status` has no `waiting` value by design - a genuine pause IS
-  `BLOCKED` or `NEEDS_CONTEXT`, with `blocked_reason` naming (a) what you are waiting on, (b) who
-  or what can unblock it, and (c) what the caller should do next - AND each of (a)-(c) MUST cite a
-  concrete, checkable referent from THIS turn's actual work (a specific file path, symbol/field/
-  method name, error message, or tool-call result you already produced), never a generic
-  paraphrase of the category ("missing information", "the orchestrator", "more context", "additional
-  detail"). **Decidability check (apply it):** if you could swap in a different module, task, or
-  caller and the sentence would read equally true unchanged, it names nothing and fails this rule -
-  a `blocked_reason` that could be copy-pasted verbatim into any OTHER agent's report on any OTHER
-  module without becoming false is, by construction, ungrounded. Ending a turn on an unqualified
-  "waiting"/"in progress"/"standing by" sentence with none of (a)-(c) named, a `blocked_reason` that
-  fails the copy-paste check, or with no `continuation` block at all, is a protocol violation.
-- Outside an active run this block is harmless - it just documents suggested next steps.
-- **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
-  `osm_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
-  `odoo-code-review`, `odoo-test-writing`) MUST carry `odoo_version` in `inputs` so
-  the version survives the handoff structurally, not by the next skill re-deriving it.
+- **Four statuses, declared here.** `DONE`: the goal is met; a caveat on finished work is `DONE`
+  plus `concerns:`, never another value. `NEEDS_NEXT`: more work should follow; fill `next`.
+  `BLOCKED`: you cannot proceed. `NEEDS_CONTEXT`: you need a fact or a decision only your caller or
+  the human holds.
+- **Your report is three parts, in order:** a short summary of what you did, `produced` (the real
+  paths - your evidence), this block. It is delivered once
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
+- **You emit `next`; the runner dispatches it.** A front-door skill that drives its own bounded
+  loop outside a plan follows its own rule for dispatching its next step; a leaf never dispatches.
+- **`DONE` has two preconditions:** every agent you launched returned a terminal status (same
+  file, R1 and R2), and every resource this dispatch acquired is returned or handed off by name
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4). `BLOCKED` and
+  `NEEDS_CONTEXT` owe the same teardown.
+- **A non-`DONE` report lets its receiver decide without redoing your work.** `blocked_reason`
+  names what you wait on, who or what can unblock it, and what the receiver should do next, each
+  with a concrete referent from this turn's work (a file path, a symbol, an error message, a tool
+  result). A sentence that would stay true for any other module or task names nothing. When a
+  decision is needed, the summary gives the business context, the modules, the facts you verified,
+  the options with their trade-offs and your recommendation. A decision your own role owns is
+  taken, not returned.
+- A turn never ends on "waiting" or "in progress" without this block.
+- **Reserved `inputs` keys.** A `next` entry into `odoo-coding`, `odoo-code-review` or
+  `odoo-test-writing` carries `odoo_version` (the concrete series) and, when known, `osm_profile`.

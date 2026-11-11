@@ -66,13 +66,17 @@ several modules: run the design on the deepest-reasoning setting? About 2x the c
 Every gate here is a text question, never Plan Mode: the request's one Plan-Mode approval comes
 later, on the execution plan (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One
 Plan-Mode gate per request). The architect stops with `status: NEEDS_CONTEXT` and `gate: srs` or
-`gate: design`. Present its `summary` and `artifact` in the user's language (paths, module and
-model names verbatim), then ask `approve / refine: [feedback] / cancel`. Send the answer to the SAME architect with
+`gate: design`. Read the `artifact` itself, not only the `summary`, and check its pivotal claims
+against the request and the source; then present, in the user's language (paths, module and model
+names verbatim): what the document decides, the points that need the human with your
+recommendation on each, and the path. Ask `approve / refine: [feedback] / cancel`. Send the answer to the SAME architect with
 `SendMessage` - never a new launch; the session holds the SRS, the recon and the grounding. On
 `cancel` the artifacts stay on disk.
 
-Optional at `gate: design`: `refine: review` launches a fresh `odoo-solution-architect` in `MODE: review`
-(`model: opus`) over the design; present its findings and re-ask the same gate.
+Optional at either gate: `refine: review` launches a fresh `odoo-solution-architect` in
+`MODE: review` (`model: opus`) over the SRS or the design; send the accepted findings to the
+authoring architect, then re-ask the same gate. Offer it yourself for a cluster of business
+modules (accounting, payroll, HR, localization).
 
 ## Master-child branch (when the human chose master-child)
 
