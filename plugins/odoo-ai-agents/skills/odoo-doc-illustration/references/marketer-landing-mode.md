@@ -10,6 +10,12 @@ and five FAQ entries. Value first; never open with "This module extends X" and n
 field or model name in a heading or a sentence - unless the module is a developer tool whose
 buyers are developers, when the technical names are the value.
 
+The store shows a module in two parts, and this page is the first: it sells - the outcome, the
+proof, the decision. The second is the guide (`doc/`, the Documentation tab), the writer's file,
+which teaches. Nothing on this page reads like the guide: no click path, no numbered procedure, no
+field-by-field or menu-by-menu description, no configuration walkthrough; a step the buyer must
+know is one sentence of outcome with a link to the guide.
+
 1. **Inputs.** `FEATURE CATALOG` and `ROLE MAP` are required; absent, return
    `NEEDS_NEXT` with `next: odoo-doc-feature-map`. Copy: `MARKETING COPY` when supplied, else
    write the landing-page copy blocks yourself per § Channels from the catalog, the role map, the

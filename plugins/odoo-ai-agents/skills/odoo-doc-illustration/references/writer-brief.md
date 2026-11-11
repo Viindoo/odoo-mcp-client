@@ -2,6 +2,9 @@
 
 Fill the universal skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal
 skeleton (read by path) plus the fields below. Every path is the captured absolute literal, never re-resolved by the writer.
+A brief carries these fields and facts with their source (a path, a log, an owner's rule quoted);
+it never says what to stress, how long to write or which screens to shoot - the content is the
+writer's and the marketer's profession.
 
 ## Launch (`odoo-doc-writer`)
 

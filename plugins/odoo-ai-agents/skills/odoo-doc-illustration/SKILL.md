@@ -65,14 +65,14 @@ per build shape).
    § Target market) - field rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`
    § Input. One module: one instance, one step. Several: compute `doc-plan.yaml` per that file's
    algorithm (clusters, branch-aware instances, leaf-first order, dedup, `W`) and write it to
-   `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`. Per module also list the sections of
-   its guide and App Store page the run will write or recapture and the screens it will capture:
-   with `change`, the ones the change file's lines name; otherwise every section and screen of the
-   module (`module_inspect`).
+   `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`. The plan stops at what the run
+   covers: per module its layers and its scope - `whole`, or the features the change file names.
+   Which sections to write, what to stress and which screens to capture belong to the writer and
+   the marketer; neither the plan nor a brief states them.
 3. **Plan decision - always, also for one module with every input resolved.** When this skill
    owns the request, present the whole plan through Plan Mode
    (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request):
-   `EnterPlanMode`, show modules, instances and order, the sections and screens per module,
+   `EnterPlanMode`, show modules, instances and order, the layers and scope per module,
    `doc:false` modules with their reason (a module with docs on disk and no `change` is listed;
    `refine: redo <module>` sets its `change` to `whole`), `W`, one `TARGET MARKET` row per appstore
    module for the user to correct, then `ExitPlanMode` on approve. `refine: [feedback]` recomputes

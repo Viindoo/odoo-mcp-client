@@ -225,10 +225,11 @@ re-exported file against the committed one by DIFF-REVIEW:
    that file is what this review reads. To start again from Odoo's export, call
    `instance_i18n_export` again on the SAME lease for that module and language; it rewrites the
    module's `.pot` from the same database, so KT5 holds.
-3. **Diff-review (delegated - never run git yourself).** Invoke the `git-toolkit:git-ops` skill
-   (via the Skill tool) to diff the re-exported `i18n/<lang>.po` against its committed (HEAD) version
-   and report the changes back. Per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`, the git op is
-   delegated to git-ops and its result is read back - the skill/agent does not run git itself.
+3. **Diff-review (delegated).** The `odoo-i18n` skill invokes `git-toolkit:git-ops` for the changes
+   of the re-exported `i18n/<lang>.po` against its committed (HEAD) version and hands the reported
+   changes to the leaf that adjudicates them (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+   A leaf runs no git and invokes no git-ops: a leaf without the diff returns
+   `NEEDS_CONTEXT(diff of <lang>.po)`.
 4. **Adjudicate every removed/changed `msgstr`** in the reported diff into one of the THREE
    buckets - CORRECT / ARTEFACT / WRONG - defined once in
    `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry.

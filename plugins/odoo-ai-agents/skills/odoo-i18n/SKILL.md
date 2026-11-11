@@ -128,8 +128,11 @@ isolation: recipe KT1 and § Isolate the term inventory.
 
 **P3 - Translate [dispatch `odoo-translator`].** Dispatch the `odoo-translator` agent as a
 subagent launch for EACH (module-cluster × language) pair. Each leaf carries exactly ONE language;
-never bundle languages in a leaf. Each leaf runs the L2 re-export + diff-review reconcile and L3
-hand-translation of the residual for its language. The leaves, and your own P4 reloads, share ONE
+never bundle languages in a leaf. Each leaf adjudicates the L2 diff and hand-translates the L3
+residual for its language. The diff is yours to obtain: a leaf runs no git and invokes no git-ops,
+so before each launch invoke `git-toolkit:git-ops` for the changes of the re-exported `<lang>.po`
+against its committed version and put the reported changes (or the path of the file holding them)
+in the brief; after a leaf re-exports, obtain the diff again and resume the leaf with it. The leaves, and your own P4 reloads, share ONE
 database: they follow `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or
 export per database. Loop order: `## Multi-language loop order` in `references/i18n-recipe.md`.
 Model and brief: dispatch contract below.
