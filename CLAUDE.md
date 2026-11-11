@@ -36,6 +36,7 @@ make validate           # claude plugin validate (if CLI present) + schema/forma
 make gen                # regenerate SSOT-derived artifacts (see "SSOT generator" below)
 make gen-check          # run gen, then fail if it produced any diff (CI idempotency gate)
 make deps-check         # assert every skill->tool reference points at a live tool
+make sync-budgets       # after trimming instruction files: lower the recorded size budgets to the real sizes (never raises one)
 make workflows-check    # validate workflows/*.workflow.yaml against the schema (warn-first standalone; WORKFLOWS_STRICT=1 to enforce locally - `make validate` always runs it strict)
 make orchestration-check # capability/contract lint (warn-first standalone; ORCH_STRICT=1 to enforce locally - `make validate` always runs it strict)
 ```
@@ -136,10 +137,15 @@ Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
   SubagentStop teardown gate alone came too late; both share `hooks/teardown-check.sh`), and a
   browser capture whose destination is relative or outside the capture area - `<state root>/projects`
   plus the override dirs, never the rest of the state root (`block-capture-outside-state-root.sh`,
-  decided by `scripts/lib/capture_paths.py`). Its
-  `description` states that count and tests pin it - a new deny updates both. Every hook that reads
+  decided by `scripts/lib/capture_paths.py`). A test
+  pins the set of registered deny scripts - a new deny updates it. Every hook that reads
   a subagent's report reads it through `hooks/final-report.sh` (the `SubagentHandback` message, else
   the final message).
+- **Compaction.** `hooks/steer-compaction.sh` (PreCompact) steers the summary and records the
+  session's plugin skills and run in progress in a state file; `hooks/recover-after-compaction.sh`
+  (SessionStart, source `compact`) names them back to the agent. A rule every step needs does not
+  go in these hooks: it lives in `ODOO-AI-ETHOS.md`, which survives a compaction
+  (`docs/authoring-skills-and-agents.md` § 2.5).
 - Agent-facing prose names the tool and states the rule; it never restates a tool's schema, flags
   or error codes. Human reference (tool -> allocator verb index, CLI, error codes, liveness model):
   `plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION-API.md` and

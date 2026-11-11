@@ -37,6 +37,40 @@ so the gates are non-optional.
 - Subagents (Agent SDK): https://docs.claude.com/en/api/agent-sdk/subagents
 - Plugins: https://code.claude.com/docs/en/plugins
 
+## 2.5. What goes into a runtime file, and where a rule lives
+
+Every skill, agent and shared contract is loaded into a model's context while it works, so each
+line is a recurring cost and competes with the rules beside it for attention.
+
+**A runtime file holds only what its reader can act on:** a decidable rule, a threshold, an output
+schema, a hard boundary, and at most one clause of the reason that still holds. It does not hold:
+
+- a restatement of a contract the reader also loads (cite the contract, once, where it is needed);
+- routing text ("when to use") in a body - it belongs in the `description`;
+- text for maintainers: HTML comments, "edit here only", the name of the test that guards a rule,
+  copy-this-variant templates, measurements;
+- how a rule came to be: an incident, a previous wording, a review round, a date;
+- a tool's schema, flags or error codes, and step-by-step lookup recipes naming index tools - say
+  the question to answer and let the reader pick the tool from its own description;
+- emphasis by capitals or repeated "MUST / NEVER": state the rule in a normal sentence with its
+  scope.
+
+**Put a rule where it survives.** Measured on real sessions, a rule in always-injected text is
+still followed after a context compaction; a rule that lives only in a skill body that was evicted,
+or in a file read by path, is not.
+
+| Carrier | Reaches | After a compaction |
+|---|---|---|
+| `ODOO-AI-ETHOS.md` (imported by the user's CLAUDE.md) | the main agent and every subagent | kept |
+| An agent body (its system prompt) | that agent | kept |
+| An invoked skill body | the invoking context | re-attached up to a per-skill and a total cap; the oldest are dropped |
+| A contract read by path | whoever read it | gone |
+
+A behaviour every actor must keep (how to brief, how to report upward, reuse before building,
+current-state writing) is one sentence in the ethos file, paid for by trimming another. A rule of
+one agent's trade lives in that agent's body. A contract holds what several actors need in detail
+at one step of their work.
+
 ## 3. Skill authoring
 
 A skill is one directory `plugins/odoo-ai-agents/skills/<name>/SKILL.md` = YAML frontmatter +
@@ -110,9 +144,10 @@ violation. Put the *identity* in the agent; put the *role/audience* (and any out
 requirement of the **artifact**, e.g. "the pricing doc reads for a CFO first") in the skill.
 Enforced by `test_skill_format.py::test_skill_role_declares_no_identity`.
 
-**The generated `## MCP tools` block - never hand-edit.** Tool listings live between
-`<!-- BEGIN GENERATED TOOLS -->` and `<!-- END GENERATED TOOLS -->` markers and are emitted by
-the SSOT generator. Edits inside the markers are reverted by `make gen-check` and CI. To change a
+**The generated `## MCP tools` block - never hand-edit.** The block is the skill's own tool list and
+nothing else (the MCP server's instructions already tell the model what the index is for); it
+lives between `<!-- BEGIN GENERATED TOOLS -->` and `<!-- END GENERATED TOOLS -->` markers and is
+emitted by the SSOT generator. Edits inside the markers are reverted by `make gen-check` and CI. To change a
 skill's tool surface, edit `generator/skill_tool_deps.json` (and `server-surface.json` for tool
 descriptions), then `make gen` and commit the regenerated output. See section 6 and CLAUDE.md
 "SSOT generator".
@@ -134,8 +169,11 @@ launches a fresh agent for continuation work (launch economics, the same SSOT).
 
 ### Writing the brief a skill hands an agent it dispatches
 
-Runtime rule, stated once in `snippets/dispatch-brief.md`: **a brief carries WHAT and WHY, never
-HOW.** The caller owns outcome, scope, resolved inputs and boundaries; the agent owns its method.
+Runtime rule, stated in `ODOO-AI-ETHOS.md` #4 and detailed in `snippets/dispatch-brief.md`: **a
+brief carries scope, intent, goal and key results, never the method**, and evidence travels as
+evidence - the caller's own conclusion or fix direction stays out or is labelled a hypothesis. The
+caller owns outcome, scope, resolved inputs and boundaries; the agent owns its method. A brief
+template in a skill therefore has no slot for a diagnosis or a fix direction.
 Same layering as `## Role` vs persona above - identity lives in the agent, not the skill - one axis
 over: expertise lives in the agent too.
 
@@ -200,8 +238,9 @@ contract):
 **`color`** (optional) takes only the documented values `red`, `blue`, `green`, `yellow`,
 `purple`, `orange`, `pink`, `cyan`; any other word is ignored by the harness.
 
-**Body template.** Every agent body has five parts, in this order, and about 200 lines of
-procedure at most: who you are (one paragraph), `## You receive` (a table of brief fields - the
+**Body template.** Every agent body has five parts, in this order, within 200 lines and 12,000
+bytes (lint `[agent-body]`; an agent over a limit is recorded in
+`tests/fixtures/agent_body_budget.json` and its recorded figure only goes down): who you are (one paragraph), `## You receive` (a table of brief fields - the
 registry `agents.<name>.brief` lists the same keys), the steps (each with its input, its action,
 its evidence and its stop condition; a step a haiku reader could take two ways is rewritten), a
 `## Never` list, and the report (the status word first - `DONE`, `NEEDS_NEXT`, `BLOCKED` or
@@ -258,16 +297,12 @@ of the children it launches, by pointer to that SSOT - never a copied table. Do 
 tier rationale in prose; reference the SSOT.
 
 **Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
-`snippets/dispatch-brief.md` is the SSOT for how a spawner (main agent, a dispatching skill, or a
-node owner) fills the dispatch prompt when it dispatches a specialist agent -
-the universal skeleton (`OBJECTIVE`, `WHY`, `SCOPE`, ..., `RETURN_BUDGET`, `RUN_ID`) plus a per-family delta
-(Designer/planner, Coder, Reviewer/auditor, Tester/QA, Doc-writer, Instance/ops, Survey/analyst).
-Every spawner skill/agent **reads it BY PATH** while composing a dispatch prompt; it is **NEVER
-inlined verbatim into a hard-leaf brief** - a leaf has no one to re-brief, so it self-checks
-against only its own family-delta field list instead of the full caller schema. This is the
-opposite direction from `worker-brief.md`, which IS inlined into every leaf because it is
-worker-side behavior the leaf must execute. An agent body names the brief fields it requires in its `## You receive` table and returns
-`NEEDS_CONTEXT(<field>)` when one is missing; `git-toolkit` agents carry the equivalent contract
+`snippets/dispatch-brief.md` says what a launcher (the main agent, a dispatching skill, a node
+owner) puts in the prompt of an agent it launches: the rules of a brief, the universal skeleton
+and one line per agent family. `worker-brief.md` is the other direction: the rails of a leaf. An
+agent body names the brief fields it requires in its `## You receive` table (the registry
+`agents.<name>.brief` lists the same keys) and returns `NEEDS_CONTEXT(<field>)` when one is
+missing; it carries no copy of the caller-side schema and no self-check boilerplate; `git-toolkit` agents carry the equivalent contract
 via that plugin's own
 `git-nesting-protocol.md` (a cross-plugin boundary - `git-toolkit` cannot depend on
 `odoo-ai-agents`, so its git-specific delta lives there, not in `dispatch-brief.md`).
@@ -326,8 +361,9 @@ shown that path, it may read both files and the byte-cost saving is lost. `snipp
 is discoverable only from this section and from `[ref-scope]`'s lint (`check_orchestration.py`),
 which also asserts no consumer-facing file contains the literal substring `snippets/references/`.
 
-`[card-budget]` (same lint) asserts every hot file stays under its declared budget - grow one
-deliberately, never silently. A file becomes subject to it two ways:
+`[card-budget]` (same lint) holds every hot file to its budget, and every declared budget equals
+the file's real size: after a trim, `make sync-budgets` lowers the entries (it never raises one);
+a file that must grow is trimmed elsewhere first. A file becomes subject to it two ways:
 
 - **Declared** - it has an entry in `tests/fixtures/card_budget_grandfather.json`. The entry is
   both the qualification and the budget, and the file is measured wherever it lives. This is the
@@ -337,8 +373,6 @@ deliberately, never silently. A file becomes subject to it two ways:
 - **Discovered** - it is a `snippets/*.md` or `skills/_shared/*.md` file cited by >=3 distinct
   skills+agents, and its budget is the default 4,096 B cap.
 
-When you trim a budgeted file, lower its entry to the new actual size in the same change. A budget
-left above the real size quietly hands the reclaimed bytes back.
 
 ## 7. Confidentiality and style (public repo)
 
