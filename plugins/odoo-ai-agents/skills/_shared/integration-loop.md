@@ -1,11 +1,3 @@
-<!-- SSOT snippet. The single home for the integration-loop + saga/rollback contract shared by
-     every integration-loop owner in odoo-ai-agents. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md.
-     Dependency direction: git-mutation SAFETY mechanics (backup-before, tree-identity-verify-after,
-     human-confirm gate, worktree-lock) live in git-toolkit's provider contract
-     (plugins/git-toolkit/snippets/git-safety-contract.md), NOT restated here. odoo-ai-agents
-     (consumer) may point at git-toolkit (provider); never the reverse. -->
-
 # Integration-loop + saga/rollback contract (SSOT)
 
 An integration loop builds ONE integration branch from N independently-produced nodes:
@@ -24,7 +16,8 @@ These owners run an integration loop and reference THIS file instead of restatin
   this saga cherry-picks each node's returned commit, in node-DAG order, onto run-integration
   before moving to the next ready node. Review and regression verification are ordinary PLAN
   nodes (dispatched to `odoo-code-review` / `odoo-instance`), not a driver-owned close step.
-  There is NO per-node PR: the terminal `integrate` node squashes run-integration + opens the ONE
+  There is NO per-node PR: the terminal `integrate` node rewrites run-integration as one commit
+  per module in dependency order + opens the ONE
   per-repo PR once every non-land-tail node in that repo is terminal AND a DONE `odoo-instance`
   node covers the repo's coding nodes (its own § integrate readiness + §
   `integrate` node dispatch).
@@ -71,15 +64,14 @@ path (`plan-mode-schema.md` § Running the plan, `integrate`).
 
 ## Git-mutation safety - POINT, do not restate (dependency direction)
 
-The worktree abandon+re-fork, the cherry-pick, the branch moves, and the closing squash/push are
+The worktree abandon+re-fork, the cherry-pick, the branch moves, and the closing rewrite/push are
 GIT MUTATIONS whose safety mechanics are owned by git-toolkit's provider contract - not restated
 here. The executor (or the git-toolkit operator it delegates to) MUST honor
 `plugins/git-toolkit/snippets/git-safety-contract.md`:
 
-- **S1 - backup before any destructive op.** The terminal squash records its S1 backup ref before
-  rewriting (`run-integration.md` § Squash Tree-Identity Recipe). The saga rollback needs no S1
-  backup - it is not a destructive op (see below).
-- **S6 - tree-identity verify after a rewrite.** The terminal squash that closes the RUN is
+- **S1 - backup before any destructive op.** The terminal rewrite records its S1 backup ref
+  first. The saga rollback needs no S1 backup - it is not a destructive op (see below).
+- **S6 - tree-identity verify after a rewrite.** The terminal rewrite that closes the RUN is
   proven byte-identical to the integrated tree before the fresh first push.
 - **S9 - worktree-lock / principal-checkout-lock.** Every mutation runs in a dedicated worktree;
   the primary checkout never leaves its principal branch. The saga rollback's re-provisioned
@@ -91,7 +83,7 @@ at the anchor SHA (the pre-node SHA, or the last passing checkpoint SHA) - never
 worktree, and nothing unique is discarded: run-integration is disposable
 and never-pushed, and every commit up to the anchor stays reachable on its own source branch.
 Creating and removing a worktree is an ordinary, ungated mutation
-(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § No LEAF-worker git), distinct from the
+(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Who commits), distinct from the
 8-item destructive gate list. So a mid-node failure does NOT stop for human confirmation -
 the run continues autonomously (the human gates are the closed list of `plan-mode-schema.md`
 § Running the plan). The terminal

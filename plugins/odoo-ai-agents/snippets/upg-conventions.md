@@ -1,16 +1,14 @@
 # Upgrade conventions
 
-Apply every convention below on every profile and distribution, OSM-reachable or not. The
-`odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail-p4-p7.md` § odoo-coding dispatch brief)
-cites this file.
+These conventions bind every series upgrade, on every profile, with or without OSM.
 
 ---
 
 ## Convention 1 - No version bump on code-level upgrade
 
-When upgrading a module's code to a new Odoo series (§ Convention 0) with no behavior contract
-change visible to end users, do **not** bump `version` in `__manifest__.py` and do **not** add the
-series prefix.
+When upgrading a module's code to a new Odoo series (§ Convention 0), do **not** bump `version` in
+`__manifest__.py` and do **not** add the series prefix: no database of the target series holds
+the module yet.
 
 - Keep the existing short form `x.y.z` unchanged. A value carrying the series prefix
   (`<series>.x.y.z`) is CONVERTED to `x.y.z` by dropping the prefix - a conversion is not a bump.
@@ -51,8 +49,10 @@ Governs every P4 adapt of `odoo-modules-upgrade`.
 installs on a FRESH database of the target series, passes its tests and acceptance, keeps its
 business behaviour and is modernised as if newly developed there - newest mechanisms (API, views,
 frontend framework, manifest, tests), no compatibility layer for an older series, no deprecated
-API, a module absorbed by core deleted. It writes no migration script, bumps no `version`
-(Convention 1), deletes the `migrations/` directory of every upgraded module, never touches,
+API, a module absorbed by core deleted. It writes no migration script, bumps no `version` of an
+upgraded module (Convention 1; a module already installable on the target series that the PR also
+changes takes the one bump of `odoo-platform-design-principles.md` § 5), deletes the `migrations/`
+directory of every upgraded module, never touches,
 restores or updates an existing database, keeps no old field or xmlid name for data
 compatibility and never asks about existing data. A database upgrade between series needs a
 dedicated upgrade tool and repository; not this plugin - never raise, plan or offer it.
@@ -65,9 +65,7 @@ for a change within one series; moving code to a newer framework mechanism = "mo
 tag (`[UPG]`), never the migration tag.
 
 **(b) Write the target series' newest mechanism, not a shim.** The P2 comparator's reuse-candidate sweep already
-recorded any replacement in `reuse_candidates[]`
-(the `odoo-diff-comparator` agent's upgrade mode, its "Reuse-candidate sweep" step);
-do NOT re-run it. A feature WITH an entry -> implement the target-core mechanism it names and
+recorded any replacement in `reuse_candidates[]`; do NOT re-run it. A feature WITH an entry -> implement the target-core mechanism it names and
 delete the custom implementation; WITHOUT one -> nothing to do. Never wrap the new mechanism in a
 compatibility shim over the old one.
 

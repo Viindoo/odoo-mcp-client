@@ -106,11 +106,11 @@ def test_modified_existing_migration_folder_fails(tmp_path):
     assert rc == 1 and "existing migration folder 99.0.1.0.3 is modified" in out
 
 
-def test_bump_without_migration_warns_and_passes(tmp_path):
+def test_bump_without_migration_passes_without_warning(tmp_path):
     pair(tmp_path, "1.0.3", "1.0.4", {"models.py": "x = 1\n"})
     rc, out = run(tmp_path)
     assert rc == 0 and "MIGRATION_GATE=PASS" in out
-    assert "WARN=m1: version bumped without a migration folder" in out
+    assert "WARN=" not in out and "FAIL_REASON=" not in out
 
 
 def test_new_module_migrations_fail_and_plain_new_module_passes(tmp_path):
@@ -134,7 +134,7 @@ def test_series_prefixed_version_warns(tmp_path):
 def test_modules_option_restricts_scope(tmp_path):
     pair(tmp_path, "1.0.3", "1.0.5", {"migrations/99.0.1.0.5/post-migrate.py": "x = 1\n"})
     module(tmp_path / "base", "m2", "1.0.0")
-    module(tmp_path / "head", "m2", "1.0.0", {"models.py": "x = 1\n"})
+    module(tmp_path / "head", "m2", "1.0.1", {"models.py": "x = 1\n"})
     rc, out = run(tmp_path, "--modules", "m2")
     assert rc == 0 and "MODULE=m2" in out and "MODULE=m1" not in out
     rc, out = run(tmp_path)
@@ -154,11 +154,11 @@ def test_two_part_version_bumps_only_to_dot_one_with_matching_folder(tmp_path):
     assert "BUMP=smallest" in out and "MIGRATION_DIRS_NEW=99.0.0.3.1" in out
 
 
-def test_two_part_bump_without_migration_folder_warns_and_passes(tmp_path):
+def test_two_part_bump_without_migration_folder_passes_without_warning(tmp_path):
     pair(tmp_path, "0.3", "0.3.1", {"models.py": "x = 1\n"})
     rc, out = run(tmp_path)
     assert rc == 0 and "MIGRATION_GATE=PASS" in out and "BUMP=smallest" in out
-    assert "WARN=m1: version bumped without a migration folder" in out
+    assert "WARN=" not in out
 
 
 def test_two_part_minor_step_fails_naming_the_expected_dot_one(tmp_path):
@@ -187,3 +187,114 @@ def test_any_other_change_of_length_fails(tmp_path):
         pair(tmp_path, base, head, {"models.py": "x = 1\n"})
         rc, out = run(tmp_path)
         assert rc == 1 and "BUMP=other" in out, (base, head)
+
+
+def manifest(tree, name, text):
+    (tree / name / "__manifest__.py").write_text(text)
+
+
+def test_changed_code_with_unchanged_version_fails_naming_expected(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"models.py": "x = 1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {"models.py": "x = 2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 1 and "BUMP=none" in out and "MIGRATION_GATE=FAIL" in out
+    assert "files changed outside tests but the version is unchanged; expected 1.0.4" in out
+
+
+def test_two_part_unchanged_version_fails_expecting_dot_one(tmp_path):
+    module(tmp_path / "base", "m1", "0.3", {"a.xml": "<a/>\n"})
+    module(tmp_path / "head", "m1", "0.3", {"a.xml": "<b/>\n"})
+    rc, out = run(tmp_path)
+    assert rc == 1 and "expected 0.3.1" in out
+
+
+def test_added_or_removed_file_with_unchanged_version_fails(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"old.py": "x = 1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {})
+    rc, out = run(tmp_path)
+    assert rc == 1 and "version is unchanged" in out
+
+
+def test_manifest_change_other_than_version_needs_a_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3")
+    module(tmp_path / "head", "m1", "1.0.3")
+    manifest(tmp_path / "head", "m1", "{'name': 'renamed', 'version': '1.0.3'}\n")
+    rc, out = run(tmp_path)
+    assert rc == 1 and "version is unchanged" in out
+
+
+def test_tests_only_change_needs_no_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"tests/test_a.py": "x = 1\n",
+                                              "static/tests/a.js": "1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {"tests/test_a.py": "x = 2\n",
+                                              "tests/test_b.py": "y = 1\n",
+                                              "static/tests/a.js": "2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "MIGRATION_GATE=PASS" in out and "BUMP=none" in out
+
+
+def test_test_like_folder_outside_the_tests_folders_needs_a_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"static/src/tests/a.js": "1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {"static/src/tests/a.js": "2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 1 and "version is unchanged" in out
+
+
+def test_tests_change_next_to_code_change_still_needs_a_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"models.py": "x = 1\n", "tests/t.py": "1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {"models.py": "x = 2\n", "tests/t.py": "2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 1 and "version is unchanged" in out
+
+
+def test_code_change_with_smallest_bump_and_no_folder_passes(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"models.py": "x = 1\n"})
+    module(tmp_path / "head", "m1", "1.0.4", {"models.py": "x = 2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "WARN=" not in out and "FAIL_REASON=" not in out
+
+
+def test_test_module_needs_no_bump(tmp_path):
+    module(tmp_path / "base", "test_helper", "1.0.3", {"models.py": "x = 1\n"})
+    module(tmp_path / "head", "test_helper", "1.0.3", {"models.py": "x = 2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "MODULE=test_helper" in out
+
+
+def test_module_not_installable_at_head_needs_no_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"models.py": "x = 1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {"models.py": "x = 2\n"})
+    manifest(tmp_path / "head", "m1", "{'version': '1.0.3', 'installable': False}\n")
+    rc, out = run(tmp_path)
+    assert rc == 0 and "MIGRATION_GATE=PASS" in out
+
+
+def test_series_upgrade_of_a_module_needs_no_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"models.py": "x = 1\n"})
+    manifest(tmp_path / "base", "m1", "{'version': '1.0.3', 'installable': False}\n")
+    module(tmp_path / "head", "m1", "99.0.1.0.3", {"models.py": "x = 2\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "MIGRATION_GATE=PASS" in out and "BUMP=none" in out
+
+
+def test_installable_at_both_ends_still_needs_a_bump(tmp_path):
+    module(tmp_path / "base", "m1", "1.0.3", {"models.py": "x = 1\n"})
+    module(tmp_path / "head", "m1", "1.0.3", {"models.py": "x = 2\n"})
+    manifest(tmp_path / "base", "m1", "{'version': '1.0.3', 'installable': True}\n")
+    manifest(tmp_path / "head", "m1", "{'version': '1.0.3', 'installable': True}\n")
+    rc, out = run(tmp_path)
+    assert rc == 1 and "version is unchanged" in out
+
+
+def test_new_module_needs_no_bump(tmp_path):
+    (tmp_path / "base").mkdir()
+    module(tmp_path / "head", "fresh", "1.0.0", {"models.py": "x = 1\n"})
+    rc, out = run(tmp_path)
+    assert rc == 0 and "BUMP=none" in out
+
+
+def test_help_states_the_current_bump_rule():
+    r = subprocess.run([sys.executable, str(GATE), "--help"], capture_output=True, text=True)
+    text = " ".join(r.stdout.split())
+    assert "outside `tests/` and `static/tests/`" in text
+    assert "whether or not it carries a migration script" in text

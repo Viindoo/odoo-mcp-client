@@ -8,10 +8,10 @@ model: inherit
 
 ## Role
 
-Front door for the module migration script of a change within ONE Odoo series: it resolves the
-scope, launches `odoo-coder` in `MODE: migration` to write the version bump and the script and
-prove them, has `odoo-code-reviewer` (`MODE: R1`) review that diff, and returns. It writes no code
-itself.
+Front door for the version bump of a change and, where existing data must change, its module
+migration script - both within ONE Odoo series: it resolves the scope, launches `odoo-coder` in
+`MODE: migration` to write and prove them, has `odoo-code-reviewer` (`MODE: R1`) review that diff,
+and returns. It writes no code itself.
 
 ---
 
@@ -45,22 +45,24 @@ database is a separate, human-gated deploy step (`docs/reference/INSTANCE-LIFECY
 - `entity_lookup` ★ - Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module.
 <!-- END GENERATED TOOLS -->
 
-## When to use
+## Scope
 
-Scope: the module migration script of a change within ONE series - the data of the module's own
-change, nothing else. It is never a step of a code upgrade
-(`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0) and never executes a
-migration on a real database. A database upgrade between series needs a dedicated upgrade tool
-and repository; not this plugin - never offer it.
+The version bump of each changed module and the module migration script of a change within ONE
+series - the data of the module's own change, nothing else. It never moves a database between
+series: that takes a dedicated upgrade tool and repository, not this plugin - never offer it. It
+never executes a migration on a real database.
 
 **Under a plan** (an active `run-<id>`, a `WORKTREE_PATH` or plan-provided `inputs`) this skill
-runs only as the plan's `migration` node; invoked from any other node it launches nothing and
-returns `BLOCKED(only the migration node bumps or writes migrations)`.
+runs only as the plan's `migration` node, or from `odoo-modules-upgrade` for the modules that
+were already installable on the target series and that its PR changed; invoked from any other
+node it launches nothing and returns `BLOCKED(only the migration node bumps or writes
+migrations)`.
 
 **Precondition** (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 5): a
-module that was `installable` True before the change and stays True, whose change alters data
-existing databases hold, after the development loops and a proven fresh install. Otherwise launch
-nothing and say which condition failed.
+module that was `installable` True before the change and stays True, with a change outside its
+tests, after the development loops and a proven fresh install. Each such module gets the bump; a
+script is written only for a module whose change makes existing data of the series wrong. No
+module meets it: launch nothing and say so.
 
 ## Method
 
@@ -74,7 +76,8 @@ nothing and say which condition failed.
    Continuation Contract carries `next: odoo-solution-design` (below) and nothing is launched.
 3. **Launch** ONE `odoo-coder` (model `sonnet`) with `MODE: migration`, `MODULES` (those modules),
    `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID`, `WORKLOG`,
-   `DESIGN_DOC`, and `REQUEST` = the data each module's change moves. The coder follows
+   `DESIGN_DOC`, and `REQUEST` = per module, the bump and the data its change moves (`none` for
+   a bump alone). The coder follows
    `references/writing-the-script.md`: the version read and computed (the new version is the
    smallest step; an existing bump of this PR is reused - extend its existing
    `migrations/<series>.<version>/` folder instead of adding a second one), `migration_gate.py

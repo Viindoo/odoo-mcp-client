@@ -90,7 +90,7 @@ Template:
       when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
   [migration] [repo: fleet-addons] [skill: odoo-data-migration]
       depends-on: i18n, docs-module
-      when: a changed module was installable before this change, the change alters data existing databases hold, and a fresh install of it passed
+      when: a module that was installable before this change has a change outside its tests, and a fresh install of it passed
   [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
       depends-on: migration
   [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring]
@@ -188,7 +188,10 @@ place; the rest keep their order.
   approach_kind: inline
   approach: >-
     merge the findings of review-r2 and acceptance, deduplicated by symbol and line and
-    classified per acceptance-oracle-contract.md; SendMessage the node's coder once; then
+    classified per acceptance-oracle-contract.md; SendMessage the node's coder once with the
+    findings and their evidence, never a fix direction; a finding about how a screen looks is
+    fixed like any other and its before and after screenshots go in the run summary for the
+    human, with no approval asked; then
     SendMessage review-r2 (FIX_DIFF) and acceptance (the failed and the touched scenarios);
     at most 3 rounds; two consecutive rounds with a new HIGH in the same area stop the run
     and return to the design
@@ -201,7 +204,7 @@ place; the rest keep their order.
   depends_on: [fix-round]
   when: instance_i18n_export on the stable tip yields a msgid the committed .pot lacks or changed
 - id: docs-module
-  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer; HAND_ON: odoo-doc-site when that node exists, so its capture instance is reused
+  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer
   approach_kind: skill
   depends_on: [i18n]
   when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
@@ -211,12 +214,12 @@ place; the rest keep their order.
   depends_on: [docs-module]
   when: a docs site is declared for the product and the change is user-visible, or the user asked for site docs
 - id: migration   # the ONLY node that edits a module version or writes a migration script; last before integrate
-  approach: odoo-data-migration   # one smallest-step bump and one migrations/<series>.<version>/ folder per module; never a node of a code upgrade
+  approach: odoo-data-migration   # one smallest-step version bump per module changed outside its tests; a migrations/<series>.<version>/ folder only where existing data of the series must change
   approach_kind: skill
   depends_on: [i18n, docs-module]
-  when: a changed module was installable before this change, the change alters data existing databases hold, and a fresh install of it passed
+  when: a module that was installable before this change has a change outside its tests, and a fresh install of it passed
 - id: integrate
-  approach: git-toolkit:git-ops   # migration_gate.py check, pre-PR lint over the aggregate diff, squash, push, ONE PR per repo; a demo video of the change rides as the PR attachment (video-destination.md)
+  approach: git-toolkit:git-ops   # migration_gate.py check, pre-PR lint over the aggregate diff, one commit per module in dependency order, push, ONE PR per repo; a demo video of the change rides as the PR attachment (video-destination.md)
   approach_kind: integrate
   depends_on: [migration]
 - id: monitor   # OPTIONAL and OFF by default: polling costs tokens on every tick; on only when the user asked for the PR to be watched
@@ -299,10 +302,10 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    Before a docs node, compose the change's feature list from the SRS acceptance criteria and the
    node objectives - one line per added, changed or removed user-visible feature, with its UI
    label - write it to `<ISOLATE_DIR>/docs/change-<slug>.md` and pass that path as `CHANGE`
-   (`docs-module`) or `FROM CHANGE` (`docs-site`). The two docs nodes share one capture instance
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance): `docs-module`
-   gets `HAND_ON: odoo-doc-site` when that node exists and returns its handle, `docs-site` gets it
-   as `INSTANCE_HANDLE`, and the runner releases it after the last of the two.
+   (`docs-module`) or `FROM CHANGE` (`docs-site`). The two docs nodes capture on different builds
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance per build shape):
+   `docs-module` takes the `odoo-i18n` export instance when one was handed on, `docs-site` builds
+   its own.
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
    file; cherry-pick a source node's range onto `run-integration` through `git-ops`
    (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; a node that lands its own PR is
@@ -333,8 +336,11 @@ current: run `${CLAUDE_PLUGIN_ROOT}/scripts/lib/migration_gate.py check` (base t
 base, head = `run-integration`; a `FAIL` goes back to the `migration` node), then the pre-PR
 lint-class gate over the aggregate diff (the module set of
 `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, through `odoo-instance`), then invoke
-`git-toolkit:git-ops` to squash `run-integration`, push it and open ONE PR against the principal
-branch (update it when a resumed run finds one open). `monitor` and `merge` are plan nodes, never
+`git-toolkit:git-ops` to rewrite the history of `run-integration` above its base as one commit
+per module, base modules first and dependents after (the tree unchanged by the rewrite), push it
+and open ONE PR against the principal branch (update it when a resumed run finds one open). A
+commit in the middle of the series may not pass the tests of a module that depends on a later
+one; the CI verdict is taken at the branch tip. `monitor` and `merge` are plan nodes, never
 materialized twice.
 
 ## Node brief
@@ -346,7 +352,8 @@ A build node gets the fields of
 `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SRS`, `RECON`, `DOMAIN`, `SELF_PROVISION: worktree-addons` or
 an `INSTANCE_HANDLE` with `ADDONS_PATH`, `SURVEY` (`none` when none), `CONSTRAINTS` (the Block 3
 cross-module assertions). A build node edits a module's `version` or `migrations/` only when its
-brief asks for it; what existing data needs goes in its worklog for the `migration` node. Return: the
+brief asks for it; what existing data of the same series needs goes in its worklog for the
+`migration` node (a node of a series upgrade or a forward-port writes no such note). Return: the
 commit range `<base>..<head>` on the node's branch. A tail
 node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
 `odoo-i18n`, `odoo-doc-illustration`) with `WORKTREE_PATH: <repo>/run-integration` and

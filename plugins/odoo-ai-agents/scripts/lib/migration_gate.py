@@ -24,14 +24,22 @@ Output is KEY=VALUE lines.
       MIGRATION_GATE=PASS|FAIL
   Exit: 0 PASS (warnings allowed), 1 FAIL, 3 usage.
 
-Rules (within one pull request, i.e. one change inside one series):
-  1. A touched module's short manifest version is bumped at most once, by the smallest step:
+Rules (within one pull request, i.e. one change inside one series). The manifest `version`
+selects migration scripts and tells a hosting platform to reload a module on existing
+databases, so a module whose shipped files changed with an unchanged version is not reloaded.
+  1. A module's short manifest version is bumped at most once, by the smallest step:
      `x.y.z` -> `x.y.(z+1)`, or `x.y` -> `x.y.1`, and nothing else changed. Any other change
      (two components, +2, a downgrade, `x.y` -> `x.(y+1)`, a change of length) is BUMP=other
      and FAILs, naming the expected smallest step.
-  2. A migration folder without a bump FAILs. A bump without a migration folder is a WARN
-     only (a pure code change may be versioned on purpose); a bump goes with a migration
-     script, or with the caller's declaration that the change moves existing data.
+  2. Every module with a file difference outside `tests/` and `static/tests/` (relative to
+     the module directory) is bumped by the smallest step, whether or not it carries a
+     migration script; an unchanged version FAILs, naming the expected version. A module
+     whose only differences are under `tests/` or `static/tests/` needs no bump. A bump
+     without a migration folder passes silently: a migration folder is written only when
+     existing data of the same series must change. A migration folder without a bump FAILs.
+     No bump is required of: a module new in head; a module whose technical name starts with
+     `test_`; a module that is not installable at head (`installable` False); a module that
+     is not installable at base and installable at head (a series upgrade of that module).
   3. At most one new folder under `<module>/migrations/` per module, named
      `<series>.<new short version>` (full form). The short form (no series prefix) FAILs
      unless the module is listed in --allow-short.
@@ -101,6 +109,36 @@ def read_version(mod_dir):
             return None
     version = data.get("version") if isinstance(data, dict) else None
     return version if isinstance(version, str) else None
+
+
+def read_installable(mod_dir):
+    """Return the manifest `installable` flag; True when absent or not a literal."""
+    with open(_manifest_path(mod_dir), encoding="utf-8") as fh:
+        try:
+            data = ast.literal_eval(fh.read().strip())
+        except (ValueError, SyntaxError):
+            return True
+    return bool(data.get("installable", True)) if isinstance(data, dict) else True
+
+
+def _is_test_path(rel):
+    """Whether a module-relative path is under `tests/` or `static/tests/`."""
+    parts = rel.split(os.sep)
+    return parts[0] == "tests" or parts[:2] == ["static", "tests"]
+
+
+def changes_outside_tests(base_dir, head_dir):
+    """Return the sorted module-relative paths that differ outside the tests folders."""
+    base_files, head_files = _files(base_dir), _files(head_dir)
+    return sorted(p for p in set(base_files) | set(head_files)
+                  if base_files.get(p) != head_files.get(p) and not _is_test_path(p))
+
+
+def bump_required(name, base_dir, head_dir):
+    """Whether the module must be bumped when it has a change outside its tests."""
+    if name.startswith("test_") or not read_installable(head_dir):
+        return False
+    return read_installable(base_dir)
 
 
 def short_form(version, series):
@@ -233,9 +271,10 @@ def check_module(name, base_dir, head_dir, series, allow_short, fails, warns, ou
                         "; expected " + expected if expected else ""))
     if new_dirs and bump == "none":
         fails.append("%s: a migration folder was added without a version bump" % name)
-    if bump == "smallest" and not new_dirs:
-        warns.append("%s: version bumped without a migration folder; fine only when the "
-                     "change is declared to move existing data or is versioned on purpose" % name)
+    if (bump == "none" and not new_dirs and bump_required(name, base_dir, head_dir)
+            and changes_outside_tests(base_dir, head_dir)):
+        fails.append("%s: files changed outside tests but the version is unchanged; "
+                     "expected %s" % (name, smallest_step(b_short) or "a bump"))
 
 
 def run_check(base, head, series, only, allow_short):
