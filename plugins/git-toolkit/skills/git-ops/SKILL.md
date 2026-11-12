@@ -80,6 +80,15 @@ writes the subject and signs off only when the repo requires it
 input, never output to pass through unchanged. Relay the agent's `commit_subject:` and
 `message_rewritten:` to the caller.
 
+The commits a branch adds are the history its pull request shows: complete changes only, never a
+commit that merely corrects another commit of the same branch (C7 in the same file). When the
+change you ask to commit corrects or completes work already committed on the branch - a defect
+that commit introduced, a review or CI finding, a fix of a fix - say so (`corrects: <what>`): the
+agent folds it into that commit, pushes the rewritten branch again and returns `folded_into:`.
+Never ask for a separate fix commit; a fold is the expected result. A change that adds or removes
+a component is committed together with the edits it forces elsewhere. Only a local working branch
+that a later step of your workflow rewrites before its first push takes plain commits.
+
 ## Out of scope - route elsewhere
 
 | Situation | Route to |

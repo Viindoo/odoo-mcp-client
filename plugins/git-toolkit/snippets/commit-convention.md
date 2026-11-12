@@ -108,3 +108,27 @@ A caller may hand you a `commit-msg`. It is a proposal, not an instruction. Befo
 
 Never commit a string you did not validate. A caller-stated format preference is a hint; it never
 overrides the convention you detected.
+
+## C7 - Branch history: complete changes, no derivative commit
+
+The commits a branch adds over its base are the history its pull request shows. Each one states
+one business outcome and holds everything that outcome needs, so the list reads as the changes
+made and any one of them can be reverted alone. A commit that exists only to correct another
+commit of the same branch (a derivative commit) never stays in that history.
+
+- **A correction is folded into the commit it corrects.** Commit A fixes X and causes Y: the fix
+  of Y is part of A. Commit E adds a feature and a defect shows up in it later: that fix is part
+  of E. The same holds for a review or CI correction, a test or doc that change lacked, a typo.
+- **A change carries the adjustments it forces.** Adding or removing a component (a module, a
+  package, an API) and the edits that forces in the code depending on it are ONE commit.
+- **A change with an outcome of its own is its own commit** - a defect that predates the branch
+  included.
+
+A commit request that states `corrects: <the commit, or what it introduced>` is folded: find
+that commit among the ones the branch adds, commit the change as its fixup and autosquash
+(`${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/history-rewrite.md`) under S1 and S6 - the tree
+after the rewrite equals the tree with the change committed on top - then push again with
+force-with-lease (S2) when the branch was pushed before. Report `folded_into:` with the subject
+of that commit. A request without `corrects:` is committed as asked. Never fold into a commit
+the base already holds or on a protected branch; where the project's guideline forbids rewriting
+a pushed branch (C3 rule 1), commit on top and say so in the report.

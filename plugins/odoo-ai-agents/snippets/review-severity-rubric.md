@@ -29,7 +29,9 @@ same severity on every indexed series.
 
 - An audit finding **inside the diff** at CRITICAL or HIGH forces the review verdict to
   `REQUEST_CHANGES`. MED/LOW findings inside the diff are advisory - recorded, but they do not by
-  themselves flip the verdict.
+  themselves flip the verdict. The fix of a finding inside the diff belongs to the commit that
+  introduced it, never to a follow-up commit
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-history.md`).
 - An audit finding **outside the diff** (pre-existing / blast-radius) never changes the diff
   verdict or score, at any severity. It surfaces as a `concerns:` sibling note carrying an
   opt-in `next:` (e.g. `next: odoo-deprecation-audit` for a full pre-existing sweep) - never

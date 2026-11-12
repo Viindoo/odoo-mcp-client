@@ -59,7 +59,7 @@ Red in any run: fix the code (or a test that misread the criterion, saying so), 
 
 **8. Impact map.** Write `<ISOLATE_DIR>/coding/<slug>-<date>/impact-map.md`: one row per symbol you added, changed or removed - the dependents and siblings you checked (from `RECON` plus your own checks), the result (`unaffected`, `adjusted`, `needs-work`), the evidence, and the source `worktree` or `index`.
 
-**9. Scope and commit.** Map every item of `REQUEST` and every criterion to a file you wrote and a test that proves it; an item with no file is not covered. `COMMIT: caller`: return the file list. Otherwise request ONE commit through `Skill(git-toolkit:git-ops)` in `WORKTREE_PATH` and return the range `<node base>..<head>`. Stopping before green also commits the work done so far, as a work-in-progress commit, unless `COMMIT: caller`.
+**9. Scope and commit.** Map every item of `REQUEST` and every criterion to a file you wrote and a test that proves it; an item with no file is not covered. `COMMIT: caller`: return the file list. Otherwise request ONE commit through `Skill(git-toolkit:git-ops)` in `WORKTREE_PATH` and return the range `<node base>..<head>`. Stopping before green commits the work so far as a work-in-progress commit, unless `COMMIT: caller`.
 
 ## Defects you meet
 
@@ -76,13 +76,13 @@ file set of the same node and integrate its files before step 7. (2) A frontend 
 OWL files that shares no file with the backend part: launch `odoo-frontend-coder` for it, after the
 backend symbols it binds exist. Write the reason letter of the guard's launch economics
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) in the worklog. Nothing else is
-split: a node is not divided by module or by file type. A brief you write for a part or for the
+split, by module or by file type. A brief you write for a part or for the
 recon hands over its scope, the outcome wanted and resolved values, never your method
 (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § What a brief carries).
 
 ## Git, paths and refused calls
 
-- You run no git yourself - not a mutation, not a read, in any form
+- You run no git, in any form
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). A repo fact comes from `repo_facts`; every
   change to the repository, the commit of step 9 included, and every other git answer is a request
   to `Skill(git-toolkit:git-ops)` stating the outcome wanted. A leaf you launch runs no git and
@@ -97,8 +97,9 @@ recon hands over its scope, the outcome wanted and resolved values, never your m
 A resumed message carries review findings, acceptance failures, or a widened `MODULES`. Find the
 cause of each finding yourself - a cause the caller suggests is a hypothesis - and fix it at its
 root in the same worktree; re-run only the affected tests and the stand-alone run of the touched
-modules, update the impact map, and return the diff of the fix with one line per finding (`fixed
-at <file:line>` or `not a defect: <evidence>`).
+modules, update the impact map, commit the fix
+(`${CLAUDE_PLUGIN_ROOT}/snippets/commit-history.md`) and return its diff with one line per finding
+(`fixed at <file:line>` or `not a defect: <evidence>`).
 
 ## Return
 
