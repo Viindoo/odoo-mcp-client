@@ -92,7 +92,7 @@ CLI contract
   python3 odoo_db.py db-size-bytes <db> [conn flags] [--odoo-root R]
       Print pg_database_size in bytes. Exit 1 on any failure. Reporting only.
 
-  python3 odoo_db.py db-facts <db> [--modules m,n] [conn flags] [--odoo-root R]
+  python3 odoo_db.py db-facts <db> [--modules m,n] [--installed 1] [conn flags] [--odoo-root R]
       What the NAMED database holds, read from the database itself - the source
       of truth the build tools prefer over any record of what a build did:
           DB_EXISTS=1
@@ -107,6 +107,9 @@ CLI contract
                                 its state and its OWN demo flag - DEMO above is
                                 the whole database's, which says nothing about
                                 one module
+          INSTALLED=a,b,c       with --installed 1 only: every module the
+                                database holds loaded (ir_module_module state
+                                installed, to upgrade or to remove), by name
       ONE connection to that database. When that connection fails,
       the maintenance database is asked whether it exists at all: absent ->
       `DB_EXISTS=0` (it holds nothing) and exit 0. Otherwise nothing on stdout
@@ -264,6 +267,7 @@ _FLAG_KEYS = {
     "--odoo-root": "odoo_root",
     "--languages": "languages",
     "--modules": "modules",
+    "--installed": "installed",
 }
 
 
@@ -1062,6 +1066,9 @@ _DB_FACTS_SQL = (
 _MODULES_SQL = ("SELECT name, state, demo FROM ir_module_module WHERE name = ANY(%s) "
                 "ORDER BY name")
 
+_INSTALLED_SQL = ("SELECT name FROM ir_module_module "
+                  "WHERE state IN ('installed', 'to upgrade', 'to remove') ORDER BY name")
+
 
 def _module_lines(rows, mods):
     """`MODULE=<name> STATE=<state> DEMO=1|0` per requested module the database knows, in the
@@ -1072,12 +1079,15 @@ def _module_lines(rows, mods):
 
 
 def cmd_db_facts(db_name, opts):
-    """Print what ``db_name`` holds (see the CLI block): DB_EXISTS, DEMO, LANGUAGES, and with
-    --modules each named module's MODULE line - all on one connection."""
+    """Print what ``db_name`` holds (see the CLI block): DB_EXISTS, DEMO, LANGUAGES, with
+    --modules each named module's MODULE line, and with --installed the INSTALLED list - all on
+    one connection."""
     mods = [x for x in (opts.get("modules") or "").split(",") if x]
     queries = [(_DB_FACTS_SQL, None)]
     if mods:
         queries.append((_MODULES_SQL, (mods,)))
+    if opts.get("installed"):
+        queries.append((_INSTALLED_SQL, None))
     results, rc, _state, _detail = _query_postgres_ex(opts, queries, db_name=db_name)
     if rc == EXIT_OK:
         rows = results[0]
@@ -1088,6 +1098,8 @@ def cmd_db_facts(db_name, opts):
         if mods:
             for line in _module_lines(results[1], mods):
                 print(line)
+        if opts.get("installed"):
+            print("INSTALLED={m}".format(m=",".join(row[0] for row in results[-1])))
         return EXIT_OK
     if rc == EXIT_NO_VENV:
         return rc
@@ -1313,8 +1325,9 @@ def main(argv):
 
     if cmd == "db-facts":
         if not pos:
-            sys.stderr.write("Usage: odoo_db.py db-facts <db> [--modules m,n] [--db-host H] [--db-user U] "
-                             "[--db-port P] [--db-password P] [--odoo-root R]\n")
+            sys.stderr.write("Usage: odoo_db.py db-facts <db> [--modules m,n] [--installed 1] "
+                             "[--db-host H] [--db-user U] [--db-port P] [--db-password P] "
+                             "[--odoo-root R]\n")
             return EXIT_USAGE
         return cmd_db_facts(pos[0], opts)
 

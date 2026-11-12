@@ -27,6 +27,15 @@ Contracts protected:
     loaded (from any lease on that database); a module not installed or installed without its demo
     data, or a language not active in the database itself fails the job before any file is
     written;
+  - the export is refused (I18N_EXPORT_FOREIGN_MODULES) when the database holds an installed module
+    outside an exported module's dependency closure that is not server-wide - a sibling, or a
+    bridge that depends on the exported module, auto-installed or not: Odoo writes its text (a
+    longer field help, the fields it adds) into the exported module's catalog. The question is
+    asked per exported module, the other modules of the same call included: a module and one of
+    its own dependencies are never both clean in one database, so a call is in practice one module
+    per database; on a series that cannot skip auto-install, the modules Odoo installs by
+    itself on any build are accepted; a verdict that cannot be reached (the database not read, or
+    a manifest of an installed closure module not readable) lets the export proceed;
   - a job already running on the database answers DATABASE_BUSY before any gate reads the
     database (test_odoo_local_mcp_db_busy.py);
   - Odoo exports on the server-wide set a build on the lease loads: core default + the declared
@@ -504,3 +513,222 @@ def test_an_export_runs_on_the_core_default_plus_the_declared_server_wide_module
         assert err["code"] == "INVALID_ARGUMENTS", err
         assert "arguments.server_wide.exclude" in err["message"] and "core" in err["message"], err
         assert len(_export_calls(i18n)) == before
+
+
+# --------------------------------------------------------------------------- #
+# the catalog of a module is exported from a database that holds only what it needs
+# --------------------------------------------------------------------------- #
+def _module(world, name, depends=(), auto_install=None):
+    """A module on the lease's addons path with the given manifest."""
+    directory = world["addons"] / name
+    directory.mkdir(exist_ok=True)
+    manifest = {"name": name, "depends": list(depends)}
+    if auto_install is not None:
+        manifest["auto_install"] = auto_install
+    (directory / "__manifest__.py").write_text(repr(manifest) + "\n", encoding="utf-8")
+
+
+def _skip_auto_install_option(world):
+    """The stub checkout declares the option that keeps Odoo from installing auto_install modules."""
+    config = next(world["odoo_bin"].parent.glob("*/tools/config.py"))
+    config.write_text(config.read_text() + '        group.add_option("--skip-auto-install", '
+                      'dest="skip_auto_install", action="store_true")\n', encoding="utf-8")
+
+
+def _database(world, installed, demo=("my_mod",), with_installed=True):
+    """What the database itself answers: the modules it holds installed (demo loaded for `demo`)."""
+    lines = ["DB_EXISTS=1", "DEMO=1", "LANGUAGES=en_US,vi_VN,fr_BE"]
+    lines += ["MODULE=%s STATE=installed DEMO=1" % m for m in demo]
+    if with_installed:
+        lines.append("INSTALLED=" + ",".join(installed))
+    world["db_facts"].write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _refused_foreign(c, world, token, **over):
+    """The refusal: the new code, with nothing started and nothing written."""
+    err = _err(_export(c, world, token, **over))
+    assert err["code"] == "I18N_EXPORT_FOREIGN_MODULES", err
+    assert err["remedy"], "a refusal says what to do"
+    assert not world["ops_record"].exists(), "no export job was started"
+    assert _export_calls(world) == [] and not (world["module"] / "i18n").exists()
+    return err["diagnostics"]
+
+
+def _foreign(diagnostics):
+    return {item["exported"]: item["modules"] for item in diagnostics["foreign"]}
+
+
+@pytest.fixture
+def pure(i18n, tmp_path):
+    """The stubbed world with the ops stand-in that records a job start, a checkout that can skip
+    auto-install, and a closure my_mod -> dep_a -> dep_b on the addons path."""
+    from test_odoo_local_mcp_instance import _ops_recorder
+    stand_in, record = _ops_recorder(tmp_path)
+    _skip_auto_install_option(i18n)
+    _module(i18n, "my_mod", depends=["dep_a"])
+    _module(i18n, "dep_a", depends=["base", "dep_b"])
+    _module(i18n, "dep_b", depends=["base"])
+    i18n.update(ops_record=record, ops_env={"ODOO_AI_OPS_SCRIPT": str(stand_in)})
+    return i18n
+
+
+def _client(world):
+    return McpClient(world["env"](**world["ops_env"]), world["work"])
+
+
+@pytest.mark.parametrize("skippable", [True, False])
+def test_a_database_holding_only_the_module_and_its_closure_exports_as_before(i18n, skippable):
+    if skippable:
+        _skip_auto_install_option(i18n)
+    _module(i18n, "my_mod", depends=["dep_a"])
+    _module(i18n, "dep_a", depends=["base", "dep_b"])
+    _module(i18n, "dep_b", depends=["base"])
+    _database(i18n, ["base", "dep_b", "dep_a", "my_mod"])
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        done = _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
+    assert done["result"] == "success", done
+    assert len(_export_calls(i18n)) == 3
+    assert "--installed 1" in i18n["db_calls"].read_text(), "the database is asked what it holds"
+
+
+@pytest.mark.parametrize("auto_install", [None, True])
+def test_a_bridge_depending_on_the_exported_module_is_refused_even_when_odoo_installed_it(
+        pure, auto_install):
+    """The reported pollution: the bridge's text lands in the exported module's catalog. An
+    auto_install bridge is no exemption where the series can skip auto-install - a correct build
+    does not hold it."""
+    _module(pure, "bridge_mod", depends=["my_mod", "dep_b"], auto_install=auto_install)
+    _database(pure, ["base", "dep_b", "dep_a", "my_mod", "bridge_mod"])
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        diagnostics = _refused_foreign(c, pure, lease["token"])
+    assert _foreign(diagnostics) == {"my_mod": ["bridge_mod"]}
+    assert diagnostics["foreign"][0]["count"] == 1 and diagnostics["facts_source"] == "database"
+
+
+def test_a_module_unrelated_by_dependencies_is_foreign_too(pure):
+    """A module that adds fields to the exported module's models need not depend on it or be
+    depended on by it (a mixin extended elsewhere), so the dependency graph cannot clear it."""
+    _module(pure, "calendar_like")
+    _database(pure, ["base", "dep_b", "dep_a", "my_mod", "calendar_like"])
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        diagnostics = _refused_foreign(c, pure, lease["token"])
+    assert _foreign(diagnostics) == {"my_mod": ["calendar_like"]}
+
+
+def test_the_foreign_modules_named_in_a_refusal_are_a_bounded_sorted_list(pure):
+    names = ["extra_%02d" % n for n in range(14, 0, -1)]
+    _database(pure, ["base", "dep_b", "dep_a", "my_mod"] + names)
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        diagnostics = _refused_foreign(c, pure, lease["token"])
+    (item,) = diagnostics["foreign"]
+    assert item["count"] == 14 and item["modules"] == sorted(names)[:10]
+
+
+def test_the_server_wide_modules_of_the_deployment_and_their_closure_are_accepted(pure):
+    """They are installed on every database of the deployment, the core default ones among them."""
+    _declare_server_wide(pure, ["to_base"])
+    _module(pure, "to_base", depends=["base", "to_helper"])
+    _module(pure, "to_helper", depends=["base"])
+    _module(pure, "web", depends=["base"])
+    _database(pure, ["base", "web", "to_base", "to_helper", "dep_b", "dep_a", "my_mod"])
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        done = _wait(c, _ok(_export(c, pure, lease["token"]))["job_id"])
+    assert done["result"] == "success", done
+    assert pure["ops_record"].exists()
+
+
+def test_a_module_that_is_not_declared_server_wide_does_not_pass_as_one(pure):
+    _module(pure, "to_base", depends=["base"])
+    _database(pure, ["base", "to_base", "dep_b", "dep_a", "my_mod"])
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        diagnostics = _refused_foreign(c, pure, lease["token"])
+    assert _foreign(diagnostics) == {"my_mod": ["to_base"]}
+
+
+def test_where_a_series_cannot_skip_auto_install_the_modules_odoo_installs_itself_are_accepted(
+        i18n):
+    """Such a series installs every auto_install module whose triggers are present on any build,
+    so a correct build holds them; a module installed by hand is still foreign."""
+    _module(i18n, "my_mod", depends=["dep_a"])
+    _module(i18n, "dep_a", depends=["base"])
+    _module(i18n, "auto_bridge", depends=["my_mod", "dep_a"], auto_install=True)
+    _module(i18n, "auto_chain", depends=["auto_bridge"], auto_install=True)
+    _module(i18n, "hand_bridge", depends=["my_mod"])
+    _database(i18n, ["base", "dep_a", "my_mod", "auto_bridge", "auto_chain"])
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        done = _wait(c, _ok(_export(c, i18n, lease["token"], languages=[]))["job_id"])
+        assert done["result"] == "success", done
+        _database(i18n, ["base", "dep_a", "my_mod", "auto_bridge", "hand_bridge"])
+        err = _err(_export(c, i18n, lease["token"]))
+    assert err["code"] == "I18N_EXPORT_FOREIGN_MODULES", err
+    assert _foreign(err["diagnostics"]) == {"my_mod": ["hand_bridge"]}
+
+
+def test_a_dependent_module_exports_from_its_own_database_and_its_dependency_does_not(pure):
+    """The database built for a dependent module holds its dependency too, and the dependent is
+    foreign to that dependency (its overrides land in the dependency's catalog). A call naming
+    both is refused for the dependency only; the dependent is clean."""
+    _module(pure, "second_mod", depends=["my_mod"])
+    _database(pure, ["base", "dep_b", "dep_a", "my_mod", "second_mod"],
+              demo=("my_mod", "second_mod"))
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        done = _wait(c, _ok(_export(c, pure, lease["token"], modules=["second_mod"],
+                                    languages=[]))["job_id"])
+        assert done["result"] == "success", done
+        pure["ops_record"].unlink()
+        for modules in (["my_mod"], ["my_mod", "second_mod"], ["second_mod", "my_mod"]):
+            diagnostics = _refused_foreign(c, pure, lease["token"], modules=modules, languages=[])
+            assert _foreign(diagnostics) == {"my_mod": ["second_mod"]}, modules
+
+
+def test_siblings_in_one_call_are_foreign_to_each_other(pure):
+    _module(pure, "sibling_mod", depends=["base"])
+    _database(pure, ["base", "dep_b", "dep_a", "my_mod", "sibling_mod"],
+              demo=("my_mod", "sibling_mod"))
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        diagnostics = _refused_foreign(c, pure, lease["token"],
+                                       modules=["my_mod", "sibling_mod"], languages=[])
+    assert _foreign(diagnostics) == {"my_mod": ["sibling_mod"],
+                                     "sibling_mod": ["dep_a", "dep_b", "my_mod"]}
+
+
+def test_a_verdict_that_cannot_be_reached_lets_the_export_proceed(pure):
+    """The check judges the database's own installed set against readable manifests and never
+    guesses from less: with the database unread (the leases' build records answer), or silent
+    about its installed set, or the manifest of an installed closure module unreadable, the
+    export goes ahead."""
+    _module(pure, "calendar_like")
+    with _client(pure) as c:
+        c.initialize()
+        lease = _ready_lease(c, pure)
+        # The database cannot be read: there is no installed set at all.
+        assert not pure["db_facts"].exists()
+        done = _wait(c, _ok(_export(c, pure, lease["token"], languages=[]))["job_id"])
+        assert done["result"] == "success", done
+        # The database answers, without an installed set.
+        _database(pure, [], with_installed=False)
+        done = _wait(c, _ok(_export(c, pure, lease["token"], languages=[]))["job_id"])
+        assert done["result"] == "success", done
+        # A closure module the database holds has no manifest to read: what it needs is unknown.
+        shutil.rmtree(pure["addons"] / "dep_a")
+        _database(pure, ["base", "dep_b", "dep_a", "my_mod", "calendar_like"])
+        done = _wait(c, _ok(_export(c, pure, lease["token"], languages=[]))["job_id"])
+        assert done["result"] == "success", done

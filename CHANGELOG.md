@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   instead of returning the only copy, opens every mockup capture, phone and dark included, and
   takes `ROLE_LOGIN` - a login of the role, or `create` on a database built for the review -
   which `odoo-ui-review` now passes. A design gate names the two mockup sheets.
+- `odoo-i18n` exports one module per database (issue #315). With a sibling or a bridge installed
+  beside a module, Odoo wrote the other module's field help, and the fields it adds to the
+  module's models, into that module's catalog under its own ids. `instance_i18n_export` now
+  refuses, before any job starts, a database holding an installed module outside an exported
+  module's dependency closure and the server-wide set (`I18N_EXPORT_FOREIGN_MODULES`, naming the
+  modules; the other modules of the same call count too). The skill and its recipe say one build
+  per module, never siblings in one build, and the reconcile checks that a `msgstr` kept under a
+  changed `msgid` translates the new source: Odoo applies a record's translation by xmlid
+  without comparing the source text.
 
 ## [8.11.0] - 2026-11-12
 

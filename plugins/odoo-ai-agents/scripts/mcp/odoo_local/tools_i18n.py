@@ -30,6 +30,15 @@ judged by what that database holds):
   - en_US and every requested language must be loaded (active in the database, or - unreadable -
     proven loaded by a finished build) (I18N_LANGUAGE_NOT_LOADED): an export in a language that is
     not loaded has every msgstr empty;
+  - the database must hold no installed module foreign to an exported module
+    (I18N_EXPORT_FOREIGN_MODULES, scripts/lib/foreign_modules.py): Odoo writes the text of a module
+    installed beside the exported one - a bridge's longer field help, the fields it adds to the
+    module's models - into that module's catalog under the module's own external ids. Judged per
+    exported module, the other modules of the call included (a module and one of its own
+    dependencies are never both clean in one database), from the installed set of the database itself (database_facts `installed`)
+    and the manifests on the lease's addons path; when the database cannot be read (the leases'
+    build records answer) the check is skipped, as it is for a module whose closure has a manifest
+    that cannot be read;
   - the checkout must declare an export command line (ODOO_SOURCE_FACT_UNKNOWN);
   - each module must resolve in exactly ONE directory of the lease's addons path + core addons
     (MODULE_SHADOWED): Odoo's code-term walk reads every copy it finds, so a shadowed module's
@@ -54,6 +63,7 @@ from .errors import ToolError
 from .tools_lease import HANDLE_SCHEMA, _obj
 
 I18N_OP = "i18n-export"
+FOREIGN_LISTED = 10   # foreign modules named per exported module in a refusal
 
 
 def _languages(args):
@@ -161,6 +171,51 @@ def _require_fit_database(facts, lease, token, languages, modules):
                          "facts_source": facts["source"]})
 
 
+def _manifest_reader(row, lease):
+    """manifest_of(name) for foreign_modules: the manifest of the module on the lease's addons
+    path (the first copy, as Odoo resolves it), read as a literal; None when there is none."""
+    facts = cli.load_lib("odoo_source_facts")
+    dirs = _addons_dirs(row, lease)
+    cache = {}
+
+    def manifest_of(name):
+        if name not in cache:
+            paths = facts.module_dirs(name, dirs)
+            cache[name] = facts.module_manifest(paths[0]) if paths else None
+        return cache[name]
+    return manifest_of
+
+
+def _require_pure_catalogs(facts, row, lease, token, modules, cwd, load):
+    """Refuse (I18N_EXPORT_FOREIGN_MODULES) when the database holds an installed module foreign to
+    an exported one. Skipped when the installed set was not read from the database itself."""
+    installed = facts.get("installed")
+    if installed is None:
+        return
+    root = tools_instance.lease_checkout(row, lease)
+    source = cli.load_lib("odoo_source_facts")
+    # Unknown (unreadable config.py) is judged as "a build can skip auto-install": the strict side.
+    skippable = source.skip_auto_install_declared(root) if root else None
+    always = list(dict.fromkeys(tools_instance._declared_server_wide(row, lease, cwd) + load))
+    foreign, _unjudged = cli.load_lib("foreign_modules").foreign_modules(
+        modules, installed, _manifest_reader(row, lease), always=always,
+        skip_auto_install=skippable is not False)
+    if not foreign:
+        return
+    listed = [{"exported": m, "modules": names[:FOREIGN_LISTED], "count": len(names)}
+              for m, names in foreign.items()]
+    text = "; ".join("%s: %s%s" % (
+        item["exported"], ", ".join(item["modules"]),
+        " (+%d more)" % (item["count"] - FOREIGN_LISTED) if item["count"] > FOREIGN_LISTED else "")
+        for item in listed)
+    raise ToolError("I18N_EXPORT_FOREIGN_MODULES",
+                    "lease %s, database %s: installed modules foreign to the exported module "
+                    "(not in its dependency closure, not server-wide) would put their text in its "
+                    "catalog - %s" % (token[:8], lease.get("db_name") or "?", text),
+                    {"token_prefix": token[:8], "db_name": lease.get("db_name") or "",
+                     "foreign": listed, "facts_source": facts["source"]})
+
+
 def _export(args, ctx):
     token = args["lease_token"]
     cwd = tools_instance._cwd(args)
@@ -179,14 +234,15 @@ def _export(args, ctx):
     tools_instance.refuse_if_busy(lease)  # before any gate reads the database
     # The set the database's builds load (instance_build's rule, its refusals included).
     load = tools_instance.server_wide_for(row, lease, cwd, token, adjustment)
-    # The database itself (per exported module too), else the lease records.
-    facts = tools_lease.database_facts(row, cwd=cwd, modules=modules)
+    # The database itself (per exported module too, with its installed set), else the lease records.
+    facts = tools_lease.database_facts(row, cwd=cwd, modules=modules, installed=True)
     _require_fit_database(facts, lease, token, languages, modules)
     tools_instance._checkout_fact(row, lease, token,
                                   "the i18n export command line (--i18n-export in "
                                   "odoo/tools/config.py, or the export subcommand in "
                                   "odoo/cli/i18n.py)", "i18n_export_cli")
     destinations = _destinations(modules, output_dir, row, lease, token)
+    _require_pure_catalogs(facts, row, lease, token, modules, cwd, load)
 
     argv = [I18N_OP, "--db", db, "--python", python, "--addons", tools_lease.join_addons(addons),
             "--modules", tools_instance.MODULE_LIST_SEP.join(modules)]
@@ -258,7 +314,14 @@ def register(registry, ctx):
         "(I18N_LANGUAGE_NOT_LOADED), and unless each module resolves in exactly one addons "
         "directory (MODULE_SHADOWED: Odoo's export would read every copy). Those facts are read from "
         "the database itself; only when it cannot be read do the builds recorded on its leases "
-        "answer (diagnostics.facts_source says which). Build the export instance with instance_build "
+        "answer (diagnostics.facts_source says which). Also refused when the database holds an "
+        "installed module outside an exported module's dependency closure that is not server-wide "
+        "(I18N_EXPORT_FOREIGN_MODULES: a sibling, or a bridge that depends on it, writes its text "
+        "into that module's catalog - one module per database). It is asked of each module of the "
+        "call, the others of the call included: a module and one of its own dependencies are "
+        "never both clean in one database, so a call names several modules only when each is "
+        "clean there. That check needs the database itself: on the lease-records "
+        "fallback it does not run. Build the export instance with instance_build "
         "op init demo on and languages = the target languages, job_wait it, then call this. Pass "
         "only target languages (en_US is the template's source, never a .po; it is refused). One "
         "build or export runs on a database at a time: while another job still runs on it "

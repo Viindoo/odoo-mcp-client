@@ -205,20 +205,24 @@ FACTS_FROM_LEASES = "leases"
 _UNREAD = object()
 
 
-def read_database(row, cwd=None, modules=None):
+def read_database(row, cwd=None, modules=None, installed=False):
     """{demo, languages} read from the database `row` names ITSELF - `odoo_db.py db-facts` under
     the lease's venv python (ir_module_module.demo of the installed modules, the active res_lang
     codes; a database that does not exist holds nothing) - or None when it cannot be read (no
     venv on the row, e.g. a shared lease; the venv cannot import Odoo; the cluster refused or did
     not answer; the bound elapsed). One connection. With `modules`, also "modules":
     {name: {"state", "demo"}} for each of them the database knows (its OWN demo flag - the
-    database-wide `demo` says nothing about one module); a module it does not know is absent."""
+    database-wide `demo` says nothing about one module); a module it does not know is absent.
+    With `installed`, also "installed": [every module the database holds loaded] - absent when the
+    reader did not state it."""
     python, db = row.get("python"), row.get("db_name")
     if not python or not db:
         return None
     argv = [python, str(cli.LIB_DIR / "odoo_db.py"), "db-facts", db]
     if modules:
         argv += ["--modules", ",".join(modules)]
+    if installed:
+        argv += ["--installed", "1"]
     host, port = _pg_coordinates(row)
     user = (row.get("_pg") or {}).get("user") or row.get("db_user") or ""
     for flag, value in (("--db-host", host), ("--db-user", user), ("--db-port", port)):
@@ -238,12 +242,19 @@ def read_database(row, cwd=None, modules=None):
     if rc != 0:
         return None
     if kv.get("DB_EXISTS") == "0":
-        return dict({"demo": False, "languages": []}, **({"modules": {}} if modules else {}))
+        nothing = {"demo": False, "languages": []}
+        if modules:
+            nothing["modules"] = {}
+        if installed:
+            nothing["installed"] = []
+        return nothing
     if kv.get("DB_EXISTS") != "1" or kv.get("DEMO") not in ("0", "1") or "LANGUAGES" not in kv:
         return None
     out_facts = {"demo": kv["DEMO"] == "1", "languages": _module_list(kv["LANGUAGES"])}
     if modules:
         out_facts["modules"] = _module_facts(lines)
+    if installed and "INSTALLED" in kv:
+        out_facts["installed"] = _module_list(kv["INSTALLED"])
     return out_facts
 
 
@@ -260,14 +271,14 @@ def _module_facts(lines):
     return found
 
 
-def database_facts(row, rows=None, cwd=None, db=_UNREAD, modules=None):
+def database_facts(row, rows=None, cwd=None, db=_UNREAD, modules=None, installed=False):
     """What the database `row` names holds: {demo, languages, source} (+ "modules" when asked with
-    `modules` and the database itself answered - see read_database). The DATABASE is the source
-    of truth (read_database; `db` = a read the caller already made, so one tool call reads it
-    once); only when it cannot be read do the lease records answer (database_built: every lease on
+    `modules`, + "installed" when asked with `installed`, when the database itself answered - see
+    read_database). The DATABASE is the source of truth (read_database; `db` = a read the caller
+    already made, so one tool call reads it once); only when it cannot be read do the lease records answer (database_built: every lease on
     that database; they record nothing per module). `source` says which: "database" | "leases"."""
     if db is _UNREAD:
-        db = read_database(row, cwd, modules=modules)
+        db = read_database(row, cwd, modules=modules, installed=installed)
     if db is not None:
         return dict(db, source=FACTS_FROM_DATABASE)
     return dict(database_built(row, rows), source=FACTS_FROM_LEASES)

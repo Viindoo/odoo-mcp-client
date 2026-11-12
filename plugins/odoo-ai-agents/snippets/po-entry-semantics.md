@@ -46,6 +46,11 @@ choice of the run:
   field or record this module only extends. Loading a catalog never replaces a translation the
   database already holds, so the dependency's value, loaded first, is what the export reads back.
   Ruling: restore the committed `msgstr`; the run changes no translation it did not write.
+- **A changed `msgid` that kept its `msgstr`.** Odoo applies a record's translation by xmlid
+  without comparing the source text, so a catalog once exported from a wider build pairs this
+  module's correct `msgid` with a `msgstr` translated from another module's text. Read every
+  such pair: a `msgstr` that translates the previous source, not the new `msgid`, is cleared
+  and translated again.
 
 ## Fuzzy and placeholders
 
