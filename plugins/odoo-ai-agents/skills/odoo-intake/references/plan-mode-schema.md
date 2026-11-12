@@ -337,8 +337,11 @@ base, head = `run-integration`; a `FAIL` goes back to the `migration` node), the
 lint-class gate over the aggregate diff (the module set of
 `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, through `odoo-instance`), then invoke
 `git-toolkit:git-ops` to rewrite the history of `run-integration` above its base as one commit
-per module, base modules first and dependents after (the tree unchanged by the rewrite), push it
-and open ONE PR against the principal branch (update it when a resumed run finds one open). A
+per module, base modules first and dependents after (the tree unchanged by the rewrite; a
+module the run adds or removes carries in its commit the changes this forces in other modules),
+push it and open ONE PR against the principal branch (update it when a resumed run finds one
+open). A fix made once the PR is open is folded into the commit it corrects
+(`${CLAUDE_PLUGIN_ROOT}/snippets/commit-history.md`). A
 commit in the middle of the series may not pass the tests of a module that depends on a later
 one; the CI verdict is taken at the branch tip. `monitor` and `merge` are plan nodes, never
 materialized twice.

@@ -110,8 +110,8 @@ Root-cause comes before any fix, and the fix is NEVER pushed autonomously.
 3. **Fix.** When the root cause is known, route the fix to `odoo-coding` via the Skill tool. Per the
    integration-loop contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`), the fix
    is authored + committed INSIDE a dedicated worktree on the PR's integration branch - never on the
-   principal checkout (S9). On a forward-port PR the commit that carries the fix follows
-   `${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md` § C3. Choose neither coder count nor model.
+   principal checkout (S9) - and folded into the commit of the PR it corrects
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-history.md`). Choose neither coder count nor model.
 4. **Re-push is HUMAN-GATED (X2).** The poller PREPARES the fix in the worktree and SURFACES it -
    it NEVER pushes from the unattended poll. Present the proposed change (what failed, the proven
    root cause, the fix diff summary, the target branch) and WAIT for explicit human approval. Only

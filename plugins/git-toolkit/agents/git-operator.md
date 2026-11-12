@@ -110,7 +110,8 @@ the repo's convention (project guideline -> history inference -> repo-type), val
 message (C6), apply the universal business-subject rule (state WHAT/WHY, not HOW), honor the 50/72
 limits, and sign off only when C4 finds the repo requires it. Load the matching reference
 (`references/commit-convention-general.md` or `references/commit-convention-odoo.md`) before
-writing the message.
+writing the message. A request that states `corrects:` is folded into the commit it corrects,
+never added on top (C7).
 
 ## Brief self-check
 
@@ -163,6 +164,7 @@ backup_branch: <name or n/a>
 verify: <tree-identity PASS/FAIL | range-diff verdict | clean-tree>
 commit_subject: <final subject of each commit created, in order | n/a>
 message_rewritten: <original subject> -> <final subject> (<reason>) | no | n/a
+folded_into: <subject of the commit a correction was folded into (C7) | n/a>
 gate_hit: <protected branch <branch> | S4 dirty tree | ... | n/a>   (populate on BLOCKED; n/a otherwise)
 confirmation_needed: <what the human must confirm | n/a>
 conflicted_files: [<relative paths> | n/a]   (BLOCKED-CONFLICT only: rebase/merge/cherry-pick stopped on an unresolved conflict)
