@@ -81,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Always-invisible view fields carry a comment, in every view type and every series (issue #316).
+  A `<field>` whose `invisible` or `column_invisible` is the constant `"1"` or `"True"` has an XML
+  comment on the line right after its tag saying why it must stay in the view. The guideline
+  section of `xml.md` covers every view type and now exists for every series with guidelines
+  (core's `base` test still enforces the list and form subset where it ships), and the reviewer's
+  mechanical pass (R1) flags a field that misses the comment.
 - The test suite's result no longer depends on which variables a developer's shell exports. The
   variables the plugin reads by name - the configured values (`SPEECH_API_KEY`, `YOUTUBE_CLIENT_ID`,
   `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_REFRESH_TOKEN_<SLOT>`), the database

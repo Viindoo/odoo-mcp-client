@@ -123,6 +123,25 @@ New primary views do not require the inherit suffix as those are new records bas
 </record>
 ```
 
+## Always-invisible field carries a comment
+
+> Plugin rule (not in the upstream text):
+
+In every view type (form, list, kanban, search and the others), a `<field>` whose `invisible` or
+`column_invisible` is the constant `"1"` or `"True"` carries an XML comment on the line right
+AFTER its tag, one comment per field, stating why the field must stay in the view:
+
+```xml
+<field name="company_id" invisible="1"/>
+<!-- company_id is read by the domain of partner_id -->
+```
+
+A comment before the tag does not count. A conditional expression
+(`invisible="state != 'draft'"`) needs no comment.
+
+No core test enforces this on this series; follow the rule anyway, so the view needs no change when
+it is forward-ported to a series whose `base` tests enforce it.
+
 ## Inheriting QWeb templates
 
 > Plugin rule (not in the upstream text):
