@@ -43,8 +43,14 @@ Rules:
 - **Every block names its core counterpart** in a note (`mk-note`): the view element, widget,
   component or class of the target series the coder will use. A block with no counterpart is a
   custom element: the design lists it with the reason it is needed.
-- **Header buttons fold on a phone, as in core.** The kit hides them there behind its `Actions`
-  control; keep that control in the header, or the main action vanishes from the phone capture.
+- **The frame is illustration.** The kit draws core's frame (navbar, control panel, search,
+  header, statusbar, empty state) one way; how the series and the theme lay it out at each width
+  is theirs (contract § 5). The mockup and the design state nothing about it: no "folds into a
+  menu", no "sits in the control panel".
+- **A real frame when one is free.** With an instance of the series that the run already holds
+  or the brief hands over (none is built for a mockup), capture a core screen of the same view
+  type at both widths as `core-<view>-desktop.png` and `core-<view>-phone.png` and put them in
+  the sheets, so the approver sees the real frame beside the mockup.
 - **The kit's look only.** No colour, font or size is added to the kit. A mockup that restyles it
   promises a look that belongs to the theme.
 - **Look at it.** Open the page in the browser, capture, open the captures, and fix what reads
@@ -55,4 +61,6 @@ Rules:
 
 `## Screens` holds one block per screen: the role and its job, the view type, the mockup files or
 the placement note, what the phone shows first, and the custom elements with their reasons. The
-design gate names the two sheets so the approver sees the screen before answering.
+design gate names the two sheets so the approver sees the screen before answering, and says in
+one line that the frame around the module's content is illustration: the series and the theme
+decide it.

@@ -142,9 +142,8 @@ records and firing state-changing statusbar action buttons are NOT - leave those
 | Statusbar | `.o_statusbar_status` (the clickable stage / state pipeline) + `.o_statusbar_buttons` (header action buttons) | the current state is highlighted; reachable states are shown; header buttons render for the current state | G3 (a modifier is wrong -> a button is always / never visible), G4 (a button calls a removed method) |
 
 The chatter DOM moved from the legacy thread widget to the OWL mail store in newer majors - confirm the live
-class names with a DOM snapshot rather than assuming. On small screens in newer majors, form header buttons fold
-into the gear / Cog menu, so an EMPTY mobile statusbar-button area is EXPECTED, not a defect - do not raise it as
-a finding.
+class names with a DOM snapshot rather than assuming. How form header buttons and the statusbar are laid out on a
+small screen differs by series and theme: it is core's rendering, never a finding against a module.
 
 ## OWL vs legacy by version
 

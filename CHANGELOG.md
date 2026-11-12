@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A mockup binds what the module decides, and the frame is illustration. A second real run showed
+  the plugin itself stating how core lays out a phone screen ("header buttons fold into a menu")
+  in the UI contract, the mockup reference, the mockup kit and the UI reviewer; on the series of
+  that run core does not, so the design promised a layout no coder could build and the review
+  raised it. The UI contract's § 5 now names what a mockup binds (view type, fields and actions,
+  order, grouping, the module's wording, states, the phone's first screenful) and what is core's
+  or the theme's rendering (navbar, control panel, search, header and statusbar layout, the frame
+  of an empty state, colours, fonts, sizes). A difference no line of the module governs is noted
+  against the design, never raised against the module or sent to its coder: `odoo-ui-reviewer`
+  names what governs each difference and the plan's fix round keeps such a note out of the
+  coder's findings. The mockup kit no longer folds header buttons at the phone width, and a
+  design states nothing about the frame; with an instance of the series already at hand, a
+  capture of a core screen of the same view type goes into the mockup sheets.
+- The coder captures every state the mockup shows (empty, a new record, after the main action)
+  at both widths, and the dark scheme at both widths; that run's coder captured the filled state
+  only and the dark scheme at the desktop width only.
+
 ## [8.12.0] - 2026-11-12
 
 ### Changed
