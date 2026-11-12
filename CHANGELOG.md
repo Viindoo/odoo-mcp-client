@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.12.2] - 2026-11-12
+
 ### Fixed
 
 - A test run that passes with a WARNING in its log is not done. A CI that grades a build by its
