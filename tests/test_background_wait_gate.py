@@ -63,6 +63,9 @@ Run: python -m pytest tests/test_background_wait_gate.py -v
 """
 from __future__ import annotations
 
+import atexit
+import shutil
+import tempfile
 import json
 import re
 import subprocess
@@ -163,12 +166,25 @@ PRINT_ENV = {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "CLAUDE_CODE_SESSION_ATTENDED"
 INTERACTIVE_ENV = {"CLAUDE_CODE_ENTRYPOINT": "cli", "CLAUDE_CODE_SESSION_ATTENDED": "1"}
 
 
+# A hook resolves its state directory under $HOME, so every hook run through `_run` gets a HOME
+# of its own. Other test files import `_run`, so the directory is made on first use, not by a
+# fixture of this module, and removed when the process ends.
+_TEST_HOME: dict = {}
+
+
+def _test_home() -> str:
+    if "path" not in _TEST_HOME:
+        _TEST_HOME["path"] = tempfile.mkdtemp(prefix="hook-test-home-")
+        atexit.register(shutil.rmtree, _TEST_HOME["path"], ignore_errors=True)
+    return _TEST_HOME["path"]
+
+
 def _run(payload, script: Path = GATE, env: dict | None = None) -> tuple[int, str]:
     raw = payload if isinstance(payload, str) else json.dumps(payload)
     proc = subprocess.run(
         ["bash", str(script)],
         input=raw, capture_output=True, text=True, timeout=30,
-        cwd=str(REPO_ROOT), env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": "/tmp",
+        cwd=str(REPO_ROOT), env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": _test_home(),
                                  "CLAUDE_PLUGIN_ROOT": str(ODOO_PLUGIN), **(env or {})},
     )
     return proc.returncode, proc.stdout
@@ -585,6 +601,13 @@ def test_the_session_transcript_is_never_used_for_ownership(tmp_path):
 # --------------------------------------------------------------------------- #
 # 4. Red-before-green: the pre-fix tree does not catch this shape
 # --------------------------------------------------------------------------- #
+def test_a_hook_run_by_this_file_keeps_its_state_inside_the_test_directories(tmp_path):
+    t = _transcript(tmp_path, ["bvld2f72c"])
+    payload = _subagent_payload(t, [_agent_task("a-child-1"), _shell_task("bvld2f72c")])
+    _run(payload, script=HOOKS_DIR / "report-terminal-status.sh")
+    assert list(Path(_test_home()).rglob("strand-events.log")), "the hook's log is not under the test HOME"
+
+
 def test_the_other_subagentstop_hooks_do_not_catch_this_shape(tmp_path):
     """The committed pre-fix measurement. Every other SubagentStop hook approves the defect
     payload, which is why the stall was silent. If a future change makes one of them catch it,
