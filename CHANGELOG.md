@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.12.1] - 2026-11-12
+
 ### Fixed
 
 - A mockup binds what the module decides, and the frame is illustration. A second real run showed
