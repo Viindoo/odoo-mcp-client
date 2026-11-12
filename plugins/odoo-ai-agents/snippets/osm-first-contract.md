@@ -57,8 +57,8 @@ relevant, say so, then write.
   a blocker. The quality gate is the lint-class module set run with the tests
   (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`); `lint_check` is a hint, except that a
   `[pattern]` security hit is a finding.
-- **Frontend:** verified on the running instance after the assets are rebuilt - tokens resolve and
-  the screen matches the mockup (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`).
+- **Frontend:** looked at on the running instance after the assets are rebuilt
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` § 4).
 - **CLI:** the flags of an `odoo-bin` command come from the target series (`cli_help`), never from
   another series.
 

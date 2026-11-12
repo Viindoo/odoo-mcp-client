@@ -8,7 +8,7 @@
     "skills/_shared/doc-cluster-plan.md": 11935,
     "skills/_shared/integration-loop.md": 6722,
     "skills/_shared/odoo-failure-modes.md": 8178,
-    "skills/_shared/odoo-frontend-fidelity.md": 14661,
+    "skills/_shared/odoo-frontend-fidelity.md": 10487,
     "skills/_shared/odoo-module-graph.md": 6362,
     "snippets/acceptance-oracle-contract.md": 6868,
     "snippets/acceptance-scope.md": 4970,
@@ -28,7 +28,7 @@
     "snippets/lint-gate-modules.md": 4582,
     "snippets/modularity-contract.md": 4613,
     "snippets/odoo-version-pivots.md": 10305,
-    "snippets/osm-first-contract.md": 5403,
+    "snippets/osm-first-contract.md": 5346,
     "snippets/planning-gate-contract.md": 5310,
     "snippets/scouting-persistence-contract.md": 7014,
     "snippets/symbol-currency-check.md": 9085,
@@ -55,6 +55,7 @@
     "snippets/test-sensitivity-contract.md": 8684,
     "snippets/business-taxonomy.md": 4654,
     "snippets/odoo-platform-design-principles.md": 13622,
+    "snippets/odoo-ui-contract.md": 5563,
     "skills/_shared/doc-capture-mechanics.md": 19607,
     "snippets/code-comment-contract.md": 5547
   }

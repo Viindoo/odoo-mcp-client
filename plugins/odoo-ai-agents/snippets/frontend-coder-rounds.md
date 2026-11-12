@@ -1,8 +1,7 @@
 # frontend-coder rounds - per-era workflow detail
 
-Round-by-round procedure of the `odoo-frontend-coder` agent for the two frontend eras. The agent
-holds the hard rules, Round 0, Round 6 (the static verify gate), the adapt dispositions and the
-output format; it points here after the version gate. Read ONLY the section of the era you resolved.
+Round-by-round procedure of the `odoo-frontend-coder` agent for the two frontend eras, after its
+own steps resolved the series and the era. Read only the section of the era you resolved.
 
 **Contents:** Legacy workflow - OWL workflow
 
@@ -18,8 +17,6 @@ output format; it points here after the version gate. Read ONLY the section of t
 
 **Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · registration in `<descriptor>` (the agent's step 2 resolves the filename; how the series registers assets: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6).
 
-**Round 5 - suggest visual verification (forward-wiring).** After presenting, add the `next:` entry of the agent's § Return.
-
 ## OWL workflow
 
 **Round 0.5 - OWL pitfall grounding checklist (gate).** Before emitting any OWL/JS, assert each class from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` ("OWL pitfall catalogue") is satisfied for the target version:
@@ -27,9 +24,9 @@ output format; it points here after the version gate. Read ONLY the section of t
 - [ ] **useService reactivity** - the wrapping differs per series: copy the target series' form from `find_examples(query='useService useState', odoo_version='<version>')`.
 - [ ] **No raw `contenteditable`** - delegate to `web_editor` Wysiwyg, lazy-loaded in `onWillStart`, with stable props built once.
 - [ ] **SCSS in `calc()`** - interpolate Sass functions: `calc(#{map-get(...)} * 2)`, never bare `map-get(`/`min(` inside `calc(`.
-- [ ] **No `--bs-*` assumptions** - Odoo sets `$variable-prefix:''`; reference `--primary`/`--o-color-*`, never a self-referential shim.
+- [ ] **No `--bs-*` assumptions** - Odoo sets `$variable-prefix:''`; a runtime custom property is un-prefixed, and none is defined from itself.
 - [ ] **`Dialog` body** - body content goes in the default slot; only `header`/`footer` are named slots.
-- [ ] **Inherited QWeb templates** - an xpath into a `t-if`/`t-elif` -> `t-elif`/`t-else` chain follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/xml.md` § Inheriting QWeb templates (Round 6 BLOCKs a `before`/`after` that splits the chain).
+- [ ] **Inherited QWeb templates** - an xpath into a `t-if`/`t-elif` -> `t-elif`/`t-else` chain follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/xml.md` § Inheriting QWeb templates (the static gate BLOCKs a `before`/`after` that splits the chain).
 
 **Round 1 - detect OWL sub-version (parallel when porting).** The `patch()` form of the series comes from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; lifecycle hooks come from `@odoo/owl` in every OWL version. The series is the one Round 0 resolved (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`); never assume one. If porting between versions, call `api_version_diff` to surface breaking changes first.
 
@@ -45,7 +42,7 @@ Confirm currency of every core registry/service/hook API you call at the target 
 
 **Round 4 - assemble complete output.**
 
-**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: per `odoo-frontend-fidelity.md`; SCSS: no `--bs-*` tokens") drawn from `odoo-version-pivots.md` and `odoo-frontend-fidelity.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
+**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: per `odoo-frontend-fidelity.md`; SCSS: per `odoo-ui-contract.md`") drawn from `odoo-version-pivots.md`, `odoo-frontend-fidelity.md` and `odoo-ui-contract.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
 
 1. **JS file** - `/** @odoo-module **/` first line per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests row "JS module header" (and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), then `import`s from verified paths, then the component class, then registry `.add()`.
 2. **XML template file** - separate file preferred for templates over ~10 lines.

@@ -104,7 +104,7 @@ when actors share a session (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurr
 - **Upgrade:** `api_version_diff(symbol=<scope>, from_version=<old>, to_version=<new>)`.
 - **Code change:** `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>, odoo_version='<version>')`.
 - **Styling change:** `find_style_override(selector_or_variable=<selector>, odoo_version='<version>')` + `resolve_stylesheet(module=<changed_module>, odoo_version='<version>')` - a stylesheet change ripples to every screen that transitively imports it, so override origin alone under-scopes the set.
-- **Theme/token change:** when a screen goes "flat" (empty surfaces, washed-out text, badges without fill), treat as a design-token regression - check token reality per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`, not just a pixel diff.
+- **Theme/token change:** when a screen goes "flat" (empty surfaces, washed-out text, badges without fill), treat as a design-token regression - check `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Token reality and `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` §§ 1-2, not just a pixel diff.
 - Map results to screens: `module_inspect(name=<module>, method='views', odoo_version='<version>')` and `model_inspect(model=<model>, method='summary', odoo_version='<version>')`.
 
 > Resource shortcut: when a view xmlid is already known, read `odoo://{version}/view/{xmlid}` directly - returns view arch + inherit chain without a `module_inspect` round-trip.

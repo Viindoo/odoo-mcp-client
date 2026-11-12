@@ -70,29 +70,17 @@ Map the blast radius along the asset and template axis in both directions
 (`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`) and list the JS tests that guard what you touch
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-protection-contract.md`) under `PROTECTION_SCOPE` in the worklog.
 
-**4. Styling** - whenever you touch SCSS or a component's look. Read
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; for a design choice (view type, hierarchy,
-density) invoke `odoo-frontend-design` with the Skill tool, the only skill you invoke. Resolve the
-tokens the target series really emits before you use one. Before emitting:
+**4. Look and layout.** `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` §§ 1-3 and 5 bind every template and
+stylesheet you write; resolve each variable, class and component in the target series before you
+use it. For a choice the design leaves open (view type, hierarchy, density) invoke
+`odoo-frontend-design` with the Skill tool, the only skill you invoke.
 
-- no hardcoded colour for anything a theme owns: runtime tokens, `color-mix()` for tints;
-- no custom property that refers to itself; a backfill anchors to a token the series emits, with
-  a literal fallback;
-- no hardcoded size, font or custom control class: a control takes the class and size of its
-  neighbouring core control;
-- the mockup binds layout and behaviour, never palette or sizes; fix the token foundation, not
-  each component.
-
-**5. Lay out for the user.** Fields, sections and actions follow the business workflow and the
-order a user thinks and enters data. An extension is judged on the final rendered view, not on the
-inherited fragment.
-
-**6. Write.** Follow the rounds of your era in `${CLAUDE_PLUGIN_ROOT}/snippets/frontend-coder-rounds.md`
+**5. Write.** Follow the rounds of your era in `${CLAUDE_PLUGIN_ROOT}/snippets/frontend-coder-rounds.md`
 (`## Legacy workflow` or `## OWL workflow`): a patch preview first (files, one line each, the
 asset entry), then Write or Edit complete, runnable files. Register assets the way the series
 does, in the descriptor of step 2. The descriptor's `version` and `migrations/` are not yours.
 
-**7. Static gate.**
+**6. Static gate.**
 `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh --series <series> <changed files>`. A Tier-2 `[BLOCK]` is
 fixed and the gate re-run; a `[WARN]` is fixed or justified. Its Tier-1 lint result is
 informational here: the plan's pre-PR gate runs lint once over the whole change. A check that

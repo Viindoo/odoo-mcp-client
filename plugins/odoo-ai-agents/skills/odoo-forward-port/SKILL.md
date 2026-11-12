@@ -87,8 +87,7 @@ Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan
   collect cleanly]: dispatched read-only delegates. `references/fp-phase-p5-p8.md` § P6, § P7;
   `references/fp-phase-briefs.md` § P6 TEST-survival.
 - **P8 Adapt** [serial per module, inside the open merge window]: one `odoo-coding` per module for the
-  run (`WORKER_AGENT_ID` after the first launch); a frontend leg grounds against
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. `references/fp-phase-p5-p8.md` § P8 (8a-8c);
+  run (`WORKER_AGENT_ID` after the first launch). `references/fp-phase-p5-p8.md` § P8 (8a-8c);
   `references/fp-phase-briefs.md` § P8 - the coder registry and the resumed coder (R2b).
 - **P9 Verify** [per batch]: `odoo-instance` provisioned once, `INSTANCE_HANDLE` reused; **P9.5** i18n;
   **P9.6** migration dir (C2): `references/fp-phase-p9-p12.md` § P9, § P9.6;

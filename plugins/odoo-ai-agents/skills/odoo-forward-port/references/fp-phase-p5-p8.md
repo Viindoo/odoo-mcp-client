@@ -169,8 +169,7 @@ result and the dump path on that commit's `BUCKET` line.
 
 **8b - adapt the module** per bucket. The forwarded source test IS the oracle: adapt it in place; write
 one from scratch only when the source commit shipped none, anchored to the intent record
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). A frontend leg grounds against
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Invoke the `odoo-coding` skill (via the Skill tool) with the
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). Invoke the `odoo-coding` skill (via the Skill tool) with the
 FP-ENRICHED brief (never raw `odoo-coder` or `odoo-frontend-coder`). **R2b at this leg: at most one
 coder per module across the WHOLE run.** On the module's FIRST invocation omit the field and record
 the coder's agent id `odoo-coding` reports in `plan.md`; on every LATER one carry it as

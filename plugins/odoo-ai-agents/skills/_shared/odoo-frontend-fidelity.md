@@ -77,96 +77,28 @@ gate**, which selects the `web.Widget` / `AbstractField` / `odoo.define()` path.
 
 ---
 
-## Design-system fidelity - build theme-correct first, remediate second
+## Token reality
 
-> Prevent off-theme output at write-time; diagnose and fix it at review-time. The build-right
-> *rules* are generic and apply verbatim; any *token name* is version-specific - resolve it for the
-> target version via OSM (`resolve_stylesheet`, `find_style_override`) and confirm it at runtime
-> with `getComputedStyle`.
+What a module may paint with is ruled by `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`.
+Which SCSS variables and runtime custom properties exist differs per series: find where a variable
+or selector is defined and overridden in the index for the target series, and on a running
+instance read the computed value on `:root` and on the element itself.
 
-### A. Build-right rules (generic - apply verbatim)
+A custom property that computes empty takes every rule that reads it down with it, which shows as
+a flat screen: panes without background or border, invisible muted text, badges without fill. It
+has two causes: a chain into a property the series does not emit (Class 5), and a property defined
+from itself (`--x: var(--x, <fallback>)` is a dependency cycle, so the fallback is never reached).
+Fix the property once where it is defined, not on each component that reads it.
 
-1. **Reuse Odoo runtime design tokens; pick tokens, not raw hex.** Anchor surfaces, borders,
-   text and status colors to the design tokens the target version actually emits at runtime
-   (resolve them via OSM + `getComputedStyle`).
-2. **Never hardcode `hex` / `rgb()` / `rgba()` for themeable colors.** For tints/shades use
-   `color-mix(in srgb, <token> X%, white|black|transparent)` so the result tracks the theme.
-3. **Never self-reference a custom property:** `--x: var(--x, <fallback>)` is a CSS dependency
-   cycle - it computes to the guaranteed-invalid (empty) value and the fallback is never reached,
-   so the whole downstream chain resolves to empty. To backfill a missing variable, redefine it
-   **non-self-referentially**, anchored to a variable the version *does* emit, each with a literal
-   fallback.
-4. **Fix the token foundation, not per-component patches (right altitude).** When many
-   components look wrong, suspect the token layer first; one foundation fix usually resolves
-   every downstream surface/border/text/badge token.
-5. **Scope overrides appropriately**; sizes come from core's spacing and sizing levers, not from
-   a mockup's pixel values.
-6. **A business module paints only with core levers**: the core SCSS variables, the runtime
-   custom properties core and Bootstrap emit, and core classes that carry a theme meaning. No
-   custom property of its own (`--<vendor>-*`), no class of its own that holds a color, no
-   Bootstrap class that fixes a color regardless of theme (`bg-white`, `text-dark`,
-   `border-light`). The test: a theme that changes a core token changes the module with it, with
-   no edit in the module.
-7. **A stylesheet in the frontend bundle is loaded by every frontend page** (website, portal,
-   login, other modules' public pages): it never targets `body`, `html` or a bare element. Wrap
-   every rule in the page's own layout class, and give a page its background through the
-   layout's body class. A core UI test of another app that reds once the module is installed is
-   the module's defect.
-
-### B. Token reality - OSM-grounded, never hardcoded
-
-For the **target version**:
-
-1. `set_active_version(<target>)`.
-2. `resolve_stylesheet(<module>, odoo_version='<version>')` + `find_style_override(<selector_or_variable>, odoo_version='<version>')` to discover
-   which tokens/selectors actually exist and where they are defined/overridden.
-3. On the running instance, read `getComputedStyle(document.documentElement)` (and key
-   elements) to list which tokens **RESOLVE** vs are **EMPTY**, and to detect self-ref cycles
-   and transparent surfaces.
-
-#### Illustrative snapshot - Odoo 17 (VERIFY before relying on it; do NOT extrapolate)
-
-- Odoo 17 ships **Bootstrap 5.1.3**, which emits at `:root` runtime custom properties such as
-  `--primary`, `--secondary`, `--gray-100..900`, `--light`, `--dark`, `--body-bg`,
-  `--body-color`, `--success/-warning/-danger/-info`, `--o-color-1..N`.
-- It does **NOT** emit the `--bs-*` runtime custom properties (e.g. `--bs-body-bg`,
-  `--bs-white`, `--bs-secondary-bg`, `--bs-border-color`, `--bs-*-subtle`). Chaining brand/
-  surface tokens into `--bs-*` therefore resolves to empty on Odoo 17.
-
-Add rows for other series only after verifying each via OSM + runtime.
-
-### C. Verify-don't-trust loop
-
-Never trust that an edit "took" - read the computed value:
-
-1. Read computed styles on `:root` + representative elements -> list RESOLVE vs EMPTY; detect
-   self-ref cycles and transparent surfaces.
-2. Edit SCSS -> make the bundle new (`instance_build` `update` of the module on the same lease, or a
-   restart; `?debug=assets` plus a refresh for a file already in the bundle - a plain refresh
-   shows the old bundle) -> screenshot (destination:
-   state-root-resolution.md § Where a captured artifact goes) + re-read computed styles.
-3. Iterate until tokens resolve and the layout and behaviour match the mockup.
-
-### D. Mockup-first
-
-Before writing, consult the project's mockups and UI design spec for intent. A mockup binds layout
-and behaviour; its colours, fonts and pixel sizes only show a role, which the theme's own tokens
-fill. A hardcoded colour that happens to equal the mockup is a defect; a colour that differs
-while the token holds the right role is not.
-
-### E. The flat-render defect
-
-A backend screen renders flat (panes without background or border, invisible muted text, badges
-without fill) when its SCSS chains surface tokens into custom properties the series does not emit
-and a backfill refers to itself (rule A3): every downstream token resolves empty. Fix it once, at
-the foundation: redefine the missing variables anchored to tokens the series emits, each with a
-literal fallback, then verify per § C.
+A stylesheet edit shows only after the bundle is rebuilt: an update of the module on the same
+lease, or `?debug=assets` and a refresh for a file already in the bundle. Read the computed value
+again after that.
 
 ---
 
 ## OWL pitfall catalogue (corrected, version-tagged)
 
-Six classes, each with its symptom, root cause, correct pattern and the series it applies to.
+Each class has its symptom, root cause, correct pattern and the series it applies to.
 
 ### Class 1 - `t-on` arrow `this` binding
 
@@ -224,8 +156,7 @@ Six classes, each with its symptom, root cause, correct pattern and the series i
 - **Root cause / ground truth:** Odoo sets `$variable-prefix: ''` in
   `web/.../scss/bootstrap_overridden.scss:51`, so the runtime custom properties are
   `--primary`, `--o-color-*`, `--gray-*`, etc. (all v16+; re-verify the emitted token set per
-  new major via OSM). Core contains no self-referential variable; that pattern is a pure-CSS
-  authoring mistake (§ A3, § E).
+  new major via OSM). Core contains no self-referential variable (§ Token reality).
 - **Correct pattern:** reference the un-prefixed runtime tokens Odoo actually emits; a variable
   that must be backfilled is redefined non-self-referentially, anchored to an emitted token with
   a literal fallback.

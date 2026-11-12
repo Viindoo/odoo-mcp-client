@@ -15,8 +15,7 @@ token set, or a diff); none judges the meaning of prose.
   2. OSM-first       - skills that spawn/fan-out workers writing Odoo (workflow-chaining,
                        odoo-brl) reference snippets/osm-first-contract.md.
   3. Design-sys      - skills with stack in {frontend, fullstack} reach
-                       skills/_shared/odoo-frontend-fidelity.md (themselves or via an agent
-                       they launch).
+                       snippets/odoo-ui-contract.md (themselves or via an agent they launch).
   4. Instance        - skills with instance_touching=true reference cli_help / the lifecycle
                        docs (so they ground the CLI per target version instead of assuming).
   7. No hardcode / no leak - self-referential CSS custom properties, machine-specific
@@ -132,8 +131,10 @@ def agent_facing_files() -> list[Path]:
 
 
 OSM_SNIPPET = "osm-first-contract"
-DESIGN_DOC = "odoo-frontend-fidelity"
-DESIGN_DOC_PATH = "skills/_shared/odoo-frontend-fidelity.md"
+DESIGN_DOC = "odoo-ui-contract"
+DESIGN_DOC_PATH = "snippets/odoo-ui-contract.md"
+# Skills whose deliverable is an image or a static page, never an Odoo screen.
+UI_CONTRACT_EXEMPT = frozenset({"odoo-doc-illustration"})
 INSTANCE_REFS = ("cli_help", "INSTANCE-LIFECYCLE", "ODOO-TESTING")
 
 # Per-version coding-guidelines SSOT: a root index plus a self-contained directory per series.
@@ -216,6 +217,25 @@ def load_agents():
 def skill_body(name: str) -> str | None:
     p = SKILLS_DIR / name / "SKILL.md"
     return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+def _reaches_ui_contract(name: str, orch: dict, _seen: frozenset = frozenset()) -> bool:
+    """True when the skill, an agent it launches or a skill its `spawns` names cites the UI contract."""
+    if name in _seen:
+        return False
+    entry = orch.get(name) or {}
+    if DESIGN_DOC in (skill_body(name) or ""):
+        return True
+    if any(DESIGN_DOC in (agent_body(a) or "") for a in (entry.get("spawns_agents") or [])):
+        return True
+    chained = {
+        other for other in orch
+        if other != name and any(
+            re.search(rf"(?<![\w-]){re.escape(other)}(?![\w-])", text)
+            for text in (entry.get("spawns") or [])
+        )
+    }
+    return any(_reaches_ui_contract(other, orch, _seen | {name}) for other in chained)
 
 
 def agent_body(name: str) -> str | None:
@@ -1546,7 +1566,7 @@ def main(argv: list[str]) -> int:
         if name in OSM_REQUIRED and OSM_SNIPPET not in body:
             findings.append(f"[osm-first] '{name}' must reference snippets/{OSM_SNIPPET}.md")
 
-        # 3. Design-system fidelity - REACHABILITY on the path, not restatement by the
+        # 3. UI contract - REACHABILITY on the path, not restatement by the
         #    skill. What must hold is that whoever actually renders or styles something is
         #    wired to the contract. For a skill that only DISPATCHES, that actor is the
         #    agent, so an agent-side reference satisfies this rule and the skill needs none.
@@ -1554,16 +1574,13 @@ def main(argv: list[str]) -> int:
         #    contract's content in the caller - the exact duplication
         #    `snippets/dispatch-brief.md` § "A brief carries WHAT and WHY, never HOW" bans.
         #    A leaf/orchestrator-nl skill has no agent to carry it, so it still must cite.
-        if stack in ("frontend", "fullstack") and DESIGN_DOC not in body:
-            reached_via_agent = spawn_class == "spawner-agent" and any(
-                DESIGN_DOC in (agent_body(a) or "")
-                for a in (e.get("spawns_agents") or [])
+        if (stack in ("frontend", "fullstack") and name not in UI_CONTRACT_EXEMPT
+                and not _reaches_ui_contract(name, orch)):
+            findings.append(
+                f"[design-system] '{name}' (stack={stack}) must reference {DESIGN_DOC}.md - "
+                f"or, if it only dispatches, an agent in its spawns_agents or a skill its "
+                f"spawns names must reference it"
             )
-            if not reached_via_agent:
-                findings.append(
-                    f"[design-system] '{name}' (stack={stack}) must reference {DESIGN_DOC}.md - "
-                    f"or, if it only dispatches, an agent in its spawns_agents must reference it"
-                )
 
         # 4. Instance-touching → CLI grounding
         if e.get("instance_touching") and not any(r in body for r in INSTANCE_REFS):

@@ -69,10 +69,10 @@ lint or code-quality cause from a runtime state bug. `set_active_version`; OSM u
    watch the symptom appear and disappear. No toggle possible: say `NOT YET CONFIRMED`.
 6. **Trace both ways** along template and bundle inheritance
    (`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`): what the broken screen inherits or patches, and which
-   other modules inherit the same template, patch the same component or load the same bundle. A
-   token cause is fixed against a real runtime token of the series, never a hardcoded value.
+   other modules inherit the same template, patch the same component or load the same bundle.
 7. **Name the fix location** (file and method or selector), the guideline section the fix must
-   follow and the regression test. Suggest `odoo-coding` as `next:`; you dispatch nothing.
+   follow (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` for a fix that touches a screen) and
+   the regression test. Suggest `odoo-coding` as `next:`; you dispatch nothing.
 8. **Close every page you drove**, opened or reused, before any terminal status
    (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).
 

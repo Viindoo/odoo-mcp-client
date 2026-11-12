@@ -309,7 +309,7 @@ case "${_domain}" in
     # odoo-coding/odoo-debug/odoo-ui-review is wrong for a domain-bucket match with no actual
     # Odoo/Viindoo anchor in the prompt (e.g. a non-Odoo "review this contract" false match).
     if [ "${_odoo_anchor}" = "true" ]; then
-      _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work -> odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity -> see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
+      _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work -> odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Any change to a screen follows snippets/odoo-ui-contract.md (core levers only, both colour schemes, look at the rendered screen)."
       _blocks+=("${_fe_hint}")
     fi
     ;;

@@ -69,7 +69,10 @@ or in a file read by path, is not.
 A behaviour every actor must keep (how to brief, how to report upward, reuse before building,
 current-state writing) is one sentence in the ethos file, paid for by trimming another. A rule of
 one agent's trade lives in that agent's body. A contract holds what several actors need in detail
-at one step of their work.
+at one step of their work. A rule that binds whoever writes one kind of file (a view, a
+stylesheet, a migration) is reached through the "By file type" table of
+`skills/_shared/coding_guidelines/<series>/INDEX.md`, never through one agent's body: the agent
+that ends up writing the file is not always the specialist.
 
 **Changing a rule means changing its sentence.** To stop an instruction that is already shipped,
 remove or rewrite the sentence that states it; never add a later sentence that overrides it - the

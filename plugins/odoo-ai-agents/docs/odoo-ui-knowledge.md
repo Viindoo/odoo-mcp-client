@@ -1,8 +1,7 @@
 # Odoo UI Knowledge (SSOT for visual skills)
 
-Portable, version-aware reference shared by the visual skills (`odoo-ui-review`,
-`odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer` / `odoo-ui-debugger`
-agents. Contains no instance-specific or confidential values - concrete URLs are resolved per-run
+Version-aware reference for whoever opens, captures or rates a rendered Odoo screen. Contains no
+instance-specific values - concrete URLs are resolved per-run
 from the declared instance catalog (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`);
 baseline images live under each
 project's `<SHARE_DIR>/visual/baselines/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
@@ -163,7 +162,8 @@ via a DOM snapshot before attributing the cause to JS.
 
 ## Responsive breakpoints
 
-Use a consistent set for review, regression, and recording so captures are comparable:
+One set for every capture, so captures are comparable. The mobile and the desktop row are the
+phone and the desktop width of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` § 4:
 
 | Breakpoint | Width (px) | Device class |
 |------------|-----------|--------------|
@@ -174,7 +174,7 @@ Use a consistent set for review, regression, and recording so captures are compa
 
 ## Inputs the visual skills resolve
 
-All four skills resolve the same inputs, none of them from a stored project file:
+None of these inputs comes from a stored project file:
 
 - **Odoo series** - `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; selects `/odoo`
   vs `/web` and the framework era above.
@@ -189,10 +189,9 @@ All four skills resolve the same inputs, none of them from a stored project file
   re-navigated post-change (same-instance before/after).
 - **`screenshot_baseline_dir`** - unconditionally `<SHARE_DIR>/visual/baselines/`, holding
   the baseline images. A visual-regression run's own comparison set is
-  NOT here: it is per-run ISOLATE at `<ISOLATE_DIR>/visual/current/<slug>/`, deleted after the
-  Round-4 verdict is recorded, as are per-run acceptance/debug/review evidence and videos - see
-  `state-root-resolution.md` § Where a captured artifact goes; videos default to
-  `<ISOLATE_DIR>/visual/videos/`.
+  NOT here: it is per-run ISOLATE at `<ISOLATE_DIR>/visual/current/<slug>/`. Where each kind of
+  evidence goes and how long it is kept:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 2.
 - **Mockup-first check** - opt-in, activated when `<SHARE_DIR>/mockups/` is non-empty (reference
   mockups/design specs).
 

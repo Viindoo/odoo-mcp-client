@@ -61,24 +61,18 @@ editing or deleting a record, changing its state, or acting as another role is `
 **4. Accessibility and performance.** A Lighthouse audit (output under the same directory); tie
 each accessibility finding to a snapshot node.
 
-**5. Responsive.** Phone, tablet and desktop widths (375, 768, 1280 px), a screenshot at each. A
+**5. Responsive.** A screenshot at each width of `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md`
+§ Responsive breakpoints. A
 headed browser clamps its window width, so measure a phone width headless or by device emulation,
 and judge by the `innerWidth` read inside the page after each resize.
 
-**6. Design system and theme** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`). Read the computed
-value of the tokens on `:root` and on a pane, a muted text and a badge, and flag:
-
-- a token that resolves empty, or to a transparent surface where a fill or border is expected;
-- a custom property that refers to itself, or chains into a token the series does not emit;
-- a hardcoded colour where a runtime token belongs;
-- on a business-module surface: a module-owned custom property, a module class that holds a
-  colour, a theme-fixed utility class, a dark-mode sheet, an inline style or a colour baked into
-  JS - the module must follow a theme's token change with no edit, and the fix lives in the
-  business module, never in a theme;
-- a hardcoded size, font or custom control class where core's own exists: a control takes the
-  class of its neighbouring core control;
-- a layout or behaviour that diverges from the project mockup - the mockup binds layout and
-  behaviour, never palette or sizes.
+**6. Look, layout and theme** (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`). Rule each changed surface against
+§§ 1-3 on what rendered: read the classes of a control and its computed values beside those of a
+neighbouring core control, and the computed value of every custom property the module's rules
+read. Flag a property that resolves empty or to a transparent surface where a fill or border is
+expected (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Token reality), and a
+layout or behaviour that diverges from the mockup (§ 5). The fix of a styling defect lives in the
+business module, never in a theme.
 
 Name the real origin of each token and of each styling
 defect (the module that owns the rule); a finding is a token-and-file pointer, not a patch.
