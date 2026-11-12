@@ -4,8 +4,7 @@
 
 Assembly reference for `static/description/index.html` and related assets of an Odoo App Store
 listing. `{{PRIMARY_HEX}}` resolves from `<SHARE_DIR>/brand-tokens.json` when that file exists - a
-map of CSS custom-property NAME -> COLOUR (e.g. `{ "--primary": "#1E88E5" }`; schema SSOT:
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Brand-token fidelity), read by
+map of CSS custom-property NAME -> COLOUR (e.g. `{ "--primary": "#1E88E5" }`), read by
 VALUE: an unfamiliar token NAME is never a miss, take the colour it maps to - else from user input,
 else the Odoo palette `#714B67`. A typeface never comes from that map: typography is Bootstrap-5
 classes plus inline `font-weight` / `font-size` only. `<SHARE_DIR>` is the captured absolute path

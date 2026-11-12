@@ -80,9 +80,7 @@ value of the tokens on `:root` and on a pane, a muted text and a badge, and flag
 - a layout or behaviour that diverges from the project mockup - the mockup binds layout and
   behaviour, never palette or sizes.
 
-With `<SHARE_DIR>/brand-tokens.json` (token -> expected colour), compare each resolved value with
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py" [--threshold T] <expected> <actual>` and report a
-divergence as a WARN, never a blocker. Name the real origin of each token and of each styling
+Name the real origin of each token and of each styling
 defect (the module that owns the rule); a finding is a token-and-file pointer, not a patch.
 
 **7. Close every page you drove**, opened or reused, before any terminal status

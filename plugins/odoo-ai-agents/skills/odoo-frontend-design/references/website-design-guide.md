@@ -12,7 +12,7 @@ Website content is assembled from snippets that non-technical editors rearrange 
 
 ## Brand/theme tokens
 
-Use the theme's color palette and typography variables so the page inherits the site's identity and a theme switch propagates. Never hardcode brand hex - design to the declared tokens. Brand fidelity is the optional consumer-declared layer described in the fidelity doc.
+Use the theme's color palette and typography variables so the page inherits the site's identity and a theme switch propagates. Never hardcode brand hex - design to the declared tokens.
 
 ## Portal vs marketing
 
