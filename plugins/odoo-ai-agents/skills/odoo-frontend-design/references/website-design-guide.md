@@ -1,19 +1,14 @@
-# Website / Portal / eCommerce Design Guide - Context B
+# Website, portal and eCommerce design guide
 
-Lower-constraint, public-facing, brand-led. A bold, distinctive aesthetic applies here, and only here (never the backend), because the audience is a prospect/customer, not an all-day operator. Still the Odoo theme system, not a blank canvas.
+Public-facing and brand-led: the audience is a prospect or a customer, not an all-day operator.
+It still builds on the theme of the site, not on a blank canvas.
 
-## Theme + Bootstrap, version-grounded
-
-Odoo website builds on a theme layer over Bootstrap, and the Bootstrap major differs per Odoo release. Do not assume a version - ground the grid, utility classes, and breakpoints in the target version's actual Bootstrap (resolve via OSM/fidelity doc). A class that exists in one Bootstrap major may be renamed or gone in another.
-
-## Snippets and the website builder
-
-Website content is assembled from snippets that non-technical editors rearrange in the builder. Design components that survive editing: options the editor expects (color, spacing presets, background), content that reflows when a block is moved or duplicated. A pixel-perfect block that breaks the moment an editor touches it is a design failure, not a coding one.
-
-## Brand/theme tokens
-
-Use the theme's color palette and typography variables so the page inherits the site's identity and a theme switch propagates. Never hardcode brand hex - design to the declared tokens.
-
-## Portal vs marketing
-
-The portal (customer self-service: invoices, orders, tickets) leans back toward Context A discipline - clarity and task-completion over flourish - even though it uses the website stack. Match the register to the job.
+- **Theme and Bootstrap of the series.** The grid, utility classes and breakpoints are those of
+  the Bootstrap the target series ships; a class of one Bootstrap major may be renamed or gone in
+  another. Colours and type come from the theme's palette and typography variables, so a theme
+  switch carries the page with it.
+- **Snippets survive the editor.** Content is assembled from blocks a non-technical editor moves,
+  duplicates and restyles. A block offers the options the editor expects (colour, spacing,
+  background) and reflows when moved.
+- **The portal is a work screen.** Invoices, orders and tickets are tasks: clarity and completion
+  over flourish, as in the backend.

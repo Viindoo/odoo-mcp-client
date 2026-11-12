@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `snippets/odoo-ui-contract.md`, the one set of rules for any change to a screen: paint with
+  core levers only so a theme can restyle the module, keep both colour schemes working (core's
+  dark bundle and its `*.dark.scss` pattern), lay out for the person entering data and for a
+  phone first, look at the rendered screen before reporting, and how a mockup binds. It is
+  reached through the "By file type" rows of the coding guidelines of every series, so whichever
+  agent writes a view, a template, a stylesheet or a component reads it - the node's own coder
+  included, which writes most of them.
+
+### Changed
+
+- `skills/_shared/odoo-frontend-fidelity.md` keeps the frontend eras, the OWL pitfalls and how to
+  read a token's real value; its styling rules moved to the UI contract. A module may scope a
+  custom property to its component with a core variable as fallback, and ship a `*.dark.scss`
+  that overrides it, as core does.
+- `odoo-frontend-design` is a short decision procedure for a screen (job, view type, rank, phone,
+  core first) with two references instead of four.
+- `check_orchestration.py` rule `[design-system]` checks that a frontend or full-stack skill
+  reaches the UI contract, also through a skill it chains.
+
 ### Removed
 
 - The brand-token colour comparison: `scripts/lib/color_delta.py`, the brand tier of

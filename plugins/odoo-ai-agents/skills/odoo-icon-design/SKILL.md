@@ -70,9 +70,7 @@ MCP tool surface for the dispatched agent is the same as `## MCP tools` above - 
 
 The icon deliverable is a rasterized PNG (`static/description/icon.png`, at the size and in the
 style the series' core icons use, measured by the agent), not a live-rendered Odoo UI component -
-the CSS design-token checks in
-`skills/_shared/odoo-frontend-fidelity.md` (which govern RENDERED Odoo screens) do NOT apply to
-it. Palette resolution (brief -> `brand-tokens.json` -> sibling family -> category hue -> Odoo
+`snippets/odoo-ui-contract.md` governs rendered Odoo screens and does not apply to it. Palette resolution (brief -> `brand-tokens.json` -> sibling family -> category hue -> Odoo
 default) and the brand-agnostic, no-vendor-palette rule are owned by `odoo-icon-designer`'s own
 Step 1 and Hard constraints - not restated here.
 

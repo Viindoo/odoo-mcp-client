@@ -7,118 +7,44 @@ description: >-
 
 ## Role
 
-Senior Odoo frontend designer. The **design-quality brain** - the body of taste and judgement
-that decides what "good" looks like inside Odoo, before a line of JS/QWeb/SCSS is written and
-while it is being reviewed. Carries expertise, not actions: never spawns subagents, never calls
-the Skill tool, never writes production code. Its bar is
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a surface a low-IT user
-reads at once, behaving as the same surface behaves in every core app.
+Screen design for Odoo: what a screen holds, in which view type, in what order, for which role.
+Serves a designer or coder who has a screen to decide. Carries judgement, not actions: launches no
+agent, invokes no skill, writes no production code.
+
+The binding rules are `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`; this skill is how to
+decide within them. Its bar is `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`
+§ 0: a screen a user with low IT skills reads at once, behaving as the same screen does in every
+core app.
 
 ## Out of Scope
 
-- **Writing JS / OWL / QWeb / SCSS** → `odoo-coding` (frontend leg; this skill supplies taste, that bundle owns mechanics)
-- **Rating a rendered screen in a live browser** → `odoo-ui-review` (six-lens runtime audit; this skill defines the bar it rates against)
-- **Backend Python/XML / data model** → `odoo-coding`; whole-solution design → `odoo-solution-design`
-- **Token-reality verification mechanics** → `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (SSOT; this skill points there, does not restate them)
+- **Writing views, templates, JS or SCSS** -> `odoo-coding`
+- **Rating a rendered screen in a live browser** -> `odoo-ui-review`
+- **Data model, overrides, whole-solution design** -> `odoo-solution-design`
 
-## The core principle: native first
+## Native first
 
-In the backend, consistency with core IS the feature: a screen that looks and behaves like the
-same screen in every core app is predictable for a user with low IT skills. Distinctiveness lives
-only in hierarchy, density and clarity executed well, and a bolder look only on the website and
-portal side (Context B).
+In the backend, consistency with core is the feature. A custom screen that looks and behaves like
+core inherits its spacing, colour meaning, focus states, density and responsive behaviour, and a
+theme restyles it with the rest. Quality shows in hierarchy, density and clarity, never in a look
+of the module's own. Only the website and portal side is brand-led, and it still builds on the
+theme of the site.
 
-| The ridge | Cliff |
-|---|---|
-| **Native WITHIN Odoo's design system** | Off-theme custom look that clashes with the web client |
+## Deciding a screen
 
-Great Odoo UI feels like Odoo shipped it - and is still unmistakably well-made. Distinctiveness
-comes from **hierarchy, density, clarity, and restraint executed unusually well**, not from
-inventing a parallel visual language. The website/portal side (Context B) has more freedom than
-the backend (Context A); the two contexts have different rules.
-
-> Odoo's design system already solves spacing, color semantics, focus states, density, and
-> responsive behavior consistently across thousands of screens. Reusing it means a custom screen
-> inherits all of that for free. Inventing your own throws that away and you re-solve (usually
-> worse) what the platform already solved.
-
----
-
-## Context A - Backend / web client
-
-High-constraint: forms, list/tree, kanban, pivot/graph/calendar/activity/gantt, search/filter,
-OWL components, QWeb, field widgets. The user is a knowledge worker doing repetitive data work,
-often all day. **Speed, scannability, and predictability beat novelty.**
-
-Full design guide (view-type selection, form hierarchy, density, decorations, responsive,
-widget-first principle):
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-frontend-design/references/backend-design-guide.md`
-
-Quick rules:
-- **View type IS the design** - choosing wrong is the most expensive mistake.
-- **Form = reading order**: statusbar → smart buttons → headline → group columns → notebook → chatter. Rank fields, then place into the slot matching rank.
-- **Standard widget before bespoke** - custom OWL widget = maintenance + a11y liability you own forever.
-
----
-
-## Context B - Website / portal / eCommerce
-
-Lower-constraint, public-facing, brand-led. Real type and aesthetic freedom - but still the Odoo
-theme system, not a blank canvas.
-
-Full design guide (Bootstrap version-grounding, snippet/builder resilience, brand tokens, portal vs marketing):
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-frontend-design/references/website-design-guide.md`
-
-Quick rules:
-- Ground Bootstrap classes in the **target version's** actual Bootstrap - classes differ across majors.
-- Design snippets that **survive editor touches** - a block that breaks when moved is a design failure.
-- Never hardcode brand hex - design to declared theme tokens.
-
----
-
-## Design-quality lenses (Odoo-aware)
-
-Eight lenses: Typography, Spacing/rhythm, Color/semantic tokens, Visual hierarchy, Motion,
-Iconography, Accessibility, Responsive. Full Odoo-specific guidance for each:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-frontend-design/references/design-quality-lenses.md`
-
-Key anchors inline:
-- **Color**: semantic tokens first (`--o-color-*`); never raw hex for a themeable color.
-- **Visual hierarchy**: statusbar > headline > grouped columns > notebook - most important = most prominent.
-- **Accessibility**: design property decided here, not a bolt-on; semantic tokens are already contrast-tuned.
-- **Motion**: sparingly in ERP (200-repetition tasks); freely on website; always `prefers-reduced-motion`.
-
----
-
-## Fidelity discipline - ground tokens in the real, version-specific theme
-
-Design decisions about color, spacing, surfaces, and class names must be grounded in the tokens
-and selectors the **target Odoo version actually emits at runtime** - token names, emitted palette,
-Bootstrap major, and bundle paths all shift between versions.
-
-**Mechanics of verifying token reality live in one place:**
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (SSOT for `resolve_stylesheet` /
-`find_style_override`, the `getComputedStyle` RESOLVE-vs-EMPTY check, recompile-and-reread loop,
-un-prefixed-tokens-not-`--bs-*` rule, self-referential-var trap).
-
-Design rule: **pick tokens, not raw values, and confirm the token exists for the target version
-before relying on it.** A beautiful mockup that references tokens the version does not emit renders flat.
-
----
-
-## Anti-patterns (Odoo-specific)
-
-Full list: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-frontend-design/references/anti-patterns.md`
-
-Top-of-mind:
-- Hardcoding hex for themeable colors
-- Custom CSS that fights the web client (high-specificity selectors)
-- Wholesale-replacing a QWeb template instead of `xpath` inherit
-- Building a bespoke widget when a standard one exists
-- Off-theme "designed" look in the backend (the cliff)
-- A control, menu, search or permission shape of the module's own where core has one
-
----
+1. **The job.** Name the role, what it does on this screen and how often. A screen that serves
+   two jobs is two views.
+2. **The view type.** It is the design; no styling rescues the wrong one. The table and the form
+   slots are in `references/backend-design-guide.md`; a website or portal page follows
+   `references/website-design-guide.md`.
+3. **The rank.** List what the user must see in the first second, on the first scroll, and only
+   when looking for it. Place each item in the slot of its rank, in the order the user enters
+   data.
+4. **The phone.** Read the arch top to bottom as one column: that is the phone screen. Its first
+   screenful holds the first rank.
+5. **Core first.** For every element name the core widget, component or class that provides it
+   in the target series. An element with no core counterpart is a cost the module owns: keep it
+   only when the job cannot be done without it.
 
 ## MCP tools
 
@@ -134,18 +60,7 @@ Top-of-mind:
 
 ## Standalone-first fallback
 
-This is a knowledge skill - its principles (hierarchy, view-type choice, density, semantic tokens,
-the two cliffs) hold whether or not OSM is reachable. What needs grounding is the token/selector
-reality for the target version. When OSM is unreachable, follow the disk-grounded tier in
-`skills/_shared/odoo-frontend-fidelity.md`: `Read`/`Grep` the theme SCSS and asset bundles in the
-addons source to confirm the real variables, Bootstrap major, and emitted palette for the target
-version; label any design relying on them `grounded: local-source - not OSM-indexed`. Only when
-neither OSM nor source is available do you reason from memory - say so and lower confidence. Never
-invent a token or class name as if it were verified.
-
-## Pairs with
-
-- **`odoo-solution-design`** (architect) - consults this skill for UI/UX portion: view-type selection, form hierarchy, where attention lands.
-- **`odoo-coding`** (coder, frontend leg) - consults this skill at build time for taste behind the code; that skill owns era gate, OWL/QWeb/SCSS mechanics, asset wiring.
-- **`odoo-ui-review`** (runtime reviewer) - rates a rendered screen against the quality bar this skill defines; its six lenses map onto the lenses above.
-- **`skills/_shared/odoo-frontend-fidelity.md`** - SSOT for token-reality verification mechanics.
+The steps above hold without OSM. What needs grounding is which widgets, classes and variables
+the target series has: OSM unreachable, read them in the series' `web` addon on disk and label
+the design `grounded: local-source`. With neither, say so and name no class or variable as if it
+were verified.

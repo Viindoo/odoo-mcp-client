@@ -79,7 +79,7 @@ compute, relation, domain or related chain outside `W` passes the index validato
 the definitions on disk. A `BROKEN` or `MISMATCH` changes the design before the document is
 written. What the series and the `depends` closure already offer (a model, a mixin, a wizard, a
 view, a helper) is reused before anything new is designed. A frontend portion: invoke skill
-`odoo-frontend-design` first and keep the token rules of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § B. Token reality. Platform rules:
+`odoo-frontend-design` first and keep `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`. Platform rules:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`,
 `${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Design,
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-ownership-contract.md`.
