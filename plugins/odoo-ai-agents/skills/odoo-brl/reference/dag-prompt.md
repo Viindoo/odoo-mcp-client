@@ -126,7 +126,7 @@ OUTPUT FORMAT (JSON only, no prose, no markdown fence):
 If there are no intra-cluster dependencies, output: {"cluster_id": "...", "edges": []}
 
 CONSTRAINTS (when this runs as a subagent):
-- Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.
+- Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Write/Bash.
 - Output ONLY the JSON object. No surrounding text.
 
 REQUIREMENTS IN THIS CLUSTER:

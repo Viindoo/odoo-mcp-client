@@ -24,7 +24,7 @@ Look at the launch tool you hold before you launch.
 
 **An async receipt under move 2.** A launch, or a resume send to a child
 (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A), that hands back
-`Async agent launched successfully`: stay in your turn. Wait with the Monitor tool or a short
+`Async agent launched successfully`: stay in your turn. Wait with `Monitor` (load it first) or a short
 `until` loop (a bare `sleep` is refused) until the completion notification arrives at a tool
 round, then read the result. Every response before that carries a tool call.
 
@@ -49,7 +49,7 @@ any work under `COMMIT: caller`.
 `Bash` says you will be notified when a backgrounded command completes. That holds for the main
 conversation only. A dispatched agent's turn end is the end of its dispatch, so the result is
 reachable only inside the turn that started the command: start it, wait in the same turn with
-foreground calls (the Monitor tool or a short `until` loop), read its output file, and repeat until
+foreground calls (`Monitor` or an `until` loop), read its output file, and repeat until
 it is done. Every response before the result carries a tool call. When the result cannot be had in
 this turn, kill the command or report `BLOCKED` naming its output path - never a completion claim
 over output you did not read. `Bash`'s `run_in_background` is a different parameter from the

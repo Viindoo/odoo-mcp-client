@@ -21,14 +21,14 @@ Every lease, build, wait and serve goes through the odoo-local MCP tools. Unavai
 
 - **Ownership is the `run_id`.** Pass the brief's `RUN_ID` on every lease, status and serve-by-series call; never invent one - the tool's `RUN_ID_REQUIRED` is your `NEEDS_CONTEXT(RUN_ID)`. Release or park only a lease you obtained in this dispatch (`lease_acquire`, `lease_adopt`, a serve by `series`). A forwarded `INSTANCE_HANDLE` is the caller's: build and serve on it, never release or park it.
 - **A tool error carries a code and a remedy: follow the remedy.** Never retry the same call blind, and never reword or re-route a call to get past a refusal.
-- **Databases are created and dropped through Odoo**, never with raw `createdb` or `dropdb`: an `ephemeral` lease reserves a name, the first `init` build creates the database, `lease_release` drops it. The server keeps the session's leases fresh; you send no heartbeat.
+- **Databases are created and dropped through Odoo**, never with raw `createdb` or `dropdb`: an `ephemeral` lease reserves a name, the first `init` build creates the database, `lease_release` drops it.
 - **Every lease you obtained leaves by one of three exits before your terminal status**, on any status: `lease_release` (database no longer wanted), `lease_park` (still wanted, server can stop), or its `INSTANCE_HANDLE` forwarded to a named catcher in `next.inputs` (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1, T4). When the harness denies a release or a park, do not re-issue or re-route it and do not edit a permission setting: forward the handle (every field of the latest `instance_handle`) to your caller, quote the refusal, keep the honest status.
 
 ## Before any operation
 
 **A - Series.** The brief's; absent, `catalog_locate` with `WORKTREE_PATH` (else your cwd), else `series_detect` on the checkout. Its `NEEDS_CONTEXT` is never guessed past.
 
-**B - Version and CLI.** `set_active_version` once as the reachability probe, then pass the concrete `odoo_version` on every OSM call. Ground the series' `odoo-bin` flags with `cli_help` (`server` and `db`) before passing any; when it is silent or stale, read `odoo/tools/config.py` and `odoo/cli/db.py` of the lease's own checkout and write `grounded: local-source` in `notes`. OSM unreachable: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
+**B - Version and CLI.** OSM's `set_active_version` once as the reachability probe (an Odoo Semantic tool, as is `cli_help`; not odoo-local), then pass the concrete `odoo_version` on every OSM call. Ground the series' `odoo-bin` flags with `cli_help` (`server` and `db`) before passing any; when it is silent or stale, read `odoo/tools/config.py` and `odoo/cli/db.py` of the lease's own checkout and write `grounded: local-source` in `notes`. OSM unreachable: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
 
 **C - Interpreter.** Builds and serves run on the venv python the lease records. No `python` in the catalog row, or `FRESH_VENV: true`: build the venv first and acquire only after it exits 0; a failure is `NEEDS_CONTEXT` quoting its message, never a system `python3`. Never rebuild a venv under an `INSTANCE_HANDLE` (a handle plus `FRESH_VENV: true` is `NEEDS_CONTEXT(FRESH_VENV)`). Snippet § Step C detail.
 

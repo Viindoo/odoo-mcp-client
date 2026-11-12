@@ -72,7 +72,7 @@ amend it before you report. When required for an existing range: `git rebase --s
 
 ## C5 - Multi-line commit message
 
-Write the message with the file tool into a file beside the findings file:
+Write the message with the `Write` tool into a file beside the findings file:
 
 ```
 <type/tag>: business-outcome subject (<= 72 chars)

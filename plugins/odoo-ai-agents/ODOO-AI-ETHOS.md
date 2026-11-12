@@ -56,6 +56,11 @@ handle, worktree and open page held; every limit or decision the human stated, q
 gone and a skill invoked long ago may be gone too: invoke again the skill the notice names as in
 progress, and re-read the exact text of any file a decision depends on before the next write.
 
+**Call a tool the session has.** Use the exact name the session lists (`Bash`, never `bash`). A
+tool listed by name only is loaded with `ToolSearch` before its first call, every tool the step
+needs in one query. A name the session does not list (`Grep`, `Glob`) is not called: search and
+list files through `Bash`.
+
 **Read before you ask.** This binds every asker: the main agent asking a human, a subagent asking
 its caller. Before the question, study what it turns on - the business flow and the roles it
 serves, and the technical structure it touches (the modules, the override chain, the data) - in the

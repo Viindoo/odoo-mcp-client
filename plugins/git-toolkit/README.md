@@ -33,9 +33,9 @@ monorepo, but domain-agnostic: it has no Odoo dependency.
 
 | Agent | Role | Spawns? | Tools |
 |---|---|---|---|
-| `git-surveyor` | read-only cognition (map / evaluate / verify) | no | Read, Grep, Glob, Bash (gh read-only); no GitHub MCP |
-| `git-operator` | local mutation (integration + destructive rewrite) | no | Read, Grep, Glob, Edit, Write, Bash |
-| `github-operator` | GitHub API (MCP-first / gh-fallback) | no | Read, Grep, Glob, Bash + GitHub MCP |
+| `git-surveyor` | read-only cognition (map / evaluate / verify) | no | Read, Bash (gh read-only); no GitHub MCP |
+| `git-operator` | local mutation (integration + destructive rewrite) | no | Read, Edit, Write, Bash |
+| `github-operator` | GitHub API (MCP-first / gh-fallback) | no | Read, Bash + GitHub MCP |
 | `git-pipeline-lead` | orchestrator for large changes (runs P1-P5) | yes (only spawner) | all |
 
 Only `git-pipeline-lead` can spawn sub-agents; the leaves cannot. This depth guard caps nesting at

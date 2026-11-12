@@ -98,7 +98,7 @@ rolling window. Prefer CHP Tier-B `subagent_type: "fork"`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`); if fork is unavailable, launch a
 fresh `odoo-gap-analyzer` (Tier-C) carrying the explicit brief. Each worker brief carries:
 1. **Leaf restrictions** - `Do NOT invoke the Skill tool. Do NOT spawn a sub-agent. Use
-   Read/Grep/Glob/Bash + OSM MCP only; the ONLY file you Write is your own shard.`
+   Read/Bash + OSM MCP only; the ONLY file you Write is your own shard.`
 2. **Scope, hard** - this cluster's requirements (each `req_id` + text) and the `<area>` label.
 3. **Version + profile pin** - the concrete series and profile name Round 0 resolved; pass the
    concrete version on EVERY OSM call, never `'auto'`.
@@ -129,7 +129,7 @@ classification tier:
    `module_inspect` / `find_examples`). Use **`grounded: hybrid`** when an OSM hit is completed by
    a local-source read of a customer-local entity (a Tier-1 MISS).
 2. **`grounded: local-source`** - OSM is unreachable (incl. timeout/hang) or returned a Tier-1
-   MISS, and the fact was read from a local checkout (`Read`/`Grep` the addons, or `WebFetch`
+   MISS, and the fact was read from a local checkout (`Read` or `grep` the addons, or `WebFetch`
    upstream for the pinned version).
 3. **`grounded: unknown`** - neither OSM nor a checkout can ground the requirement. Mark the row
    `grounded: unknown` with `notes: "BLOCKED - needs OSM index or checkout"`.

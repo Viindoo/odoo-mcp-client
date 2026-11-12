@@ -87,6 +87,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   section of `xml.md` covers every view type and now exists for every series with guidelines
   (core's `base` test still enforces the list and form subset where it ships), and the reviewer's
   mechanical pass (R1) flags a field that misses the comment.
+- Agents call tools the session has. Over 30 days of local sessions, 1,084 tool calls failed on
+  the tool's name: a tool listed by name only called before it was loaded (625), `bash` for `Bash`
+  (226), an index tool called under the `odoo-local` server prefix (123), `Grep` or `Glob`, which
+  current Claude Code no longer offers by default (75). `ODOO-AI-ETHOS.md` #2 now says: use the
+  exact name the session lists, load a tool listed by name only with `ToolSearch` before its
+  first call, and search and list files through `Bash`. `odoo-instance-ops` says its two index
+  tools are Odoo Semantic tools, not odoo-local ones. Tool grants that named `Grep` or `Glob`
+  (`odoo-gap-analyzer`, `odoo-translator`, the worker briefs of `odoo-brl`, `odoo-gap-analysis`
+  and `workflow-chaining`) name `Read`, `Write`, `Edit` and `Bash`. `git-toolkit`'s three
+  execution agents no longer list `Grep` and `Glob` in `tools:`, where a list that holds `Bash`
+  never received them. (`git-toolkit` 0.10.0 -> 0.10.1.)
 - The test suite's result no longer depends on which variables a developer's shell exports. The
   variables the plugin reads by name - the configured values (`SPEECH_API_KEY`, `YOUTUBE_CLIENT_ID`,
   `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_REFRESH_TOKEN_<SLOT>`), the database
