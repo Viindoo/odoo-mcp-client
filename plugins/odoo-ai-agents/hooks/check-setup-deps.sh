@@ -73,6 +73,21 @@ if [ "${#_unread[@]}" -gt 0 ]; then
   echo "i  browser MCP flags not checked ($(_join "${_unread[@]}") config unreadable) - if captures are refused, run /odoo-ai-agents:odoo-setup browser, then restart the session." >&2
 fi
 
+# (e2) Claude Code's temp directory is the system one and that is memory-backed: setup step
+# 36-claude-tmpdir can move it into the state root. Said only when the step has something to
+# propose (nothing set by the user, no opt-out) AND the filesystem is memory-backed, so a user
+# whose temp directory is on disk is never nagged. Local reads only (settings file, mount table).
+if command -v python3 >/dev/null 2>&1 && [ -f "${_plugin_lib}/claude_tmp.py" ]; then
+  # shellcheck source=../scripts/lib/run_bounded.sh
+  . "${_plugin_lib}/run_bounded.sh" 2>/dev/null || run_bounded() { shift; "$@"; }
+  _tmp_facts="$(run_bounded 3 python3 "${_plugin_lib}/claude_tmp.py" measure 2>/dev/null || true)"
+  if [ "$(sed -n 's/^ACTION=//p' <<<"${_tmp_facts}")" = "propose" ] \
+     && [ "$(sed -n 's/^CURRENT_TEMP_MEMORY_BACKED=//p' <<<"${_tmp_facts}")" = "yes" ]; then
+    echo "i  Claude Code's temp directory is memory-backed and never emptied - run" \
+      "/odoo-ai-agents:odoo-setup tmp to move it to disk, then restart the session." >&2
+  fi
+fi
+
 # (f) the one-line result of the upgrade pass the odoo-media server ran when the plugin version
 # changed (it moved earlier values into the plugin configuration): shown once, then removed.
 _state_home="${ODOO_AI_HOME:-${HOME}/.odoo-ai}"

@@ -26,6 +26,9 @@
 #   3. `reap-orphans` in its DEFAULT list-only mode - see "Discovery half" below.
 #   4. Files the browser MCP servers wrote on their own under the state root, past their age
 #      limit (`browser_mcp_servers.py prune`; never a per-repo state dir).
+#   5. Session folders of Claude Code's own temp directory that nothing touched for 30 days
+#      (`claude_tmp.py sweep`; only the directory setup step 36-claude-tmpdir keeps in the state
+#      root, never the system temp directory or any other location).
 # Every other session's live lease is untouched: the registry is MACHINE-GLOBAL (every concurrent
 # session on this host writes the same leases.json), so a sweep that is not scoped by session
 # anchor is a sweep over other people's work in progress.
@@ -248,6 +251,12 @@ _run_worker() {
     # launcher applies at every start: scripts/lib/browser_mcp_servers.py prune.
     if [[ -f "$lib_dir/browser_mcp_servers.py" ]]; then
         run_bounded "$PRUNE_TIMEOUT_S" python3 "$lib_dir/browser_mcp_servers.py" prune >/dev/null 2>&1 || true
+    fi
+
+    # Claude Code's own temp directory, but only the one setup step 36-claude-tmpdir put in the
+    # state root: session folders nothing touched for 30 days (scripts/lib/claude_tmp.py sweep).
+    if [[ -f "$lib_dir/claude_tmp.py" ]]; then
+        run_bounded "$PRUNE_TIMEOUT_S" python3 "$lib_dir/claude_tmp.py" sweep >/dev/null 2>&1 || true
     fi
 
     # Discovery half: default (list-only) reap-orphans, persisted so a human can

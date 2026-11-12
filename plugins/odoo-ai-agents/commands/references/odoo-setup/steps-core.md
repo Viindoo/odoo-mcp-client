@@ -20,6 +20,8 @@ c. Run `"$s" apply` and stream its output to the user.
      rephrased for the operator ("Your skill list is longer than the AI is shown by default, so
      it rarely picks a plugin skill on its own; I can raise that limit in your user settings, at
      about <N> words more per message. Do it?"), and the run is `apply --yes`.
+   - For `36-claude-tmpdir`, the plan carries its `propose` output's `QUESTION` in the
+     operator's words, and the run is `apply --yes`.
    - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
      one at CONFIRM #7 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
    - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
@@ -103,6 +105,20 @@ session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Th
   `"$STEPS_DIR/35-skill-listing-budget.sh" apply --yes`; on a no, run nothing. It writes only
   the USER settings file (`$CLAUDE_SETTINGS`), never a project or local one, never lowers a
   value, and asks for a restart. Honours `ODOO_AI_NO_LISTING_BUDGET=1`.
+- **36-claude-tmpdir** - offers to keep Claude Code's own temporary files (session scratchpads,
+  background task output, pasted images, edit diffs) under the state root instead of the system
+  temporary directory, which on many machines is memory-backed and is never cleaned by Claude
+  Code. Run `"$STEPS_DIR/36-claude-tmpdir.sh" propose` and read `ACTION`:
+  `set-in-environment` / `set-in-settings` -> the user already chose a directory; report the
+  `NOTE` and move on. `settings-invalid` -> report the `NOTE` (the settings file must be fixed
+  first). `propose` -> put the `QUESTION` to the user with AskUserQuestion, with
+  `CURRENT_TEMP_ROOT`, whether it is memory-backed and the `TARGET`; relay a `NOTE` when one is
+  printed. Only on a yes run `"$STEPS_DIR/36-claude-tmpdir.sh" apply --yes`; on a no, run
+  nothing. It creates the directory for the user alone and writes one `env` entry in the USER
+  settings file, never a project or local one, and never changes a value already set. The
+  change applies to Claude Code sessions started afterwards: say so. From then on, each session
+  end removes what a session left there once nothing in it changed for `SWEEP_MAX_AGE_DAYS`
+  days. Honours `ODOO_AI_NO_CLAUDE_TMP=1`.
 - **40-instance-profile** - writes `$ODOO_AI_HOME/instances.toml` as
   `[[instance]]` array-of-tables entries from the confirmed spec passed via
   `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` does
