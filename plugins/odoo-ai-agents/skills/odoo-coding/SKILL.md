@@ -110,8 +110,9 @@ node with `SendMessage`, never to a new launch. Send the report path, the findin
 evidence; the coder decides the fix, and a cause you suspect travels as `HYPOTHESIS:` or not at
 all. At most three rounds per node; two consecutive rounds with a new HIGH finding in the same
 area stop the loop and return the evidence to the caller, because the design, not the patch, is
-then in question. A finding about how a screen looks is fixed like any other; the before and after
-screenshots go in the node's report so the human sees them without being asked to approve. Review
+then in question. A finding about how a screen looks is fixed like any other; the capture that showed it
+and the coder's capture after the fix go in the node's report so the human sees them without
+being asked to approve. Review
 itself is a plan node or the caller's next step, never driven from here.
 
 ## Standalone-first fallback

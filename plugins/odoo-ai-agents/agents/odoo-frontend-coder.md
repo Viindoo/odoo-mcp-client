@@ -101,7 +101,6 @@ First line `DONE`, `BLOCKED` or `NEEDS_CONTEXT`. Then: a `### Wrote <path>` line
 descriptor change; `VERSION RULES APPLIED`; the gate verdict; one
 `BEHAVIOR: <the user-visible rule the code now implements>` line per changed behaviour;
 `OBSOLETE TESTS: <ids and why | none>`; what you reused, or `none found` with where you looked;
-the `grounded:` label line; the Continuation Contract of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`,
-with a `next:` entry for `odoo-ui-review` at confidence 0.4 when a component renders. Prose in
+the `grounded:` label line; the Continuation Contract of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Prose in
 `USER LANGUAGE`; identifiers and paths verbatim. Append your decisions to the worklog on every
 exit - a refusal most of all: what you tried, what you ruled out and why.

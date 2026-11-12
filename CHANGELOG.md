@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   agent writes a view, a template, a stylesheet or a component reads it - the node's own coder
   included, which writes most of them.
 
+- Whoever changes a screen looks at it. `odoo-coder` runs the static frontend gate and, after its
+  whole-node run, opens each changed screen at the desktop and the phone width (and in the dark
+  scheme when the instance has a theme that renders it), keeps the captures and a contact sheet
+  with the node's files, and fixes what it sees before it reports. A plan's default tail has a
+  `ui-review` node (`odoo-ui-review`, which builds its own demo instance) whenever the diff
+  touches a screen; its findings join the fix round. `odoo-ui-reviewer` takes `SCREENS`, `ROLE`
+  and `MOCKUPS`, captures both schemes where it can, and compares a screen with its mockup by
+  structure and with core by classes and computed values.
+
 ### Changed
 
 - `skills/_shared/odoo-frontend-fidelity.md` keeps the frontend eras, the OWL pitfalls and how to
@@ -24,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   that overrides it, as core does.
 - `odoo-frontend-design` is a short decision procedure for a screen (job, view type, rank, phone,
   core first) with two references instead of four.
+- The plan's `acceptance` node also runs for a diff that only changes a stylesheet or a
+  template. Outside a plan, `odoo-code-review` still launches the UI reviewer when an instance
+  exists; its brief now carries the `SLUG` the reviewer requires, and R2 merges its findings.
 - `check_orchestration.py` rule `[design-system]` checks that a frontend or full-stack skill
   reaches the UI contract, also through a skill it chains.
 

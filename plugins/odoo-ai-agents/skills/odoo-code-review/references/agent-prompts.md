@@ -65,10 +65,11 @@ Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLU
 ```
 USER LANGUAGE: <lang>
 ODOO_VERSION: <version>
+SLUG: <slug>-<date>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>
-Review the RENDERED UI for module <module> on these screens: <view, action and menu xml_ids from
-CHANGED_SET>. INSTANCE_HANDLE: <handle>; browser headless by default.
-SRS: <path | none> - when present, verify the UI-observable acceptance criteria.
+SCREENS: <view, action and menu xml_ids from CHANGED_SET, of module <module>>
+INSTANCE_HANDLE: <handle>
+DESIGN_DOC: <path | none>   MOCKUPS: <paths | none>
 ARTIFACT_FILE: <ISOLATE_DIR>/reviews/<slug>-<date>/ui-review-<module>.md
-Return a short summary (per-lens PASS/WARN/FAIL + top finding) and the artifact path.
+Return a short summary (per-section PASS/WARN/FAIL + top finding) and the artifact path.
 ```

@@ -864,10 +864,19 @@
           "SLUG"
         ],
         "optional": [
+          "SCREENS",
+          "ROLE",
+          "INSTANCE_HANDLE",
+          "ODOO_VERSION",
+          "SHARE_DIR",
+          "ISOLATE_DIR",
+          "DESIGN_DOC",
+          "MASTER_DESIGN_DOC",
+          "MOCKUPS",
           "ARTIFACT_DIR",
           "ARTIFACT_FILE",
-          "USER LANGUAGE",
-          "BROWSER MODE"
+          "BROWSER MODE",
+          "USER LANGUAGE"
         ]
       }
     },

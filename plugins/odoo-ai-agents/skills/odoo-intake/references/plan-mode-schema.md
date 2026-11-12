@@ -79,9 +79,12 @@ Template:
       depends-on: review-r1
   [acceptance] [repo: fleet-addons] [agent: odoo-qa-tester A1A2 @ haiku]
       depends-on: verify
-      when: the diff touches a view, menu, report, controller, JS file, or a state change of a model with a workflow
+      when: the diff touches a screen, a menu, a controller, or a state change of a model with a workflow
+  [ui-review] [repo: fleet-addons] [skill: odoo-ui-review]
+      depends-on: verify
+      when: the diff touches a screen
   [fix-round] [repo: fleet-addons] [inline: merge findings, SendMessage the node's coder]
-      depends-on: review-r2, acceptance
+      depends-on: review-r2, acceptance, ui-review
   [i18n] [repo: fleet-addons] [agent: odoo-translator @ sonnet]
       depends-on: fix-round
       when: the .pot exported on the stable tip has a msgid the committed .pot lacks
@@ -182,20 +185,26 @@ place; the rest keep their order.
   model: haiku
   # model sonnet when a Given needs a fixture built (concurrency-guard.md, Model-tier selection)
   depends_on: [<last verify>]
-  when: the diff touches a view, menu, report, controller, JS file, or a state change of a model with a workflow
+  when: the diff touches a screen (odoo-ui-contract.md), a menu, a controller, or a state change of a model with a workflow
   # A4 (mode A4, model sonnet) follows when audience is not n/a and the diff adds or changes a screen
+- id: ui-review
+  approach: odoo-ui-review   # invoked inline with SCREENS = the screens the diff touches, the design's MOCKUPS and SELF_PROVISION: worktree-addons
+  approach_kind: skill
+  depends_on: [<last verify>]
+  when: the diff touches a screen (odoo-ui-contract.md)
 - id: fix-round
   approach_kind: inline
   approach: >-
-    merge the findings of review-r2 and acceptance, deduplicated by symbol and line and
-    classified per acceptance-oracle-contract.md; SendMessage the node's coder once with the
+    merge the findings of review-r2, acceptance and ui-review, deduplicated by symbol and line
+    and classified per acceptance-oracle-contract.md; SendMessage the node's coder once with the
     findings and their evidence, never a fix direction; a finding about how a screen looks is
-    fixed like any other and its before and after screenshots go in the run summary for the
-    human, with no approval asked; then
-    SendMessage review-r2 (FIX_DIFF) and acceptance (the failed and the touched scenarios);
+    fixed like any other, and the capture that showed it and the coder's capture after the fix
+    go in the run summary for the human, with no approval asked; then
+    SendMessage review-r2 (FIX_DIFF), acceptance (the failed and the touched scenarios) and the
+    reviewer of ui-review (the screens the fix touched);
     at most 3 rounds; two consecutive rounds with a new HIGH in the same area stop the run
     and return to the design
-  depends_on: [review-r2, acceptance]
+  depends_on: [review-r2, acceptance, ui-review]
 - id: i18n
   approach: odoo-translator
   approach_kind: agent
@@ -359,7 +368,7 @@ brief asks for it; what existing data of the same series needs goes in its workl
 `migration` node (a node of a series upgrade or a forward-port writes no such note). Return: the
 commit range `<base>..<head>` on the node's branch. A tail
 node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
-`odoo-i18n`, `odoo-doc-illustration`) with `WORKTREE_PATH: <repo>/run-integration` and
+`odoo-i18n`, `odoo-doc-illustration`; `odoo-ui-review` takes the inputs its body lists) with `WORKTREE_PATH: <repo>/run-integration` and
 `SELF_PROVISION: worktree-addons` where the agent builds its own instance (i18n always: an export
 build needs demo data and the target languages, which a test lease cannot provide). `migration`
 (`odoo-data-migration`, which launches `odoo-coder` in `MODE: migration` and an R1 review) gets `WORKTREE_PATH: <repo>/run-integration`, `ODOO VERSION`, `DESIGN_DOC`, `WORKLOG` and the changed

@@ -1,10 +1,10 @@
 {
   "agents": {
     "plugins/odoo-ai-agents/agents/odoo-code-reviewer.md": {
-      "bytes": 14373
+      "bytes": 14334
     },
     "plugins/odoo-ai-agents/agents/odoo-coder.md": {
-      "bytes": 14808
+      "bytes": 14695
     },
     "plugins/odoo-ai-agents/agents/odoo-instance-ops.md": {
       "bytes": 15915

@@ -159,9 +159,7 @@ cause. Fix to that root cause only.
 Decisions (scope, cap 3, BLOCKED, fix loop, no inline review, gate to P5): the SKILL.md pipeline bullet P4b. `TARGET: worktree:<path>/upg-integration`, module-scoped; DELETE-absorbed / OBSOLETE modules have no adapt diff and are skipped. MED/LOW are recorded for the P7 review and do not block; the final dep-order review stays at P7.
 
 **P4b acceptance hand-off (consumption clause).** Each dispatched `odoo-code-review`'s
-Continuation Contract MAY carry a `next: odoo-acceptance` entry - its Phase A.5 emits this
-whenever a module's `render_check_set` reaches beyond that module (dependents bind a changed
-symbol). Do NOT act on it per module here; ONE cluster-wide dispatch at P5.8 covers it.
+Continuation Contract MAY carry a `next:` entry for a live pass. Do NOT act on it per module here; ONE cluster-wide dispatch at P5.8 covers it.
 
 For each adapted module in topo_order (leaves first); skip DELETE-absorbed/OBSOLETE (no adapt diff):
 
