@@ -1,86 +1,75 @@
-# Expected-Log Contract (capture or mute the log a guard legitimately emits)
+# Expected-Log Contract (a test run logs no WARNING and no ERROR)
 
-A test whose code path legitimately emits a WARNING/ERROR and does NOT capture or mute it leaks
-expected noise into CI and Runbot logs, so real failures are harder to spot. Wrap that log; assert
-the behavior.
+A CI that grades a build by its log, Odoo's runbot among them, reports a build whose tests all
+pass but whose log holds a WARNING as passed with warnings, and one whose log holds an ERROR as
+failed. A test run is clean only when its log holds neither.
 
-## The rule, stated once
+## The rule
 
-Every test that drives a code path which ACTUALLY emits a WARNING or ERROR does one of:
+A test that drives a code path which logs a WARNING or an ERROR wraps that log, in the way the
+intent of the test decides:
 
-- **Capture** it with `self.assertLogs(logger, level)` and assert that the logger fired at that
-  level - `len(cm.records)`, `cm.records[0].levelname` - never the message wording (it is display
-  text: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never assert TRANSLATED or
-  DISPLAY text (HARD RULE)). Use it when the log IS part of the observable behavior (a guard that
-  logs and skips).
-- **Mute** it with `@mute_logger('odoo.<logger>')` or `with mute_logger(...)` when the log is
-  incidental noise of a sub-call whose behavior is asserted elsewhere.
-
-Either way, the behavioral assertions stay: the exception TYPE and the record's field values /
-state unchanged. Use `assertLogs` only when the path really logs - never "by default": a
-constraint `ValidationError` raised on save emits no WARNING, so `assertLogs(..., 'WARNING')`
-around it fails on correct code. Before wrapping, find the `_logger.warning` / `_logger.error` call
-on the path and its level in the target series (OSM or the source), or read it in a run's log.
-
-An unwrapped test that emits expected WARNING/ERROR noise is incomplete; a reviewer flags it HIGH.
-
-## assertLogs vs mute_logger (the decision rule)
-
-**Prefer `self.assertLogs(logger, level)` when** the WARNING is the signal that the guard fired,
-so removing the guard must make the test fail:
+- **Capture** when the log is the behaviour under test (a guard that logs and skips), so that
+  removing the guard makes the test fail. Assert that the logger fired at that level, never the
+  wording of the message (`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never
+  assert TRANSLATED or DISPLAY text (HARD RULE)):
 
       with self.assertLogs('odoo.addons.<module>.models.<file>', 'WARNING') as cm:
           order.with_user(self.salesman).action_sync()   # the guard logs, then skips the sync
       self.assertEqual(cm.records[0].levelname, 'WARNING')
       self.assertEqual(order.sync_state, 'skipped')
 
-**Reserve `@mute_logger` / `with mute_logger(...)` when** the log is incidental noise from a
-sub-call already asserted by a dedicated test elsewhere - e.g. `odoo.sql_db` noise during a
-uniqueness check covered by its own constraint test.
+- **Mute** when the log is a side effect of the path and the test asserts something else (the
+  exception type, the record left unchanged): `from odoo.tools import mute_logger`, then
+  `@mute_logger('<logger>')` over a test whose whole body logs, `with mute_logger('<logger>'):`
+  around the one operation that does. Name the exact logger, never a parent that hides other logs.
 
-Do NOT use `mute_logger` to silence a warning you do not understand. Investigate first; suppress
-only when the guard is confirmed tested elsewhere.
+Either way the behavioural assertions stay. Wrap only a log the path really emits: find the
+`_logger.warning` / `_logger.error` call on the path and its level at the target series (OSM or
+the source), or read the line in a run's log. A constraint's `ValidationError` logs nothing, so
+`assertLogs` around it fails on correct code.
 
-## 3-layer decision matrix
+A log the test did not mean to cause is never muted: the code or the test's data is wrong, and
+that is what gets fixed.
+
+## The proof
+
+The run of the tests you wrote or changed ends `tests-passed` with no warning counted. Each
+WARNING or ERROR line of the run's findings file is settled before you report: wrapped as above
+when a test of yours causes it on purpose, fixed at its cause otherwise (a module that warns while
+it loads - a model without an access rule, a view or a field definition core complains about - is
+a defect of the module), then the run is repeated. A line that comes from code the change does
+not touch goes to your caller with the line quoted.
+
+A test that leaves an expected WARNING or ERROR unwrapped is a HIGH review finding.
+
+## Per layer
 
 | Layer | Trigger | Wrap with | Assert |
 |---|---|---|---|
-| Python server log | the path calls `_logger.warning` / `_logger.error` | `with self.assertLogs('<logger>', 'WARNING') as cm:` (log is the behavior) or `@mute_logger('<logger>')` (noise) | the outcome (exception TYPE / state) + `cm.records` at that level from that logger - never the wording |
-| SQL constraint | DB-level constraint raises `IntegrityError` at flush time | `with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):` then call `rec.flush_recordset([...])` inside the block | the `IntegrityError` is raised; `flush_recordset` forces flush-time constraint fire (do NOT rely on implicit flush at end of test) |
-| JS-OWL (per framework) | OWL error path / console ERROR in a JS deny-path test | resolve the framework at runtime - see section below | uncaught error is prevented / expected error is recorded by the framework |
+| Python server log | the path calls `_logger.warning` / `_logger.error` | `assertLogs` (the log is the behaviour) or `mute_logger` (a side effect) | the outcome (exception TYPE, state) and, when captured, `cm.records` at that level |
+| SQL constraint | a database constraint raises `IntegrityError` at flush time | `with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):` with `rec.flush_recordset([...])` inside the block | the `IntegrityError`; without the explicit flush Odoo may write after the block and the test passes whatever the constraint does |
+| JS (per framework) | an error path or a console error in a JS test | the idiom of the suite's framework, below | the expected error is recorded, an uncaught one is prevented |
 
-For the SQL constraint row: `flush_recordset` is mandatory because Odoo may batch the SQL
-write; without an explicit flush the constraint does not fire inside the `assertRaises` block
-and the test gives a false green.
+## JS framework split (resolve at runtime - never hardcode)
 
-## JS-OWL framework split (resolve at runtime - never hardcode)
-
-Resolve the target Odoo series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
-Never default to a series, and never take the series off a SHORT manifest `version` - that ladder's
-rung 3 already applies the only valid test. An unresolved series is `NEEDS_CONTEXT`, never a guess.
-Then call `js_test_inspect(module=..., odoo_version=...)` to confirm the per-module framework before
-emitting any JS test code. Which series ship which framework, and that both can coexist in one
-series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 2 - never map a series to a
-framework from memory.
+Resolve the target Odoo series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`;
+an unresolved series is `NEEDS_CONTEXT`, never a guess. Then call
+`js_test_inspect(module=..., odoo_version=...)` to confirm the module's framework before writing
+any JS test code. Which series ship which framework, and that both can coexist in one series:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 2 - never map a series to a framework
+from memory.
 
 **QUnit suites:**
 
-- Silence a console ERROR: `patchWithCleanup(console, { error() {} });`
-- Silence a console ERROR on a subtree: `hushConsole(target);`
+- Silence a console error: `patchWithCleanup(console, { error() {} });`, or `hushConsole(target);`
+  on a subtree.
 - For an uncaught promise rejection: handle `PromiseRejectionEvent` / `Event("error")` and
   assert `ev.defaultPrevented`.
-- QUnit has NO `expectErrors` API - do not write `expectErrors(...)` in a QUnit test.
+- QUnit has no `expectErrors` API.
 
 **Hoot suites:**
 
-- Record an expected error: `expectErrors('message or pattern');`
-- Hoot asserts that the expected error actually occurred; the test fails if it does not fire.
-- Do NOT use `patchWithCleanup(console, ...)` as the primary suppress mechanism in Hoot -
-  use `expectErrors` so the assertion is explicit.
-
-## mute_logger import
-
-    from odoo.tools import mute_logger
-
-Use it as a decorator when the whole test body is noisy, as a context manager when only one
-sub-operation is.
+- Record an expected error: `expectErrors('message or pattern');` - Hoot fails the test when the
+  error does not occur.
+- `patchWithCleanup(console, ...)` is not the way to silence an expected error in Hoot.

@@ -59,7 +59,8 @@ asserted to flag and allow, a refusal only for data integrity, a guard together 
 
 Read `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` (whether a test is needed, the
 real break, the exact restore, the brief report) and `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`
-(what a good test looks like) before writing, every time. Use judgment where a step does not fit.
+(what a good test looks like) and `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md` (a test
+run logs no WARNING and no ERROR) before writing, every time. Use judgment where a step does not fit.
 
 Write test files in the brief's `WORKTREE_PATH`.
 Invoked standalone, you hold the caller's duties: with no worktree in scope, provision one through
@@ -120,9 +121,6 @@ code.
 - **Register the file** in `<addon>/tests/__init__.py` per
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py` import order; the module's own `__init__.py` stays untouched. A JS test or tour asset loaded through a manifest key is the one `__manifest__.py`
   edit you may make.
-- **Expected log noise** - wrap with `assertLogs` / `mute_logger` only when the path really logs a
-  WARNING or ERROR, and assert the logger and level, never the wording
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`).
 - **Cross-module assertions.** Stage a test asserting another module's behavior into post-install; see `references/cross-module.md`.
 - **Comments** follow `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`: the method name
   already states the rule, so never repeat it; no attribution, no break narration; a docstring,
@@ -140,7 +138,8 @@ Run on the forwarded `INSTANCE_HANDLE`'s database through the `odoo-instance` sk
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). Read the counts from the
 `instance-ops` block (inline: the final `job_wait` summary) and the failures from its `findings_path`.
 
-1. **Baseline** - the tests you wrote, adjusted or rely on pass on the unbroken code. A test red
+1. **Baseline** - the tests you wrote, adjusted or rely on pass on the unbroken code, and the run
+   counts no warning (the expected-log contract § The proof). A test red
    here either misreads the rule (fix the test) or states `TARGET BEHAVIOR` faithfully (the code
    is wrong: stop `BLOCKED` with the test, the value it expects and the REQUEST item - never bend
    the expected value).

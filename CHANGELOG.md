@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A test run that passes with a WARNING in its log is not done. A CI that grades a build by its
+  log reports such a build as passed with warnings, and test authors left expected logs
+  unwrapped: the rule sat in one bullet of `odoo-test-writing` that only said when not to wrap,
+  no reviewer read it, and no step treated a warning counted in a green run as unfinished work.
+  `test-expected-log-contract.md` now states the obligation (capture with `assertLogs` when the
+  log is the behaviour under test, mute with `mute_logger` when it is a side effect, never mute
+  a log the test did not mean to cause) and its proof (the run counts no warning; every WARNING
+  or ERROR line of the findings file is wrapped or fixed at its cause). The test row of every
+  series' "By file type" table names the contract, so the coder and the reviewer read it;
+  `odoo-test-writing` reads it before writing and its baseline run counts no warning;
+  `odoo-coder` treats a warning counted in a run like a red run; `odoo-code-reviewer` R1 raises
+  an unwrapped expected log as HIGH; `odoo-backend-debugger` reads a WARNING or ERROR line of a
+  test run as a finding.
+
 ## [8.12.1] - 2026-11-12
 
 ### Fixed
