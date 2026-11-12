@@ -42,5 +42,5 @@ a cited heading that does not exist in the file is a review finding. Snippet pat
 | A `_()` call or a `.po` entry | python.md (translation section), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
 | `.js`, an OWL template, an asset bundle entry | javascript.md, module-structure.md, `../javascript-coding-guidelines.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` |
 | `.scss` | scss.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` |
-| A test (`tests/*.py`, `static/tests/*`, a tour) | tests.md, plus the row of the language the test is written in |
+| A test (`tests/*.py`, `static/tests/*`, a tour) | tests.md, `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`, plus the row of the language the test is written in |
 | Any comment or docstring, in every row above | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |

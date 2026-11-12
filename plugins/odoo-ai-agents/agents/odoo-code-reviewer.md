@@ -89,9 +89,9 @@ list naming each check that passed and its evidence, and the scoping you compute
    a heading that does not exist -> HIGH; a diff with view XML or non-trivial Python and no
    block -> MED.
 9. **Tests in the diff**: file registered in `tests/__init__.py` and not imported by the module's
-   own `__init__.py`; method names `test_<rule>_<nnn>`; no `raise` to simulate a failure; no
-   `cr.commit`; a test that asserts TRANSLATED or DISPLAY text is a HIGH finding; no mock that is the only thing
-   asserted; data created only from the module and its closure; each base class exists for
+   own `__init__.py`; method names `test_<rule>_<nnn>`; no `raise` to simulate a failure; a test that
+   asserts TRANSLATED or DISPLAY text, or leaves a WARNING or ERROR it causes unwrapped
+   (`test-expected-log-contract.md`), is HIGH; no mock that is the only thing asserted; data created only from the module and its closure; each base class exists for
    the series; an added `tests/__init__.py` import out of the order of
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/python.md` § `__init__.py`
    import order -> LOW.
@@ -162,9 +162,7 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
 
 ## MODE R3 - specialist pass
 
-Launched only when the unit's `business_function` is on the specialist list of the taxonomy or
-`RECON` records an override chain or dependent count at the guard's thresholds. Read
-`R1_FINDINGS`. Review only: the accounting, tax, payroll, localization or statutory rules the
+Read `R1_FINDINGS`. Review only: the accounting, tax, payroll, localization or statutory rules the
 change touches; the contract every module in a deep override
 chain relies on, and whether the change honours the `super()` position each dependent expects;
 master §10 ownership. Write `r3-findings.md` with the same finding shape; R2 merges it.

@@ -37,8 +37,8 @@ OSM unreachable: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
 2. **Observe.** Read the full traceback from the bottom: the last line is the exception. Make a
    value observable instead of assuming it, and ground every claim about a model, field, method,
    override chain, domain or core symbol at the series (OSM outside `W`, disk inside). A WARNING
-   from a deny path, a guard or an SQL constraint in a test run is expected noise when the test
-   wraps it (`${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`), not a bug. A traceback inside a test
+   or ERROR line in a test run's log is a finding: a log the test causes on purpose that it
+   failed to wrap (`${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`), else a defect on the path. A traceback inside a test
    class: read the class's base chain and cursor contract, then its `setUp` source.
 3. **Hypothesize** one specific cause that can be proven wrong.
 4. **Trace both ways** (`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`): upstream through the `depends`
