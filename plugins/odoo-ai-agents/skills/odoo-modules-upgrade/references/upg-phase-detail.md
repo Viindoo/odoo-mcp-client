@@ -235,11 +235,10 @@ Decision, concurrency and verdict set: the SKILL.md pipeline bullet P2. The comp
 **Deferred work [same per-module read].** The same `odoo-diff-comparator` dispatch additionally scans every in-scope file
 (`.py` incl. `__manifest__.py`, tests, `.xml`, `.js`, `.csv`, `.po`, README/docs) for a
 case-insensitive marker set - `TODO`/`todo`/`Todo`/`ToDo`/`@todo`, `FIXME`, `XXX`, `HACK` - and
-classifies each hit against the target series X (`<target_version>`): anchored to X or to an
-already-passed LOWER version -> **DUE** (execute NOW, in THIS upgrade); anchored to a HIGHER
-future version -> **DEFERRED** (leave it untouched); no parseable version anchor ->
-**UNANCHORED** - record it and flag it for the human, never silently absorbed into DUE nor
-silently dropped. The comparator returns this as a compact `deferred_work` block inside
+classifies each hit against the target series X (`<target_version>`): anchored to a HIGHER
+future version -> **DEFERRED** (leave it untouched); every other hit, with or without a version
+anchor -> **DUE** (settled NOW, in THIS upgrade: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`
+§ Convention 0). The comparator returns this as a compact `deferred_work` block inside
 `absorption/<module>.md` (never raw grep output); never grep module source yourself for this. For a module that survives (KEEP/REWRITE/
 MERGE/SPLIT), every DUE item becomes REAL upgrade work: P4 folds it into that module's SAME
 implement -> P4b review -> P5 test path (`upg-phase-detail-p4-p7.md` § P4, brief step 0b).
@@ -360,8 +359,7 @@ Docs: <module | site | both | none> - <the facts that decided it>
 - Delete m4 (OBSOLETE - <reason>)? (approve / skip / cancel)
 
 ### Deferred work (every surviving module: KEEP / REWRITE / MERGE / SPLIT)
-- <m2>: <n> DUE version-anchored items (real P4 work)
-- UNANCHORED markers, listed in full for the human (never silently absorbed or dropped; they stay flagged for the P6 gate): <module>: <marker, file:line>
+- <m2>: <n> DUE items (real P4 work), <n> DEFERRED to a later series
 
 ### Adapt order (dependency-first, leaves first)
 1. <m3> (no custom deps in cluster)

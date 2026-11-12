@@ -117,10 +117,10 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
   0. PREEMPTIVE FIX LIST (apply FIRST): for every blocker attributed to this module in
      transitive-symbol-survey.md (status RENAMED/REMOVED/TYPE_CHANGED), rewrite the call site
      to its `target_equivalent` per `fix_hint`, before the catalog passes below.
-  0b. DUE VERSION-ANCHORED DEFERRED WORK (DUE / DEFERRED / UNANCHORED defined in `upg-phase-detail.md` § P2): for every item in this module's absorption/<module>.md
+  0b. DUE DEFERRED WORK (DUE / DEFERRED defined in `upg-phase-detail.md` § P2): for every item in this module's absorption/<module>.md
      `deferred_work` block with classification=DUE, implement its `work_item` NOW, through the SAME implement -> P4b review -> P5 test
-     path as every other change in this module. Leave DEFERRED items untouched in source; an UNANCHORED item is NEVER silently resolved here - it stays
-     flagged for the P6 human gate.
+     path as every other change in this module. Leave DEFERRED items untouched in source. A DUE marker whose work cannot be done yet
+     (it waits for something outside the module) stays, and the return says what it waits for.
   0c. VENDOR-CURRENCY BIAS (Convention 0(c), CORE - apply on every profile): decide the trigger,
      run the capped WebFetch/WebSearch pass, and ACT on the finding (adapt to the newest upstream
      API or record a deferral) for any third-party import this module's adapt touches

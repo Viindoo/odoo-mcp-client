@@ -61,9 +61,9 @@ same domain that an endpoint diff does not show. A mechanism that covers the pur
 writing the same business quantity on the same records, makes the behaviour `RECONCILE`.
 
 **5. Upgrade only - deferred work.** In the same read, collect every `TODO`, `FIXME`, `XXX`,
-`HACK` and `@todo` marker (any case) of the module's files. A marker anchored to the target series
-or an earlier one is `DUE`; to a later one, `DEFERRED`; with no series in its text, `UNANCHORED`
-- recorded for the human, never counted as due and never dropped.
+`HACK` and `@todo` marker (any case) of the module's files. A marker anchored to a later
+series than the target is `DEFERRED`; every other one, with or without a series in its text, is
+`DUE`.
 
 ## Findings file of your mode
 

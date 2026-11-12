@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `odoo-modules-upgrade`: a series upgrade settles the module's debt. A module cannot be installed
+  on the target series before its upgrade lands, so no database of that series depends on how it
+  behaves today. Every `TODO`, `FIXME`, `XXX` and `HACK` marker is settled in the upgrade whether
+  or not it names a series (only one naming a later series waits; the "no series: ask the human"
+  class is gone), code slower, more complex or more duplicated than the target series needs is
+  rewritten, and "it was already there" is never a reason to leave a defect of an upgraded
+  module or to call it out of scope.
+
 ### Fixed
 
 - Findings of a real run of the screen discipline on a throwaway module. The UI contract's

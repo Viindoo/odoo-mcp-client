@@ -57,6 +57,14 @@ restores or updates an existing database, keeps no old field or xmlid name for d
 compatibility and never asks about existing data. A database upgrade between series needs a
 dedicated upgrade tool and repository; not this plugin - never raise, plan or offer it.
 
+**The upgrade settles the module's debt.** A module being upgraded cannot be installed on the
+target series until the upgrade lands, so no database of that series depends on how it behaves
+today: this is the one moment its code can change freely. Every `TODO`, `FIXME`, `XXX` and `HACK`
+marker is settled now, whether or not it names a series; only one that names a later series
+waits. Code that is slower, more complex or more duplicated than the target series needs is
+rewritten. A defect, a smell or a weak test met in an upgraded module is part of the upgrade:
+"it was already there" is never a reason to leave it or to call it out of scope.
+
 **Wording.** "Module migration script" = a module's own `migrations/<series>.<version>/` script
 for a change within one series; moving code to a newer framework mechanism = "modernisation"
 (UPG).
