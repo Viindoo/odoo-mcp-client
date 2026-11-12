@@ -216,7 +216,7 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT above was
   built from; never re-resolve>
 WORKLOG: <slug> - read, then append.
-CONSTRAINTS: C1 manifest version; C3 a proven pre-existing defect is fixed in its module's commit -
+CONSTRAINTS: C1 manifest version; C3 a pre-existing defect is reported with its evidence, not fixed in the open merge -
   ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md
   [+ NEW MODULE yes: apply the installable:False checklist - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
   [+ LINT-ONLY: the module is installable:False at the target - fix syntax/lint breakage only,
