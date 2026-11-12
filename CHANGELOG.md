@@ -58,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The plan's `acceptance` node also runs for a diff that only changes a stylesheet or a
   template. Outside a plan, `odoo-code-review` still launches the UI reviewer when an instance
   exists; its brief now carries the `SLUG` the reviewer requires, and R2 merges its findings.
+- A new module's manifest `version` is `0.1.0`, three parts (`snippets/new-module-manifest.md`,
+  `odoo-coder`): the two-part value `odoo-bin scaffold` writes is replaced. An existing module
+  with a two-part version keeps it until it needs a bump, which then gives it three parts
+  (`0.2` -> `0.2.1`); a change that needs no bump leaves it alone.
 - `check_orchestration.py` rule `[design-system]` checks that a frontend or full-stack skill
   reaches the UI contract, also through a skill it chains.
 
