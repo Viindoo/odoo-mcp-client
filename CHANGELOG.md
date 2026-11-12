@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `/odoo-ai-agents:odoo-setup tmp` (step `36-claude-tmpdir`) offers to keep Claude Code's own
+  temporary files - session scratchpads, background task output, pasted images, edit diffs -
+  under the plugin's state root instead of the system temporary directory, which is
+  memory-backed on many machines and is never cleaned by Claude Code. With the user's consent it
+  creates the directory for the user alone and writes one `env` entry (`CLAUDE_CODE_TMPDIR`) in
+  the USER settings file; a value the user already set, in the environment or in settings, is
+  never changed, and the change applies to sessions started afterwards. The session-start check
+  mentions the step once when the temporary directory is memory-backed and nothing is set. Each
+  session end then removes, in that directory only, what a session left once nothing in it
+  changed for 30 days. `ODOO_AI_NO_CLAUDE_TMP=1` opts out.
 - `snippets/odoo-ui-contract.md`, the one set of rules for any change to a screen: paint with
   core levers only so a theme can restyle the module, keep both colour schemes working (core's
   dark bundle and its `*.dark.scss` pattern), lay out for the person entering data and for a

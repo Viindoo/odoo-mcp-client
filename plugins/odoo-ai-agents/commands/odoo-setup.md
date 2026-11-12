@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|instance|venv|refresh|docs-site|author|voice|youtube] [--version X.Y] [--profile P] [--extra SPEC] [--override FILE]"
+argument-hint: "[all|browser|runtime|permissions|auto-mode|listing|tmp|instance|venv|refresh|docs-site|author|voice|youtube] [--version X.Y] [--profile P] [--extra SPEC] [--override FILE]"
 description: >-
   Sets up browser MCP, permissions and local Odoo instances
 ---
@@ -44,6 +44,7 @@ step scripts under `scripts/setup-steps/`, each exposing `describe | check | app
 | `permissions` | `30-permissions` + `32-permissions-state-root` (no preflight - config file only) |
 | `auto-mode` | `34-auto-mode` only: `propose` (facts from the catalog and the git remotes), show it, `apply` on consent (no preflight) |
 | `listing` | `35-skill-listing-budget` only (no preflight - measures and, with consent, edits the user settings file) |
+| `tmp` | `36-claude-tmpdir` only (no preflight - offers to move Claude Code's temporary directory into the state root and, with consent, edits the user settings file) |
 | `instance` | Preflight (Gate #1 + Gate #2) then AI-1..AI-6 + `40-instance-profile` + optional `45-venv` + `46-server-wide` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` |
 | `refresh` | Preflight (Gate #1 soft) then Refresh mode (`instance-cluster.md` § Refresh mode) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`), then `35-skill-listing-budget`. Declares nothing new. |
 | `docs-site` | `60-docs-site` only (no preflight): `propose`, ask the policy questions, `record` on confirmation |
@@ -145,7 +146,7 @@ Map: page 1 = `instance`, `venv`, `browser`, `auto-mode`; page 2 = `docs-site` +
    highest by default), then `50 apply --version <X.Y> [--profile <name>]`.
 3. **Each selected non-instance step, in numeric order** (`steps-core.md` § Run loop): `check`; exit 0 = report
    `✓ <name>: already configured - skipping`; else `apply` and stream its output. Steps `30`, `32`, `34` get ONE
-   consent line before `apply`; `35-skill-listing-budget` runs `apply --yes` after the operator's yes. `apply`
+   consent line before `apply`; `35-skill-listing-budget` and `36-claude-tmpdir` run `apply --yes` after the operator's yes. `apply`
    exit `2` = refuse-to-corrupt: surface stderr verbatim, STOP that step, no retry, delete nothing; exit `1` =
    report, continue only with independent steps. A declined consent line skips the step and names the filter that
    re-runs it.
@@ -160,7 +161,7 @@ Map: page 1 = `instance`, `venv`, `browser`, `auto-mode`; page 2 = `docs-site` +
 ## Step notes (what each `apply` does)
 
 Read the note of a step before running it: `steps-core.md` for `10-browser-mcp`, `12-browser-mcp-optin`,
-`20-browser-deps`, `30-permissions`, `32-permissions-state-root`, `34-auto-mode`, `35-skill-listing-budget`,
+`20-browser-deps`, `30-permissions`, `32-permissions-state-root`, `34-auto-mode`, `35-skill-listing-budget`, `36-claude-tmpdir`,
 `40-instance-profile`, `45-venv` (rebuild and create), `46-server-wide`, `47-instance-reset` (only via `--reset`),
 `48-db-local-auth`, `50-instance-spinup`; `steps-publishing.md` for `60-docs-site`, `65-author-profile`,
 `70-speech`, `75-youtube`. Fork resolution (steps `34-auto-mode`, `60-docs-site` and AI-3): `instance-cluster.md`

@@ -6,7 +6,9 @@ temp dir, a leak exhausts it for every session). The one sanctioned scratch dest
 state root (`odoo_ai_state_root`, `odoo_ai_scratch_dir` in scripts/lib/state_reclaim.sh). Scans
 every `.sh` and `.py` file under `plugins/` - never instruction prose - for:
 
-  Rule 1 - `TMPDIR` appears nowhere (zero tolerance, no allowlist).
+  Rule 1 - `TMPDIR` appears nowhere (zero tolerance, no allowlist). The one exception is the
+           exact Claude Code setting name `CLAUDE_CODE_TMPDIR`: it moves only Claude Code's own
+           files, and a line that also uses a bare `TMPDIR` is still a finding.
   Rule 2 - every `/tmp` or `/var/tmp` is the state-root fallback `${HOME:-/tmp}` (a path
            resolution that writes nothing) or a reasoned `TMP_ALLOWLIST` entry.
   Rule 3 - no ambient temp dir reached without naming it: a `mktemp` with no destination,
@@ -24,6 +26,9 @@ _SKIP_DIR_PARTS = {"__pycache__", ".git", "node_modules", ".pytest_cache"}
 _CODE_SUFFIXES = {".sh", ".py"}
 
 TMPDIR_RE = re.compile(r"TMPDIR")
+# The whole name, bounded on both sides: `MY_CLAUDE_CODE_TMPDIR` and `CLAUDE_CODE_TMPDIR_X` are
+# other variables and stay findings.
+CLAUDE_CODE_TMPDIR_RE = re.compile(r"(?<![A-Za-z0-9_])CLAUDE_CODE_TMPDIR(?![A-Za-z0-9_])")
 # `(?![A-Za-z0-9_])` stops `/tmpfs`; `/var/tmp` is folded in as the obvious workaround.
 TMP_PATH_RE = re.compile(r"/(?:var/)?tmp(?![A-Za-z0-9_])")
 STATE_ROOT_FALLBACK_PREFIX = "${HOME:-"
@@ -66,7 +71,8 @@ def _code_files():
 
 def tmpdir_hits(text: str, relpath: str = "<text>") -> list[str]:
     return [f"{relpath}:{n}: {_normalize(line).strip()}"
-            for n, line in enumerate(text.splitlines(), 1) if TMPDIR_RE.search(_normalize(line))]
+            for n, line in enumerate(text.splitlines(), 1)
+            if TMPDIR_RE.search(CLAUDE_CODE_TMPDIR_RE.sub("", _normalize(line)))]
 
 
 def unsanctioned_tmp_hits(text: str, relpath: str = "<text>") -> list[str]:
@@ -111,6 +117,10 @@ def test_plugin_code_names_no_ambient_temp_destination(scan, label):
 @pytest.mark.parametrize("scan, line", [
     (tmpdir_hits, 'conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")"'),
     (tmpdir_hits, 'base = os.environ["TMPDIR"]'),
+    (tmpdir_hits, 'export CLAUDE_CODE_TMPDIR="$root" TMPDIR="$root"'),
+    (tmpdir_hits, 'env = {"CLAUDE_CODE_TMPDIR": root, "TMPDIR": root}'),
+    (tmpdir_hits, 'export MY_CLAUDE_CODE_TMPDIR="$root"'),
+    (tmpdir_hits, 'export CLAUDE_CODE_TMPDIR_OLD="$root"'),
     (unsanctioned_tmp_hits, 'mkdir -p /tmp/odoo-ai-scratch'),
     (unsanctioned_tmp_hits, 'target = Path("/tmp") / slug'),
     (unsanctioned_tmp_hits, 'mkdir -p /var/tmp/odoo-ai-scratch'),
@@ -126,6 +136,8 @@ def test_detector_catches_the_shape(scan, line):
 
 @pytest.mark.parametrize("scan, line", [
     (tmpdir_hits, 'tmpdir="$(mktemp -d)"; cur="$tmpdir/cur"'),
+    (tmpdir_hits, 'ENV_NAME = "CLAUDE_CODE_TMPDIR"'),
+    (tmpdir_hits, 'echo "set CLAUDE_CODE_TMPDIR to $target (not the generic variable)"'),
     (unsanctioned_tmp_hits, 'printf \'%s\\n\' "${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}"'),
     (unsanctioned_tmp_hits, 'mount -t tmpfs none /tmpfs-mount'),
     (ambient_temp_hits, 'tmp="$(mktemp -d -p "$scratch")"'),
