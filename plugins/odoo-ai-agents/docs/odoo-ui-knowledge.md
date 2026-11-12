@@ -193,18 +193,13 @@ All four skills resolve the same inputs, none of them from a stored project file
   Round-4 verdict is recorded, as are per-run acceptance/debug/review evidence and videos - see
   `state-root-resolution.md` § Where a captured artifact goes; videos default to
   `<ISOLATE_DIR>/visual/videos/`.
-- **Brand fidelity** - opt-in, activated by the EXISTENCE of `<SHARE_DIR>/brand-tokens.json` (a
-  consumer-declared JSON map `token -> expected color`, e.g. `{"--primary": "#1E88E5"}`). When
-  present, `odoo-ui-review` Step 4b ΔE-diffs the resolved `getComputedStyle(:root)` brand tokens
-  against it (runtime brand fidelity, `odoo-frontend-fidelity.md` Section G). Brand-agnostic - no
-  brand is vendored in the plugin; absent, the check skips silently.
 - **Mockup-first check** - opt-in, activated when `<SHARE_DIR>/mockups/` is non-empty (reference
   mockups/design specs).
 
 The Odoo series is the one input that STOPS and asks rather than guessing when no rung resolves it
 (`snippets/project-facts-resolution.md` rung 5); the instance target degrades
-to a single clarifying request only when genuinely unretrievable after every rung; brand fidelity
-and the mockup-first check simply skip silently when their input is absent.
+to a single clarifying request only when genuinely unretrievable after every rung; the
+mockup-first check skips silently when its input is absent.
 
 ## Documentation screenshots (static/description)
 

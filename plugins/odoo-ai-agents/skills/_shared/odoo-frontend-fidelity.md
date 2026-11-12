@@ -162,35 +162,6 @@ and a backfill refers to itself (rule A3): every downstream token resolves empty
 the foundation: redefine the missing variables anchored to tokens the series emits, each with a
 literal fallback, then verify per § C.
 
-### G. Brand-token fidelity (optional, brand-agnostic, consumer-driven)
-
-Sections A-F enforce fidelity to **Odoo's own design system** (the `--primary` / `--o-color-*`
-runtime tokens). Brand fidelity - "does this match *our* brand?" - is a separate, optional layer:
-the plugin ships a mechanism, never a brand. The consumer declares their brand; the skills
-discover and assert against it.
-
-**Declaration (consumer side).** A project opts in by placing `<SHARE_DIR>/brand-tokens.json`
-(resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
-substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
-Read/Write/Edit) - a JSON map of token -> expected color, e.g.
-`{ "--primary": "#1E88E5", "--o-brand-secondary": "#8E24AA" }`. The file's EXISTENCE is the opt-in;
-absent -> brand checks silently skip. The map is the brand SSOT; never hardcode brand values into
-a skill, agent, or rule file.
-
-**Two enforcement halves, one helper.** Both read that map and share
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py" [--threshold T] <expected> <actual>`
-(CIEDE2000, so hex/`rgb()` variants compare perceptually; prints ΔE; `--threshold`: exit 0 within,
-1 over; exit 2 unparseable = skip):
-- **Static (no browser) - `verify-frontend.sh` Tier 4:** scans changed SCSS for hardcoded hex
-  that sits within ΔE `BRAND_NEAR_DELTA` of a declared brand token and WARNs "reference the
-  token var, don't inline the brand color". WARN-only.
-- **Runtime (live screen) - `odoo-ui-review` Step 4b:** reads `getComputedStyle(:root)` and
-  ΔE-diffs the *resolved* brand tokens against the declared map - the only place the real
-  rendered value is knowable. WARN.
-
-Keep brand checks WARN-tier: ΔE thresholds and `rgb()`-vs-hex rounding make false-blocks easy.
-A non-empty `<SHARE_DIR>/mockups/` (also consumer-declared) feeds the mockup-first check (§ D).
-
 ---
 
 ## OWL pitfall catalogue (corrected, version-tagged)

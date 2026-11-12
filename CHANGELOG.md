@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- The brand-token colour comparison: `scripts/lib/color_delta.py`, the brand tier of
+  `verify-frontend.sh` and the reviewer's comparison of rendered colours with
+  `<SHARE_DIR>/brand-tokens.json`. A brand is carried by a theme module that overrides core
+  variables; a business module is checked for following the theme, never for matching a colour
+  value. `brand-tokens.json` stays an input of the icon and App Store page palettes.
+
 ## [8.10.0] - 2026-11-12
 
 ### Added

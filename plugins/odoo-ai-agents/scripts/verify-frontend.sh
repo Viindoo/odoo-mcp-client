@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify-frontend.sh - 3-tier OWL/JS/SCSS quality gate for Odoo frontend files.
+# verify-frontend.sh - OWL/JS/SCSS quality gate for Odoo frontend files.
 #
 # TIERS (each independently degrades; only BLOCK-tier failures cause non-zero exit):
 #
@@ -132,7 +132,6 @@ T1_JS_STATUS="DID NOT RUN (reason not recorded)"
 T2_STATUS="DID NOT RUN (reason not recorded)"
 T2_REFS_STATUS="DID NOT RUN (reason not recorded)"
 T3_STATUS="DID NOT RUN (reason not recorded)"
-T4_STATUS="DID NOT RUN (reason not recorded)"
 
 # ---------------------------------------------------------------------------
 # MAIN_ROOT - the main worktree root (dirname of the common git dir).
@@ -854,82 +853,6 @@ else
 fi
 
 # ===========================================================================
-# TIER 4 - BRAND FIDELITY (optional, brand-agnostic, static)
-# ===========================================================================
-# Runs ONLY when the project's SHARE dir (Tier-2 SHARE - resolve `<SHARE_DIR>`/
-# `<ISOLATE_DIR>` once per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md;
-# substitute the captured absolute path - never write the placeholder or a bare
-# `.odoo-ai/` into a Read/Write/Edit) contains `brand-tokens.json` (a JSON map of
-# token -> color, e.g. {"--primary": "#1E88E5", ...}).
-# The plugin ships NO brand of its own - the map is discovered from the consumer
-# environment. No browser here: this is the STATIC half (hardcoded-hex vs brand
-# palette). The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
-# Step 4b. Both share scripts/lib/color_delta.py. WARN-only (never blocks).
-echo
-echo "--- Tier 4: Brand fidelity (optional) ---"
-# Resolve the Tier-2 SHARE dir from CWD (this script runs from inside the target
-# repo). CRITICAL RESILIENCE: never hard-fail - a resolver refusal (non-git, no
-# marker) or any error (missing script, no CLAUDE_PLUGIN_ROOT) silently falls back
-# to the legacy project-relative path.
-_SHARE_DIR="$(cd "$PWD" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" share 2>/dev/null || true)"
-[[ -n "$_SHARE_DIR" ]] || _SHARE_DIR="$PWD/.odoo-ai"
-_BRAND_SRC="$_SHARE_DIR/brand-tokens.json"
-COLOR_DELTA="${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py"
-_BRAND_NEAR="${BRAND_NEAR_DELTA:-3.0}"   # hardcoded hex this close to a brand token => should use the var
-if [[ ! -f "$_BRAND_SRC" ]]; then
-    T4_STATUS="not configured (optional - no brand-tokens.json in $_SHARE_DIR)"
-    _skip "no brand-tokens.json in $_SHARE_DIR - brand fidelity skipped (not a blocking condition)"
-elif ! _have python3 || [[ ! -f "$COLOR_DELTA" ]]; then
-    T4_STATUS="DID NOT RUN (python3 / color_delta.py unavailable)"
-    _skip "python3 / color_delta.py unavailable - brand fidelity skipped"
-elif [[ ${#SCSS_FILES[@]} -eq 0 ]]; then
-    T4_STATUS="n/a (no .scss/.css files in scope)"
-    _skip "no .scss/.css files changed - brand fidelity skipped"
-else
-    T4_STATUS="RAN (${#SCSS_FILES[@]} file(s) vs $_BRAND_SRC)"
-    _info "brand map: $_BRAND_SRC (near-token ΔE threshold $_BRAND_NEAR)"
-    _BRAND_WARN_BEFORE=$WARN_COUNT
-    # Iterate changed SCSS lines with a hardcoded hex; ΔE-compare to each brand color.
-    for sf in "${SCSS_FILES[@]:-}"; do
-        [[ -f "$sf" ]] || continue
-        while IFS= read -r hit; do
-            [[ -z "$hit" ]] && continue
-            lineno="${hit%%:*}"
-            hex="$(printf '%s' "$hit" | grep -oiE '#[0-9a-f]{6}|#[0-9a-f]{3}' | head -1)"
-            [[ -z "$hex" ]] && continue
-            # Find the nearest brand token to this hardcoded hex.
-            near="$(python3 - "$COLOR_DELTA" "$_BRAND_SRC" "$hex" "$_BRAND_NEAR" <<'PY' 2>/dev/null || true
-import json, sys, importlib.util
-spec = importlib.util.spec_from_file_location("cd", sys.argv[1])
-cd = importlib.util.module_from_spec(spec); spec.loader.exec_module(cd)
-src, hexv, thr = sys.argv[2], sys.argv[3], float(sys.argv[4])
-try:
-    tokens = json.load(open(src))
-except Exception:
-    sys.exit(0)
-best = None
-for name, val in tokens.items():
-    if cd.parse_color(str(val)) is None:
-        continue
-    de = cd.delta_e(str(val), hexv)
-    if de is None:
-        continue
-    if best is None or de < best[1]:
-        best = (name, de)
-if best and best[1] <= thr:
-    print(f"{best[0]}|{best[1]:.2f}")
-PY
-)"
-            if [[ -n "$near" ]]; then
-                tok="${near%%|*}"; de="${near#*|}"
-                _warn "$sf:$lineno - hardcoded hex $hex ≈ brand token $tok (ΔE $de); reference the token var instead of inlining the brand color"
-            fi
-        done < <(grep -niE '#[0-9a-f]{6}|#[0-9a-f]{3}' "$sf" 2>/dev/null || true)
-    done
-    [[ $WARN_COUNT -eq $_BRAND_WARN_BEFORE ]] && _ok "Tier 4 brand: no near-token hardcoded brand colors"
-fi
-
-# ===========================================================================
 # Summary
 # ===========================================================================
 echo
@@ -954,7 +877,6 @@ echo "    Tier 1 JS (eslint oracle) : $T1_JS_STATUS"
 echo "    Tier 2 static OWL/SCSS    : $T2_STATUS"
 echo "    Tier 2 import/xpath refs  : $T2_REFS_STATUS"
 echo "    Tier 3 runtime smoke      : $T3_STATUS"
-echo "    Tier 4 brand fidelity     : $T4_STATUS"
 
 # Name the gates that did not run, so the RESULT line carries WHICH one is
 # missing rather than a single generic cause that is often the wrong one.
@@ -969,7 +891,6 @@ _note_unrun "$T1_JS_STATUS" "Tier 1 JS eslint oracle"
 _note_unrun "$T2_STATUS"    "Tier 2 static scan"
 _note_unrun "$T2_REFS_STATUS" "Tier 2 import/xpath refs"
 _note_unrun "$T3_STATUS"    "Tier 3 runtime smoke"
-_note_unrun "$T4_STATUS"    "Tier 4 brand fidelity"
 
 # Tri-state precedence:
 #   BLOCK>0          -> FAIL          (exit 1)  the gate ran and found real errors

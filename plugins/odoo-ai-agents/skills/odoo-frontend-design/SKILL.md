@@ -99,7 +99,7 @@ Bootstrap major, and bundle paths all shift between versions.
 **Mechanics of verifying token reality live in one place:**
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (SSOT for `resolve_stylesheet` /
 `find_style_override`, the `getComputedStyle` RESOLVE-vs-EMPTY check, recompile-and-reread loop,
-un-prefixed-tokens-not-`--bs-*` rule, self-referential-var trap, optional consumer-declared brand-token layer).
+un-prefixed-tokens-not-`--bs-*` rule, self-referential-var trap).
 
 Design rule: **pick tokens, not raw values, and confirm the token exists for the target version
 before relying on it.** A beautiful mockup that references tokens the version does not emit renders flat.

@@ -36,8 +36,7 @@ know is one sentence of outcome with a link to the guide.
    the hero tagline from the manifest `summary`, the compatibility line and TECH from the
    manifest, the sanitizer rules of its § 1 (a video is the `media_iframe_video` container with
    the id of the ENGLISH narration; no English video, no VIDEO section), the palette from
-   `<SHARE_DIR>/brand-tokens.json` when it exists
-   (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Brand-token fidelity) else
+   `<SHARE_DIR>/brand-tokens.json` when it exists, else
    the template's default, legacy `oe_*` classes kept when the module already uses them. After
    the hero, one line per `extends_in_scope` base, linked per
    `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module. The
