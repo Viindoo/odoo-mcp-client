@@ -156,21 +156,20 @@ The `<data>` tag is only used to set not-updatable data with `noupdate=1`.
 
 > Plugin rule (not in the upstream text):
 
-In a `list` or `form` view, a `<field>` whose `invisible` or `column_invisible` is the constant
-`"1"` or `"True"` carries an XML comment IMMEDIATELY AFTER its opening tag, stating why the field
-stays in the view:
+In every view type (form, list, kanban, search and the others), a `<field>` whose `invisible` or
+`column_invisible` is the constant `"1"` or `"True"` carries an XML comment on the line right
+AFTER its tag, one comment per field, stating why the field must stay in the view:
 
 ```xml
 <field name="company_id" invisible="1"/>
-<!-- invisible: the domain of partner_id reads it -->
+<!-- company_id is read by the domain of partner_id -->
 ```
 
-A conditional expression (`invisible="state != 'draft'"`) needs no comment.
+A comment before the tag does not count. A conditional expression
+(`invisible="state != 'draft'"`) needs no comment.
 
 No core test enforces this on this series; follow the rule anyway, so the view needs no change when
 it is forward-ported to a series whose `base` tests enforce it.
-
----
 
 ## Inheriting QWeb templates
 

@@ -144,19 +144,21 @@ one.
 
 > Plugin rule (not in the upstream text):
 
-In a `list` or `form` view, a `<field>` whose `invisible` or `column_invisible` is the constant
-`"1"` or `"True"` carries an XML comment IMMEDIATELY AFTER its opening tag, stating why the field
-stays in the view:
+In every view type (form, list, kanban, search and the others), a `<field>` whose `invisible` or
+`column_invisible` is the constant `"1"` or `"True"` carries an XML comment on the line right
+AFTER its tag, one comment per field, stating why the field must stay in the view:
 
 ```xml
 <field name="company_id" invisible="1"/>
-<!-- invisible: the domain of partner_id reads it -->
+<!-- company_id is read by the domain of partner_id -->
 ```
 
-A conditional expression (`invisible="state != 'draft'"`) needs no comment.
+A comment before the tag does not count. A conditional expression
+(`invisible="state != 'draft'"`) needs no comment.
 
 `base`'s `TestInvisibleField.test_uncommented_invisible_field` (tagged `post_install`) fails a
-view that misses the comment. A module-scoped `--test-tags /<module>` run skips it; tag
+`list` or `form` view that misses the comment; the other view types follow the rule with no core
+test behind it. A module-scoped `--test-tags /<module>` run skips that test; tag
 `/base:TestInvisibleField` to run it.
 
 ## Inheriting QWeb templates

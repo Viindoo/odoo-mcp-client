@@ -66,21 +66,20 @@ list naming each check that passed and its evidence, and the scoping you compute
    company record rule; a `res.groups` sits on the group model of the target series and
    carries the right `implied_ids` (`${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`).
 6. **Code hygiene**, each a grep: `cr.commit()` or `cr.rollback()` in a test, or in business code
-   without the reason comment of `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 6 (R2
-   judges whether the reason holds); `sudo()` without a reason comment on the same statement; `search`, `browse` or a compute read
+   without the reason comment of `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` § 6; `sudo()` without a reason comment on the same statement; `search`, `browse` or a compute read
    inside a `for rec in self` loop; a `_compute_*` body reading a field its `@api.depends` omits;
    a user-visible string outside `_()`; multiple positional `%s` in one `_()`; a hardcoded locale,
    currency, company or timezone; `hasattr` or `getattr` default as a presence probe;
-   `position="replace"` in an inherited view; a bare `inherit_id`; a hardcoded database id; a
+   `position="replace"` in an inherited view; a bare `inherit_id`; an always-invisible `<field>` with no comment after it (`xml.md`); a hardcoded database id; a
    boolean `and` / `or` hand-wrapped across lines (`${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`
    § Python wrapping); `Args:`, `Returns:` or `Raises:` inside a triple-quoted string of a `.py`
-   file (a Google or NumPy docstring -> LOW, the fix is the rst field form of the comment
+   file (-> LOW, the fix is the rst field form of the comment
    contract § 5); a comment, docstring or user-visible string the comment contract § 3 bans -> MED;
    a legal value or rule held in Python - a constant, a number inside a formula string, a
    hardcoded xmlid, an `if` for one article - instead of a data record -> MED
    (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 6).
    A `_name`, `_inherit` or `_inherits` value that is not a string literal (or a list or dict of
-   literals) -> MED finding with file:line and `python.md` § Model name attributes are literals.
+   literals) -> MED with file:line and `python.md` § Model name attributes are literals.
 7. **Conventions**: every section of every guideline file you read for the file types in
    `CHANGED_SET` is one yes-or-no check over the diff, each finding citing the file and section;
    a section the diff does not reach is listed in `verified-clean` as not applicable. Also a
