@@ -62,8 +62,8 @@ captured artifact goes). Open the screen; take a desktop screenshot, a DOM snaps
 console messages. Switch to each view type the action exposes and confirm it mounts; on a form,
 open each notebook tab and confirm the smart buttons (an icon and a real count), the chatter and
 the statusbar - against the selectors and the break classes of `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md`,
-in the frontend era of the series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`). An empty statusbar on
-mobile, where header buttons fold into a menu, is expected. Switching views, opening tabs and
+in the frontend era of the series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`). A header or statusbar
+that core lays out another way at a phone width is not a break. Switching views, opening tabs and
 dropdowns, and clicking a smart button to see that it opens an action are navigation; creating,
 editing or deleting a record, changing its state, or acting as another role is `odoo-qa-tester`'s.
 
@@ -83,7 +83,8 @@ neighbouring core control, and the computed value of every custom property the m
 read. Flag a property that resolves empty or to a transparent surface where a fill or border is
 expected (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Token reality), and in the dark
 scheme a surface, text or icon that kept its light value. Compare each screen with its mockup
-the way § 5 of the contract says. Name the module that owns each defective rule: a finding is a
+the way § 5 of the contract says, naming for each difference the module line that governs it, or
+`core` when none does: a `core` difference is a note for the design, never a WARN or a FAIL. Name the module that owns each defective rule: a finding is a
 file-and-selector pointer, not a patch, and its fix lives in the business module, never in a
 theme.
 
@@ -136,7 +137,7 @@ dark: <captured | static check only>
 | Screen | Contract § | What rendered | Core counterpart | Owning file and selector |
 
 ### Mockup conformance          (only with MOCKUPS)
-| Screen | Mockup | Region, order or group that differs | Evidence |
+| Screen | Mockup | Region, order or group that differs | Governed by (module file and line, or core) | Evidence |
 
 ### Source pointers
 - <selector> defined in <module>

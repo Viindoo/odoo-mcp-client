@@ -56,9 +56,8 @@ property overrides is a defect.
 - At most two `<group>` columns, grouped by meaning. A third column truncates labels.
 - A standard field widget before a custom one: it brings keyboard use, accessibility, translation
   and the theme.
-- Phone first. Core stacks the groups into one column and folds buttons into menus, so the order
-  of the arch is the order on a phone and its first screenful holds what the user needs first. No
-  fixed pixel width.
+- Phone first. Core lays the arch out as one column there, so the order of the arch is the order
+  on a phone and its first screenful holds what the user needs first. No fixed pixel width.
 - A list shows at first glance only the columns needed to pick a record; the others are optional
   and hidden.
 - An extension is judged on the whole rendered screen, never on the inherited fragment.
@@ -70,13 +69,15 @@ rule you wrote is not what renders. Whoever writes or fixes a change that touche
 the build:
 
 1. Opens each changed screen on the instance as a user of the role it serves, on a record with
-   realistic data.
-2. Captures every changed screen at the desktop AND the phone width of
+   realistic data, in every state its mockup shows (empty, a new record, after the main action);
+   with no mockup, in every state the change affects.
+2. Captures every changed screen, in each of those states, at the desktop AND the phone width of
    `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md` § Responsive breakpoints, with the console messages.
 3. Tries the dark scheme, in this order: the appearance switch the theme puts in the user menu
    or the systray (a moon or sun icon, an "Appearance" or "Dark mode" entry); only where there
    is none, the `color_scheme` cookie set to `dark` on the instance's own origin and a reload.
-   The scheme is dark when the page loads the dark asset bundle: captures both widths again.
+   The scheme is dark when the page loads the dark asset bundle: captures each changed screen
+   again at both widths, one state each.
    Otherwise reports `dark: static check only`, naming what was tried.
 4. Builds one contact sheet per width, so a desktop capture stays legible beside a tall phone
    one: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_sheet.py sheet --out sheet-desktop.png --col-width 800
@@ -85,17 +86,23 @@ the build:
 5. Opens the sheets and looks: a truncated label, a misaligned or orphaned field, empty space, an
    element unlike its core neighbour, the wrong thing first on the phone, a difference from the
    mockup.
-6. Fixes and captures again until the screen is right. Its return lists, per changed screen, the
-   desktop and the phone capture, then the two sheets and the `dark:` line.
+6. Fixes and captures again until the screen is right. Its return lists, per changed screen and
+   state, the desktop and the phone capture, then the two sheets and the `dark:` line.
 
 A reviewer or tester rules on a screen from captures of the running instance, never from the
 source alone.
 
 ## 5. Mockups
 
-A mockup binds the layout, the order, the grouping, the wording and the behaviour of a screen.
-Its colours, fonts and pixel sizes only stand for roles that the theme fills. Conformance is
+A mockup binds what the module decides: the view type, the fields and actions a screen holds,
+their order and grouping, the module's own wording, its states and behaviour, and what a phone
+shows first. What core or the theme renders by itself is illustration: the navbar and the control
+panel, where the search and its facets sit, how header buttons and the statusbar are laid out at
+each width, the frame of an empty state, every colour, font and pixel size. It differs by series
+and by theme, and the running instance is right. Conformance is
 therefore judged by structure (the same regions, order and groups; the same first screenful on a
 phone) and style is judged the core way: the element uses the class or component of its core
 counterpart and its computed values equal those of a neighbouring core control. A colour code or
-a pixel measure is never compared.
+a pixel measure is never compared. A difference that a line of the module's arch, template or
+stylesheet governs is a finding. A difference no line of the module governs is core's rendering:
+it is noted against the design, never raised against the module and never sent to its coder.

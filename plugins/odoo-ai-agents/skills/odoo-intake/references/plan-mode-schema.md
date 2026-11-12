@@ -199,7 +199,9 @@ place; the rest keep their order.
     and classified per acceptance-oracle-contract.md; SendMessage the node's coder once with the
     findings and their evidence, never a fix direction; a finding about how a screen looks is
     fixed like any other, and the capture that showed it and the coder's capture after the fix
-    go in the run summary for the human, with no approval asked; then
+    go in the run summary for the human, with no approval asked; a difference from the mockup
+    that ui-review marks as core's rendering goes to that summary as a note on the design, never
+    to the coder; then
     SendMessage review-r2 (FIX_DIFF), acceptance (the failed and the touched scenarios) and the
     reviewer of ui-review (the screens the fix touched);
     at most 3 rounds; two consecutive rounds with a new HIGH in the same area stop the run
