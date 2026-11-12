@@ -200,28 +200,36 @@ When a test is red after the batch install:
    worklog with the test id and the first traceback line; the batch is not blocked on it, and it
    is fixed per C3 once its cause is proven.
 2. Green on the clean target but red after absorption -> **FP-delta failure**: root-cause and fix
-   before committing the batch.
+   before committing the batch (C3).
 
 Never widen or relax an assertion to make a pre-existing failure green ([[test-behavior-contract]]).
 
-### C3 - a proven defect is fixed where the run found it
+### C3 - the origin of a defect decides which commit carries its fix
 
-The same discriminator governs WHERE a bug is fixed - reactively at P9 (a red test) AND
-proactively at P8 (a coder who SPOTS a defect while adapting):
+The same discriminator governs where a fix lands at every stage: a defect a coder spots while
+adapting (P8), a red test (P9), and a finding on the pushed branch or the open PR (review, CI,
+acceptance).
 
-- **Pre-existing** (also red on the clean target tip / pre-dates the port), once the run proves
-  its cause: fixed in THIS PR, in the commit of the module that owns it, with a guarding test and
-  the evidence; it forward-ports later like any other change and is never carried forward
-  knowingly. Only a defect in a module outside the PR and outside the run's scope opens a
-  follow-up, and the owner is asked first. Recorded in the merge log and not fixed here: a defect
-  in a module that is `installable: False` at the target (it gets only what a gate needs), a
-  timing race in core the port did not cause, and a defect whose fix needs a design of its own -
-  the port lands green first and that fix follows as its own change.
-- **FP-delta** (green on source, red after adapt): fix it here, now.
+- **FP-delta** (exists only with the forwarded code in the tree: green on the source and on the
+  clean target, red after absorption): its fix belongs to the merge commit and is never a commit
+  of its own. While the merge is open the fix is part of it; after P10 the fix is added to that
+  merge commit, which keeps both parents, and the branch is pushed again.
+- **Pre-existing** (also red on the clean target tip, or already in the source code the port
+  forwards unchanged), once the run proves its cause: fixed in THIS PR in a commit of its own
+  after the merge commit, one commit per defect, with a guarding test and the evidence - never
+  inside the merge commit. Spotted while the merge is open, it is recorded on the module's
+  `merge-log.md` row and fixed once P10 has concluded the merge. It forward-ports later like any
+  other change and is never carried forward knowingly. Only a defect in a module outside the PR
+  and outside the run's scope opens a follow-up, and the owner is asked first. Recorded in the
+  merge log and not fixed here: a defect in a module that is `installable: False` at the target
+  (it gets only what a gate needs), a timing race in core the port did not cause, and a defect
+  whose fix needs a design of its own - the port lands green first and that fix follows as its
+  own change.
+- **A defect one of these fixes introduced** is folded into the commit of that fix.
 
-Canonical merge-log record: `<sha> | C3 | fixed in <module commit> | <evidence one-liner>`.
-Reviewer backstop (P12): flag a proven pre-existing defect left unfixed, and a fix placed in
-another module's commit.
+Canonical merge-log record: `<sha> | C3 | fixed in <fix commit> | <evidence one-liner>`.
+Reviewer backstop (P12): flag a proven pre-existing defect left unfixed, a pre-existing fix
+inside the merge commit, and an FP-delta fix in a commit of its own.
 
 ## Ephemeral isolation - CREATEDB required
 

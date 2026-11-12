@@ -111,10 +111,11 @@ Re-dispatch the Step above for a clean retry.
 - **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
   regression. Re-dispatch `odoo-instance` (same shape as above) against a clean checkout of
   the target tip - no `WORKTREE_PATH` override, no absorption - running the SAME closure. Red
-  there too = pre-existing: record it in merge-log.md and, once its cause is proven, fix it in
-  this PR per `[[fp-merge-absorption]]` § C3 (its exceptions are listed there). Green on clean /
-  red only after absorption = FP-delta (fix before committing: it goes back to the module's coder
-  through `odoo-coding`, 8b `WORKER_AGENT_ID`, with the P9 failure output). Never widen an assertion to hide a pre-existing failure.
+  there too = pre-existing: record it in merge-log.md; once its cause is proven its fix lands in
+  this PR after the merge commit, per `[[fp-merge-absorption]]` § C3 (its exceptions are listed
+  there). Green on clean / red only after absorption = FP-delta (fix before committing: it goes
+  back to the module's coder through `odoo-coding`, 8b `WORKER_AGENT_ID`, with the P9 failure
+  output). Never widen an assertion to hide a pre-existing failure.
 - **Baseline a failed INSTALL the same way.** If a module fails to install, re-dispatch
   `odoo-instance` against clean `origin/<target-branch>` (no `WORKTREE_PATH`, no absorption).
   Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
@@ -163,12 +164,18 @@ worktree: <path>/fp-integration
 ```
 
 After it returns, confirm the tree is clean: a `repo_facts` call on `<path>/fp-integration` reports
-`dirty.is_dirty` false and `operation_in_progress` = `none`. A leftover path is a file the list missed - record it with the path in `merge-log.md` for P12;
-never amend the merge commit.
+`dirty.is_dirty` false and `operation_in_progress` = `none`. A leftover path is a file the list
+missed: record it on its module's `merge-log.md` row and have `git-toolkit:git-ops` add it to the
+merge commit, which keeps both parents.
 
 That single commit lands the whole range; every SHA in the range is marked `done` in
 `checkpoint.json`. Buckets (a)/(d) are absorbed by it too (Hard rule 7); their body line records the
 bucket + reason.
+
+**Pre-existing defects recorded for C3 are fixed now**, after the merge commit: resume the owning
+module's coder through `odoo-coding` (8b, `WORKER_AGENT_ID`) with the `merge-log.md` evidence; each
+defect gets one commit of its own with its guarding test, and the module's P9 suite runs green
+again before P11.
 
 **There is no P5 loop.** A single-batch run reaches P10 once, then P11. Only a human-approved
 multi-batch split at the P4 plan gate returns to P5, once PER BATCH, never per commit, with the NEXT
@@ -208,18 +215,20 @@ about the others. A mandatory review:
 2. **Attribute every finding to the FP diff before rating it.** Invoke the `git-toolkit:git-ops` skill
    (via the Skill tool) for the diff of `<file>` that shows only what the FP added to it (the changes
    on `fp/<slug>` since it left `origin/<target-branch>`). A finding on a line this port changed is
-   in scope (fix now); a finding on a line NOT in this diff is pre-existing - rate it separately
-   and handle it per C3 below. Rate findings only after this attribution.
+   an FP-delta unless the source series carries the same defect: its fix goes into the merge commit
+   (C3). A finding on a line NOT in this diff is pre-existing - rate it separately and handle it
+   per C3 below. Rate findings only after this attribution.
 
 **Acceptance hand-off.** The `odoo-code-review` dispatch may carry a `next: odoo-acceptance` entry in
 its own Continuation Contract (Phase A.5 emits it whenever `render_check_set` reaches beyond the
 reviewed modules). Do NOT act on it - P11 already ran acceptance for this batch.
 
 **Per pre-existing finding, apply C3** (`[[fp-merge-absorption]]` § C3): a proven defect in a
-module this port touches is fixed in this PR, in that module's commit, with a guarding test. When
+module this port touches is fixed in this PR, in a commit of its own after the merge commit, with
+a guarding test. When
 the same defect exists at the source series, also open a source-series issue (git-ops when a
 source remote resolves from `repo_facts` `remotes`, else record it in `merge-log.md` and the
-Continuation Contract). Record `<sha> | C3 | fixed in <module commit> | <evidence>`.
+Continuation Contract). Record `<sha> | C3 | fixed in <fix commit> | <evidence>`.
 
 **Field-existence question:** query that field directly instead of re-dumping the model:
 
@@ -246,8 +255,10 @@ remote: origin (`origin_url` of repo_facts)
 is open and CI has run, read the bot (CI linter / review bot) comments and resolve or consciously
 waive each; this never gates PR creation.
 
-NEVER squash. B stays LOCKED - the PR adds only the merge commits. Present the PR URL, the review findings, and the P11 acceptance verdict
-together, and wait for the human to merge.
+NEVER squash. B stays LOCKED - the PR adds only the merge commits and, after them, the commits
+of pre-existing fixes (C3); a fix for a finding raised on the open PR is placed by the same rule.
+Present the PR URL, the review findings, and the P11 acceptance verdict together, and wait for the
+human to merge.
 
 ---
 
