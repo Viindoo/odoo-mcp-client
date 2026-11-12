@@ -149,8 +149,8 @@ Per-batch checks:
 - **Multi-repo env bootstrap.** When source and target live in different repos/clones, bring
   the source ref into reach (invoke `git-toolkit:git-ops`: add source remote + fetch) BEFORE computing
   the merge base or merging. Detail: `references/fp-phase-p0-p4.md` § P0.
-- **Manifest version & migration dir.** C1 sets the manifest version at the merge, C2 decides each
-  forwarded `migrations/` dir at P9.6; they are distinct, apply both. SSOT: `[[fp-merge-absorption]]`.
+- **Manifest version & migration dir.** C1 sets the manifest version at the merge, C2 decides what
+  becomes of the forwarded `migrations/` dirs at P9.6; they are distinct, apply both. SSOT: `[[fp-merge-absorption]]`.
 - **Field-label grounding.** When the port renames or re-labels a field, confirm the
   target's canonical label before adapting -
   `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<target>')` - so the

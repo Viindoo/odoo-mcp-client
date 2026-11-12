@@ -77,48 +77,56 @@ every module's adapt work, closed once. In this order:
 Do NOT ask git-ops to commit until verify is green (§ Verify protocol). Do NOT open a second
 uncommitted merge while one is in progress (the index is shared; git-toolkit enforces this).
 
-## Migration dir retarget (C2) - distinct from C1
+## Migration scripts of the source series (C2) - distinct from C1
 
-C2 moves a module's own migration script to the target series; it is not a database upgrade.
-A source-series commit adds `migrations/<src-series>.a.b.c/`. `M` and `S` are as in C1. A migration
-runs only on UPGRADE and only when `installed < dir_version <= manifest`. Decide each dir at P9.6,
-after P9 is green and before P10 concludes the merge - never inside P8's adapt loop - in this order:
+C2 decides what becomes of the module migration scripts the range brings; it is not a database
+upgrade. The range may bring several `migrations/<src-series>.a.b.c/` dirs for one module, one
+per version bump on the source. `M` and `S` are as in C1. A migration runs only on UPGRADE and
+only when `installed < dir_version <= manifest`, so a dir named for the source series never runs
+on a database of the target series: none stays under that name in a module installable at the
+target. Decide per module at P9.6, after P9 is green and before P10 concludes the merge - never
+inside P8's adapt loop - in this order:
 
-1. **Precondition - installability.** Every module the script acts on (the owner of the dir and
+1. **Precondition - installability.** Every module a script acts on (the owner of the dir and
    each module whose tables, fields or records the script reads or writes) is `installable` at the
    target tip (the clean-tip read of `[[fp-installable-false]]`; an absent `installable` key counts
-   as installable). Otherwise FORWARD the dir unchanged under its source-series name and record
+   as installable). Otherwise FORWARD the dirs unchanged under their source-series names and record
    why on the commit's `merge-log.md` row (`<sha> | C2 forwarded | <module> not installable at
-   target tip`). A module `installable:False` at the target is the lint-only lane, so its own
-   migrations are always forwarded unchanged.
-2. **Decision - does the TARGET have the problem the script solves?** Read the script and the
-   target's code and data model for that module: the field, model or data shape the script repairs
-   exists on the target and is affected the way the source was. YES -> RETARGET. NO -> FORWARD the
-   dir unchanged under `<src-series>.a.b.c` and record why on the `merge-log.md` row
-   (`<sha> | C2 forwarded | target has no <problem the script solves>`). A dir forwarded under its
-   source-series name still fires for source-to-target jumpers below `a.b.c` and never on a
-   native-target database.
-3. **Retarget.** Name the dir FULL `<tgt-series>.V`, where `V` is the version C1 sets for the
-   module - step 1 admits only modules installable at the target, so `V = max(M + 1, S)`, always
-   above `M`, and the dir fires on a deployed target database sitting at `M`. When the range
-   carries no other `version` change for the module, a retarget still sets the manifest to that
-   `V`. Invariant: the dir version is `<=` the final manifest version.
+   target tip`). A module `installable:False` at the target is the lint-only lane, a dormant copy
+   of the source code, so its own migrations are always forwarded unchanged.
+2. **Decision - which steps does the TARGET need?** Read every script of every source dir, and
+   the target's code and data model for the module. A step is needed when the field, model or
+   data shape it repairs exists on the target and target databases hold it the way the source's
+   did. The answer may be all of the steps, some of them, or none.
+3. **Retarget what is needed, into ONE dir.** Name it FULL `<tgt-series>.V`, where `V` is the
+   version C1 sets for the module - step 1 admits only modules installable at the target, so
+   `V = max(M + 1, S)`, always above `M`, and the dir fires on a deployed target database sitting
+   at `M`. It holds one file per stage with the needed steps of all the source dirs, in the order
+   the source versions ran them, written for the target's data model and architecture: its
+   fields, models and helpers, never a shape only the source had. When the range carries no other
+   `version` change for the module, a retarget still sets the manifest to that `V`. Invariant: the
+   dir version is `<=` the final manifest version.
+4. **Delete every source-series dir the range brought**, retargeted or not needed, and record the
+   outcome on the `merge-log.md` row (`<sha> | C2 retargeted | <src dirs> -> <tgt-series>.V`, or
+   `<sha> | C2 dropped | target has no <problem the scripts solve>`). With nothing retargeted the
+   module ships no migration dir for the range and its manifest follows C1 alone.
 
-A retargeted dir name is always FULL `<tgt-series>.x.y.z`. A script may run more than once, so
-it is idempotent. After the rename,
-sweep the body for source-series literals (log strings, version constants).
+A retargeted script may run more than once, so it is idempotent. After the move, sweep its body
+for source-series literals (log strings, version constants).
 
 Why (Odoo source): `adapt_version()` in `odoo/modules/module.py` prefixes a short manifest
 `a.b.c` to `<series>.a.b.c` and stores it as `installed_version` (from a later series it also
 validates the version string - [[odoo-version-pivots]]); `MigrationManager.migrate_module`
 (`odoo/modules/migration.py`) runs a dir only when `installed_version < dir <= <series>.<manifest>`.
-A dir left at `<src-series>.a.b.c` therefore silently skips every DB already at the source-series
-state when it upgrades to the target series.
+A database of the target series is installed at `<tgt-series>.x`, above every `<src-series>.a.b.c`.
 
 Worked (`V = max(M + 1, S)`): M=0.1.2, S=0.1.2 -> V=0.1.3, dir `<tgt>.0.1.3` (`<tgt>.0.1.2` never
 runs: `<tgt>.0.1.2 < <tgt>.0.1.2` is false). M=0.1.1, S=0.1.5 -> V=0.1.5. M=0.1.4, S=0.1.2 ->
-V=0.1.5. M=0.1, S=0.1 -> V=0.1.1. M=0.3, S=0.3.1 -> V=0.3.1. M=0.1.2, S=0.1 -> V=0.1.3. A source migration repairing a shape the target never had -> no retarget, dir stays
-`<src-series>.a.b.c`, reason on the `merge-log.md` row; the manifest still follows C1.
+V=0.1.5. M=0.1, S=0.1 -> V=0.1.1. M=0.3, S=0.3.1 -> V=0.3.1. M=0.1.2, S=0.1 -> V=0.1.3. Source
+dirs `<src>.0.1.3` and `<src>.0.1.4`, M=0.1.2, S=0.1.4 -> one dir `<tgt>.0.1.4` with the steps of
+both that the target needs; both source dirs deleted. Source scripts repairing a shape the target
+never had -> nothing retargeted, the source dirs deleted, reason on the `merge-log.md` row; the
+manifest still follows C1.
 
 ## Skip-code-but-still-absorb rule
 

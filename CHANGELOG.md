@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `odoo-coder`): the two-part value `odoo-bin scaffold` writes is replaced. An existing module
   with a two-part version keeps it until it needs a bump, which then gives it three parts
   (`0.2` -> `0.2.1`); a change that needs no bump leaves it alone.
+- `odoo-forward-port` C2: the module migration scripts a range brings are decided per module,
+  not per directory. The steps the target series needs, from every source version bump of the
+  range, are rewritten into ONE `<target-series>.<version>` directory for the target's data model
+  and architecture; every directory named for the source series is deleted, whether its steps
+  were retargeted or not needed, because it can never run on a database of the target series. A
+  module that is not installable at the target keeps its directories unchanged, as before.
 - `check_orchestration.py` rule `[design-system]` checks that a frontend or full-stack skill
   reaches the UI contract, also through a skill it chains.
 
