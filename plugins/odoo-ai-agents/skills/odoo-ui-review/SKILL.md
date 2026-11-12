@@ -33,7 +33,8 @@ acceptance criteria and mockups. Serves the user who asks how a screen looks, an
    handle, and release that lease after the reviewer returns. Neither: the running instance per
    `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
 3. **What to review.** `SCREENS`: the screen the user named, or the views, actions and menus the
-   change touched. `ROLE`: the role the screen serves. `DESIGN_DOC`: the one the request names;
+   change touched. `ROLE`: the role the screen serves, with its groups. `ROLE_LOGIN`: a login of that role
+   the request names; `create` when step 2 built the database; else omitted. `DESIGN_DOC`: the one the request names;
    else the newest file under `<SHARE_DIR>/designs/`; in a master-child design the child path of
    the module from `index.yaml`, plus `MASTER_DESIGN_DOC`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`). `MOCKUPS`: the mockup
