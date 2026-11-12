@@ -127,19 +127,20 @@ Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
 ---
 
-## P9.6 - Migration dir (C2) (PER-BATCH, after P9 is green)
+## P9.6 - Migration scripts (C2) (PER-BATCH, after P9 is green)
 
 Only for a module whose range forwards a `migrations/<src-series>.a.b.c/` dir; none -> skip the phase.
 Resume that module's coder through `odoo-coding` (8b, `WORKER_AGENT_ID`) with `CONSTRAINTS` = C2
-(`${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md`) and the dir list. The coder decides each dir
-per C2, and after a rename sweeps the migration body for source-series literals still in log strings
+(`${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md`) and the dir list. The coder decides per
+module what the target needs (C2), writes the one retargeted dir when something is needed, deletes
+the source-series dirs, and sweeps a retargeted body for source-series literals still in log strings
 or version constants:
 
 ```bash
 grep -rn '<src-series>' migrations/<tgt-series>/
 ```
 
-Store the files it moved on the module's `merge-log.md` row (`files:`) with the per-dir outcome.
+Store the files it wrote and deleted on the module's `merge-log.md` row (`files:`) with the outcome.
 
 ---
 
