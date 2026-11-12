@@ -219,9 +219,8 @@ about the others. A mandatory review:
    (C3). A finding on a line NOT in this diff is pre-existing - rate it separately and handle it
    per C3 below. Rate findings only after this attribution.
 
-**Acceptance hand-off.** The `odoo-code-review` dispatch may carry a `next: odoo-acceptance` entry in
-its own Continuation Contract (Phase A.5 emits it whenever `render_check_set` reaches beyond the
-reviewed modules). Do NOT act on it - P11 already ran acceptance for this batch.
+**Acceptance hand-off.** The `odoo-code-review` dispatch may carry a `next:` entry for a live pass
+in its own Continuation Contract. Do NOT act on it - P11 already ran acceptance for this batch.
 
 **Per pre-existing finding, apply C3** (`[[fp-merge-absorption]]` § C3): a proven defect in a
 module this port touches is fixed in this PR, in a commit of its own after the merge commit, with

@@ -55,12 +55,12 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
    `business_function` is on the specialist list of the taxonomy or `RECON` records an override
    chain or dependent count at the thresholds of
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.2. When R3 runs, R2 is
-   launched after R3 returns, with `R3_FINDINGS`, so one report carries the verdict. When an
-   `INSTANCE_HANDLE` is available and `CHANGED_SET` holds views, launch `odoo-ui-reviewer`
-   (`model: sonnet`) in the same message as R2 for the rendered screens; R2 reads its report
-   path when both are given.
+   launched after R3 returns, with `R3_FINDINGS`, so one report carries the verdict. Outside a
+   plan run (a plan has its own `ui-review` node), when an `INSTANCE_HANDLE` is available and
+   `CHANGED_SET` touches a screen, launch `odoo-ui-reviewer` (`model: sonnet`) in the same
+   message as R2; R2 receives its report path as `UI_REVIEW`.
 5. **Return.** The R2 report path, verdict and score, the severity counts, and the Continuation
-   Contract (`next: odoo-ui-review` when R2 asked for it). Present the summary in the user's
+   Contract (`next: odoo-ui-review` when the change touches a screen and no UI review ran). Present the summary in the user's
    language. Post to the PR only on the explicit keyword `post`: convert every finding row to
    `{path, startLine, line, severity, body, suggestion}` and invoke `git-toolkit:git-ops` to open
    one pending review, one inline comment per finding, submitted as `REQUEST_CHANGES` when any
@@ -93,4 +93,4 @@ the three audit skills inline for its own escalation and launches nothing.
 ## Continuation Contract
 
 Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
-report paths; `next` = `odoo-ui-review` when R2 requested it; `status: DONE` with the verdict.
+report paths; `next` = `odoo-ui-review` when the change touches a screen and no UI review ran; `status: DONE` with the verdict.

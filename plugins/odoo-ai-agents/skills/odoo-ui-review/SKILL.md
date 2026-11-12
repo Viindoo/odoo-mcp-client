@@ -7,107 +7,53 @@ description: >-
 
 ## Role
 
-UI/UX reviewer for rendered Odoo screens. Judges the running interface - what a user sees and
-clicks - across six lenses: aesthetics, functional correctness, stability, accessibility,
-performance, and **design-system fidelity** (does the screen match the Odoo design system and
-the project mockup, or is it off-theme?). Evidence-based: every finding cites a screenshot, a
-console message, a Lighthouse score, a computed-style readout, or a snapshot node - never an
-unverified impression.
+Front door of the `odoo-ui-reviewer` agent: has rendered Odoo screens rated against
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` and, when the design gives them, its
+acceptance criteria and mockups. Serves the user who asks how a screen looks, and a plan's
+`ui-review` node after a change that touches a screen. Every finding cites what the browser showed.
 
 ## Out of Scope
 
-- **Investigating WHY a screen is broken / errors / blank render** → `odoo-debug`
-- **Comparing two states or builds for visual drift / regression** → `odoo-visual-regression`
-- **Executing a full workflow / QA-ing the affected cluster across roles with a PASS/FAIL verdict** → `odoo-acceptance` (this skill rates how ONE rendered screen looks/behaves; it does not drive CRUD/role flows or adjudicate an acceptance oracle)
-- **Recording a demo or marketing walkthrough video** → `odoo-demo-recording`
-- **Writing or changing Odoo frontend JS/OWL source** → `odoo-coding`
-- **Source-level code review (Python/JS/XML)** → `odoo-code-review`
+- **Why a screen is broken, errors or renders blank** -> `odoo-debug`
+- **Two states or builds compared for drift** -> `odoo-visual-regression`
+- **A workflow driven across roles with a PASS/FAIL verdict** -> `odoo-acceptance`
+- **A demo or walkthrough video** -> `odoo-demo-recording`
+- **Writing or changing the screen** -> `odoo-coding`
+- **Source-level review** -> `odoo-code-review`
 
-## Agent invocation
+## Dispatch
 
-When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
-agent's family delta; never inline that file verbatim into a hard-leaf brief.
-
-**Resolve `ISOLATE_DIR`, sweep, then mint `SLUG`.** This skill is the `odoo-ui-reviewer` agent's
-dedicated front door - the reviewer writes its own captured evidence to
-`<ISOLATE_DIR>/visual/screenshots/<slug>/` (never the repo working tree). Resolve `<ISOLATE_DIR>`
-once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (resolve-capture-substitute
-protocol).
-
-**Orphan sweep (do this every run, BEFORE minting this review's slug below).**
-`visual/screenshots/<slug>/` evidence is RETAINED past its own run - nothing else ever deletes it,
-so it leaks one directory per run forever unless a later run reaps it:
-
-`find <ISOLATE_DIR>/visual/screenshots/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
-
-(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed). Full rule + bound
-rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 2.
-Enforcer: whoever executes `odoo-ui-review` next, unconditionally, every run - not a separate
-cleanup agent or cron.
-
-Generate one `slug` for this review per
-`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1 (collision-proof
-derivation: `<intent-slug>-<YYYYMMDD>-<4 random chars>`, the SAME mechanism `odoo-visual-regression`
-uses) and pass both the captured absolute `ISOLATE_DIR` and this slug as `ISOLATE_DIR:` / `SLUG:`
-in the dispatch brief below - the agent substitutes both literals directly and does not re-resolve
-or improvise its own.
-
-**Before dispatching:** check for a design document from an upstream `odoo-solution-design` /
-`odoo-solution-architect` run. List `<SHARE_DIR>/designs/` (resolve `<SHARE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
-never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); if one or more
-files are present, take the most recently modified one and add the following line to the dispatch
-brief:
-
-```
-DESIGN_DOC: <SHARE_DIR>/designs/<filename>
-```
-
-The reviewer uses this to verify UI-observable acceptance criteria (controls visible, workflow
-paths reachable, labels correct, access-rule state reflected in the UI) from the SRS the design
-header names (roles and their jobs, outcome, acceptance criteria). When no `designs/` directory
-exists or it is empty, omit the line entirely.
-
-**Master-child mode (index-aware):** If `<SHARE_DIR>/designs/<master-slug>/index.yaml` exists,
-resolve the per-module child path from `index.yaml` (`modules[].child_path` for the module
-being reviewed) instead of picking the most-recently-modified flat file. Also add
-`MASTER_DESIGN_DOC: <subdir>/_master-<date>.md` to the dispatch brief so the reviewer can
-cross-check hard constraints from the master TDD. Single mode (no `index.yaml`): unchanged.
-Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
-
-When the user confirms intent (or main detects a running instance + a "how does it look" request),
-launch the `odoo-ui-reviewer` agent as a subagent. It returns findings, never edits - route every
-fix it names to `odoo-coding`.
-
-**Browser mode (headless default / headed on request).** The agent defaults to headless - the only
-safe choice on a no-display/CI host. Only when the human explicitly asks to see/watch the browser
-does main add a `BROWSER MODE: headed` line to the dispatch brief; the agent then uses its
-`*-headed` tool variant. This is an AI/NL decision passed in the brief - no env var or on-disk flag.
-Before dispatching headed, sanity-check that a display is plausibly available; on a headless/CI host
-warn the human rather than dispatching a doomed run.
+1. **Paths and slug.** Resolve `<SHARE_DIR>` and `<ISOLATE_DIR>` once
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), sweep this skill's evidence
+   directory and then mint one `SLUG`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clauses 2 and 1).
+2. **Instance.** An `INSTANCE_HANDLE` in the request is passed on and never released here. A
+   request with `SELF_PROVISION: worktree-addons` (a plan's tail node): build ONE database with
+   demo data from `WORKTREE_PATH` holding `MODULES`, through `Skill(odoo-instance)`, pass its
+   handle, and release that lease after the reviewer returns. Neither: the running instance per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
+3. **What to review.** `SCREENS`: the screen the user named, or the views, actions and menus the
+   change touched. `ROLE`: the role the screen serves. `DESIGN_DOC`: the one the request names;
+   else the newest file under `<SHARE_DIR>/designs/`; in a master-child design the child path of
+   the module from `index.yaml`, plus `MASTER_DESIGN_DOC`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`). `MOCKUPS`: the mockup
+   paths the design names, or `none`.
+4. **Launch `odoo-ui-reviewer`** (`model: sonnet`) with those values, the captured `SHARE_DIR`
+   and `ISOLATE_DIR`, `SLUG`, `ODOO_VERSION` and `USER LANGUAGE`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton). Add
+   `BROWSER MODE: headed` only when the human asked to watch the browser and a display is
+   available. The reviewer returns findings and edits nothing: a fix goes to `odoo-coding`.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** agent skips code-grounding steps and greps the repo on disk for the relevant view and stylesheet. Prefix output with `⚠ OSM unreachable - style/view origin inferred from disk, verify against the live module`.
-- **OSM reachable but view/stylesheet/module not in index (customer-local addon):** Tier-1 MISS, not proof of absence - keep OSM for what it covers; grep disk for just the missed entity, label `grounded: hybrid` (see `snippets/disk-fallback-protocol.md`).
-- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured screenshot paths in context, use those for aesthetics/a11y review. If no pre-captured screenshots are available, emit `status: NEEDS_NEXT` with (this skill is instance-REQUIRED - a rated screenshot IS the deliverable, unlike `odoo-code-review`'s instance-optional split; see `${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`):
-  ```
-  next:
-    - skill: odoo-instance
-      reason: provision the Odoo instance needed for live screenshot capture
-      inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to install>"]}
-      confidence: 0.9
-  ```
-  so the caller provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for review)` only if provisioning is itself impossible. Do NOT ask the caller to paste a URL or attach screenshots. Prefix (if pre-captured evidence used) with `⚠ Instance unreachable - review limited to pre-captured screenshots`.
-
-## Agent-managed tools
-
-This skill is part of an agent+skill bundle. The `odoo-ui-reviewer` agent owns the full
-restricted tool list (OSM + chrome-devtools) and step-by-step execution detail.
+- **OSM unreachable or the module not indexed:** the reviewer grounds the screen from the tree
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`) and labels its report.
+- **No instance and none can be built:** review the screenshots the caller already holds and say
+  so; with none, return `NEEDS_NEXT` with `next: odoo-instance` (`operation: ensure-up`, the
+  series, the modules), or `BLOCKED` when provisioning is impossible. Never ask for a URL or a
+  screenshot to be pasted.
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the plan runner - it does not change anything produced above.
+Append the block of `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `produced` = the
+report path and the evidence directory; `status: DONE` with the verdict.

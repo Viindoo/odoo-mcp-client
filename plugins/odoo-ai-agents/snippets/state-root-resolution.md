@@ -52,7 +52,7 @@ State of one run or one worktree:
 | `worklog/<run-or-slug>/`, `integration/<slug>/` | the run's worklog and integration log |
 | `brainstorm/state.json`, `pr-monitoring/` | session state |
 | `git-rebase/<slug>/`, `forward-port/<slug>/`, `modules-upgrade/<slug>/` | the working state of a rebase, a port, an upgrade |
-| `coding/<slug>-<date>/`, `recon/<slug>-<date>/`, `reviews/<slug>-<date>/` | a coding run's plan and impact map, scouting findings, review reports |
+| `coding/<slug>-<date>/`, `recon/<slug>-<date>/`, `reviews/<slug>-<date>/` | a coding run's plan, impact map and screen captures (`screens/`), scouting findings, review reports |
 | `followups/<slug>.md` | a deal follow-up |
 | `i18n/<slug>-<date>/` | one translation run's export, memory and reports |
 | `visual/<run_id>/<module>_staging/` | doc capture staging |

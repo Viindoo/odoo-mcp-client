@@ -62,7 +62,9 @@ for modules inside it, before driving.
    edit, duplicate, archive, the statusbar transition, the smart button, the search, filter and
    group-by the scenario names. A guarded action is tried as the permitted AND the unpermitted
    role.
-3. Capture the required evidence at each step: a screenshot of the result, the browser console
+3. Capture the required evidence at each step: a screenshot of the result (a scenario on a
+   changed screen: at the desktop and the phone width of
+   `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md` § Responsive breakpoints), the browser console
    (JS errors, blank mounts), the network log (4xx, 5xx), the record's state or field value, any
    error raised. Read and count records AS THE ROLE, in that role's own session - never as admin
    unless the scenario's role is admin. Every capture names an absolute path under

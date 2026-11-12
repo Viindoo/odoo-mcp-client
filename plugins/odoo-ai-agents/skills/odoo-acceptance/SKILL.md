@@ -83,10 +83,11 @@ expected to flag and allow, a block to have a way out, a surface to behave as co
    `REJECTED`), the A4 rows, the bug list, and the Continuation Contract. UNVERIFIED on a
    High-tier scenario: relaunch the tester for that scenario on a fresh session at most twice,
    then report it `BLOCKED (evidence unobtainable)`. Every lease the testers took is released
-   by them before they return; a forwarded `INSTANCE_HANDLE` is never released here. For a UI
-   change, open the screenshots yourself before you accept - desktop and mobile, every screen
-   reported as changed and a sample of those reported identical - and say what you saw: a
-   tester's verdict forwarded unseen is not acceptance.
+   by them before they return; a forwarded `INSTANCE_HANDLE` is never released here. For a
+   change that touches a screen (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`), open the
+   screenshots yourself before you accept - desktop and phone, every screen reported as changed
+   and a sample of those reported identical - and say what you saw: a tester's verdict forwarded
+   unseen is not acceptance.
 
 ## Standalone-first fallback
 

@@ -156,7 +156,7 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
    relations -> `odoo-perf-audit`; three or more deprecated symbols -> `odoo-deprecation-audit`;
    each diff-scoped, its findings replacing yours for that dimension
    (`${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md` § Ownership-transfer).
-11. **Synthesis**: merge R1, your findings and `R3_FINDINGS`; deduplicate (a tool-verified finding
+11. **Synthesis**: merge R1, your findings, `R3_FINDINGS` and the findings of `UI_REVIEW`; deduplicate (a tool-verified finding
    wins over a heuristic one); severity per the rubric; verdict `REQUEST_CHANGES` when any
    CRITICAL or HIGH remains, else `APPROVE`; score 100 minus 25 per CRITICAL, 10 per HIGH, 4 per
    MED, 1 per LOW, floor 0. Write `review.md`.
@@ -193,8 +193,7 @@ next pass, the coder's fix round and the PR comments are built from it - so it i
 where a host note discourages report files; write no other. Return the first line `DONE`
 (`NEEDS_CONTEXT` or `BLOCKED` otherwise), the report path, the severity counts, the verdict, the
 top finding, and the Continuation Contract of
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (`next: odoo-ui-review` when a view
-changed and no live review ran). Report in `USER LANGUAGE`, identifiers verbatim. Append
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Report in `USER LANGUAGE`, identifiers verbatim. Append
 CRITICAL and HIGH findings to the worklog.
 
 ## Never
