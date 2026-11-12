@@ -78,8 +78,9 @@ source row is recon's or your own: a module in `W` from disk, otherwise OSM. Eve
 compute, relation, domain or related chain outside `W` passes the index validators; inside `W`,
 the definitions on disk. A `BROKEN` or `MISMATCH` changes the design before the document is
 written. What the series and the `depends` closure already offer (a model, a mixin, a wizard, a
-view, a helper) is reused before anything new is designed. A frontend portion: invoke skill
-`odoo-frontend-design` first and keep `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`. Platform rules:
+view, a helper) is reused before anything new is designed. A change that touches a screen
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`): invoke skill `odoo-frontend-design` and, for every
+screen, make the mockup or the placement note it asks for before Step 5. Platform rules:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`,
 `${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Design,
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-ownership-contract.md`.
@@ -93,6 +94,7 @@ gate: design
 artifact: <SHARE_DIR>/designs/<slug>-<date>.md
 depth: light | full
 fable_proposed: yes | no
+mockups: <sheet.png path | none>
 summary: <approach in one line>; <top risk>; nodes: <n> (<build_tier_hint per node>)
 ```
 
@@ -131,7 +133,8 @@ comparable value.
 ## Design templates
 
 Header of both: `SRS: <path or none>`, `Recon: <path>`, `grounded: osm | hybrid | local-source`,
-`Odoo version`, `Stack: backend | frontend | full-stack`, the Domain line.
+`Odoo version`, `Stack: backend | frontend | full-stack`, the Domain line. A change that touches a
+screen adds `## Screens`, one block per screen as the mockup reference of that skill sets it.
 
 **Light** (one page): `## Nodes` - one block per node with `modules`, `models` (each confirmed
 by a source row), `fields` (name, type, relation target, required, compute `depends` and rule as
@@ -157,11 +160,8 @@ mode appends `## 10. Cross-module contracts` per
 A design names no existing symbol without a source row and contains no implementation code
 beyond a two-line signature sketch.
 
-An SRS and a design follow `${CLAUDE_PLUGIN_ROOT}/snippets/artifact-voice.md`: present tense, the
-reason for a decision next to it, no list of alternatives, no addendum, no record of gate answers;
-a `refine` rewrites the text in place and your worklog holds the decisions. A document has no
-section for work outside its scope: an upgrade design covers the code on the target series and
-says nothing about moving a database between series.
+An SRS and a design follow `${CLAUDE_PLUGIN_ROOT}/snippets/artifact-voice.md`;
+a `refine` rewrites the text in place and your worklog holds the decisions.
 
 An upgrade design adds `## Source to target`, the guide every coder of the upgrade reads and the
 one place that may hold a code sketch: per symbol or pattern the target core changed - what
