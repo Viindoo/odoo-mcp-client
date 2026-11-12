@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and `MOCKUPS`, captures both schemes where it can, and compares a screen with its mockup by
   structure and with core by classes and computed values.
 
+- `verify-frontend.sh` checks the lines a change adds for values that fix a colour scheme: a
+  literal colour in a stylesheet, a `style` attribute or JavaScript, and a class that keeps one
+  scheme whatever the theme (WARN); and a `*.dark.scss` that its module's manifest leaves in a
+  light bundle or registers in no dark bundle (BLOCK). Whether the series has a dark bundle is
+  read from the `web` manifest of the checkout. A stylesheet-only change now runs the reference
+  checks too.
+
 ### Changed
 
 - `skills/_shared/odoo-frontend-fidelity.md` keeps the frontend eras, the OWL pitfalls and how to

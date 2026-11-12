@@ -20,6 +20,18 @@ Subcommands (each prints one finding per line as `BLOCK|<file>:<line>|<msg>`,
       `t-elif`/`t-else` node that continues its chain: the inserted node would take the
       chain over. An inherited template that cannot be found, or an XPath that cannot
       be evaluated or matches nothing, is a WARN, never a BLOCK.
+
+  scheme [--odoo-root R] [--base REF] <scss/css, xml and js files...>
+      A change must not fix a colour scheme (snippets/odoo-ui-contract.md § 2). Only the
+      lines the change adds are examined (an untracked file in full):
+      WARN a literal colour in a stylesheet other than `*.dark.scss`, in a `style` attribute
+      of an XML view or template, or in a JS string, and WARN a class that fixes a scheme
+      (`bg-white`, `text-dark`, ...) in an XML class list.
+      For every `*.dark.scss` given, the manifest of its module (read as a literal) must
+      register it in a dark bundle (BLOCK when it does not) and must keep it out
+      of every other bundle that includes it by path or glob (BLOCK otherwise). A manifest
+      that cannot be read is a WARN. With `--odoo-root` on a checkout whose `web` declares
+      no dark bundle, the registration part is skipped with one INFO line.
 """
 import argparse
 import copy
@@ -42,6 +54,7 @@ IMPORT_RE = re.compile(
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 XPATH_GUIDE = "coding_guidelines/<series>/xml.md § Inheriting QWeb templates"
+UI_CONTRACT = "snippets/odoo-ui-contract.md § 2"
 
 
 def _emit(sev, file, line, msg):
@@ -376,6 +389,300 @@ def check_xpath_branch(files, addons_dirs):
 
 
 # ---------------------------------------------------------------------------
+# scheme
+# ---------------------------------------------------------------------------
+# A colour function counts only when its first argument is a number: `rgba($var, .5)` and
+# `rgb(var(--x))` derive from a variable and are not literals.
+HEX_RE = re.compile(
+    r"(?<![\w&#$-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])")
+COLOR_FN_RE = re.compile(r"(?<![\w-])(?P<fn>rgba?|hsla?)\(\s*[-+]?(?:\d|\.\d)")
+BARE_NAME_RE = re.compile(r"(?<![\w$#.@-])(?:white|black)(?![\w(-])")
+DECL_RE = re.compile(
+    r"""(?:^|[;{(,])\s*(?P<prop>[$@]?[\w-]+|["'][^"']*["'])\s*:(?!:)\s*(?P<val>[^;{}]*)""")
+SCHEME_CLASSES = ("bg-white", "bg-light", "bg-dark", "bg-black", "text-dark", "text-white",
+                  "text-black", "text-light", "border-light", "border-dark", "border-white")
+SCHEME_CLASS_RE = re.compile(
+    r"(?<![\w-])(%s)(?![\w-])" % "|".join(re.escape(c) for c in SCHEME_CLASSES))
+XML_ATTR_RE = re.compile(
+    r"""(?<![\w:.-])(?P<name>t-attf-class|t-att-class|t-attf-style|t-att-style|class|style)"""
+    r"""\s*=\s*(?P<q>["'])(?P<val>.*?)(?P=q)""", re.S)
+STYLE_COLOR_DECL_RE = re.compile(
+    r"(?<![\w-])(?:color|background(?:-color)?|border(?:-(?:top|right|bottom|left))?(?:-color)?"
+    r"|outline(?:-color)?|fill|stroke|box-shadow|text-shadow|caret-color|accent-color)"
+    r"\s*:\s*(?P<val>[^;]*)")
+
+
+def _blank(text):
+    return re.sub(r"[^\n]", " ", text)
+
+
+def _blank_css(text, line_comments):
+    """Lines of `text` with comments, string contents and `url(...)` contents replaced by
+    spaces, so a pattern run on a line never reads prose or a data URI."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c, two = text[i], text[i:i + 2]
+        if two == "/*":
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append(_blank(text[i:j]))
+        elif line_comments and two == "//":
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+        elif c in "\"'":
+            k = i + 1
+            while k < n and text[k] != c and text[k] != "\n":
+                k += 2 if text[k] == "\\" else 1
+            k = min(k, n)
+            closed = k < n and text[k] == c
+            out.append(c + _blank(text[i + 1:k]) + (c if closed else ""))
+            j = k + 1 if closed else k
+        elif (c in "uU" and text[i:i + 4].lower() == "url("
+              and not re.match(r"[\w-]", text[i - 1:i])):
+            j = text.find(")", i)
+            j = n if j < 0 else j
+            out.append(text[i:i + 4] + _blank(text[i + 4:j]))
+        else:
+            out.append(c)
+            j = i + 1
+        i = j
+    return "".join(out).split("\n")
+
+
+def _literal_colour(text, names=False):
+    """The first literal colour in `text` as it should be quoted, or None."""
+    for rx in (HEX_RE, COLOR_FN_RE) + ((BARE_NAME_RE,) if names else ()):
+        hit = rx.search(text)
+        if hit:
+            return hit.group("fn") + "(...)" if rx is COLOR_FN_RE else hit.group(0)
+    return None
+
+
+def _css_literal(code):
+    """The first literal colour on one comment-free stylesheet line, or None. A hex or a
+    colour name is read only as a declaration value, never in a selector (`#fade {`)."""
+    fn = COLOR_FN_RE.search(code)
+    if fn:
+        return fn.group("fn") + "(...)"
+    decls = list(DECL_RE.finditer(code))
+    for d in decls:
+        lit = _literal_colour(d.group("val"), names=True)
+        if lit:
+            return lit
+    if not decls and "{" not in code and code.rstrip().endswith(";"):
+        return _literal_colour(code)
+    return None
+
+
+def _read_full(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def _scheme_stylesheet(path, added):
+    text = _read_full(path)
+    if text is None:
+        return
+    code = _blank_css(text, line_comments=not path.endswith(".css"))
+    for lineno, _ in added:
+        lit = _css_literal(code[lineno - 1]) if 0 < lineno <= len(code) else None
+        if lit:
+            _emit("WARN", path, lineno,
+                  f"literal colour {lit}: use a core SCSS variable, or a component custom "
+                  f"property with a core variable as fallback - see {UI_CONTRACT}")
+
+
+def _scheme_xml(path, added):
+    text = _read_full(path)
+    if text is None:
+        return
+    text = re.sub(r"<!--.*?-->", lambda m: _blank(m.group(0)), text, flags=re.S)
+    changed = {n for n, _ in added}
+    for m in XML_ATTR_RE.finditer(text):
+        first = text.count("\n", 0, m.start()) + 1
+        last = first + text.count("\n", m.start(), m.end())
+        lines = [n for n in range(first, last + 1) if n in changed]
+        if not lines:
+            continue
+        name, val = m.group("name"), m.group("val")
+        if name.endswith("class"):
+            hit = SCHEME_CLASS_RE.search(val)
+            if hit:
+                _emit("WARN", path, lines[0],
+                      f"class {hit.group(1)} fixes a colour scheme: use a core class that "
+                      f"follows the theme (bg-view, text-body, text-muted, text-bg-<status>) - "
+                      f"see {UI_CONTRACT}")
+            continue
+        for decl in STYLE_COLOR_DECL_RE.finditer(val):
+            lit = _literal_colour(decl.group("val"), names=True)
+            if lit:
+                _emit("WARN", path, lines[0],
+                      f"style attribute fixes the colour {lit}: use a core class or a "
+                      f"component custom property instead - see {UI_CONTRACT}")
+                break
+
+
+def _js_strings(text):
+    """(first line, last line, content) of every string literal outside comments."""
+    out, i, n, line = [], 0, len(text), 1
+    while i < n:
+        c, two = text[i], text[i:i + 2]
+        if two == "//":
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif two == "/*":
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            line += text.count("\n", i, j)
+            i = j
+        elif c in "\"'`":
+            j = i + 1
+            while j < n and text[j] != c and (c == "`" or text[j] != "\n"):
+                j += 2 if text[j] == "\\" else 1
+            j = min(j, n)
+            out.append((line, line + text.count("\n", i, j), text[i + 1:j]))
+            line += text.count("\n", i, j)
+            i = j + 1
+        else:
+            line += c == "\n"
+            i += 1
+    return out
+
+
+def _scheme_js(path, added):
+    text = _read_full(path)
+    if text is None:
+        return
+    changed = {n for n, _ in added}
+    for first, last, content in _js_strings(text):
+        lines = [n for n in range(first, last + 1) if n in changed]
+        lit = _literal_colour(content) if lines else None
+        if lit:
+            _emit("WARN", path, lines[0],
+                  f"literal colour {lit} in a string: take it from a core CSS variable or "
+                  f"class, or the web client's colour helpers - see {UI_CONTRACT}")
+
+
+def _glob_re(pattern):
+    """Regex of a bundle path or glob: `**` crosses directories, `*` and `?` stay in one."""
+    out, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:[^/]+/)*")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out) + r"\Z")
+
+
+def _bundle_holds(entries, rel):
+    """Whether a bundle's entries end up holding `rel`: later entries win, as in Odoo."""
+    held = False
+    for entry in entries:
+        if isinstance(entry, str):
+            op, args = "append", [entry]
+        elif isinstance(entry, (list, tuple)) and entry and isinstance(entry[0], str):
+            op, args = entry[0], [a for a in entry[1:] if isinstance(a, str)]
+        else:
+            continue
+        if op in ("append", "prepend") and len(args) == 1:
+            held = held or bool(_glob_re(args[0]).match(rel))
+        elif op == "remove" and len(args) == 1 and _glob_re(args[0]).match(rel):
+            held = False
+        elif op in ("before", "after") and len(args) == 2:
+            held = held or bool(_glob_re(args[1]).match(rel))
+        elif op == "replace" and len(args) == 2:
+            held = (held and not _glob_re(args[0]).match(rel)) or bool(_glob_re(args[1]).match(rel))
+    return held
+
+
+def _module_dir(path):
+    d = os.path.dirname(os.path.abspath(path))
+    while d != os.path.dirname(d):
+        if any(os.path.isfile(os.path.join(d, n)) for n in ("__manifest__.py", "__openerp__.py")):
+            return d
+        d = os.path.dirname(d)
+    return None
+
+
+def _source_facts():
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import odoo_source_facts
+    return odoo_source_facts
+
+
+def _is_dark_bundle(bundle):
+    # Core and themes name dark bundles both ways: `web.assets_web_dark`,
+    # `web.dark_mode_assets_backend`.
+    return "dark" in str(bundle).rsplit(".", 1)[-1]
+
+
+def _check_dark_registration(path, facts):
+    module = _module_dir(path)
+    manifest = facts.module_manifest(module) if module else None
+    if manifest is None:
+        _emit("WARN", path, 1, "manifest not readable, dark registration not checked")
+        return
+    assets = manifest.get("assets")
+    assets = assets if isinstance(assets, dict) else {}
+    rel = os.path.relpath(os.path.abspath(path), os.path.dirname(module)).replace(os.sep, "/")
+    if not any(_is_dark_bundle(b) and _bundle_holds(e, rel) for b, e in assets.items()):
+        _emit("BLOCK", path, 1,
+              f"{rel} is in no dark bundle of the module manifest: add it to the dark "
+              f"bundle, as core does with web.assets_web_dark - see {UI_CONTRACT}")
+    for bundle, entries in assets.items():
+        # A private sub-bundle (`web._assets_core`) is only reached through an `include`, and
+        # the bundle that includes it owns the removal.
+        private = str(bundle).rsplit(".", 1)[-1].startswith("_")
+        if not private and not _is_dark_bundle(bundle) and _bundle_holds(entries, rel):
+            _emit("BLOCK", path, 1,
+                  f"{rel} stays in the light bundle {bundle}: add ('remove', '{rel}') or a "
+                  f"glob covering it to that bundle - see {UI_CONTRACT}")
+
+
+def check_scheme(files, base, odoo_root):
+    facts = _source_facts()
+    registration = True
+    if odoo_root and facts.locate_odoo_root(odoo_root) and not facts.dark_asset_bundle(odoo_root):
+        registration = False
+        if any(f.endswith(".dark.scss") for f in files):
+            _emit("INFO", odoo_root, 0,
+                  "web declares no dark asset bundle on this series; dark registration "
+                  "not checked")
+    scanners = {".scss": _scheme_stylesheet, ".css": _scheme_stylesheet,
+                ".xml": _scheme_xml, ".js": _scheme_js}
+    for path in files:
+        if path.endswith(".dark.scss"):
+            if registration:
+                _check_dark_registration(path, facts)
+            continue
+        scan = scanners.get(os.path.splitext(path)[1])
+        if scan is None:
+            continue
+        added = _added_lines(path, base)
+        if added is None:
+            _emit("INFO", path, 0, f"cannot diff against {base}; colour scheme not checked")
+            continue
+        scan(path, added)
+
+
+# ---------------------------------------------------------------------------
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="frontend_static_checks.py", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -386,7 +693,14 @@ def main(argv=None):
         if name == "imports":
             p.add_argument("--base", default="HEAD")
         p.add_argument("files", nargs="*")
+    scheme = sub.add_parser("scheme")
+    scheme.add_argument("--base", default="HEAD")
+    scheme.add_argument("--odoo-root", default=None)
+    scheme.add_argument("files", nargs="*")
     args = ap.parse_args(argv)
+    if args.cmd == "scheme":
+        check_scheme(args.files, args.base, args.odoo_root)
+        return 0
     dirs = [d for d in args.addons_dir if os.path.isdir(d)]
     if args.cmd == "imports":
         check_imports(args.files, dirs, args.base)
