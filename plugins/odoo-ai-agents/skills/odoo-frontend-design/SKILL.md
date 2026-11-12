@@ -46,6 +46,13 @@ theme of the site.
    in the target series. An element with no core counterpart is a cost the module owns: keep it
    only when the job cannot be done without it.
 
+## Mockup
+
+The decisions above go into the design's `## Screens` section, one block per screen, and each
+screen gets a mockup or a placement note the approver, the coder and the reviewer all look at:
+`references/mockup.md` says which of the two, how to make it and where it is kept. A mockup the
+project already keeps under `<SHARE_DIR>/mockups/` is input to it, never its output location.
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->

@@ -192,13 +192,12 @@ None of these inputs comes from a stored project file:
   NOT here: it is per-run ISOLATE at `<ISOLATE_DIR>/visual/current/<slug>/`. Where each kind of
   evidence goes and how long it is kept:
   `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 2.
-- **Mockup-first check** - opt-in, activated when `<SHARE_DIR>/mockups/` is non-empty (reference
-  mockups/design specs).
+- **Mockups** - the files the design names under `<SHARE_DIR>/designs/<slug>/mockups/`, and any
+  the project placed under `<SHARE_DIR>/mockups/`; none, and the mockup comparison is skipped.
 
 The Odoo series is the one input that STOPS and asks rather than guessing when no rung resolves it
 (`snippets/project-facts-resolution.md` rung 5); the instance target degrades
-to a single clarifying request only when genuinely unretrievable after every rung; the
-mockup-first check skips silently when its input is absent.
+to a single clarifying request only when genuinely unretrievable after every rung.
 
 ## Documentation screenshots (static/description)
 

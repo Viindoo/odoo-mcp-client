@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   read from the `web` manifest of the checkout. A stylesheet-only change now runs the reference
   checks too.
 
+- A design that touches a screen shows the screen. `odoo-solution-architect` adds `## Screens` to
+  the design and, through `odoo-frontend-design`, makes a mockup for a new or rearranged screen
+  (a self-contained HTML page built from the new mockup kit, with desktop, phone and dark
+  captures and a contact sheet the design gate names) or a placement note for elements added to
+  an existing screen. The mockup binds layout, order, wording and behaviour; the coder builds to
+  it and the UI review compares the rendered screen with it.
+
 ### Changed
 
 - `skills/_shared/odoo-frontend-fidelity.md` keeps the frontend eras, the OWL pitfalls and how to

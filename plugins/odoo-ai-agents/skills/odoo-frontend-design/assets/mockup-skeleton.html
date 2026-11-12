@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: Equipment request</title>
+<link rel="stylesheet" href="mockup-kit.css">
+</head>
+<body>
+
+<div class="mk-tools" data-mockup-tools>
+  <button class="mk-btn" type="button" data-act="scheme">Dark / light</button>
+  <button class="mk-btn" type="button" data-act="notes">Notes</button>
+  <button class="mk-btn" type="button" data-act="dialog">Dialog</button>
+</div>
+
+<h2 class="mk-section">Form view</h2>
+<div class="mk-screen">
+  <nav class="mk-navbar">
+    <span class="mk-apps">&#9783;</span>
+    <span class="mk-brand">Equipment</span>
+    <div class="mk-menu"><a class="is-active" href="#">Requests</a><a href="#">Reporting</a><a href="#">Configuration</a></div>
+    <div class="mk-nav-right"><span>&#9993;</span><span>&#9719;</span><span class="mk-avatar">AB</span></div>
+  </nav>
+
+  <div class="mk-cp">
+    <div class="mk-cp-left">
+      <div class="mk-crumbs"><span>Requests</span><span class="is-current">Laptop for new hire</span></div>
+      <button class="mk-btn mk-btn-primary" type="button">Save</button>
+      <button class="mk-btn" type="button">Discard</button>
+    </div>
+    <div class="mk-cp-right">
+      <div class="mk-pager"><button type="button">&lsaquo;</button><span>3 / 12</span><button type="button">&rsaquo;</button></div>
+    </div>
+  </div>
+
+  <div class="mk-form-layout">
+    <div class="mk-form-main">
+      <div class="mk-header">
+        <div class="mk-header-buttons">
+          <button class="mk-btn mk-btn-primary" type="button">Submit</button>
+          <button class="mk-btn" type="button">Approve</button>
+          <button class="mk-btn" type="button">Refuse</button>
+          <button class="mk-btn mk-actions" type="button">Actions &#9662;</button>
+        </div>
+        <div class="mk-statusbar">
+          <span class="mk-stage">Draft</span><span class="mk-stage is-current">Submitted</span><span class="mk-stage">Approved</span><span class="mk-stage">Delivered</span>
+        </div>
+      </div>
+      <span class="mk-note">core: statusbar widget; buttons fold into Actions on a phone</span>
+
+      <div class="mk-sheet">
+        <div class="mk-buttonbox">
+          <button class="mk-smart" type="button"><b>2</b><span>Quotes</span></button>
+          <button class="mk-smart" type="button"><b>1</b><span>Deliveries</span></button>
+          <button class="mk-smart is-extra" type="button"><b>5</b><span>Attachments</span></button>
+          <button class="mk-smart is-extra" type="button"><b>3</b><span>Activities</span></button>
+          <button class="mk-btn mk-more" type="button">More &#9662;</button>
+        </div>
+        <div class="mk-title">
+          <small>Request</small>
+          <h1><input class="mk-field is-required" value="Laptop for new hire" aria-label="Request title"></h1>
+        </div>
+        <div class="mk-group-grid">
+          <div class="mk-group">
+            <div class="mk-group-title">Requester</div>
+            <div class="mk-row"><label class="mk-label">Employee</label><input class="mk-field is-required" value="Sample Employee"></div>
+            <div class="mk-row"><label class="mk-label">Department</label><input class="mk-field is-readonly" value="Operations" readonly></div>
+            <div class="mk-row"><label class="mk-label">Needed by</label><input class="mk-field is-invalid" value="01/01/2020"></div>
+            <div class="mk-row"><span></span><span class="mk-field-error">The date is in the past.</span></div>
+          </div>
+          <div class="mk-group">
+            <div class="mk-group-title">Equipment</div>
+            <div class="mk-row"><label class="mk-label">Category</label><input class="mk-field" value="Computers"></div>
+            <div class="mk-row"><label class="mk-label">Quantity</label><input class="mk-field" value="1"></div>
+            <div class="mk-row"><label class="mk-label">Reference</label><input class="mk-field" placeholder="Optional"></div>
+            <div class="mk-row"><label class="mk-label">Priority</label><span><span class="mk-badge mk-badge-warning">High</span></span></div>
+          </div>
+        </div>
+        <span class="mk-note">core: two group columns, entry order top to bottom</span>
+
+        <div class="mk-notebook">
+          <div class="mk-tabs" role="tablist">
+            <button class="mk-tab is-active" type="button" role="tab" data-tab="p1">Justification</button>
+            <button class="mk-tab" type="button" role="tab" data-tab="p2">Approvals</button>
+            <button class="mk-tab" type="button" role="tab" data-tab="p3">Technical</button>
+          </div>
+          <div class="mk-page" id="p1" role="tabpanel">
+            <div class="mk-row"><label class="mk-label">Reason</label><input class="mk-field" value="Replacement of a retired device"></div>
+          </div>
+          <div class="mk-page" id="p2" role="tabpanel" hidden>
+            <div class="mk-row"><label class="mk-label">Approver</label><input class="mk-field is-readonly" value="Sample Manager" readonly></div>
+          </div>
+          <div class="mk-page" id="p3" role="tabpanel" hidden>
+            <div class="mk-row"><label class="mk-label">Created</label><input class="mk-field is-readonly" value="2025-01-15 09:30" readonly></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="mk-chatter">
+      <div class="mk-chatter-actions">
+        <button class="mk-btn mk-btn-primary" type="button">Send message</button>
+        <button class="mk-btn" type="button">Log note</button>
+        <button class="mk-btn" type="button">Activity</button>
+      </div>
+      <div class="mk-day">Today</div>
+      <div class="mk-msg"><span class="mk-avatar">SM</span><div><strong>Sample Manager</strong><p>Status changed: Draft &rarr; Submitted</p></div></div>
+      <div class="mk-msg"><span class="mk-avatar">SE</span><div><strong>Sample Employee</strong><p>Request created</p></div></div>
+      <span class="mk-note">core: chatter, beside the sheet when wide, under it otherwise</span>
+    </aside>
+  </div>
+</div>
+
+<h2 class="mk-section">List view</h2>
+<div class="mk-screen">
+  <div class="mk-cp">
+    <div class="mk-cp-left">
+      <div class="mk-crumbs"><span class="is-current">Requests</span></div>
+      <button class="mk-btn mk-btn-primary" type="button">New</button>
+    </div>
+    <div class="mk-cp-right">
+      <div class="mk-search"><span class="mk-facet">Mine &times;</span><input placeholder="Search..." aria-label="Search"></div>
+      <div class="mk-views"><button class="is-active" type="button" aria-label="List">&#9776;</button><button type="button" aria-label="Kanban">&#9638;</button></div>
+    </div>
+  </div>
+  <div class="mk-list-wrap">
+    <table class="mk-list">
+      <thead><tr><th class="mk-check"><input type="checkbox" aria-label="Select all"></th><th>Request</th><th>Employee</th><th>Stage</th><th class="is-num">Quantity</th></tr></thead>
+      <tbody>
+        <tr class="mk-group-row"><td colspan="5">Computers (3)</td></tr>
+        <tr class="is-selected"><td class="mk-check"><input type="checkbox" checked aria-label="Select"></td><td data-label="Request">Laptop for new hire</td><td data-label="Employee">Sample Employee</td><td data-label="Stage"><span class="mk-badge mk-badge-info">Submitted</span></td><td class="is-num" data-label="Quantity">1</td></tr>
+        <tr><td class="mk-check"><input type="checkbox" aria-label="Select"></td><td data-label="Request">Second monitor</td><td data-label="Employee">Sample Colleague</td><td data-label="Stage"><span class="mk-badge mk-badge-success">Approved</span></td><td class="is-num" data-label="Quantity">2</td></tr>
+        <tr><td class="mk-check"><input type="checkbox" aria-label="Select"></td><td data-label="Request">Docking station</td><td data-label="Employee">Sample Employee</td><td data-label="Stage"><span class="mk-badge mk-badge-danger">Refused</span></td><td class="is-num" data-label="Quantity">1</td></tr>
+      </tbody>
+      <tfoot><tr><td class="mk-check"></td><td colspan="3">Total</td><td class="is-num">4</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+<h2 class="mk-section">Kanban view</h2>
+<div class="mk-screen">
+  <div class="mk-kanban">
+    <div class="mk-kcol">
+      <div class="mk-kcol-head">Draft <span>1</span></div>
+      <div class="mk-card"><strong>Office chair</strong><span class="mk-meta">Sample Colleague &middot; Qty 1</span>
+        <div class="mk-card-foot"><div class="mk-tags"><span class="mk-badge">Furniture</span></div><span class="mk-avatar">SC</span></div></div>
+    </div>
+    <div class="mk-kcol">
+      <div class="mk-kcol-head">Submitted <span>2</span></div>
+      <div class="mk-card"><strong>Laptop for new hire</strong><span class="mk-meta">Sample Employee &middot; Qty 1</span>
+        <div class="mk-card-foot"><div class="mk-tags"><span class="mk-badge mk-badge-warning">High</span><span class="mk-badge">Computers</span></div><span class="mk-avatar">SE</span></div></div>
+      <div class="mk-card"><strong>Headset</strong><span class="mk-meta">Sample Colleague &middot; Qty 2</span>
+        <div class="mk-card-foot"><div class="mk-tags"><span class="mk-badge mk-badge-info">Audio</span></div><span class="mk-avatar">SC</span></div></div>
+    </div>
+    <div class="mk-kcol">
+      <div class="mk-kcol-head">Approved <span>1</span></div>
+      <div class="mk-card"><strong>Second monitor</strong><span class="mk-meta">Sample Colleague &middot; Qty 2</span>
+        <div class="mk-card-foot"><div class="mk-tags"><span class="mk-badge mk-badge-success">Ready</span></div><span class="mk-avatar">SC</span></div></div>
+    </div>
+    <div class="mk-kcol">
+      <div class="mk-kcol-head">Delivered <span>0</span></div>
+      <div class="mk-empty"><h3>Nothing delivered yet</h3><p>Approved requests appear here.</p></div>
+    </div>
+  </div>
+</div>
+
+<div class="mk-backdrop" id="dlg" role="dialog" aria-modal="true" aria-label="Refuse request">
+  <div class="mk-dialog">
+    <div class="mk-dialog-head"><span>Refuse request</span><button type="button" data-act="close" aria-label="Close">&times;</button></div>
+    <div class="mk-dialog-body">
+      <div class="mk-row"><label class="mk-label">Reason</label><input class="mk-field is-required" placeholder="Why is it refused?"></div>
+    </div>
+    <div class="mk-dialog-foot"><button class="mk-btn mk-btn-primary" type="button">Refuse</button><button class="mk-btn" type="button" data-act="close">Discard</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement, q = new URLSearchParams(location.search);
+  if (q.get("scheme") === "dark" || q.get("scheme") === "light") root.setAttribute("data-scheme", q.get("scheme"));
+  if (q.get("notes") === "off") root.setAttribute("data-notes", "off");
+  if (q.get("tools") === "off") root.setAttribute("data-tools", "off");
+  if (q.get("state")) root.setAttribute("data-state", q.get("state"));
+  var dlg = document.getElementById("dlg");
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act],[data-tab]");
+    if (!t) return;
+    if (t.dataset.tab) {
+      document.querySelectorAll(".mk-tab").forEach(function (b) { b.classList.toggle("is-active", b === t); });
+      document.querySelectorAll(".mk-page").forEach(function (p) { p.hidden = p.id !== t.dataset.tab; });
+      return;
+    }
+    var a = t.dataset.act;
+    if (a === "scheme") {
+      var dark = root.getAttribute("data-scheme") === "dark" ||
+        (!root.hasAttribute("data-scheme") && matchMedia("(prefers-color-scheme: dark)").matches);
+      root.setAttribute("data-scheme", dark ? "light" : "dark");
+    } else if (a === "notes") {
+      if (root.getAttribute("data-notes") === "off") root.removeAttribute("data-notes");
+      else root.setAttribute("data-notes", "off");
+    } else if (a === "dialog") dlg.classList.add("is-open");
+    else if (a === "close") dlg.classList.remove("is-open");
+  });
+  if (q.get("dialog") === "open") dlg.classList.add("is-open");
+})();
+</script>
+</body>
+</html>
