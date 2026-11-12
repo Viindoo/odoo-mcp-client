@@ -90,6 +90,29 @@ def no_systemd_path(path_farm):
     return path
 
 
+@pytest.fixture(scope="session")
+def kill_path(tmp_path_factory):
+    """The ambient PATH with a `systemd-run` in front that starts every scope with OOMPolicy=continue.
+
+    A kernel OOM kill inside a scope that keeps the manager's default policy (stop) ends with
+    Result=oom-kill on the scope unit, and gnome-settings-daemon's housekeeping plugin raises a
+    desktop notification for every unit whose result is oom-kill (gsd-systemd-notify.c,
+    on_unit_properties_changed). The tests that kill a child on purpose start their scope through
+    this wrapper: the cgroup limit, the kernel kill, SIGKILL and status 137 are the real ones, and
+    the policy only decides whether systemd then stops the scope's remaining members. The killed
+    command is the scope's only member in every one of these tests, so the assertions hold under
+    either policy.
+    """
+    real = shutil.which("systemd-run")
+    if real is None:
+        return os.environ.get("PATH", "")
+    wrapper_dir = tmp_path_factory.mktemp("kill-path")
+    wrapper = wrapper_dir / "systemd-run"
+    wrapper.write_text('#!/bin/sh\nexec "%s" -p OOMPolicy=continue "$@"\n' % real, encoding="utf-8")
+    wrapper.chmod(0o755)
+    return os.pathsep.join([str(wrapper_dir), os.environ.get("PATH", "")])
+
+
 def _env(cap=CAP, path=None, **extra):
     env = dict(os.environ)
     env.pop("_RUN_CAPPED_EXEC", None)
@@ -128,18 +151,18 @@ def _alive_rc(proc):
 # --------------------------------------------------------------------------- #
 @posix_only
 @needs_scope
-def test_a_child_past_the_cap_is_killed_alone_and_the_launcher_sees_137():
-    done = _sourced([PY, "-c", ALLOCATE])
+def test_a_child_past_the_cap_is_killed_alone_and_the_launcher_sees_137(kill_path):
+    done = _sourced([PY, "-c", ALLOCATE], env=_env(path=kill_path))
     assert _alive_rc(done) == 137, done
     assert "allocated" not in done.stdout
 
 
 @posix_only
 @needs_scope
-def test_the_shell_front_door_ends_with_the_kill_signal():
+def test_the_shell_front_door_ends_with_the_kill_signal(kill_path):
     """The front door REPLACES itself with the command, so its caller sees the command's own death:
     SIGKILL - status 137 to a shell, -9 to a program reading the wait status."""
-    done = _cli([PY, "-c", ALLOCATE])
+    done = _cli([PY, "-c", ALLOCATE], env=_env(path=kill_path))
     assert done.returncode in (137, -signal.SIGKILL), done
     assert "allocated" not in done.stdout
 
@@ -171,6 +194,21 @@ def test_arguments_reach_the_command_exactly_as_given():
     for run in (_cli, _sourced):
         done = run([PY, "-c", script, *args])
         assert done.stdout.splitlines()[0] == repr(args), (run.__name__, done)
+
+
+@posix_only
+@needs_scope
+def test_only_the_kill_tests_scope_continues_after_a_kill_and_the_launcher_itself_sets_no_policy(kill_path):
+    """`kill_path` is what keeps the deliberate kills from raising a desktop notification; the
+    launcher leaves the scope's OOM policy to the manager."""
+    unit_policy = ("u=$(basename \"$(sed -n 's/^0:://p' /proc/self/cgroup)\"); "
+                   "systemctl --user show \"$u\" -p OOMPolicy")
+    wrapped = _cli(["sh", "-c", unit_policy], env=_env(path=kill_path))
+    assert wrapped.stdout.strip() == "OOMPolicy=continue", wrapped
+    plain = _cli(["sh", "-c", unit_policy])
+    default = subprocess.run(["systemctl", "--user", "show", "-p", "DefaultOOMPolicy"], capture_output=True,
+                             text=True).stdout.strip()
+    assert plain.stdout.strip() == default.replace("DefaultOOMPolicy=", "OOMPolicy="), (plain, default)
 
 
 @posix_only
@@ -271,8 +309,8 @@ def test_scope_only_runs_uncapped_where_no_scope_is_usable(no_systemd_path):
 
 @posix_only
 @needs_scope
-def test_scope_only_still_caps_where_a_scope_is_usable():
-    done = _sourced([PY, "-c", ALLOCATE], flags="--scope-only")
+def test_scope_only_still_caps_where_a_scope_is_usable(kill_path):
+    done = _sourced([PY, "-c", ALLOCATE], flags="--scope-only", env=_env(path=kill_path))
     assert _alive_rc(done) == 137, done
 
 
@@ -368,10 +406,10 @@ def _world_env(world, path=None):
 
 @posix_only
 @needs_scope
-def test_a_build_past_the_cap_ends_with_odoo_bin_killed_alone_and_the_session_alive(world, tmp_path):
+def test_a_build_past_the_cap_ends_with_odoo_bin_killed_alone_and_the_session_alive(world, tmp_path, kill_path):
     mark = tmp_path / "allocate"
     _allocate_when_marked(world, mark)
-    with McpClient(_world_env(world), world["work"]) as c:
+    with McpClient(_world_env(world, kill_path), world["work"]) as c:
         c.initialize()
         lease = _lease(c, world)
         ok = _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
@@ -398,7 +436,7 @@ def test_a_build_past_the_cap_fails_without_systemd_too(world, tmp_path, no_syst
 
 @posix_only
 @needs_scope
-def test_a_translation_export_is_capped_like_a_build(i18n, tmp_path):
+def test_a_translation_export_is_capped_like_a_build(i18n, tmp_path, kill_path):
     mark = tmp_path / "allocate-export"
     body = i18n["behavior"].read_text(encoding="utf-8")
     survived = tmp_path / "exporter-survived"
@@ -407,7 +445,7 @@ def test_a_translation_export_is_capped_like_a_build(i18n, tmp_path):
                           f'    if [[ -f "{mark}" ]]; then exec "{PY}" -c "{code}"; fi', 1)
     assert marked != body, "premise: the export branch of the stub behavior was found"
     i18n["behavior"].write_text(marked, encoding="utf-8")
-    with McpClient(_world_env(i18n), i18n["work"]) as c:
+    with McpClient(_world_env(i18n, kill_path), i18n["work"]) as c:
         c.initialize()
         lease = i18n_tests._ready_lease(c, i18n)
         mark.write_text("1")

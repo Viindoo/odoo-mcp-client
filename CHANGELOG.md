@@ -69,6 +69,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   variables; a business module is checked for following the theme, never for matching a colour
   value. `brand-tokens.json` stays an input of the icon and App Store page palettes.
 
+### Fixed
+
+- The test suite's result no longer depends on which variables a developer's shell exports. The
+  variables the plugin reads by name - the configured values (`SPEECH_API_KEY`, `YOUTUBE_CLIENT_ID`,
+  `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_REFRESH_TOKEN_<SLOT>`), the database
+  password (`ODOO_PG_PASSWORD`) and the project and worktree overrides - are removed from the
+  suite's environment at start-up (`tests/conftest.py`; the names come from the odoo-media entry of
+  `.mcp.json`, from `upgrade_values.py` and from the harness), so a test about a value that is not
+  set no longer fails on a machine that exports one. `tests/test_environment_isolation.py` pins
+  that the list covers every configured-value name the production code reads and that the removal
+  is in effect.
+- A full test run no longer raises "Application Stopped" desktop notifications. The five tests that
+  kill a child past its memory cap on purpose start the capped scope through a `systemd-run`
+  wrapper that adds `OOMPolicy=continue`: the kernel still kills the child (status 137), but the
+  scope does not end with the result `oom-kill`, the only result GNOME's settings daemon notifies
+  for. `run_bounded.sh` is unchanged.
+
 ## [8.10.0] - 2026-11-12
 
 ### Added

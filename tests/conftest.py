@@ -62,6 +62,15 @@ import pytest
 # value), and a test that exercises anchoring sets ODOO_AI_SESSION_ANCHOR itself.
 os.environ.setdefault("ODOO_AI_SESSION_ANCHOR", "none")
 
+# Ambient-value determinism. The production code reads a configured value (a speech key, a YouTube
+# credential), the database password and the plugin's own overrides from environment variables of
+# fixed names. A test that builds a child environment from `os.environ`, or runs production code in
+# this process, would hand a developer's own value to it. The suite therefore starts with those
+# variables absent; a test that needs one sets it itself.
+from odoo_local_mcp_harness import scrub_ambient_values  # noqa: E402
+
+scrub_ambient_values(os.environ)
+
 # Keyed by the frozen drop-set, so two callers asking for the SAME exclusions
 # share the SAME farm within a session, and two callers with DIFFERENT
 # exclusions never collide on one directory. Module-level (not fixture-local)

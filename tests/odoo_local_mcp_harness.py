@@ -23,7 +23,32 @@ MEDIA_SERVER = MCP_DIR / "odoo_media_server.py"
 PACKAGE = MCP_DIR / "odoo_local"
 LIB_DIR = PLUGIN / "scripts" / "lib"
 
-_SCRUB = ("ODOO_AI_INSTANCES", "ODOO_AI_PROJECT_DIR", "ODOO_AI_WORKTREE_DIR", "ODOO_AI_SESSION_ANCHOR", "ODOO_AI_VIA")
+# Variables the production code reads by name as an override of what it would work out itself.
+_OVERRIDES = ("ODOO_AI_INSTANCES", "ODOO_AI_PROJECT_DIR", "ODOO_AI_WORKTREE_DIR", "ODOO_AI_VIA", "ODOO_PG_PASSWORD")
+_SCRUB = _OVERRIDES + ("ODOO_AI_SESSION_ANCHOR",)
+
+
+def ambient_value_names() -> frozenset:
+    """The environment variable NAMES the production code reads, by name, for a value or an override.
+
+    A configured value (a speech key, a YouTube credential) is read from where production declares
+    it: the names `.mcp.json` maps the odoo-media options onto and the default names an earlier
+    configuration pointed at (`upgrade_values`). The overrides are `_OVERRIDES`. A developer who
+    exports any of them would otherwise change what a test observes.
+    """
+    declared = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["odoo-media"]["env"]
+    if str(LIB_DIR) not in sys.path:
+        sys.path.insert(0, str(LIB_DIR))
+    import upgrade_values
+    return frozenset(declared) | frozenset(upgrade_values.YOUTUBE_LEGACY_DEFAULTS.values()) | frozenset(_OVERRIDES)
+
+
+def scrub_ambient_values(environ) -> list:
+    """Remove every ambient-value variable from `environ` (a mapping); return the names removed."""
+    present = sorted(name for name in ambient_value_names() if name in environ)
+    for name in present:
+        del environ[name]
+    return present
 
 
 def import_package():
