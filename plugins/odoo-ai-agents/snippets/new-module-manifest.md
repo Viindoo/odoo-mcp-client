@@ -20,9 +20,9 @@ checklist). Extending an EXISTING module needs no scaffold.
 ## 2. Preserve scaffold output - only fill what is needed
 
 After scaffolding, fill in or change only the keys that the task actually requires
-(e.g. `name`, `summary`, `depends`, `data`). **Do NOT delete or uncomment the commented
+(e.g. `name`, `summary`, `depends`, `data`) and `version` (§ 3). **Do NOT delete or uncomment the commented
 placeholder keys** that `odoo-bin scaffold` emits in `__manifest__.py`. For example,
-scaffold (v17) emits lines such as:
+scaffold emits lines such as:
 
 ```python
 # 'category': 'Uncategorized',
@@ -49,20 +49,14 @@ key and stays.
 The `version` key in `__manifest__.py` uses the **short form** everywhere this snippet's scope
 reaches. Choose by reading observable data - never infer from training memory.
 
-### Greenfield default (this snippet)
+### A new module
 
-Keep the **short form** that `odoo-bin scaffold` emits. The short form is 2-3 numeric
-parts (e.g. `0.1`, `1.0.0`, `0.2.0`). It is NOT required to be exactly 3 parts - the
-defining characteristic is that it is short and does NOT carry the Odoo series prefix.
+A new module's `version` is `0.1.0`: three numeric parts, no series prefix. `odoo-bin scaffold`
+writes a two-part value; replace it with `0.1.0`.
 
-**How to ground (execute in order):**
-
-1. `odoo-bin scaffold` available - keep whatever version string the generator wrote;
-   do not edit it.
-2. Hand-creating without scaffold - run:
-   `grep -r '"version"' <addons-dir>/*/__manifest__.py | head -5`
-   Adopt the first sibling match.
-3. No sibling found - default to `0.1` (scaffold default).
+A module that already has a two-part value keeps it until it needs a bump; the bump of
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 5 then gives it three
+parts (`0.2` -> `0.2.1`). A change that needs no bump leaves the value as it is.
 
 ### Existing module across a new series (out of this file's scope)
 
@@ -78,8 +72,7 @@ rule: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` Convention 1.
 
 | Situation | Form to use | Example |
 |---|---|---|
-| New module via `odoo-bin scaffold` | Scaffold default (short) | `0.1` |
-| New module hand-created | Match sibling manifest (short) | `1.0.0` |
+| New module, scaffolded or hand-created | Three parts, no series prefix | `0.1.0` |
 | Existing module - code upgrade to a new series | Short form - keep unchanged, or CONVERTED from long form | `0.1` (unchanged); `17.0.1.0.0` -> `1.0.0` (converted) - see `upg-conventions.md` Convention 1 |
 | Existing module - patch/feature in same series | Keep the current value; the plan's `migration` node gives every module changed outside its tests its one bump per PR (`odoo-platform-design-principles.md` § 5) | unchanged, or the smallest step of § 5 (`1.0.3` -> `1.0.4`, `0.1` -> `0.1.1`) |
 | Forward-port, source bumped an existing target module's `version` | C1: `max(M + 1, S)` when installable on both series; the source version when dormant at the target | see `[[fp-merge-absorption]]` (C1) |
@@ -88,10 +81,10 @@ rule: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` Convention 1.
 
 ## Anti-patterns (never do)
 
-- Do NOT rewrite a greenfield `0.1` to a series-prefixed form (e.g. `17.0.1.0.0`) - a code-level
+- Do NOT rewrite a new module's `0.1.0` to a series-prefixed form (e.g. `17.0.1.0.0`) - a code-level
   upgrade keeps the short form, or converts an existing long-form value to it; it never adds a
   series prefix (see `upg-conventions.md` Convention 1).
-- Do NOT derive the version from the Odoo series alone; always read a sibling or the scaffold output.
+- Do NOT derive the version from the Odoo series.
 - Do NOT delete the commented placeholder keys that `odoo-bin scaffold` emits (`# 'category':`,
   `# 'depends':`, `# 'data':`, `# 'demo':`, etc.) - keep them until explicitly needed.
 - Do NOT uncomment + fill a placeholder key unless the task requires it.
