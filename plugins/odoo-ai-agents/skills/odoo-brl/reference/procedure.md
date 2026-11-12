@@ -204,7 +204,7 @@ Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason
   Fill the cluster subagent's prompt from the caller-side skeleton in
   `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the
   target agent's family delta; never inline that file verbatim into a hard-leaf brief.
-  Subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
+  Subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Write/Bash.`
   Each subagent returns only its cluster's edges JSON (<=2k); main context merges them.
 
 **D4 - Inter-cluster edges (rule-based + business-affinity for Custom):**

@@ -22,7 +22,7 @@ command, or a plan's workflow node.
    workers, mandatory worker-brief preamble) and an `agent:` phase: launch that agent at the
    phase's `model_tier`; a later phase resumes it by the returned id.
 3. **No recursion.** Fork workers are leaf agents and carry:
-   "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash."
+   "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Write/Bash."
 4. **One plan decision, then no stops.** No phase runs before the workflow plan is decided
    (Phase 0 step 6). Phases then run without stopping; a phase `gate` is a text confirmation
    before that phase's outward or irreversible action, and the only one.

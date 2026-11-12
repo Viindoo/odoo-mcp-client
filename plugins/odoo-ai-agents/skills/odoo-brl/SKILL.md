@@ -112,7 +112,7 @@ Write every deliverable atomically: `results.jsonl` (rebuilt from the merged chu
 1. **NL-dispatch only:** When delegating to another skill (not expected in normal BRL flow),
    use a natural-language prompt. Do NOT use the Skill tool. Subagent launch is allowed for EXACTLY
    ONE purpose: Phase D DAG per-cluster reasoning workers (only when >10 large clusters). Any such
-   subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
+   subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Write/Bash.`
 2. **Leaf subagents:** Phase D DAG cluster subagents must never spawn another subagent or invoke a skill.
 3. **Public-repo safety:** Abstract customer labels only. Never write real company names, VND amounts,
    or internal pricing into any committable file. `<SHARE_DIR>/brl/` is gitignored.
