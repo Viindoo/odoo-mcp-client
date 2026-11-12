@@ -199,11 +199,11 @@ def test_the_ledger_names_the_import_and_xpath_checks(tree):
     """
     git_base, repo = tree
     out = _out(_run(repo, git_base, repo / "my_module" / "static" / "src" / "widget.js"))
-    row = [ln for ln in out.splitlines() if "Tier 2 import/xpath refs  :" in ln]
+    row = [ln for ln in out.splitlines() if "Tier 2 refs/scheme checks :" in ln]
     assert row and "RAN" in row[0], f"JS in scope must run the reference checks. Output:\n{out}"
 
     out = _out(_run(repo, git_base, repo / "my_module" / "models.py"))
-    row = [ln for ln in out.splitlines() if "Tier 2 import/xpath refs  :" in ln]
+    row = [ln for ln in out.splitlines() if "Tier 2 refs/scheme checks :" in ln]
     assert row and "n/a" in row[0], (
         f"no JS/XML in scope must read n/a, not RAN. Output:\n{out}"
     )
@@ -225,3 +225,20 @@ def test_a_new_import_that_does_not_resolve_fails_the_whole_run(tree):
 
     assert res.returncode == 1, f"a dangling import must FAIL the run. Output:\n{out}"
     assert "@my_module/not_there does not resolve" in out, f"Output:\n{out}"
+
+
+def test_a_stylesheet_only_change_runs_the_colour_scheme_check_in_the_same_ledger_row(tree):
+    """Behaviour: a change that touches only a stylesheet is no longer outside the reference
+    row - a literal colour it adds is counted as a WARN and the row says it ran.
+
+    Fails if a stylesheet-only change leaves the row n/a, or its findings are not counted.
+    """
+    git_base, repo = tree
+    sheet = repo / "my_module" / "static" / "src" / "panel.scss"
+    sheet.write_text(".o_panel {\n    background-color: #ffffff;\n}\n", encoding="utf-8")
+    out = _out(_run(repo, git_base, sheet))
+
+    row = [ln for ln in out.splitlines() if "Tier 2 refs/scheme checks :" in ln]
+    assert row and "RAN" in row[0], f"a stylesheet in scope must run the row. Output:\n{out}"
+    assert "panel.scss:2" in out and "[WARN ]" in out, f"Output:\n{out}"
+    assert "WARN  issues        : 0" not in out, f"the finding must be counted. Output:\n{out}"

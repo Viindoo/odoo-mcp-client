@@ -42,6 +42,11 @@
 #       - an `<xpath position="before|after">` of a template extension (t-inherit / inherit_id)
 #         must not land inside a t-if/t-elif -> t-elif/t-else chain (BLOCK); an inherited
 #         template or XPath that cannot be resolved is a WARN.
+#       - scheme: the lines a change ADDS must not fix a colour scheme (snippets/odoo-ui-contract.md
+#         § 2). WARN on a literal colour in a stylesheet, a `style` attribute or a JS string, and
+#         on a class such as `bg-white` / `text-dark`; BLOCK when a `*.dark.scss` is not registered
+#         in a `*_dark` bundle of its module manifest, or stays in a light bundle. On a series
+#         whose `web` declares no dark bundle the registration part is skipped (info).
 #
 #   Tier 3 - RUNTIME SMOKE (only when a live Odoo instance is configured)
 #     Skipped silently when not configured. Never blocks when absent.
@@ -397,9 +402,10 @@ done
 echo
 echo "--- Tier 1: Format / Lint ---"
 
-# Resolve the target series ONCE, here, when JS or XML is in scope: Tier 1 picks its
-# eslint config from the matching checkout and Tier 2 resolves imports against it.
-if [[ ${#JS_FILES[@]} -gt 0 || ${#TEMPLATE_FILES[@]} -gt 0 ]]; then
+# Resolve the target series ONCE, here, when JS, XML or a stylesheet is in scope: Tier 1 picks
+# its eslint config from the matching checkout and Tier 2 resolves imports and the dark bundle
+# against it.
+if [[ ${#JS_FILES[@]} -gt 0 || ${#TEMPLATE_FILES[@]} -gt 0 || ${#SCSS_FILES[@]} -gt 0 ]]; then
     _resolve_target_series || true
     if [[ -n "$TARGET_SERIES" ]]; then
         _info "target Odoo series: $TARGET_SERIES [source: $TARGET_SERIES_SRC]"
@@ -758,7 +764,8 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# T2-REFS: new JS imports resolve, and xpath insertions keep t-if/t-else chains whole.
+# T2-REFS: new JS imports resolve, xpath insertions keep t-if/t-else chains whole, and the
+# added lines fix no colour scheme (dark sheets registered, no literal colour).
 # scripts/lib/frontend_static_checks.py prints BLOCK|WARN|INFO|<file>:<line>|<message>.
 # Addons dirs searched: the worktree top, the parent of every changed file's module, and the
 # resolved Odoo checkout's addons dirs (when the series resolved to one).
@@ -768,11 +775,11 @@ XML_FILES=()
 for _f in "${TEMPLATE_FILES[@]:-}"; do
     case "$_f" in *.xml) XML_FILES+=("$_f") ;; esac
 done
-if [[ ${#JS_FILES[@]} -eq 0 && ${#XML_FILES[@]} -eq 0 ]]; then
-    T2_REFS_STATUS="n/a (no .js/.xml files in scope)"
+if [[ ${#JS_FILES[@]} -eq 0 && ${#XML_FILES[@]} -eq 0 && ${#SCSS_FILES[@]} -eq 0 ]]; then
+    T2_REFS_STATUS="n/a (no .js/.xml/.scss files in scope)"
 elif ! _have python3 || [[ ! -f "$STATIC_CHECKS" ]]; then
     T2_REFS_STATUS="DID NOT RUN (python3 not available)"
-    _skip "python3 / frontend_static_checks.py unavailable - import and xpath reference checks skipped"
+    _skip "python3 / frontend_static_checks.py unavailable - import, xpath and colour scheme checks skipped"
 else
     ADDONS_DIR_ARGS=()
     _ADDONS_SEEN=""
@@ -798,7 +805,7 @@ else
         _add_addons_dir "$ODOO_CHECKOUT/addons"
         _add_addons_dir "$ODOO_CHECKOUT/odoo/addons"
     fi
-    T2_REFS_STATUS="RAN (${#JS_FILES[@]} js import file(s), ${#XML_FILES[@]} xml xpath file(s))"
+    T2_REFS_STATUS="RAN (${#JS_FILES[@]} js import file(s), ${#XML_FILES[@]} xml xpath file(s), $(( ${#JS_FILES[@]} + ${#XML_FILES[@]} + ${#SCSS_FILES[@]} )) scheme file(s))"
     _REFS_OUT=""
     _run_static_check() {
         local out
@@ -814,6 +821,10 @@ else
     if [[ ${#XML_FILES[@]} -gt 0 ]]; then
         _run_static_check xpath-branch ${ADDONS_DIR_ARGS[@]+"${ADDONS_DIR_ARGS[@]}"} "${XML_FILES[@]}"
     fi
+    _SCHEME_ROOT_ARGS=()
+    [[ -z "$ODOO_CHECKOUT" ]] || _SCHEME_ROOT_ARGS=(--odoo-root "$ODOO_CHECKOUT")
+    _run_static_check scheme ${_SCHEME_ROOT_ARGS[@]+"${_SCHEME_ROOT_ARGS[@]}"} --base "$VERIFY_BASE" \
+        ${SCSS_FILES[@]+"${SCSS_FILES[@]}"} ${XML_FILES[@]+"${XML_FILES[@]}"} ${JS_FILES[@]+"${JS_FILES[@]}"}
     _REFS_BLOCK_BEFORE=$BLOCK_COUNT
     _REFS_WARN_BEFORE=$WARN_COUNT
     while IFS='|' read -r _sev _loc _msg; do
@@ -825,7 +836,7 @@ else
     done <<< "$_REFS_OUT"
     if [[ $BLOCK_COUNT -eq $_REFS_BLOCK_BEFORE && $WARN_COUNT -eq $_REFS_WARN_BEFORE \
           && "$T2_REFS_STATUS" == RAN* ]]; then
-        _ok "Tier 2 reference checks (new imports, xpath branches): no issues"
+        _ok "Tier 2 reference checks (new imports, xpath branches, colour scheme): no issues"
     fi
 fi
 
@@ -875,7 +886,7 @@ echo "  Gate ledger (a gate that did NOT run can never be a pass):"
 echo "    Tier 1 Python (ruff)      : $T1_PY_STATUS"
 echo "    Tier 1 JS (eslint oracle) : $T1_JS_STATUS"
 echo "    Tier 2 static OWL/SCSS    : $T2_STATUS"
-echo "    Tier 2 import/xpath refs  : $T2_REFS_STATUS"
+echo "    Tier 2 refs/scheme checks : $T2_REFS_STATUS"
 echo "    Tier 3 runtime smoke      : $T3_STATUS"
 
 # Name the gates that did not run, so the RESULT line carries WHICH one is
@@ -889,7 +900,7 @@ _note_unrun() {
 _note_unrun "$T1_PY_STATUS" "Tier 1 Python ruff"
 _note_unrun "$T1_JS_STATUS" "Tier 1 JS eslint oracle"
 _note_unrun "$T2_STATUS"    "Tier 2 static scan"
-_note_unrun "$T2_REFS_STATUS" "Tier 2 import/xpath refs"
+_note_unrun "$T2_REFS_STATUS" "Tier 2 import/xpath/scheme checks"
 _note_unrun "$T3_STATUS"    "Tier 3 runtime smoke"
 
 # Tri-state precedence:

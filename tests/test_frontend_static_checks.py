@@ -1,11 +1,14 @@
 """Behavioural guard for scripts/lib/frontend_static_checks.py (verify-frontend Tier 2).
 
-Two reference checks that a green eslint run cannot give:
+Three checks that a green eslint run cannot give:
 
 - a NEW `@module/path` import must name a file that exists (an import that does not resolve
   only fails at runtime, in the browser, after the module graph is built);
 - an `<xpath position="before|after">` must not land between a `t-if` and the `t-else` that
-  continues it, because the inserted node silently takes the chain over.
+  continues it, because the inserted node silently takes the chain over;
+- a change must not fix a colour scheme: no literal colour or scheme-fixing class on an added
+  line, and every `*.dark.scss` registered in a `*_dark` bundle and out of the light ones, so a
+  theme can restyle the module and core's dark bundle applies.
 
 Tests assert on the findings a caller reads (severity, file:line, message), never on how the
 helper walks the tree, so both XPath engines (lxml, or the stdlib fallback) must satisfy them.
@@ -278,3 +281,364 @@ def test_xpath_branch_cli_prints_block_lines_and_exits_zero(addons):
     )
     assert res.returncode == 0, res.stderr
     assert res.stdout.startswith("BLOCK|") and "ext.xml:3|" in res.stdout
+
+
+# ---------------------------------------------------------------------------
+# scheme: a change must not fix a colour scheme (snippets/odoo-ui-contract.md § 2)
+# ---------------------------------------------------------------------------
+LIGHT_AND_DARK = {
+    "web.assets_backend": ["mymod/static/src/**/*.scss",
+                           ("remove", "mymod/static/src/**/*.dark.scss")],
+    "web.assets_web_dark": ["mymod/static/src/**/*.dark.scss"],
+}
+DARK_SHEET = "--mymod-bg: #{mix($gray-100, $o-view-background-color)};\n"
+SCHEME_CLASSES = [
+    "bg-white", "bg-light", "bg-dark", "bg-black", "text-dark", "text-white", "text-black",
+    "text-light", "border-light", "border-dark", "border-white",
+]
+
+
+def _scheme(capsys, *files, odoo_root=None):
+    checks.check_scheme([str(f) for f in files], "HEAD", odoo_root)
+    return _findings(capsys)
+
+
+def _module(root, assets, name="mymod", manifest=None):
+    text = manifest if manifest is not None else "{'name': 'm', 'assets': %r}\n" % (assets,)
+    _write(root / name / "__manifest__.py", text)
+    return root / name
+
+
+def _sheet(repo, text, name="panel.scss"):
+    return _write(repo / "mine" / "static" / "src" / name, text)
+
+
+def _view(repo, tag):
+    return _write(repo / "mine" / "views" / "v.xml",
+                  f'<odoo>\n  <template id="t">\n    {tag}\n  </template>\n</odoo>\n')
+
+
+def _lines(findings):
+    return [f[1].rsplit(":", 1)[1] for f in findings]
+
+
+@pytest.mark.parametrize("value", [
+    "#fff", "#FFFFFF", "#ffffff80", "rgb(255, 255, 255)", "rgba(0, 0, 0, .5)",
+    "hsl(210, 10%, 50%)", "hsla(210 10% 50% / .5)", "white", "black",
+    "1px solid #ccc", "mix(white, $o-brand-primary, 10%)",
+])
+def test_a_literal_colour_in_an_added_stylesheet_line_warns(repo, capsys, value):
+    """Fails if a colour fixed to one scheme is accepted in a stylesheet."""
+    css = _sheet(repo, f".o_panel {{\n    border: {value};\n}}\n")
+    warns = _by(_scheme(capsys, css), "WARN")
+    assert len(warns) == 1 and warns[0][1].endswith("panel.scss:2")
+    assert "odoo-ui-contract.md" in warns[0][2]
+
+
+@pytest.mark.parametrize("line", [
+    "color: $o-gray-700;",
+    "color: $white;",
+    "color: var(--mymod-fg);",
+    "background-color: var(--mail-Composer-bg, $o-view-background-color);",
+    "background-color: rgba($o-gray-900, .5);",
+    "color: transparent;",
+    "color: currentColor;",
+    "color: inherit;",
+    "--mymod-bg: #{mix($gray-100, $o-view-background-color)};",
+    "content: 'white #fff';",
+    "background: url(data:image/svg+xml;utf8,<svg fill='#fff'/>);",
+    "// color: #fff;",
+    "/* color: rgb(0, 0, 0); */",
+    "@include button-variant($o-brand-primary);",
+])
+def test_core_levers_and_commented_colours_in_a_stylesheet_are_not_findings(repo, capsys, line):
+    """Fails if a variable, var(), a keyword, a string, a comment or a colour derived from a
+    variable is reported as a literal colour."""
+    css = _sheet(repo, f".o_panel {{\n    {line}\n}}\n")
+    assert _scheme(capsys, css) == []
+
+
+def test_a_colour_inside_a_multi_line_comment_or_a_selector_is_not_a_finding(repo, capsys):
+    css = _sheet(repo, """\
+        /*
+         * legacy value was #fff,
+         * rgba(0, 0, 0, .5) before
+         */
+        #fade, .bg-white-label {
+            padding: 0;
+        }
+    """)
+    assert _scheme(capsys, css) == []
+
+
+def test_only_the_lines_a_change_adds_are_checked(repo, capsys):
+    """A literal colour that was already committed is not this change's defect."""
+    css = _sheet(repo, ".o_old {\n    color: #111;\n}\n")
+    _sh(repo, "add", "-A")
+    _sh(repo, "commit", "-q", "-m", "legacy colour")
+    css.write_text(css.read_text(encoding="utf-8") + ".o_new {\n    color: #222;\n}\n",
+                   encoding="utf-8")
+    assert _lines(_by(_scheme(capsys, css), "WARN")) == ["5"]
+
+
+def test_an_untracked_file_is_checked_in_full(repo, capsys):
+    css = _sheet(repo, ".a {\n    color: #111;\n}\n.b {\n    color: #222;\n}\n")
+    assert _lines(_by(_scheme(capsys, css), "WARN")) == ["2", "5"]
+
+
+def test_a_dark_sheet_may_hold_literal_colours(repo, capsys):
+    """The dark file is where a scheme-specific value belongs."""
+    _module(repo, LIGHT_AND_DARK)
+    dark = _write(repo / "mymod" / "static" / "src" / "panel.dark.scss", "--mymod-bg: #1a1a1a;\n")
+    assert _by(_scheme(capsys, dark), "WARN") == []
+
+
+@pytest.mark.parametrize("attr, value", [
+    ("style", "color: #fff"),
+    ("style", "padding: 0; background-color: rgb(1, 2, 3)"),
+    ("style", "border:1px solid white"),
+    ("t-att-style", "'color: #000'"),
+    ("t-attf-style", "background: #f5f5f5; width: #{w}px"),
+])
+def test_a_style_attribute_fixing_a_colour_warns(repo, capsys, attr, value):
+    """Fails if a literal colour in a view or template style attribute is accepted."""
+    xml = _view(repo, f'<div {attr}="{value}">x</div>')
+    warns = _by(_scheme(capsys, xml), "WARN")
+    assert len(warns) == 1 and warns[0][1].endswith("v.xml:3")
+    assert "odoo-ui-contract.md" in warns[0][2]
+
+
+@pytest.mark.parametrize("attr, value", [
+    ("style", "width: 10px; color: red"),
+    ("style", "border-radius: 3px"),
+    ("style", "background-image: url(/web/image/1)"),
+    ("t-attf-style", "color: #{color}"),
+    ("t-att-style", "'color: ' + color"),
+    ("data-style", "color: #fff"),
+])
+def test_a_style_attribute_without_a_literal_colour_is_accepted(repo, capsys, attr, value):
+    xml = _view(repo, f'<div {attr}="{value}">x</div>')
+    assert _scheme(capsys, xml) == []
+
+
+@pytest.mark.parametrize("cls", SCHEME_CLASSES)
+@pytest.mark.parametrize("attr", ["class", "t-att-class", "t-attf-class"])
+def test_a_class_that_fixes_a_scheme_warns(repo, capsys, attr, cls):
+    """Fails if a scheme-fixing class is accepted in any of the three class attributes."""
+    xml = _view(repo, f'<div {attr}="p-2 {cls} rounded">x</div>')
+    warns = _by(_scheme(capsys, xml), "WARN")
+    assert len(warns) == 1 and warns[0][1].endswith("v.xml:3")
+    assert cls in warns[0][2]
+
+
+@pytest.mark.parametrize("cls", [
+    "bg-white-50", "text-bg-dark", "o_text_white_foo", "bg-view", "text-muted", "text-body",
+    "bg-dark-subtle", "text-bg-light", "my-bg-white", "border-light-subtle",
+])
+def test_a_class_that_only_looks_like_a_scheme_class_is_accepted(repo, capsys, cls):
+    """Fails if class matching is by substring instead of by whole class token."""
+    xml = _view(repo, f'<div class="p-2 {cls} rounded">x</div>')
+    assert _scheme(capsys, xml) == []
+
+
+def test_a_class_list_wrapped_over_lines_is_judged_on_the_lines_that_were_added(repo, capsys):
+    xml = _write(repo / "mine" / "views" / "v.xml", """\
+        <odoo>
+          <template id="t">
+            <div class="p-2
+                        bg-white">x</div>
+            <p>keep</p>
+          </template>
+        </odoo>
+    """)
+    _sh(repo, "add", "-A")
+    _sh(repo, "commit", "-q", "-m", "view")
+    xml.write_text(xml.read_text(encoding="utf-8").replace("keep", "changed"), encoding="utf-8")
+    assert _scheme(capsys, xml) == [], "the wrapped class was not added by this change"
+    xml.write_text(xml.read_text(encoding="utf-8").replace("bg-white\"", "bg-white rounded\""),
+                   encoding="utf-8")
+    assert _lines(_by(_scheme(capsys, xml), "WARN")) == ["4"]
+
+
+def test_scheme_findings_in_an_xml_comment_are_ignored(repo, capsys):
+    xml = _write(repo / "mine" / "views" / "v.xml",
+                 '<odoo>\n  <!-- <div class="bg-white" style="color: #fff"/> -->\n</odoo>\n')
+    assert _scheme(capsys, xml) == []
+
+
+@pytest.mark.parametrize("literal", ["'#fff'", '"#00BBCE"', "`rgb(1, 2, 3)`", "'rgba(0,0,0,.5)'",
+                                     "'hsl(10, 20%, 30%)'"])
+def test_a_literal_colour_in_a_js_string_warns(repo, capsys, literal):
+    """Fails if a colour hard-coded in JavaScript is accepted."""
+    js = _write(repo / "mine" / "static" / "src" / "chart.js",
+                f"/** @odoo-module **/\nconst c = {literal};\n")
+    warns = _by(_scheme(capsys, js), "WARN")
+    assert len(warns) == 1 and warns[0][1].endswith("chart.js:2")
+    assert "odoo-ui-contract.md" in warns[0][2]
+
+
+def test_js_colours_in_comments_or_derived_from_values_are_not_findings(repo, capsys):
+    js = _write(repo / "mine" / "static" / "src" / "chart.js", """\
+        /** @odoo-module **/
+        // const a = "#fff";
+        /* const b = "rgb(0, 0, 0)";
+           const c = '#000'; */
+        const d = `rgb(${r}, ${g}, ${b})`;
+        const e = getColor(3);
+        const f = "#my-anchor";
+        const g = "text-white";
+    """)
+    assert _scheme(capsys, js) == []
+
+
+def test_the_core_pattern_passes_clean(repo, capsys):
+    """Core's own shape: a light rule reading a component property with a core variable as
+    fallback, a dark sheet holding only the override, and a manifest that removes the dark
+    sheet from the light bundle and adds it to the dark one."""
+    _module(repo, LIGHT_AND_DARK)
+    light = _write(repo / "mymod" / "static" / "src" / "composer.scss",
+                   ".o-mymod-Composer {\n"
+                   "    background-color: var(--mymod-Composer-bg, $o-view-background-color);\n}\n")
+    dark = _write(repo / "mymod" / "static" / "src" / "composer.dark.scss", DARK_SHEET)
+    assert _scheme(capsys, light, dark) == []
+
+
+# --- dark sheet registration ------------------------------------------------
+def _dark(repo, assets=None, manifest=None):
+    _module(repo, assets, manifest=manifest)
+    return _write(repo / "mymod" / "static" / "src" / "sub" / "panel.dark.scss", DARK_SHEET)
+
+
+def test_a_dark_sheet_missing_from_every_dark_bundle_blocks(repo, capsys):
+    """Fails if a *.dark.scss that no *_dark bundle loads is accepted: it would never apply."""
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*.scss",
+                                               ("remove", "mymod/static/src/**/*.dark.scss")]})
+    blocks = _by(_scheme(capsys, dark), "BLOCK")
+    assert len(blocks) == 1 and blocks[0][1].endswith("panel.dark.scss:1")
+    assert "_dark" in blocks[0][2]
+
+
+def test_a_dark_sheet_left_in_a_light_bundle_blocks(repo, capsys):
+    """Fails if a *.dark.scss that a light bundle still globs in is accepted: it would repaint
+    the light scheme."""
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*"],
+                        "web.assets_web_dark": ["mymod/static/src/**/*.dark.scss"]})
+    blocks = _by(_scheme(capsys, dark), "BLOCK")
+    assert len(blocks) == 1 and blocks[0][1].endswith("panel.dark.scss:1")
+    assert "web.assets_backend" in blocks[0][2]
+
+
+def test_a_dark_sheet_taken_out_of_the_light_bundle_and_added_to_the_dark_one_passes(repo, capsys):
+    dark = _dark(repo, LIGHT_AND_DARK)
+    assert _scheme(capsys, dark) == []
+
+
+@pytest.mark.parametrize("dark_entry", [
+    "mymod/static/src/sub/panel.dark.scss",
+    "mymod/static/src/sub/*.dark.scss",
+    "mymod/static/src/**/*.dark.scss",
+    "mymod/static/src/**",
+])
+def test_a_dark_sheet_registered_by_exact_path_or_glob_passes(repo, capsys, dark_entry):
+    dark = _dark(repo, {"web.assets_web_dark": [dark_entry]})
+    assert _scheme(capsys, dark) == []
+
+
+def test_a_glob_that_does_not_cover_the_dark_sheet_does_not_register_it(repo, capsys):
+    """`*` stays inside one directory; a glob for another folder covers nothing."""
+    dark = _dark(repo, {"web.assets_web_dark": ["mymod/static/src/*.dark.scss",
+                                                "other/static/src/**/*.dark.scss"]})
+    assert len(_by(_scheme(capsys, dark), "BLOCK")) == 1
+
+
+def test_a_remove_that_comes_before_the_include_does_not_take_the_sheet_out(repo, capsys):
+    """Bundle entries apply in order: removing first and including after leaves it in."""
+    dark = _dark(repo, {"web.assets_backend": [("remove", "mymod/static/src/**/*.dark.scss"),
+                                               "mymod/static/src/**/*"],
+                        "web.assets_web_dark": ["mymod/static/src/**/*.dark.scss"]})
+    blocks = _by(_scheme(capsys, dark), "BLOCK")
+    assert len(blocks) == 1 and "web.assets_backend" in blocks[0][2]
+
+
+def test_a_remove_covering_the_sheet_by_a_wider_glob_takes_it_out(repo, capsys):
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*",
+                                               ("remove", "mymod/**/*.dark.scss")],
+                        "web.assets_web_dark": ["mymod/static/src/**/*.dark.scss"]})
+    assert _scheme(capsys, dark) == []
+
+
+def test_a_light_bundle_that_never_includes_the_sheet_is_not_a_finding(repo, capsys):
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/js/**/*"],
+                        "web.assets_tests": ["mymod/static/tests/**/*"],
+                        "web.assets_web_dark": ["mymod/static/src/**/*.dark.scss"]})
+    assert _scheme(capsys, dark) == []
+
+
+def test_a_private_sub_bundle_is_left_to_the_bundle_that_includes_it(repo, capsys):
+    """`web._assets_core` is only reached through an `include`; the includer owns the removal."""
+    dark = _dark(repo, {"web._assets_core": ["mymod/static/src/**/*"],
+                        "web.assets_web_dark": ["mymod/static/src/**/*.dark.scss"]})
+    assert _scheme(capsys, dark) == []
+
+
+def test_an_unreadable_manifest_warns_and_never_blocks(repo, capsys):
+    dark = _dark(repo, manifest="{'name': 'm', 'assets': {'a': [os.path.join('x')]}}\n")
+    found = _scheme(capsys, dark)
+    assert _by(found, "BLOCK") == []
+    warns = _by(found, "WARN")
+    assert len(warns) == 1 and warns[0][1].endswith("panel.dark.scss:1")
+    assert "manifest not readable" in warns[0][2]
+
+
+def test_a_dark_sheet_outside_any_module_warns_and_never_blocks(tmp_path, capsys):
+    dark = _write(tmp_path / "loose" / "panel.dark.scss", DARK_SHEET)
+    found = _scheme(capsys, dark)
+    assert _by(found, "BLOCK") == [] and len(_by(found, "WARN")) == 1
+
+
+def _checkout_with_web(root, web_assets):
+    _write(root / "odoo" / "release.py", "version_info = (19, 0, 0, 'final', 0, '')\n")
+    _write(root / "addons" / "web" / "__manifest__.py",
+           "{'name': 'web', 'assets': %r}\n" % (web_assets,))
+    return root
+
+
+WEB_WITH_DARK = {"web.assets_web_dark": [("include", "web.assets_web"),
+                                         "web/static/src/**/*.dark.scss"]}
+
+
+def test_a_series_without_a_dark_bundle_skips_registration_with_one_info_line(
+        repo, tmp_path, capsys):
+    """The registration check protects a bundle the series has; without one it is skipped,
+    while the colour warnings still run."""
+    root = _checkout_with_web(tmp_path / "odoo_old", {"web.assets_backend": ["web/static/src/**"]})
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*"]})
+    other = _write(repo / "mymod" / "static" / "src" / "other.dark.scss", DARK_SHEET)
+    css = _sheet(repo, ".o_panel {\n    color: #fff;\n}\n")
+    found = _scheme(capsys, dark, other, css, odoo_root=str(root))
+    assert _by(found, "BLOCK") == []
+    assert len(_by(found, "INFO")) == 1
+    assert _lines(_by(found, "WARN")) == ["2"]
+
+
+def test_a_series_with_a_dark_bundle_checks_registration(repo, tmp_path, capsys):
+    root = _checkout_with_web(tmp_path / "odoo_new", WEB_WITH_DARK)
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*"]})
+    found = _scheme(capsys, dark, odoo_root=str(root))
+    assert len(_by(found, "BLOCK")) == 2 and _by(found, "INFO") == []
+
+
+def test_a_root_that_is_no_odoo_checkout_does_not_skip_registration(repo, tmp_path, capsys):
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*"]})
+    found = _scheme(capsys, dark, odoo_root=str(tmp_path / "nowhere"))
+    assert len(_by(found, "BLOCK")) == 2
+
+
+def test_scheme_cli_prints_findings_and_exits_zero(repo):
+    dark = _dark(repo, {"web.assets_backend": ["mymod/static/src/**/*"]})
+    res = subprocess.run(
+        [sys.executable, str(LIB), "scheme", "--base", "HEAD", str(dark)],
+        capture_output=True, text=True, cwd=repo,
+    )
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith("BLOCK|") and "panel.dark.scss:1|" in res.stdout

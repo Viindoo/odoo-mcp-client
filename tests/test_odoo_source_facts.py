@@ -931,3 +931,89 @@ def test_real_checkout_optional_test_imports(series):
     found = facts.optional_test_imports(_survey_checkout(series))
     assert [d["distribution"] for d in found] == TEST_DEPS_SURVEY[series]
     assert all(d["distribution_source"] == "message" for d in found)
+
+
+# ---------------------------------------------------------------- colour-scheme (dark) bundle
+#
+# A series either ships a dark colour scheme or not; the `web` manifest says which. The bundle name
+# is read from that manifest's text, so a series that renames it needs no plugin edit.
+
+def _web_manifest(root: Path, assets: dict, pkg_dir: str = "addons") -> Path:
+    _write(root / "odoo" / "release.py", "version_info = (19, 0, 0, 'final', 0, '')\n")
+    _write(root / pkg_dir / "web" / "__manifest__.py",
+           "# -*- coding: utf-8 -*-\n{'name': 'Web', 'assets': %r}\n" % (assets,))
+    return root
+
+
+DARK_ENTRIES = [("include", "web.assets_web"), "web/static/src/**/*.dark.scss"]
+
+
+def test_the_dark_bundle_is_the_one_that_includes_the_web_assets_and_the_dark_sheets(tmp_path):
+    root = _web_manifest(tmp_path, {"web.assets_backend": ["web/static/src/**/*"],
+                                    "web.assets_web_dark": DARK_ENTRIES})
+    assert facts.dark_asset_bundle(root) == "web.assets_web_dark"
+
+
+def test_the_dark_bundle_is_found_under_the_core_package_addons_too(tmp_path):
+    root = _web_manifest(tmp_path, {"web.assets_web_dark": DARK_ENTRIES},
+                         pkg_dir=os.path.join("odoo", "addons"))
+    assert facts.dark_asset_bundle(root) == "web.assets_web_dark"
+
+
+def test_a_dark_named_bundle_without_the_dark_sheets_is_not_the_scheme_bundle(tmp_path):
+    """A lazy sibling that only re-includes the light bundle does not load `*.dark.scss`."""
+    root = _web_manifest(tmp_path, {"web.assets_backend_lazy_dark": [("include", "web.assets_x")],
+                                    "web.assets_web_dark": DARK_ENTRIES})
+    assert facts.dark_asset_bundle(root) == "web.assets_web_dark"
+    root = _web_manifest(tmp_path / "b", {"web.assets_backend_lazy_dark": [("include", "x")]})
+    assert facts.dark_asset_bundle(root) is None
+
+
+def test_a_series_whose_web_declares_no_dark_bundle_has_none(tmp_path):
+    root = _web_manifest(tmp_path, {"web.assets_backend": ["web/static/src/**/*"],
+                                    "web.assets_frontend": ["web/static/src/dark_mode.js"]})
+    assert facts.dark_asset_bundle(root) is None
+
+
+def test_a_dark_bundle_that_loads_no_dark_sheet_is_not_a_scheme_bundle(tmp_path):
+    root = _web_manifest(tmp_path, {"web.assets_web_dark": [("include", "web.assets_web")]})
+    assert facts.dark_asset_bundle(root) is None
+
+
+def test_an_unreadable_or_absent_web_manifest_has_no_dark_bundle(tmp_path):
+    _write(tmp_path / "odoo" / "release.py", "version_info = (19, 0, 0, 'final', 0, '')\n")
+    assert facts.dark_asset_bundle(tmp_path) is None
+    _write(tmp_path / "addons" / "web" / "__manifest__.py",
+           "{'name': 'Web', 'assets': {'web.assets_web_dark': [os.path.join('a')]}}\n")
+    assert facts.dark_asset_bundle(tmp_path) is None
+    assert facts.dark_asset_bundle(tmp_path / "absent") is None
+    assert facts.dark_asset_bundle("") is None
+
+
+def test_a_module_manifest_is_read_as_a_literal_and_never_executed(tmp_path):
+    mod = tmp_path / "mod"
+    _write(mod / "__manifest__.py", "# c\n{'name': 'm', 'depends': ['web']}\n")
+    assert facts.module_manifest(mod) == {"name": "m", "depends": ["web"]}
+    _write(mod / "__manifest__.py", "__import__('os').system('touch %s')\n" % (tmp_path / "ran"))
+    assert facts.module_manifest(mod) is None and not (tmp_path / "ran").exists()
+    assert facts.module_manifest(tmp_path / "absent") is None
+
+
+def test_cli_dark_bundle_prints_the_bundle_and_exits_3_when_there_is_none(tmp_path):
+    root = _web_manifest(tmp_path / "with", {"web.assets_web_dark": DARK_ENTRIES})
+    r = _cli("dark-bundle", str(root))
+    assert r.returncode == 0 and _kv(r.stdout) == {"DARK_ASSET_BUNDLE": "web.assets_web_dark"}
+    root = _web_manifest(tmp_path / "without", {"web.assets_backend": ["web/static/src/**/*"]})
+    r = _cli("dark-bundle", str(root))
+    assert r.returncode == 3 and r.stdout == "" and "no dark asset bundle" in r.stderr
+    assert _cli("dark-bundle").returncode == 2
+
+
+# Surveyed by reading each series' addons/web/__manifest__.py by hand: the colour scheme bundle
+# exists from 17.0 on and is named the same on every series that has it.
+DARK_BUNDLE_SURVEY = {s: "web.assets_web_dark" for s in ("17.0", "18.0", "19.0", "20.0")}
+
+
+@pytest.mark.parametrize("series", sorted(DARK_BUNDLE_SURVEY, key=lambda s: float(s)))
+def test_real_checkout_dark_bundle(series):
+    assert facts.dark_asset_bundle(_checkout(series)) == DARK_BUNDLE_SURVEY[series]

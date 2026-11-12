@@ -157,6 +157,17 @@ Public API (stable - other scripts import it):
       else the import name. [] when the file has no such block; None when no
       tests/common.py is readable.
 
+  module_manifest(module_dir) -> dict | None
+      The module's `__manifest__.py` (`__openerp__.py` on the oldest series) read as a Python
+      LITERAL (`ast.literal_eval`, nothing executed). None when there is none, it cannot be read
+      or it is not a literal dict.
+
+  dark_asset_bundle(odoo_root) -> str | None
+      The colour-scheme bundle the checkout's `web` manifest declares: the bundle whose name ends
+      in `_dark`, that includes another bundle (the light web assets) and lists a `*.dark.scss`
+      path or glob. None when `web` declares none (the series has no dark scheme) or its
+      manifest cannot be read.
+
 CLI (for shell setup steps; every fact prints as KEY=value on stdout):
 
   python3 odoo_source_facts.py core-load <odoo_root>
@@ -190,6 +201,9 @@ CLI (for shell setup steps; every fact prints as KEY=value on stdout):
       order (message empty when the checkout states none; no line when there
       is no optional import)                       exit 0; exit 3 when no
                                                    tests/common.py is readable
+  python3 odoo_source_facts.py dark-bundle <odoo_root>
+      DARK_ASSET_BUNDLE=web.assets_web_dark        exit 0; exit 3 when `web` declares none
+                                                   or its manifest is unreadable
   Usage errors exit 2.
 """
 
@@ -206,6 +220,7 @@ __all__ = [
     "core_launcher",
     "core_package",
     "core_server_wide_modules",
+    "dark_asset_bundle",
     "demo_opt_in",
     "dev_option_shape",
     "dev_takes_value",
@@ -216,6 +231,7 @@ __all__ = [
     "locate_odoo_launcher",
     "locate_odoo_root",
     "module_dirs",
+    "module_manifest",
     "module_search_dirs",
     "optional_test_imports",
     "python_recommendation",
@@ -1003,6 +1019,50 @@ def optional_test_imports(odoo_root) -> list[dict] | None:
     return out
 
 
+# ---------------------------------------------------------------- module manifests and asset bundles
+
+def module_manifest(module_dir) -> dict | None:
+    """The manifest of the module at `module_dir`, read as a literal (see the module docstring)."""
+    for name in _DESCRIPTORS:
+        text = _read_text(os.path.join(str(module_dir), name))
+        if text is None:
+            continue
+        try:
+            data = ast.literal_eval(text.strip())
+        except (ValueError, SyntaxError, MemoryError, RecursionError):
+            return None
+        return data if isinstance(data, dict) else None
+    return None
+
+
+def _web_module_dirs(odoo_root) -> list[str]:
+    root = locate_odoo_root(odoo_root)
+    if not root:
+        return []
+    pkg = core_package(root)
+    subdirs = ["addons"] + ([os.path.join(pkg, "addons")] if pkg else [])
+    return [os.path.join(root, sub, "web") for sub in subdirs
+            if os.path.isdir(os.path.join(root, sub, "web"))]
+
+
+def dark_asset_bundle(odoo_root) -> str | None:
+    """The colour-scheme bundle the checkout's `web` manifest declares (see the module docstring)."""
+    for web in _web_module_dirs(odoo_root):
+        assets = (module_manifest(web) or {}).get("assets")
+        if not isinstance(assets, dict):
+            continue
+        for name, entries in assets.items():
+            if not (isinstance(name, str) and name.endswith("_dark")
+                    and isinstance(entries, (list, tuple))):
+                continue
+            includes = any(isinstance(e, (list, tuple)) and e and e[0] == "include"
+                           for e in entries)
+            dark_files = any(isinstance(e, str) and e.endswith(".dark.scss") for e in entries)
+            if includes and dark_files:
+                return name
+    return None
+
+
 # ---------------------------------------------------------------- CLI
 
 def _emit(key: str, value: str) -> None:
@@ -1015,7 +1075,8 @@ def _usage() -> int:
         "python <odoo_root> | "
         "i18n-facts <odoo_root> | python-suggest <series> [<odoo_root>] | locate-root|locate-launcher [--odoo-root <dir>] "
         "[<addons_dir>...] | "
-        "self-declared <addons_dir>... | warnings [<logfile>...] | test-deps <odoo_root>\n"
+        "self-declared <addons_dir>... | warnings [<logfile>...] | test-deps <odoo_root> | "
+        "dark-bundle <odoo_root>\n"
     )
     return 2
 
@@ -1126,6 +1187,16 @@ def main(argv) -> int:
             return 3
         for dep in deps:
             _emit("TEST_DEP", "|".join((dep["import"], dep["distribution"], dep["message"] or "")))
+        return 0
+    if cmd == "dark-bundle":
+        if len(args) != 1:
+            return _usage()
+        bundle = dark_asset_bundle(args[0])
+        if bundle is None:
+            sys.stderr.write("the web manifest under %s declares no dark asset bundle (or is "
+                             "unreadable)\n" % args[0])
+            return 3
+        _emit("DARK_ASSET_BUNDLE", bundle)
         return 0
     if cmd == "warnings":
         chunks = []
