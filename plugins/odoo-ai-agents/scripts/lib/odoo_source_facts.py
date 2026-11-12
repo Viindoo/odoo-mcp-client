@@ -32,6 +32,11 @@ Public API (stable - other scripts import it):
       and opt-in), False when it declares only `--without-demo` (demo loads by
       default), None when unreadable or neither is declared.
 
+  skip_auto_install_declared(odoo_root) -> bool | None
+      True when config.py declares `--skip-auto-install` (a build can keep Odoo from installing
+      the modules marked `auto_install`), False when it is readable and does not, None when
+      unreadable.
+
   http_port_key(odoo_root) / second_port_key(odoo_root) -> str | None
       The dest (= odoo.conf key) of the main port option (`--http-port`, else
       `--xmlrpc-port`) and of the second port option (`--gevent-port`, else
@@ -605,6 +610,16 @@ def without_demo_declared(odoo_root) -> bool | None:
     if options is None:
         return None
     return "--without-demo" in options
+
+
+def skip_auto_install_declared(odoo_root) -> bool | None:
+    """True when the checkout declares `--skip-auto-install`, False when config.py is readable and
+    does not (every auto_install module whose triggers are present then installs on any build),
+    None when it is unreadable - never a guess."""
+    options = cli_options(odoo_root)
+    if options is None:
+        return None
+    return "--skip-auto-install" in options
 
 
 def http_port_key(odoo_root) -> str | None:

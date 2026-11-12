@@ -510,6 +510,20 @@ def test_an_explicit_no_demo_option_is_read_wherever_the_checkout_declares_one(t
     assert facts.without_demo_declared(tmp_path / "absent") is None
 
 
+def test_skipping_auto_install_is_a_series_option_read_from_the_checkout(tmp_path):
+    """A build can keep Odoo from installing auto_install modules only where config.py declares
+    the option: declared, readable-and-absent (commented out is absent) and unreadable differ."""
+    declared = _config(tmp_path / "with", "odoo",
+                       'group.add_option("--skip-auto-install", dest="skip_auto_install", '
+                       'action="store_true")\n')
+    assert facts.skip_auto_install_declared(declared) is True
+    commented = _config(tmp_path / "without", "odoo",
+                        '# group.add_option("--skip-auto-install", dest="skip_auto_install")\n'
+                        'group.add_option("--load", dest="server_wide_modules")\n')
+    assert facts.skip_auto_install_declared(commented) is False
+    assert facts.skip_auto_install_declared(tmp_path / "absent") is None
+
+
 @pytest.mark.parametrize("body", [None, "", "# placeholder\n",
                                   'group.add_option("--load", dest="server_wide_modules")\n'])
 def test_demo_default_unreadable_is_none_never_a_guess(tmp_path, body):

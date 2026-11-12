@@ -47,6 +47,14 @@ artifacts from that one database: the `.pot` template AND each `<lang>.po`. Do n
 second, differently-shaped instance for the `.pot` - see KT5 for why that quietly breaks the L2
 reconcile.
 
+**One module per database.** Odoo exports a field's label and help as the last module loaded left
+them, under the xmlid of the module that declares the field. With a sibling or a bridge installed
+beside the module, the other module's text - and the fields it adds to this module's models -
+lands in this module's catalog, and a user without that other module reads it. So the database
+of a build holds the module and its dependency closure only, and only that module is exported
+from it: a dependency translated in the same run gets a build of its own.
+`instance_i18n_export` refuses a database that holds more.
+
 The build itself goes through the `odoo-instance` skill (the `odoo-i18n` P2 dispatch) as ONE
 `instance_build` op `init` on every series: `modules` = the module, `demo` `on` (KT4), `languages` =
 every target language (KT1; the tool adds `en_US`, KT3), and skip-auto-install in `extra_args` where
@@ -58,8 +66,8 @@ a language by any other path. Before exporting, confirm the `INSTANCE_HANDLE` th
 every build on it.
 
 **Export order: the `.pot` FIRST, then each `<lang>.po`**, every one of them from that same build.
-Export with ONE `instance_i18n_export` call on that handle's `lease_token`: `modules` = the target
-module(s) of that build, never their dependencies; `languages` = every target language (never
+Export with ONE `instance_i18n_export` call on that handle's `lease_token`: `modules` = the module
+of that build, never a dependency it does not translate and never a sibling; `languages` = every target language (never
 `en_US`). The tool enforces the
 order and the single database - per module it writes the `.pot`, then one `.po` per language, into
 the module's own `i18n/` directory, where Odoo reads them. `job_wait` the job until its `result` is
@@ -234,7 +242,8 @@ re-exported file against the committed one by DIFF-REVIEW:
    buckets - CORRECT / ARTEFACT / WRONG - defined once in
    `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry.
    Read it rather than working from memory: the ARTEFACT test must be applied BEFORE ruling WRONG,
-   or every module holding an identity entry blocks a correct run. Only a WRONG ruling
+   or every module holding an identity entry blocks a correct run. An entry whose `msgid` changed
+   and kept a `msgstr` is checked per the same section: the `msgstr` must translate the NEW `msgid`. Only a WRONG ruling
    is a BLOCK - do NOT commit; fix the cause (re-provision fresh, re-load the language, re-export)
    and re-review.
 5. Only after every removed/changed entry is ruled CORRECT or ARTEFACT does the re-exported

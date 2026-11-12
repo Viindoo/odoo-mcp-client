@@ -76,6 +76,11 @@ def _fake_odoo(tmp_path, pkg_name="odoo", raise_on_connect=False, demo=True,
                 if "from pg_database" in low:
                     self._rows = [(1,)] if params[0] in EXISTING else []
                     return
+                if not params and "from ir_module_module" in low:
+                    assert "state in ('installed', 'to upgrade', 'to remove')" in low
+                    held = ("installed", "to upgrade", "to remove")
+                    self._rows = [(r[0],) for r in sorted(MODULES) if r[1] in held]
+                    return
                 wanted = set(params[0])
                 if "from res_lang" in low:
                     self._rows = [r for r in LANGS if r[0] in wanted]
@@ -187,6 +192,27 @@ def test_db_facts_asked_for_modules_adds_each_known_modules_state_and_demo_on_on
                                        "MODULE=my_mod STATE=installed DEMO=1"], (
         "a module the database does not know prints no line")
     assert opened == ["the_db"], "ONE connection, to the named database"
+
+
+def test_db_facts_asked_for_installed_lists_every_module_the_database_holds_loaded(tmp_path):
+    """The whole installed set, by name, on the same connection and after the requested modules'
+    lines; a module that is not installed is not in it. Not asked, it is not printed."""
+    res, opened = _state(tmp_path, "the_db", "--modules", "my_mod", "--installed", "1",
+                         verb="db-facts")
+    assert res.returncode == EXIT_OK, res.stderr
+    assert res.stdout.splitlines() == ["DB_EXISTS=1", "DEMO=1", "LANGUAGES=en_US,vi_VN",
+                                       "MODULE=my_mod STATE=installed DEMO=1",
+                                       "INSTALLED=bare_mod,base,my_mod"]
+    assert opened == ["the_db"], "ONE connection, to the named database"
+    (tmp_path / "plain").mkdir()
+    res, _ = _state(tmp_path / "plain", "the_db", verb="db-facts")
+    assert not any(line.startswith("INSTALLED=") for line in res.stdout.splitlines())
+
+
+def test_db_facts_asked_for_installed_of_a_database_that_does_not_exist_holds_nothing(tmp_path):
+    res, _ = _state(tmp_path, "gone_db", "--installed", "1", verb="db-facts",
+                    unreachable_dbs=("gone_db",))
+    assert res.returncode == EXIT_OK and res.stdout.splitlines() == ["DB_EXISTS=0"]
 
 
 def test_db_facts_without_demo_says_so_and_never_invents_a_language(tmp_path):

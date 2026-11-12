@@ -101,7 +101,9 @@ across languages. Sonnet when the scope spans domain/regulatory terminology; hai
 module.
 
 **P2 - Build the export instance, then export `.pot` + every `.po` from it [haiku].** Per L1 of
-the recipe: ONE build per module serves the whole run, and both artifact kinds come out of it.
+the recipe: ONE build per module serves the whole run, and both artifact kinds come out of it. A
+build holds that module and its dependency closure only: never two sibling modules, never a
+module with its bridges. A run over several modules is one build each.
 
 Dispatch `odoo-instance` with this build shape, stated explicitly:
 
