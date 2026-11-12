@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.11.0] - 2026-11-12
+
 ### Added
 
 - `/odoo-ai-agents:odoo-setup tmp` (step `36-claude-tmpdir`) offers to keep Claude Code's own
