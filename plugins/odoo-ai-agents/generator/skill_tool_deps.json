@@ -866,6 +866,7 @@
         "optional": [
           "SCREENS",
           "ROLE",
+          "ROLE_LOGIN",
           "INSTANCE_HANDLE",
           "ODOO_VERSION",
           "SHARE_DIR",

@@ -71,17 +71,22 @@ the build:
 
 1. Opens each changed screen on the instance as a user of the role it serves, on a record with
    realistic data.
-2. Captures it at the desktop and the phone width of
-   `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md` § Responsive breakpoints, with the console
-   messages. Then switches the instance to the dark scheme the way its theme offers it: the
-   appearance switch of the user menu or systray, else the `color_scheme` cookie set to `dark`
-   on the instance's own origin, then a reload. The scheme is dark when the page loads the dark
-   asset bundle: captures both widths again. No way loads it: reports
-   `dark: static check only`.
-3. Opens the images and looks: a truncated label, a misaligned or orphaned field, empty space, an
+2. Captures every changed screen at the desktop AND the phone width of
+   `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md` § Responsive breakpoints, with the console messages.
+3. Tries the dark scheme, in this order: the appearance switch the theme puts in the user menu
+   or the systray (a moon or sun icon, an "Appearance" or "Dark mode" entry); only where there
+   is none, the `color_scheme` cookie set to `dark` on the instance's own origin and a reload.
+   The scheme is dark when the page loads the dark asset bundle: captures both widths again.
+   Otherwise reports `dark: static check only`, naming what was tried.
+4. Builds one contact sheet per width, so a desktop capture stays legible beside a tall phone
+   one: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_sheet.py sheet --out sheet-desktop.png --col-width 800
+   --columns 2 --inputs <desktop captures>` and `--out sheet-phone.png --col-width 375
+   --columns 4 --inputs <phone captures>`.
+5. Opens the sheets and looks: a truncated label, a misaligned or orphaned field, empty space, an
    element unlike its core neighbour, the wrong thing first on the phone, a difference from the
    mockup.
-4. Fixes and captures again until the screen is right, and names the image paths in its return.
+6. Fixes and captures again until the screen is right. Its return lists, per changed screen, the
+   desktop and the phone capture, then the two sheets and the `dark:` line.
 
 A reviewer or tester rules on a screen from captures of the running instance, never from the
 source alone.

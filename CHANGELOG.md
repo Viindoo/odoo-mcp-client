@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Findings of a real run of the screen discipline on a throwaway module. The UI contract's
+  "look at what you changed" is a closed list: every changed screen at the desktop and the phone
+  width, the dark scheme tried through the theme's own appearance switch before the cookie, one
+  contact sheet per width (a desktop capture was unreadable beside a tall phone one), and a
+  return that lists the captures per screen; the coder had built no sheet, skipped the desktop
+  form and tried the cookie only. A build node that touches a screen runs at `sonnet` at least:
+  the six-item haiku checklist says nothing about judging what a screen shows.
+  `odoo-ui-reviewer` writes its whole report to a file (default `<ISOLATE_DIR>/reviews/<SLUG>.md`)
+  instead of returning the only copy, opens every mockup capture, phone and dark included, and
+  takes `ROLE_LOGIN` - a login of the role, or `create` on a database built for the review -
+  which `odoo-ui-review` now passes. A design gate names the two mockup sheets.
+
 ## [8.11.0] - 2026-11-12
 
 ### Added

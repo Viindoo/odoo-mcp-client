@@ -26,7 +26,7 @@ Files, under `<SHARE_DIR>/designs/<slug>/mockups/`:
 | `mockup-kit.css` | a copy of the kit stylesheet from the same `assets/` directory, so the page opens on its own |
 | `<screen>-desktop.png`, `<screen>-phone.png` | full-page captures at the desktop and the phone width of `${CLAUDE_PLUGIN_ROOT}/docs/odoo-ui-knowledge.md` § Responsive breakpoints |
 | `<screen>-desktop-dark.png`, `<screen>-phone-dark.png` | the same with `?scheme=dark` |
-| `sheet.png` | one contact sheet of all captures: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_sheet.py sheet --out sheet.png --col-width 400 --columns 4 --inputs <captures>` |
+| `sheet-desktop.png`, `sheet-phone.png` | one contact sheet per width, so a desktop capture stays legible beside a tall phone one: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/image_sheet.py sheet --out sheet-desktop.png --col-width 800 --columns 2 --inputs <desktop captures>`, and `--out sheet-phone.png --col-width 375 --columns 4 --inputs <phone captures>` |
 
 Every capture adds `tools=off` to the address, which hides the page's own toolbar.
 
@@ -55,4 +55,4 @@ Rules:
 
 `## Screens` holds one block per screen: the role and its job, the view type, the mockup files or
 the placement note, what the phone shows first, and the custom elements with their reasons. The
-design gate names `sheet.png` so the approver sees the screen before answering.
+design gate names the two sheets so the approver sees the screen before answering.

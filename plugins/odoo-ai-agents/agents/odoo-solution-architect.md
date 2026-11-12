@@ -94,7 +94,7 @@ gate: design
 artifact: <SHARE_DIR>/designs/<slug>-<date>.md
 depth: light | full
 fable_proposed: yes | no
-mockups: <sheet.png path | none>
+mockups: <sheet paths | none>
 summary: <approach in one line>; <top risk>; nodes: <n> (<build_tier_hint per node>)
 ```
 
