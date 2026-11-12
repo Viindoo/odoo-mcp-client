@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.12.0] - 2026-11-12
+
 ### Changed
 
 - `odoo-modules-upgrade`: a series upgrade settles the module's debt. A module cannot be installed
