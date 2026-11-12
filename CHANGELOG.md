@@ -47,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   that overrides it, as core does.
 - `odoo-frontend-design` is a short decision procedure for a screen (job, view type, rank, phone,
   core first) with two references instead of four.
+- `odoo-coder` and `odoo-frontend-coder` read a file type's guideline row again when their
+  context opens with a summary: a compaction keeps the agent's own instructions and drops every
+  file it read by path.
+- `ODOO-AI-ETHOS.md` #4: a brief does not override a written rule. An agent asked for something
+  a contract, a guideline or an approved design forbids works to the rule and opens its report
+  with the conflict and the file and section that rule it; the sender reads that section, then
+  corrects the brief or names the human decision that allows the exception. A launcher that
+  lost its conventions in a compaction is corrected by the agent that still holds them.
 - The plan's `acceptance` node also runs for a diff that only changes a stylesheet or a
   template. Outside a plan, `odoo-code-review` still launches the UI reviewer when an instance
   exists; its brief now carries the `SLUG` the reviewer requires, and R2 merges its findings.
