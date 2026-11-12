@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.10.0] - 2026-11-12
+
+### Added
+
+- The history a pull request shows holds complete changes only, never a commit that merely
+  corrects another commit of the same branch. `git-toolkit` states the rule (commit convention
+  C7) and applies it: a commit request that says what it corrects (`corrects:`) is folded into
+  that commit, the branch is pushed again and the result names it in `folded_into:`; a change
+  that adds or removes a component is one commit with the edits it forces elsewhere. The
+  `git-ops` skill tells every caller this at the moment it asks for a commit. `odoo-ai-agents`
+  adds `snippets/commit-history.md` for what an Odoo run needs - a module added or removed with
+  its knock-on changes in other modules is one commit; a plan run's node commits are working
+  history that `integrate` rewrites; a launcher never asks for a separate fix commit - read from
+  the coder's fix round, the plan's `integrate` step, the CI fix of `odoo-pr-monitoring` and the
+  review rubric. (`git-toolkit` 0.9.5 -> 0.10.0.)
+
+### Fixed
+
+- `odoo-forward-port`: the origin of a defect decides which commit carries its fix
+  (`fp-merge-absorption.md` § C3). A defect that exists only with the forwarded code in the tree
+  is fixed inside the merge commit, also after the merge is concluded and on the open PR; a defect
+  that pre-dates the port gets a commit of its own after the merge commit, one per defect, and is
+  no longer fixed inside the open merge; a defect a fix introduced is folded into that fix's
+  commit. A file the conclude step missed is added to the merge commit. `odoo-pr-monitoring`
+  places a CI fix on a forward-port PR by the same rule.
+
 ## [8.9.0] - 2026-11-11
 
 ### Added
