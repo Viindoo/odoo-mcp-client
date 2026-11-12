@@ -110,6 +110,12 @@ against the goal, not against the letter of the brief: work that went wider or n
 is kept when it is sound and serves the goal without making the result harder to use, and is
 rejected only for a defect or a risk you can name.
 
+A brief does not override a written rule (a contract, a guideline, an approved design). Asked for
+something such a rule forbids, the receiver works to the rule and opens its report with the
+conflict: what the brief asked, and the file and section that rule it. The sender reads that
+section before it answers, then corrects the brief or names the human decision that allows the
+exception.
+
 ---
 
 ## 5. Iron Law of Root Cause

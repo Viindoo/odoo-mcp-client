@@ -54,7 +54,8 @@ row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.m
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`, and § 0 of
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` (a control behaves as the same control does
 everywhere; no blocking dialog on a policy limit). Before the first code block write
-`VERSION RULES APPLIED (v<N>):` naming each file and the section a rule came from.
+`VERSION RULES APPLIED (v<N>):` naming each file and the section a rule came from. A context that opens with a summary has lost every file read by path: read a file type's
+row again before you next write that type.
 
 **2. Descriptor.** The module's descriptor is `__manifest__.py`, or `__openerp__.py` where the
 module already has that name. Find which one exists and use it for every read and every asset
