@@ -88,6 +88,16 @@ git push --force-with-lease origin <integration-branch>
 See S2 in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` - `--force-with-lease` bails
 if the remote advanced since the last fetch; bare `--force` is banned.
 
+### 6 - Delete the backup (S1)
+
+Once the push succeeded:
+
+```bash
+git tag -d <backup-ref>
+```
+
+Name the deleted tag in the report.
+
 ## Hazard notes
 
 - **Stale-base reset-soft hazard.** `reset --soft` with a stale `origin/<principal>` lands on the

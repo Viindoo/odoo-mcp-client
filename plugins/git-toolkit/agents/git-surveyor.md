@@ -76,6 +76,9 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
    colour, no rename detection flags), and its added and removed totals match the numstat of the
    same range before it is handed over; a hunk header spanning thousands of lines is a broken
    patch, regenerated rather than delivered.
+3b. A list a caller asked for (commits, files, counts) is the redirected output of the command
+   that enumerates it, never typed or pasted, and each total is the output of a command run over
+   that file; the findings file states both commands.
 4. Write a findings file under the path the brief gives (e.g.
    `.git-toolkit/<run>/survey/<cluster>.md`). Include the evidence inline in the file, not in the
    return.

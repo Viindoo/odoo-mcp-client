@@ -18,9 +18,10 @@ git branch --no-track backup/<branch>-<ts> <sha>
 ```
 
 A backup exists only for a destructive op, under that name, and is local: it is never pushed. The
-report names it. It lives until the rewritten branch is pushed; the dispatch that pushes the
-branch deletes that branch's backups and lists them in its report, so no backup is left for the
-caller to find.
+report names it. It lives until the rewrite is verified (S6) and the rewritten branch reaches its
+end: the branch is pushed, merged into another local branch, or its worktree is removed. The
+dispatch that takes that step deletes that branch's backups and lists them in its report, so no
+backup is left for the caller to find.
 
 ## S2 - force-with-lease, never force
 
@@ -123,14 +124,14 @@ git reset --hard HEAD@{N}              # restore to N operations ago
 git checkout --no-track -b recovered HEAD@{N}     # rescue a lost tip onto a new branch
 ```
 
-The reflog is local and expires; the S1 backup branch is the durable anchor.
+The reflog is local and expires; until S1 deletes it, the backup branch is the anchor.
 
 ## S9 - Worktree-always / principal-checkout-lock
 
 An op that mutates the working tree or moves a branch ref (checkout, commit, rebase, merge,
 cherry-pick, reset, tag move, push-from) runs in a dedicated worktree. The primary checkout stays
 on its principal branch at all times and is never operated in place; a brief that asks otherwise
-is an error - use the worktree and report its path. The one exception is the carve-out below.
+is an error - use the worktree and report its path. The two exceptions are the carve-outs below.
 Bounded reads (`git status`, `git log -n<N>`, `git diff --stat`) may run anywhere.
 
 **The caller names the location.** A brief gives `worktree` (the exact absolute path of an
@@ -167,6 +168,19 @@ git clean -fd              # remove untracked files
 
 It never moves a branch ref, switches branches or commits. The S1 backup cannot capture
 uncommitted work, so the pre-flight proof is the safeguard: without it, return BLOCKED.
+
+### S9 carve-out - fast-forward of the principal branch
+
+Bringing the primary checkout's principal branch up to date with its upstream is not work in
+place. On a clean tree (S4):
+
+```bash
+git fetch <remote> <branch>
+git merge --ff-only <remote>/<branch>
+```
+
+A tip that has diverged is BLOCKED with the state: never a merge commit, a rebase or a reset
+there.
 
 ## S11 - Positional self-check before first mutation
 
@@ -213,13 +227,13 @@ git -C <absolute worktree> <subcommand> <args>
   and noted in the findings file. The environment form outranks every config level; never
   `-c core.editor=true`, never `git config --local`.
 
-## S13 - A new branch has no upstream until its first push
+## S13 - A work branch has no upstream until its first push
 
 A branch cut from a remote-tracking ref tracks it by default, so a bare `git push` or `git pull`
 would target the branch it was cut from - often a protected one - past the gate below.
 
-- Every command that creates a new branch carries `--no-track`: the four forms of the S9
-  addendum, the S1 backup branch and the S7 rescue branch.
+- Every command that creates a branch to receive work carries `--no-track`: the four forms of the
+  S9 addendum, the S1 backup branch and the S7 rescue branch.
 - The first push names the remote the brief gives as the push target (the fork or the branch's
   own remote, never the remote the base came from unless the brief says so) and sets the upstream
   in the same call:
@@ -230,7 +244,15 @@ would target the branch it was cut from - often a protected one - past the gate 
 
 - Every other push names its remote and branch too (`git push <remote> <branch>`). A push that
   would change a protected branch is gated whatever upstream the branch has.
-- An inherited upstream is never repaired by editing the repository config.
+- The local copy of a remote branch - a local branch with the same name as the remote branch it
+  was created from, such as the branch a clone checks out - tracks that branch: it is its own
+  upstream, not an inherited one. When the brief asks for it on such a branch:
+
+  ```bash
+  git branch --set-upstream-to=<remote>/<branch> <branch>
+  ```
+
+- An upstream under any other name is never set or repaired by editing the repository config.
 
 ## S8 - filter-repo requires a FRESH clone
 

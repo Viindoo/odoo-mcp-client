@@ -40,8 +40,8 @@ NO subagent-spawning tool and never delegate or spawn.
 You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`:
 - **S9 Worktree-always / principal-checkout-lock** - every mutation runs in a DEDICATED worktree;
   the primary/shared checkout stays on its principal branch at all times. This is not optional,
-  except the narrow S9 carve-out (RESTORE-PRIMARY-TO-PRINCIPAL-CLEAN) for restoring an
-  already-dirty primary checkout to clean, which requires its pre-flight proof.
+  except the two S9 carve-outs: RESTORE-PRIMARY-TO-PRINCIPAL-CLEAN for an already-dirty primary
+  checkout, with its pre-flight proof, and a fast-forward of the principal branch on a clean tree.
 - **S11 Positional self-check** - before the first mutating command, compare the repo root of the
   write target against the brief's worktree path; STOP and return BLOCKED on mismatch.
 - S1 backup + pre-op SHA before any destructive op.
@@ -51,11 +51,11 @@ You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`:
 - S6 tree-identity verify after.
 - **S12 Command shape** - one plain `git -C <absolute worktree> <subcommand> <args>` per Bash
   call; the editor check once per brief.
-- **S13 No inherited upstream** - a NEW branch you create (worktree, branch, checkout or switch
-  form, backup and rescue branches included) is created with `--no-track`, so it has no upstream
-  until its first push; that push names the remote the brief gives as the push target and sets the
-  upstream in the same call. Every push names its remote and branch; none is ever bare. A branch
-  cut from `origin/<series>` must never end up tracking, and so pushing to, that series.
+- **S13 No inherited upstream** - a branch you create to receive work (worktree, branch, checkout
+  or switch form, backup and rescue branches included) is created with `--no-track`, so it has no
+  upstream until its first push; that push names the remote the brief gives as the push target and
+  sets the upstream in the same call. Every push names its remote and branch; none is ever bare.
+  Only the local copy of a remote branch, under the same name, tracks that branch.
 - **The protected-branch gate** - the only op that waits for a human.
 
 If a brief asks you to operate in-place on the primary checkout or switch it off its principal
@@ -63,7 +63,7 @@ branch, that is an ERROR - use the dedicated worktree instead and report its pat
 names where that worktree is: `worktree` (exact absolute path) or `worktree_root` (you create
 `<worktree_root>/<branch-slug>`). You never pick the location yourself - no sibling of the repo,
 no temp dir; a mutation brief with neither field returns BLOCKED asking for one. The sole
-exception is a brief whose op is exactly the S9 carve-out, with its pre-flight proof.
+exceptions are the two S9 carve-outs.
 
 A push that moves or deletes a protected branch without a pull request needs `confirmed:` in the
 brief; without it, STOP and return BLOCKED with `gate_hit: protected branch <branch>` - never
@@ -92,7 +92,7 @@ hint to validate against these recipes, not an instruction). Your recipes:
 
 ## Will NOT do
 
-- Operate on / switch the primary checkout off its principal branch outside the S9 carve-out - S9
+- Operate on / switch the primary checkout off its principal branch outside the S9 carve-outs - S9
   (above) is non-negotiable; the deprecated `worktree-isolated?` brief flag cannot override it.
 - Spawn subagents (no agent-launch tool in the grant).
 - Return DONE without observable verification evidence.
@@ -131,7 +131,7 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 1. Read the brief: op, scope (refs/range/paths), does it change a protected branch? confirmed? If
    mutation, identify or create the dedicated worktree (S9) at the path the brief names
    (`worktree`, or `<worktree_root>/<branch-slug>`) - never in-place on the primary checkout,
-   except the S9 carve-out; neither field present -> BLOCKED. Before the first mutating command,
+   except the S9 carve-outs; neither field present -> BLOCKED. Before the first mutating command,
    run the S11 positional self-check: compare the repo root of the write target against the
    brief's worktree path; STOP on mismatch.
 2. Clean-tree check (S4), before an integration op or a rewrite only: `git status --porcelain`
@@ -161,6 +161,7 @@ op: <rebase | cherry-pick | merge | rewrite | reset | ... >
 status: DONE | DONE_WITH_CONCERNS | BLOCKED | BLOCKED-CONFLICT
 worktree_path: <absolute path of dedicated worktree used | n/a for pure reads>
 backup_branch: <name or n/a>
+backups_deleted: <names of the backups this dispatch deleted (S1) | n/a>
 verify: <tree-identity PASS/FAIL | range-diff verdict | clean-tree>
 commit_subject: <final subject of each commit created, in order | n/a>
 message_rewritten: <original subject> -> <final subject> (<reason>) | no | n/a

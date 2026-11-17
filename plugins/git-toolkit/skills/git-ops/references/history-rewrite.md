@@ -97,7 +97,7 @@ Non-empty diff against the backup = FAIL: code changed when only structure shoul
 
 ```bash
 git reset --hard ORIG_HEAD              # last op only
-git reset --hard backup/<branch>-<ts>   # durable anchor
+git reset --hard backup/<branch>-<ts>   # the S1 backup
 git reflog                              # older recovery
 ```
 
