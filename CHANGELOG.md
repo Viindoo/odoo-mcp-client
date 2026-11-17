@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.14.0] - 2026-11-17
+
 ### Added
 
 - Docs site: the screens of a language show the business its readers run - their country's
