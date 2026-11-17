@@ -20,7 +20,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 STEP = PLUGIN / "scripts" / "setup-steps" / "34-auto-mode.sh"
-TAG = "odoo-ai-agents: "
+# Every entry the plugin writes starts with the tag of its own version.
+TAG = "odoo-ai-agents@%s: " % json.loads(
+    (PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
 GROUPS = ("allow", "soft_deny", "environment")
 
 
@@ -360,3 +362,23 @@ def test_invalid_json_settings_exit_2_and_stay_unchanged(machine):
     assert out.returncode == 2
     assert machine["settings"].read_text() == "{not json"
     assert not list(machine["settings"].parent.glob("settings.json.bak.*"))
+
+
+def test_the_allow_entries_teach_the_classifier_that_exposing_a_leased_instance_is_routine(default_run):
+    """The entry names the two odoo-local tools that give a leased instance a temporary public
+    address, so an auto-mode classifier that would refuse "expose a local server to the internet"
+    is told it is routine here."""
+    named = [e for e in default_run.data["autoMode"]["allow"]
+             if "instance_expose" in e and "instance_unexpose" in e]
+    assert len(named) == 1 and named[0].startswith(TAG)
+
+
+def test_a_settings_file_without_the_exposure_entry_is_out_of_sync_until_apply_writes_it(machine):
+    assert _run(machine, "apply").returncode == 0
+    data = _data(machine)
+    data["autoMode"]["allow"] = [e for e in data["autoMode"]["allow"] if "instance_expose" not in e]
+    machine["settings"].write_text(json.dumps(data), encoding="utf-8")
+    assert _run(machine, "check").returncode == 1
+    assert _run(machine, "apply").returncode == 0
+    assert _run(machine, "check").returncode == 0
+    assert any("instance_expose" in e for e in _data(machine)["autoMode"]["allow"])

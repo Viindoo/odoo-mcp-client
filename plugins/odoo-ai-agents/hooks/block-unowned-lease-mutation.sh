@@ -38,7 +38,9 @@
 #       which is not a subagent. `gc --dry-run` changes nothing and always passes.
 #   A4  a release, park or adopt of a lease this subagent does NOT hold - through Bash
 #       (`allocator.py release|park|adopt <tok> ...`) OR the odoo-local MCP tools `lease_release` /
-#       `lease_park` / `lease_adopt` (argument `lease_token`, the name the tools require; a stray
+#       `lease_park` / `lease_adopt` (and `instance_expose` / `instance_unexpose`, which publish or
+#       withdraw the lease's temporary public address and rewrite its database's base URL - the
+#       same "act on a lease you hold" rule, checked like a release or a park) (argument `lease_token`, the name the tools require; a stray
 #       `token` key is read as well so a mis-spelled call is still judged, not waved through). An
 #       adopt is also allowed for a token the agent's OWN `lease_find` result returned - the
 #       legitimate resume path, lease_find(parked, run_id) -> lease_adopt -> instance_serve. The
@@ -166,8 +168,10 @@ printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || _pass
 
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
 MCP_VERB=""
-if [[ "$TOOL" =~ odoo-local__lease_(release|park|adopt)$ ]]; then
-  MCP_VERB="${BASH_REMATCH[1]}"
+MCP_LABEL=""
+if [[ "$TOOL" =~ odoo-local__(lease_(release|park|adopt)|instance_(expose|unexpose))$ ]]; then
+  MCP_VERB="${BASH_REMATCH[2]:-${BASH_REMATCH[3]}}"
+  MCP_LABEL="${BASH_REMATCH[1]}"
 elif [[ "$TOOL" != "Bash" ]]; then
   _pass
 fi
@@ -225,7 +229,7 @@ _a4_reason() {
   fi
   printf '%s' "REFUSED: you are \`$AGENT_NAME\`, and this $verb targets lease $tok, which is not yours to $verb: $how
 
-Ownership is RUN-scoped in the allocator, so copying the run_id of a handle you were GIVEN would make this call succeed - and destroy (release), stop (park) or take over (adopt) an instance the agent that provisioned it is still using. The rule is narrower than the run (snippets/resource-teardown-contract.md T1): release, park or adopt only a lease you obtained yourself, or one provisioned for your run and handed back UP to you by a child you dispatched (an adopt may also take a parked lease of your run that your OWN lease_find returned). A handle forwarded DOWN is never yours.
+Ownership is RUN-scoped in the allocator, so copying the run_id of a handle you were GIVEN would make this call succeed - and destroy (release), stop (park), take over (adopt) or publish (instance_expose) an instance the agent that provisioned it is still using. The rule is narrower than the run (snippets/resource-teardown-contract.md T1): release, park or adopt only a lease you obtained yourself, or one provisioned for your run and handed back UP to you by a child you dispatched (an adopt may also take a parked lease of your run that your OWN lease_find returned). A handle forwarded DOWN is never yours.
 
 Serving or resuming a forwarded handle (instance_serve with its lease_token) is consumption, not obtainment, so the teardown gate never asks you to release it: at your turn end it needs nothing from you for a lease you only consumed. Re-sending this call in a different shape to get past the guard is itself a blocked action; if you believe the lease IS yours, end your turn BLOCKED and quote this refusal."
 }
@@ -239,7 +243,7 @@ _deny() {
 if [[ -n "$MCP_VERB" ]]; then
   MCP_TOK="$(printf '%s' "$INPUT" | jq -r '.tool_input.lease_token // .tool_input.token // empty | strings' 2>/dev/null || true)"
   [[ -n "$MCP_TOK" ]] || _pass
-  R="$(_a4_reason "lease_$MCP_VERB" "$MCP_TOK" "$MCP_VERB")"
+  R="$(_a4_reason "$MCP_LABEL" "$MCP_TOK" "$MCP_VERB")"
   [[ -n "$R" ]] && _deny "$R"
   _pass
 fi

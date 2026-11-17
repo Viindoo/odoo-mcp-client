@@ -27,6 +27,7 @@ Gather the parameters from the caller's request; anything strictly required that
 
 - `operation`: `create` / `drop` / `park` / `resume` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language`. `series`: required for create/init/update/run-tests/resume.
 - `lease_token` (park only, the `INSTANCE_HANDLE`'s field), `park_ttl_s` (park, optional). `park` and `drop` of a lease the CALLER holds run inline (exception (d)), never via `odoo-instance-ops`.
+- A public address for a served instance (`${CLAUDE_PLUGIN_ROOT}/snippets/public-address.md`) is not an `operation`: whoever holds the lease calls `instance_expose` / `instance_unexpose` inline.
 - `persist`: `ephemeral` (default) / `exclusive-running` / `shared-running` (`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5).
 - `run_id`: the caller's run id, passed into every brief and every lease tool as lease owner (`RUN_ID_REQUIRED` otherwise). Never invent one: none given -> `NEEDS_CONTEXT(RUN_ID)`.
 - `PROFILE`: resolve per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2, verbatim) unless the caller passes it. EMPTY: fall through the rungs, else OMIT the field, never `PROFILE: ''`.

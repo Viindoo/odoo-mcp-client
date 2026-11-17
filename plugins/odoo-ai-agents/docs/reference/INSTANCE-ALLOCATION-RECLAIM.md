@@ -186,6 +186,10 @@ older reader compares with `==` (the TZ-free fingerprint lives in `owner.pid_fp`
 explicit `--ttl` carries `ttl_s` of at least 24h, and `heartbeat` keeps refreshing `heartbeat_at`, the
 only stamp that reader's TTL arm reads. Guard: `tests/test_allocator_cross_version.py`.
 
+A public address (`instance_expose`) adds nothing to a row: its record is a file of its own under
+`$ODOO_AI_HOME/runtime/tunnels/`, and its supervisor ends the tunnel once the lease's server is
+gone, whichever version stopped it (`tests/test_instance_expose.py`).
+
 Residual gaps while a pre-anchor plugin version (7.0.2 or older) still runs anywhere on the host:
 
 - it condemns an anchored lease whose bound server died while its session still lives
@@ -215,7 +219,7 @@ keeps sweeping the registry.
 | Old `instances.toml` with no pool fields | the pool is derived from `http_port`; fully backward compatible. |
 | Old registry rows (schema v1/v2) | read leniently: a row without `owner.session` is judged by rungs 3-4. There is no bulk migration. |
 | Host reboots while a lease is parked | `parked_boot_id` differs from the current boot id, so the park budget is treated as not consumed and the row stays resumable. `resume` re-stamps the boot id. |
-| The parked lease's database was dropped externally | two probes, only the first pre-launch: `query --state parked` (`lease_find`) skips a lease whose database is provably gone and names `release <token>`; `resume` probes again and refuses with exit 5. `release` then handles it on its "absent" branch (`ALLOC_FORGOTTEN_DB`, `INSTANCE-ALLOCATION-GUARDS.md` §6.7). An undeterminable probe refuses at neither rung. |
+| The parked lease's database was dropped externally | two probes, only the first pre-launch: `query --state parked` (`lease_find`) skips a lease whose database is provably gone, names `release <token>` and lists it in `skipped_leases` (`database-gone`); `resume` probes again and refuses with exit 5. `release` then handles it on its "absent" branch (`ALLOC_FORGOTTEN_DB`, `INSTANCE-ALLOCATION-GUARDS.md` §6.7). An undeterminable probe refuses at neither rung. |
 | Port collision on resume | the parked lease still holds its `ports`, so no allocator caller can take them; a non-allocator process still can, and `50-instance-spinup.sh`'s identity-marker attach guard (`INSTANCE-ALLOCATION-MODES.md` §5 P6.2) refuses a foreign listener BEFORE any launch. |
 | Two agents race to resume one parked lease | `resume` is a locked compare-and-set requiring `parked_at`; the loser finds a live same-host owner pid and gets exit 6, so it stops the server it just launched instead of binding over the winner. |
 | A resume refused AFTER the launch (exits 1/4/5/6) | no path may end with a live server the teardown gate cannot see: a refused resume leaves the lease parked, and the gate skips parked rows. `50-instance-spinup.sh::_bind_exclusive` therefore stops the process group it just launched and fails the apply, leaving the lease exactly as it was. |

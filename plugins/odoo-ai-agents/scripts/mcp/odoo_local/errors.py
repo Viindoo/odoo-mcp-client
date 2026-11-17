@@ -57,6 +57,10 @@ SERVER_CODES = {
     "SUBPROCESS_TIMEOUT": "The helper exceeded its time bound and was killed. A killed lease_release, lease_park or lease_gc is taken over by the next call on the same lease (its reclaiming marker names a dead pid), so retry that call once; after a timed-out lease_acquire call lease_list (scope mine) first and lease_release any lease your run holds but never received, then acquire again; for any other tool read diagnostics, then retry once or report to the user.",
     "SUBPROCESS_FAILED": "Read stderr in diagnostics, fix the cause it names, then call again.",
     "ALLOCATOR_OUTPUT_INVALID": "The allocator returned no JSON envelope; report diagnostics to the user and use the Bash CLI fallback.",
+    "LEASE_NOT_SERVED": "Start the lease's server with instance_serve (lease_token), then call again.",
+    "CLOUDFLARED_UNAVAILABLE": "Install cloudflared (https://github.com/cloudflare/cloudflared/releases) so it is on PATH, or let this machine reach github.com so the plugin can fetch it, then call again.",
+    "TUNNEL_FAILED": "Read diagnostics.log_tail, wait a minute when it names a rate limit, then call again; report to the user if it fails twice.",
+    "BASE_URL_NOT_SET": "Nothing is left running: read diagnostics.detail, make the lease's database reachable (instance_status), then call again.",
     "JOB_NOT_FOUND": "Pass a job_id that a job-starting tool returned on this machine; an unknown id has no record to read.",
     # odoo-media (scripts/mcp/odoo_media): the values come from the plugin's configured options
     "VALUE_NOT_CONFIGURED": "The plugin option named in diagnostics is not set in this session. Ask the operator to open /plugin, choose odoo-ai-agents, Configure, and fill in that option (the value never goes through the chat), then run /reload-plugins; call media_info to confirm it is set. If it was filled in and still shows false, the operator's subprocess environment scrub is stripping it: name it in the plugin options again with that setting off.",

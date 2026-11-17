@@ -1531,6 +1531,16 @@ cmd_apply() {
                 if [[ -n "${ODOO_CLI_HTTP_INTERFACE_PIN:-}" && -n "${ODOO_CLI_HTTP_INTERFACE_KEY:-}" ]]; then
                     echo "$ODOO_CLI_HTTP_INTERFACE_KEY = $ODOO_CLI_HTTP_INTERFACE_PIN"
                 fi
+                # The database manager is off for every server this script launches: an
+                # address that reaches the server (a tunnel, a LAN) must never let a caller
+                # who knows Odoo's default master password drop or dump the databases of
+                # the whole PostgreSQL cluster. The option's spelling is the checkout's own;
+                # a checkout that declares none gets no line (never a guess). The plugin
+                # creates and drops databases through Odoo's Python API (odoo_db.py) and
+                # `odoo-bin`, never through this HTTP surface.
+                if [[ -n "${ODOO_CLI_NO_DATABASE_LIST_KEY:-}" ]]; then
+                    echo "$ODOO_CLI_NO_DATABASE_LIST_KEY = False"
+                fi
                 # Second listening port (gevent/longpolling) - emitted when the
                 # agent passed both the port AND its resolved conf key (P5.6).
                 # A half-specified pair is BLOCKED earlier (see the

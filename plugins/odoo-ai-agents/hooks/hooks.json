@@ -22,7 +22,7 @@
         ]
       },
       {
-        "matcher": "Bash|mcp__plugin_odoo-ai-agents_odoo-local__lease_(release|park|adopt)",
+        "matcher": "Bash|mcp__plugin_odoo-ai-agents_odoo-local__(lease_(release|park|adopt)|instance_(expose|unexpose))",
         "hooks": [
           {
             "type": "command",

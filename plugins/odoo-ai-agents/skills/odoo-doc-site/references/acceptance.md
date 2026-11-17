@@ -54,7 +54,7 @@ opens every image of `IMAGES TO REVIEW` (item 12).
 | 9 | Presentation | admonitions and semantic classes render styled |
 | 10 | Console | no console error on load or after scrolling |
 | 11 | Language switch | the switch reaches the same page in the other language; on the LOCAL build the switch href is a build-time path the local server does not serve, so the item is `UNVERIFIED` there and the tester instead opens the same page under the other language's base URL and confirms it exists - never a `FAIL` for a link the local server cannot resolve |
-| 12 | Image content | an image of `IMAGES TO REVIEW`, opened as a file, shows no banned term and no off-brand UI |
+| 12 | Image content | an image of `IMAGES TO REVIEW`, opened as a file, shows no banned term and no off-brand UI, and its data suits the readers of the page's language (`demo-data.md`) |
 | 13 | Embedded video | a video embedded on the page is narrated in the page's language (its id is the one the plan lists for that language); a page with no video in its language embeds none |
 
 ## Loop

@@ -483,6 +483,8 @@ SERIAL_TESTS = (
     "tests/test_odoo_local_mcp_protocol.py::test_stdin_eof_stops_cancellable_waits_so_the_server_exits_promptly",
     "tests/test_odoo_local_mcp_protocol.py::test_job_wait_returns_early_when_its_call_is_cancelled",
     "tests/test_odoo_local_mcp_protocol.py::test_run_timeout_kills_the_whole_process_group",
+    # Real tunnel and supervisor processes: each test waits a bounded time for them to be gone.
+    "tests/test_instance_expose.py::*",
     # Allocates 900 MB inside 256 MB capped scopes, plus a wall-clock bound.
     "tests/test_memory_capped_launch.py::*",
     # Probe bounds of the allocator.

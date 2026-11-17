@@ -7,8 +7,9 @@
 # from the user's own settings file. The sanctioned path is a step that writes that file
 # after the owner consents - the same path steps 30 and 32 take.
 #
-# What it writes (user settings, every entry tagged `odoo-ai-agents: ` so a later version
-# prunes its own entries and never touches yours):
+# What it writes (user settings, every entry tagged `odoo-ai-agents@<version>: ` with the version
+# of the plugin that wrote it, so a later version prunes this plugin's entries and never touches
+# yours):
 #   autoMode.allow        what is routine development inside the trusted roots
 #   autoMode.soft_deny    pushing straight to / deleting a protected branch, merging a PR
 #                         without the user's confirmation
@@ -16,6 +17,14 @@
 #   permissions.ask       `git push` rules naming each protected branch (always prompt)
 # Each autoMode array keeps "$defaults" as its first element, so the built-in defaults stay.
 # It NEVER writes hard_deny, permissions.allow or a bypass mode.
+#
+# Several plugin versions can run on one machine and each converges the same file at its start.
+# A version writes an array only when no entry of a NEWER version is in it (scripts/lib/
+# auto_mode_facts.py `newer`), and prunes every entry of an older or unversioned tag first, so an
+# older session never replaces what a newer one wrote. Releases from before the version tag only
+# prune and write entries tagged `odoo-ai-agents: ` (no `@`): a versioned entry survives their
+# start, and once the entries of such a release are gone they find no approval marker and write
+# nothing.
 #
 # Every value is derived from the machine (scripts/lib/auto_mode_facts.py): trusted roots
 # from the instance catalog's addons_path rows, organization and fork owner (a non-origin
@@ -42,7 +51,6 @@ LIB="$SCRIPT_DIR/../lib/config_merge.py"
 FACTS="$SCRIPT_DIR/../lib/auto_mode_facts.py"
 
 CLAUDE_SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
-TAG="odoo-ai-agents: "
 
 cmd_describe() {
     echo "Teach auto mode what is routine here (trusted roots, git, instances) and guard protected branches"
@@ -87,10 +95,17 @@ _lib() {
     fi
 }
 
+_owned_by_newer() {
+    # $1 = dotted array path. Exit 0 when an entry of a newer plugin version is in it.
+    python3 "$FACTS" newer "$CLAUDE_SETTINGS" "$1"
+}
+
 _write_array() {
-    # $1 = dotted array path, $2 = JSON array of entries. Prune ours, keep "$defaults" first, union.
+    # $1 = dotted array path, $2 = JSON array of entries. Prune every tag of this plugin (older
+    # versions and the unversioned tag, never a newer version's: the caller skips such an array),
+    # keep "$defaults" first, union.
     local path="$1" entries="$2"
-    _lib json-prune-tagged "$CLAUDE_SETTINGS" "$path" "$TAG"
+    _lib json-prune-tagged "$CLAUDE_SETTINGS" "$path" "$(_entries_field 'e["tag_pattern"]' | python3 -c 'import json,sys; print(json.load(sys.stdin))')" --regex
     _lib json-ensure-first "$CLAUDE_SETTINGS" "$path" '$defaults'
     python3 - "$path" "$entries" <<'PY' | _merge_stdin
 import json, sys
@@ -148,13 +163,17 @@ cmd_apply() {
     python3 "$FACTS" propose
     echo
 
-    if _ask_group "Write the routine-development entries (autoMode.allow) to $CLAUDE_SETTINGS?"; then
+    if _owned_by_newer autoMode.allow; then
+        echo "Left autoMode.allow alone: a newer plugin version wrote it."
+    elif _ask_group "Write the routine-development entries (autoMode.allow) to $CLAUDE_SETTINGS?"; then
         _write_array autoMode.allow "$(_entries_field 'e["autoMode"]["allow"]')"
         echo "ok autoMode.allow updated"
     else
         echo "Skipped autoMode.allow."
     fi
-    if _ask_group "Write the protected-branch guard (autoMode.soft_deny and permissions.ask) to $CLAUDE_SETTINGS?"; then
+    if _owned_by_newer autoMode.soft_deny; then
+        echo "Left autoMode.soft_deny and permissions.ask alone: a newer plugin version wrote them."
+    elif _ask_group "Write the protected-branch guard (autoMode.soft_deny and permissions.ask) to $CLAUDE_SETTINGS?"; then
         _write_array autoMode.soft_deny "$(_entries_field 'e["autoMode"]["soft_deny"]')"
         _lib json-prune-tagged "$CLAUDE_SETTINGS" permissions.ask "$(_entries_field 'e["ask_pattern"]' | python3 -c 'import json,sys; print(json.load(sys.stdin))')" --regex
         local ask
@@ -166,7 +185,9 @@ cmd_apply() {
     else
         echo "Skipped the protected-branch guard."
     fi
-    if _ask_group "Write the environment description (autoMode.environment) to $CLAUDE_SETTINGS?"; then
+    if _owned_by_newer autoMode.environment; then
+        echo "Left autoMode.environment alone: a newer plugin version wrote it."
+    elif _ask_group "Write the environment description (autoMode.environment) to $CLAUDE_SETTINGS?"; then
         _write_array autoMode.environment "$(_entries_field 'e["autoMode"]["environment"]')"
         echo "ok autoMode.environment updated"
     else

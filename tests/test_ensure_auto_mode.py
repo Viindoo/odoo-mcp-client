@@ -18,7 +18,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 HOOK = PLUGIN / "hooks" / "ensure-auto-mode.sh"
 STEP = PLUGIN / "scripts" / "setup-steps" / "34-auto-mode.sh"
-TAG = "odoo-ai-agents: "
+# Every entry the plugin writes starts with the tag of its own version.
+TAG = "odoo-ai-agents@%s: " % json.loads(
+    (PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
 
 
 def _build_machine(base):

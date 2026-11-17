@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Docs site: the screens of a language show the business its readers run - their country's
+  companies, addresses and currency, with foreign partners and currencies where the subject
+  itself crosses a border (`skills/odoo-doc-site/references/demo-data.md`). A `seed` row of
+  `odoo-doc-site-writer` prepares the capture database once and records what it prepared; every
+  writer and every later run follows that record, and browser acceptance judges the images
+  against the same principle.
+- A leased instance can get a temporary public HTTPS address: `instance_expose` /
+  `instance_unexpose` (odoo-local) open and close a Cloudflare Quick Tunnel to the lease's port
+  - no account, no domain, no Docker; `cloudflared` is taken from PATH or fetched on first use -
+  record it on the lease as `public_url` and point the database's `web.base.url` at it. A
+  release, a park or the server stopping for any reason closes it. Agents open one when the
+  human follows the session from elsewhere and has to look at the instance, or when it is asked
+  for (`snippets/public-address.md`); the two tools are allow-listed by the setup step that
+  writes the plugin's permission rules.
+
+### Changed
+
+- Every server the spin-up launches runs with Odoo's database manager off (the option is read
+  from the checkout; a checkout that does not state it is served as before).
+- Sessions that run different versions of the plugin no longer undo each other's entries in the
+  user's configuration. The Bash permission rules are written per installed version directory;
+  the auto-mode entries carry the version that wrote them and the newest one owns its array; an
+  ETHOS import that names a newer installed version is kept. Releases that already shipped
+  leave the rules and the auto-mode entries of this version alone; they still rewrite the ETHOS
+  import while one of their sessions starts, and the next start of this version restores it.
+- `lease_find` (state parked) returns `skipped_leases`: each parked lease it passed over with the
+  reason as data (`database-gone`, `other-tree`, `condemned`, `reclaim-in-progress`,
+  `other-host`), whether or not another lease is then found. `lease_park` returns
+  `database_exists`, so a caller knows when the lease it parked has no database to resume into.
+
 ## [8.13.0] - 2026-11-17
 
 ### Added

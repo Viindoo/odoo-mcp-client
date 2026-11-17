@@ -22,6 +22,18 @@ CLAUDE_SETTINGS, ODOO_AI_HOME, ODOO_AI_INSTANCES):
                      tag remains (also 0 when nothing can be derived); exit 1 otherwise.
   marker <settings>  Exit 0 when the settings carry at least one tagged autoMode.environment
                      entry (the user approved this step on this machine); exit 1 otherwise.
+  newer <settings> <dotted.array.path>
+                     Exit 0 when the array holds an entry tagged by a NEWER plugin version
+                     than this one (that version owns the array: this version leaves it alone);
+                     exit 1 otherwise.
+
+Ownership across plugin versions. Sessions of several plugin versions share one settings file and
+each converges it at start. An entry is tagged `odoo-ai-agents@<version>: ` with the version of the
+plugin that wrote it, so the version that owns an array is the newest one that wrote to it: a
+version writes (pruning every entry of an older or untagged tag) only into an array that holds no
+entry of a newer version, and `check` calls such an array in sync. Releases from before the version
+tag prune and write only entries tagged `odoo-ai-agents: ` (no `@`), so a versioned entry is
+invisible to them and survives their start.
 """
 from __future__ import annotations
 
@@ -36,7 +48,29 @@ sys.path.insert(0, HERE)
 
 import fork_facts  # noqa: E402  (git reader, owner parser, push evidence, fork status)
 
-TAG = "odoo-ai-agents: "
+PLUGIN_ROOT = os.path.dirname(os.path.dirname(HERE))
+_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+# Every tag this plugin ever wrote: `odoo-ai-agents: ` (before versions) and `odoo-ai-agents@<v>: `.
+TAG_PATTERN = r"^odoo-ai-agents(@[0-9]+\.[0-9]+\.[0-9]+)?: "
+_TAG_RE = re.compile(TAG_PATTERN)
+_UNVERSIONED = (-1, -1, -1)
+
+
+def plugin_version() -> str:
+    """The version of this plugin (its plugin.json); "0.0.0" when it cannot be read."""
+    try:
+        with open(os.path.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), encoding="utf-8") as fh:
+            version = json.load(fh).get("version")
+    except (OSError, ValueError, AttributeError):
+        return "0.0.0"
+    return version if isinstance(version, str) and _VERSION.match(version) else "0.0.0"
+
+
+def _tuple(version: str) -> tuple:
+    return tuple(int(p) for p in version.split("."))
+
+
+TAG = f"odoo-ai-agents@{plugin_version()}: "
 # The shape of every permissions.ask rule this step writes (and so the only shape it prunes).
 ASK_PATTERN = r"^Bash\(git push (--force\* )?\* (--delete )?[A-Za-z0-9._/-]+\)$"
 _BRANCH_OK = re.compile(r"^[A-Za-z0-9._/-]+$")
@@ -175,6 +209,11 @@ def build_entries(facts: dict) -> dict:
         "localhost PostgreSQL databases (odoo-bin and the odoo-local MCP tools) is routine, and so "
         "is giving back a lease the agent's own run acquired: releasing or parking it stops its "
         "server and, for a throwaway database, drops it.",
+        TAG + "Exposing a leased test instance through a temporary public https address (the "
+        "instance_expose and instance_unexpose odoo-local tools, a Cloudflare Quick Tunnel to the "
+        "instance's own localhost port) is routine: an instance built from code holds nothing to "
+        "secure, a third party must reach it for an OAuth redirect or a webhook, and a person may "
+        "follow the session from another device. The address ends with the instance's server.",
         TAG + f"Destructive steps of development inside the trusted roots ({_join(roots)}) are "
         "intended: deleting or rewriting code, tests and modules as part of the task, "
         "`git checkout <ref> -- <paths>`, `git restore`, `git reset --hard <sha recorded earlier "
@@ -208,8 +247,8 @@ def build_entries(facts: dict) -> dict:
     for b in branches:
         ask += [f"Bash(git push * {b})", f"Bash(git push --force* * {b})",
                 f"Bash(git push * --delete {b})"]
-    return {"tag": TAG, "autoMode": {"allow": allow, "soft_deny": soft_deny,
-                                      "environment": environment},
+    return {"tag": TAG, "tag_pattern": TAG_PATTERN,
+            "autoMode": {"allow": allow, "soft_deny": soft_deny, "environment": environment},
             "ask": ask, "ask_pattern": ASK_PATTERN}
 
 
@@ -250,16 +289,37 @@ def _array(data: dict, dotted: str) -> list:
     return node if isinstance(node, list) else []
 
 
+def entry_version(entry) -> tuple | None:
+    """The version tuple an entry's tag names (untagged-version tag: below every version), or None
+    for an entry that is not this plugin's."""
+    if not isinstance(entry, str):
+        return None
+    found = _TAG_RE.match(entry)
+    if not found:
+        return None
+    return _tuple(found.group(1)[1:]) if found.group(1) else _UNVERSIONED
+
+
+def owned_by_newer(data: dict, dotted: str) -> bool:
+    """True when the array holds an entry written by a plugin version newer than this one."""
+    mine = _tuple(plugin_version())
+    return any((v := entry_version(e)) is not None and v > mine for e in _array(data, dotted))
+
+
 def in_sync(data: dict, entries: dict) -> bool:
     ask_re = re.compile(ASK_PATTERN)
     for key, want in entries["autoMode"].items():
+        if owned_by_newer(data, f"autoMode.{key}"):
+            continue
         have = _array(data, f"autoMode.{key}")
         if "$defaults" not in have:
             return False
-        if any(not isinstance(e, str) or e not in want for e in have if isinstance(e, str) and e.startswith(TAG)):
+        if any(isinstance(e, str) and entry_version(e) is not None and e not in want for e in have):
             return False
         if any(w not in have for w in want):
             return False
+    if owned_by_newer(data, "autoMode.soft_deny"):
+        return True
     have_ask = [e for e in _array(data, "permissions.ask") if isinstance(e, str)]
     if any(w not in have_ask for w in entries["ask"]):
         return False
@@ -276,7 +336,10 @@ def main(argv: list[str]) -> int:
     if cmd == "marker":
         data = _load(argv[1]) if len(argv) > 1 else None
         env = _array(data, "autoMode.environment") if data else []
-        return 0 if any(isinstance(e, str) and e.startswith(TAG) for e in env) else 1
+        return 0 if any(entry_version(e) is not None for e in env) else 1
+    if cmd == "newer":
+        data = _load(argv[1]) if len(argv) > 2 else None
+        return 0 if data is not None and owned_by_newer(data, argv[2]) else 1
     facts = derive()
     if not facts["roots"]:
         if cmd == "check":

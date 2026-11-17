@@ -797,7 +797,7 @@ def test_the_ownership_arm_matcher_reaches_the_mcp_give_back_tools():
     groups = [g for g in _pretooluse_groups()
               if any("block-unowned-lease-mutation.sh" in h.get("command", "")
                      for h in g.get("hooks", []))]
-    for tool in ("lease_release", "lease_park", "lease_adopt"):
+    for tool in ("lease_release", "lease_park", "lease_adopt", "instance_expose", "instance_unexpose"):
         assert any(re.fullmatch(g["matcher"], MCP + tool) for g in groups), (
             f"{tool} must reach the gate - a matcher that misses it disarms arm A4 on the primary "
             "give-back surface"
@@ -1072,3 +1072,33 @@ def test_a_forwarded_lease_release_is_refused_well_inside_the_timeout_on_a_long_
     assert elapsed < budget / 4, (
         f"the lease-mutation gate took {elapsed:.1f}s on a long dispatch; hooks.json gives it "
         f"{budget:.0f}s and a cancelled gate lets the release through")
+
+
+# --------------------------------------------------------------------------- #
+# The public-address tools are lease mutations too: they open an address to the internet in front of
+# the lease's server and rewrite its database's base URL. Same rule as a release or a park.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("tool", ["instance_expose", "instance_unexpose"])
+@pytest.mark.parametrize("key", ["token", "lease_token"])
+def test_a_consumer_may_not_expose_or_unexpose_a_handle_forwarded_down(tmp_path, tool, key):
+    lines = [_forwarded_brief(), *_serve_forwarded()]
+    reason = _denied(_run_a4(tmp_path, lines, tool=MCP + tool, tool_input={key: P_TOK}))
+    assert "forwarded to you" in reason and P_TOK in reason and tool in reason
+
+
+@pytest.mark.parametrize("tool", ["instance_expose", "instance_unexpose"])
+def test_the_agent_that_acquired_the_lease_may_expose_and_unexpose_it(tmp_path, tool):
+    lines = [_brief("run the social scenario"), *_mcp_acquire()]
+    _passed(_run_a4(tmp_path, lines, tool=MCP + tool, tool_input={"lease_token": C_TOK}))
+
+
+@pytest.mark.parametrize("tool", ["instance_expose", "instance_unexpose"])
+def test_the_main_context_may_expose_any_lease(tmp_path, tool):
+    lines = [_forwarded_brief(), *_serve_forwarded()]
+    _passed(_run_a4(tmp_path, lines, tool=MCP + tool, tool_input={"lease_token": P_TOK}, agent=False))
+
+
+def test_a_token_found_in_a_listing_is_not_grounds_to_expose_it(tmp_path):
+    tid, use = _use(MCP + "lease_list", {})
+    lines = [_brief("x"), use, _result(tid, json.dumps({"leases": [{"token": P_TOK}]}))]
+    _denied(_run_a4(tmp_path, lines, tool=MCP + "instance_expose", tool_input={"lease_token": P_TOK}))

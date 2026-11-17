@@ -47,6 +47,11 @@ Public API (stable - other scripts import it):
       `--xmlrpc-port`) and of the second port option (`--gevent-port`, else
       `--longpolling-port`). The odoo-bin flag is `--` + key with `_` as `-`.
 
+  no_database_list_key(odoo_root) -> str | None
+      The dest (= odoo.conf key, `list_db`) of `--no-database-list` when the checkout declares it
+      as a switch that stores False; the conf line `<key> = False` turns Odoo's database manager
+      off. None when not declared or config.py is unreadable.
+
   http_interface_key(odoo_root) -> str | None
       The dest (= odoo.conf key) of the HTTP listen-address option:
       `--http-interface` where declared, else `--xmlrpc-interface`. None when
@@ -585,7 +590,8 @@ def cli_options(odoo_root) -> dict | None:
         for name in longs:
             out[name] = {"short": short, "dest": dest.group(2) if dest else None,
                          "takes_value": takes_value,
-                         "default": default.group(2) if default else None}
+                         "default": default.group(2) if default else None,
+                         "action": action}
     return out
 
 
@@ -629,6 +635,18 @@ def skip_auto_install_declared(odoo_root) -> bool | None:
     if options is None:
         return None
     return "--skip-auto-install" in options
+
+
+def no_database_list_key(odoo_root) -> str | None:
+    """The dest (= odoo.conf key) of the option that turns the database manager off, or None.
+    That is `--no-database-list` declared as a switch that stores False (`action="store_false"`):
+    the conf line `<key> = False` then hides the list of databases and blocks creating, dropping,
+    dumping and restoring a database over HTTP and RPC. None when the checkout declares no such
+    option or config.py is unreadable - a launch then states nothing, never a guess."""
+    entry = (cli_options(odoo_root) or {}).get("--no-database-list")
+    if entry and entry.get("action") == "store_false" and entry.get("dest"):
+        return entry["dest"]
+    return None
 
 
 def http_port_key(odoo_root) -> str | None:
@@ -1167,6 +1185,7 @@ def main(argv) -> int:
         _emit("DEV_SHAPE", dev_option_shape(args[0]) or "none")
         _emit("HTTP_INTERFACE_KEY", http_interface_key(args[0]) or "")
         _emit("HTTP_INTERFACE_PIN", http_interface_pin(args[0]) or "")
+        _emit("NO_DATABASE_LIST_KEY", no_database_list_key(args[0]) or "")
         return 0
     if cmd == "i18n-facts":
         if len(args) != 1:

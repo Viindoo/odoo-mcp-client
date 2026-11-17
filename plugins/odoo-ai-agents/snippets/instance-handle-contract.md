@@ -14,7 +14,9 @@ from the latest `instance_handle` a tool returned (after a build, the final `job
 - `log_path`; `lease_token` (the lease that owns the instance); `run_id` (the run that owns the
   lease)
 - optional: `server_pid` (the server's process group; null when nothing listens); `ui_user` (the
-  account a browser consumer acts as on a demo build; never asked for, never sought on disk)
+  account a browser consumer acts as on a demo build; never asked for, never sought on disk);
+  `public_url` (its temporary public address while one is open:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/public-address.md`)
 
 ## Provision once, forward everywhere
 
@@ -68,14 +70,14 @@ run) judges by the handle's port. No server listens on it: build on the handle's
 `lease_release` it before you return, on every exit. Never release, park or adopt the handle's
 lease.
 
-A database a browser has driven (an acceptance, a capture, a debug session) carries no test
+A database a browser has driven carries no test
 verdict: the UI moved records out of the state the tests expect. A suite or a break-check that
 decides a verdict there runs on an `ephemeral` lease of its own; a red seen on a driven database
 is re-run on a clean one before any code or data is touched.
 
 Evidence comes from the installed build: a capture, an acceptance, a review or a recording never
 asks `instance_serve` for a developer server, and one whose serve result says
-`developer_server: true` (it restarts on a saved file and reads views from files) is parked and
+`developer_server: true` is parked and
 served again by its owner before anything is captured or ruled on it.
 
 ## One build or export per database
@@ -85,8 +87,7 @@ the database busy, `job_wait` the job it names, then retry. Never release or par
 not own to free the database.
 
 A job you started (`instance_build`, `instance_i18n_export`) is collected in the turn that
-started it: `job_wait` until its result is not `timeout`. A finished job notifies no one, the
-main conversation included. A turn that must end first says the job is still running and that
+started it: `job_wait` until its result is not `timeout`. A finished job notifies no one. A turn that must end first says the job is still running and that
 nothing will wake the session; a dispatched agent reports `BLOCKED` with the `job_id`. A gate
 stops such a turn end once.
 

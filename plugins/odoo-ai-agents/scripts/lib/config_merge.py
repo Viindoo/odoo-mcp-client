@@ -29,18 +29,6 @@ Subcommands:
       Mirrors the exact logic from odoo-semantic-mcp/commands/connect.md
       step 5: setdefault, backup, refuse invalid JSON (exit 2), idempotent.
 
-  json-prune-allow <settings.json> <stale_suffix> <stable_prefix> <keep_exact>
-      Remove every permissions.allow[] entry that BOTH starts with
-      <stable_prefix> AND ends with <stale_suffix>, EXCEPT an entry equal to
-      <keep_exact> (never removed even though it also matches). Prune-only:
-      never adds anything, including <keep_exact> itself if absent. Used to
-      converge version-pinned rules across plugin upgrades - see
-      json-rule-covered's docstring for why pruning must stay UNCONDITIONAL
-      (independent of whether the current version's own rule gets added).
-      Same safety contract as json-ensure-allow: backup before write, refuse
-      invalid JSON (exit 2), idempotent no-op (no backup, no write) when
-      nothing matches.
-
   json-prune-tagged <settings.json> <dotted.array.path> <prefix> [--regex]
       Remove every STRING entry of the array at <dotted.array.path> (for example
       autoMode.allow or permissions.ask) that starts with <prefix> (with --regex:
@@ -895,95 +883,6 @@ def cmd_json_ensure_allow(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Subcommand: json-prune-allow
-# ---------------------------------------------------------------------------
-
-def _is_stale_entry(entry: str, keep_exact: str, stale_suffix: str, stable_prefix: str) -> bool:
-    """Shared predicate: True iff `entry` is a version-pinned rule for the SAME
-    plugin/script family as `keep_exact` but pinned to a DIFFERENT (stale) path.
-    `entry == keep_exact` is never stale, even though it also matches the
-    prefix/suffix - see json-prune-allow's docstring for the anchoring
-    rationale (a suffix-only match is not enough; it must also share
-    `stable_prefix`, which identifies ONE specific plugin's own directory)."""
-    if entry == keep_exact:
-        return False
-    return entry.startswith(stable_prefix) and entry.endswith(stale_suffix)
-
-
-def cmd_json_prune_allow(args: list[str]) -> int:
-    """json-prune-allow <settings.json> <stale_suffix> <stable_prefix> <keep_exact>
-
-    Remove every permissions.allow[] entry that BOTH starts with
-    <stable_prefix> AND ends with <stale_suffix> - the SAME plugin's own
-    script, pinned to a DIFFERENT (stale) absolute path (e.g. a prior version
-    of that plugin's directory) - EXCEPT an entry equal to <keep_exact> (never
-    removed even though it also matches). Prune-ONLY: does not add anything,
-    including <keep_exact> itself if it is not already present.
-
-    <stable_prefix> is REQUIRED. A suffix-only match is NOT anchored to any
-    plugin's identity: two different plugins can each ship a same-named
-    script (e.g. two plugins that both have scripts/lib/foo.sh), and a
-    suffix-only prune would delete the OTHER plugin's unrelated rule. Passing
-    a prefix specific enough to identify one plugin (its path up to and
-    including the plugin-name directory) keeps the match scoped to that one
-    plugin's own rule family.
-
-    This is called UNCONDITIONALLY by the version-pinned-rule setup step,
-    regardless of whether the current version's own rule ends up being added
-    (see json-rule-covered) - stale debris from a prior plugin version is
-    removed either way. Leaving it sitting there when the current rule is
-    skipped as already-covered would NOT be defensible: it is exactly the
-    accumulation this pruning exists to fix, and it grants nothing extra (if
-    the current rule is redundant because of a broader existing permission,
-    the stale prior-version rule is equally redundant under that same broader
-    permission).
-
-      - Backup before any write (same as json-ensure-allow).
-      - Refuse to overwrite invalid JSON (exit 2).
-      - Idempotent: if nothing matches (no stale entries), prints "unchanged"
-        and exits 0 without writing or backing up.
-    """
-    if not args or args[0] in ("-h", "--help"):
-        print(cmd_json_prune_allow.__doc__)
-        return 0
-    if len(args) != 4:
-        print(
-            "Usage: config_merge.py json-prune-allow "
-            "<settings.json> <stale_suffix> <stable_prefix> <keep_exact>",
-            file=sys.stderr,
-        )
-        return 1
-
-    settings_path, stale_suffix, stable_prefix, keep_exact = args
-
-    # Load existing settings (exits 2 on invalid JSON)
-    data = _load_json_target(settings_path)
-
-    perms = data.setdefault("permissions", {})
-    allow = perms.setdefault("allow", [])
-
-    kept = [a for a in allow if not _is_stale_entry(a, keep_exact, stale_suffix, stable_prefix)]
-
-    if kept == allow:
-        print("ok no stale entries - no change.")
-        return 0
-
-    removed = [a for a in allow if a not in kept]
-
-    # Backup before modifying
-    if os.path.exists(settings_path):
-        bak = _backup(settings_path)
-        print(f"backup -> {bak}")
-
-    perms["allow"] = kept
-
-    os.makedirs(os.path.dirname(os.path.abspath(settings_path)), exist_ok=True)
-    _write_json(settings_path, data)
-    print(f"ok removed stale entries from {settings_path}: {removed}.")
-    return 0
-
-
-# ---------------------------------------------------------------------------
 # Subcommands: json-prune-tagged / json-ensure-first (dotted array paths)
 # ---------------------------------------------------------------------------
 
@@ -1382,7 +1281,6 @@ def cmd_mcp_server_set(args: list[str]) -> int:
 LOCKED_TARGET_ARG = {
     "json-merge": 0,
     "json-ensure-allow": 0,
-    "json-prune-allow": 0,
     "mcp-server-set": 1,
     "toml-upsert-instance-keys": 0,
 }
@@ -1393,7 +1291,6 @@ SUBCOMMANDS = {
     "toml-append-array-item": cmd_toml_append_array_item,
     "toml-upsert-instance-keys": cmd_toml_upsert_instance_keys,
     "json-ensure-allow": cmd_json_ensure_allow,
-    "json-prune-allow": cmd_json_prune_allow,
     "json-prune-tagged": cmd_json_prune_tagged,
     "json-ensure-first": cmd_json_ensure_first,
     "json-rule-covered": cmd_json_rule_covered,

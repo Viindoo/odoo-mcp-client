@@ -107,6 +107,10 @@ action that gets a text confirmation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-g
      `WORKTREE_PATH` = `CODE_WORKTREE` when given, `run_id` = `RUN_ID`. Keep the
      returned block verbatim as `INSTANCE_HANDLE`. Build, update and reinstall decisions follow
      `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree.
+   - Seed the capture database: launch `odoo-doc-site-writer` with the row `work: seed`
+     (`references/demo-data.md`), so the screens of each language show the business its readers
+     run; `DEMO DATA` = `<SHARE_DIR>/docs-site/<site>/<series>/demo-data.json`. When the check
+     shot runs, the same launch carries both rows.
    - The check shot runs when `references/check-shot.md` § When it runs says so; its launch also
      measures the content widths on the served build. Stop the server once they are recorded.
      This skill writes the content-width record from the `reference_viewport` and `content_widths`
