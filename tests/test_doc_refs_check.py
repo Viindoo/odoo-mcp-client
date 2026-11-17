@@ -75,7 +75,8 @@ def module(tmp_path):
                 "static/description/assets/form.png") + STRAY:
         p = mod / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(_png(FILE_PX))
+        p.write_bytes(_png(FILE_PX, FILE_PX // 2) if rel.endswith("main_screenshot.png")
+                      else _png(FILE_PX))
     (tmp_path / "addons" / "sale" / "static").mkdir(parents=True)
     (tmp_path / "addons" / "sale" / "static" / "x.png").write_bytes(PNG)
     _manifest(mod, "static/description/main_screenshot.png")
@@ -208,9 +209,8 @@ def test_a_module_image_name_outside_the_safe_set_is_flagged(module, name):
     _only(_rst(module, _img(f"assets/{name}")), "IMG_NAME")
     _only(_html(module, f'<img src="./main_screenshot.png"/><img src="./assets/{name}"/>\n'),
           "IMG_NAME")
-    _manifest(module, "static/description/main_screenshot.png",
-              "static/description/assets/" + name)
-    _only(_run(module, "__manifest__.py"), "IMG_NAME")
+    _manifest(module, "static/description/assets/" + name)
+    assert _rules(_run(module, "__manifest__.py")) == ["IMG_NAME", "MANIFEST_COVER"]
 
 
 def test_an_html_image_whose_decoded_name_has_a_space_is_flagged(module):
@@ -590,19 +590,67 @@ def test_a_manifest_image_not_an_existing_assets_image_or_the_cover_is_flagged(m
         "# comment\n{\n    'name': 'X',\n    'images': [\n"
         "        'static/description/main_screenshot.png',\n        %r,\n    ],\n}\n" % entry)
     proc = _run(module, "__manifest__.py")
-    assert proc.stdout == "__manifest__.py:6: MANIFEST_IMAGE: %s\n" % entry
+    assert proc.stdout == ("__manifest__.py:4: MANIFEST_IMAGES_COUNT: 2 images\n"
+                           "__manifest__.py:6: MANIFEST_IMAGE: %s\n" % entry)
     assert proc.returncode == 1
 
 
 @pytest.mark.parametrize("cover", [
     "main_screenshot.png", "main_screenshot.gif", "main_screenshot.jpeg", "main_screenshot.jpg",
 ])
-def test_the_main_screenshot_cover_with_assets_and_locale_covers_after_it_passes(module, cover):
-    for name in (cover, "main_screenshot.vi_VN.png"):
-        (module / "static" / "description" / name).write_bytes(PNG)
-    _manifest(module, "static/description/" + cover, "static/description/assets/form.png",
-              "static/description/main_screenshot.vi_VN.png")
+def test_the_main_screenshot_cover_alone_passes(module, cover):
+    (module / "static" / "description" / cover).write_bytes(PNG)
+    _manifest(module, "static/description/" + cover)
     _clean(_run(module, "__manifest__.py"))
+
+
+@pytest.mark.parametrize("extra", [
+    "static/description/assets/form.png", "static/description/main_screenshot.vi_VN.png",
+])
+def test_a_manifest_with_more_than_one_image_has_one_count_finding_at_the_list(module, extra):
+    (module / "static" / "description" / "main_screenshot.vi_VN.png").write_bytes(PNG)
+    (module / "__manifest__.py").write_text(
+        "{\n    'name': 'X',\n    'images': [\n        'static/description/main_screenshot.png',\n"
+        "        %r,\n        'static/description/assets/form.png',\n    ],\n}\n" % extra)
+    proc = _run(module, "__manifest__.py")
+    assert proc.stdout == "__manifest__.py:3: MANIFEST_IMAGES_COUNT: 3 images\n"
+    assert proc.returncode == 1
+
+
+def test_a_manifest_with_no_images_is_clean(module):
+    _manifest(module)
+    _clean(_run(module, "__manifest__.py"))
+
+
+@pytest.mark.parametrize("size,ok", [
+    ((1280, 640), True), ((1200, 600), True), ((1280, 634), True), ((1280, 646), True),
+    ((1280, 633), False), ((1280, 647), False), ((1280, 1280), False), ((1280, 320), False),
+])
+def test_the_cover_must_be_two_to_one_within_one_percent(module, size, ok):
+    (module / "static" / "description" / "main_screenshot.png").write_bytes(_png(*size))
+    proc = _run(module, "__manifest__.py")
+    if ok:
+        _clean(proc)
+    else:
+        assert proc.stdout == ("__manifest__.py:1: MANIFEST_COVER_RATIO: %dx%d\n" % size)
+        assert proc.returncode == 1
+
+
+@pytest.mark.parametrize("maker", [_gif, _jpeg])
+def test_the_cover_ratio_reads_gif_and_jpeg_headers(module, maker):
+    ext = "gif" if maker is _gif else "jpg"
+    (module / "static" / "description" / f"main_screenshot.{ext}").write_bytes(maker(1280, 1280))
+    _manifest(module, f"static/description/main_screenshot.{ext}")
+    _only(_run(module, "__manifest__.py"), "MANIFEST_COVER_RATIO")
+    (module / "static" / "description" / f"main_screenshot.{ext}").write_bytes(maker(1280, 640))
+    _clean(_run(module, "__manifest__.py"))
+
+
+def test_a_cover_whose_size_cannot_be_read_or_that_is_missing_has_no_ratio_finding(module):
+    (module / "static" / "description" / "main_screenshot.png").write_bytes(PNG)
+    _clean(_run(module, "__manifest__.py"))
+    (module / "static" / "description" / "main_screenshot.png").unlink()
+    _only(_run(module, "__manifest__.py"), "MANIFEST_IMAGE")
 
 
 @pytest.mark.parametrize("cover", [
@@ -612,7 +660,7 @@ def test_the_main_screenshot_cover_with_assets_and_locale_covers_after_it_passes
 def test_a_first_image_that_is_not_the_root_main_screenshot_is_not_the_cover(module, cover):
     for rel in (cover, "static/description/assets/main_screenshot.png"):
         (module / rel).write_bytes(PNG)
-    _manifest(module, cover, "static/description/main_screenshot.png")
+    _manifest(module, cover)
     _only(_run(module, "__manifest__.py"), "MANIFEST_COVER")
 
 
@@ -623,48 +671,59 @@ def test_another_screenshot_named_image_at_the_root_is_neither_the_cover_nor_in_
 
 
 # --------------------------------------------------------------------------- #
-# cover shown on the English store page
+# the page may show the cover or not
 # --------------------------------------------------------------------------- #
-def test_an_english_page_not_showing_the_cover_is_flagged(module):
-    proc = _html(module, '<p>x</p>\n<img src="./assets/form.png"/>\n')
-    assert proc.stdout == ("static/description/index.html:0: IMG_COVER_NOT_SHOWN: "
-                           "static/description/main_screenshot.png\n")
-    assert proc.returncode == 1
-
-
-def test_an_english_page_with_no_image_does_not_show_the_cover(module):
-    _flags(_html(module, '<section><h1>Title</h1></section>'), "IMG_COVER_NOT_SHOWN")
-
-
 @pytest.mark.parametrize("markup", [
-    '<img src="./assets/form.png"/><img src="./main_screenshot.png"/>',
-    '<img src="https://raw.githubusercontent.com/acme/brand/0123abc/logo.png"/>'
+    '<p>x</p>\n<img src="./assets/form.png"/>\n',
+    '<section><h1>Title</h1></section>',
     '<img src="./main_screenshot.png"/>',
-    '<img srcset="./assets/form.png 1x, main_screenshot.png 2x"/>',
-    '<div style="background:url(./main_screenshot.png)"></div>',
+    '<img src="main_screenshot.png"/>',
 ])
-def test_the_cover_may_appear_anywhere_after_a_logo_or_another_image(module, markup):
-    """The template places the cover in the HERO; a vendor logo, external or local, may come
-    first."""
+def test_a_page_is_valid_whether_or_not_it_embeds_the_cover(module, markup):
     _clean(_html(module, markup))
 
 
-@pytest.mark.parametrize("ref", ["./img/main_screenshot.png", "./assets/main_screenshot.png"])
-def test_a_cover_reference_resolving_elsewhere_does_not_show_the_cover(module, ref):
-    for sub in ("img", "assets"):
-        (module / "static" / "description" / sub / "main_screenshot.png").write_bytes(PNG)
-    _flags(_html(module, f'<img src="{ref}"/>'), "IMG_COVER_NOT_SHOWN")
+def test_a_cover_reference_resolving_elsewhere_keeps_failing_the_path_rules(module):
+    (module / "static" / "description" / "img").mkdir(exist_ok=True)
+    (module / "static" / "description" / "img" / "main_screenshot.png").write_bytes(PNG)
+    _flags(_html(module, '<img src="./img/main_screenshot.png"/>'), "IMG_NOT_IN_ASSETS")
 
 
-def test_a_localized_page_is_not_held_to_the_english_cover(module):
+def test_a_page_may_still_reference_a_locale_cover(module):
+    (module / "static" / "description" / "main_screenshot.vi_VN.png").write_bytes(PNG)
+    _clean(_html(module, '<img src="./main_screenshot.vi_VN.png"/>'))
+
+
+# --------------------------------------------------------------------------- #
+# the page does not repeat the series
+# --------------------------------------------------------------------------- #
+def test_a_store_page_naming_the_series_in_its_text_is_flagged_at_its_line(module):
+    proc = _html(module, "<section>\n<h1>Works on 17.0</h1>\n<p>text\nmore 17.0.</p></section>")
+    assert proc.stdout == ("static/description/index.html:2: PAGE_NAMES_SERIES: 17.0\n"
+                           "static/description/index.html:4: PAGE_NAMES_SERIES: 17.0\n")
+    assert proc.returncode == 1
+
+
+@pytest.mark.parametrize("markup", [
+    "<p>version 117.0 and 17.05 and 17.0.1 and 1.17.0 and 17.0.3</p>",
+    '<a href="https://docs.acme.com/17.0">docs.acme.com/guide</a><img alt="17.0" src="./assets/form.png">',
+    "<!-- 17.0 -->",
+    "<script>var v = '17.0';</script><style>/* 17.0 */</style>",
+    "<p>version 18.0</p>",
+])
+def test_the_series_inside_a_longer_number_an_attribute_a_comment_or_code_is_not_named(
+        module, markup):
+    _clean(_html(module, markup))
+
+
+def test_a_translated_store_page_must_not_name_the_series_either(module):
     page = module / "static" / "description" / "index_vi_VN.html"
-    page.write_text('<img src="./assets/form.png"/>\n', encoding="utf-8")
-    _clean(_run(module, "static/description/index_vi_VN.html"))
+    page.write_text("<p>Phien ban 17.0</p>", encoding="utf-8")
+    _only(_run(module, "static/description/index_vi_VN.html"), "PAGE_NAMES_SERIES")
 
 
-def test_a_page_is_not_held_to_a_cover_the_manifest_does_not_declare(module):
-    _manifest(module)
-    _clean(_html(module, '<section><img src="./assets/form.png"/></section>'))
+def test_the_series_in_a_guide_is_not_flagged(module):
+    _clean(_rst(module, "Title\n=====\n\nWorks on 17.0\n"))
 
 
 # --------------------------------------------------------------------------- #
@@ -946,12 +1005,12 @@ def _page(words=0, images=1, extra=""):
     return '<section>%s<p>%s</p>%s</section>' % (shots, _words(words), extra)
 
 
-def test_a_store_page_over_700_visible_words_is_too_long(module):
-    _only(_html(module, _page(words=701)), "PAGE_TOO_LONG")
+def test_a_store_page_over_900_visible_words_is_too_long(module):
+    _only(_html(module, _page(words=901)), "PAGE_TOO_LONG")
 
 
-def test_a_store_page_of_exactly_700_visible_words_is_clean(module):
-    _clean(_html(module, _page(words=700)))
+def test_a_store_page_of_exactly_900_visible_words_is_clean(module):
+    _clean(_html(module, _page(words=900)))
 
 
 def test_words_in_a_comment_a_script_or_a_style_do_not_count(module):
@@ -962,7 +1021,7 @@ def test_words_in_a_comment_a_script_or_a_style_do_not_count(module):
 
 def test_a_translated_store_page_is_held_to_the_word_limit_too(module):
     page = module / "static" / "description" / "index_vi_VN.html"
-    page.write_text(_page(words=701), encoding="utf-8")
+    page.write_text(_page(words=901), encoding="utf-8")
     _only(_run(module, "static/description/index_vi_VN.html"), "PAGE_TOO_LONG")
 
 
@@ -972,6 +1031,80 @@ def test_a_store_page_with_more_than_8_images_has_too_many(module):
 
 def test_a_store_page_with_exactly_8_images_is_clean(module):
     _clean(_html(module, _page(images=8)))
+
+
+# the screenshot carousel of reports and dashboards
+SLIDE = '<div class="carousel-item%s"><img src="./assets/form.png" alt="r"></div>'
+
+
+def _carousel(slides=3, active=(0,), cid="reports", indexed=None, ride="", slide_html=None,
+              outer_images=0):
+    items = "".join((slide_html or SLIDE) % (" active" if n in active else "")
+                    for n in range(slides))
+    listed = slides if indexed is None else indexed
+    index = "".join('<button data-bs-target="#%s" data-bs-slide-to="%d">Report %d</button>'
+                    % (cid, n, n) for n in range(listed))
+    idattr = ' id="%s"' % cid if cid else ""
+    return _page(images=outer_images + 1, extra=(
+        '<div class="carousel slide"%s%s><div class="carousel-inner">%s</div></div>%s'
+        % (idattr, ride, items, index)))
+
+
+def test_a_correct_carousel_beside_8_images_raises_no_carousel_or_image_finding(module):
+    _clean(_html(module, _carousel(slides=5, outer_images=7)))
+
+
+def test_carousel_slides_are_not_counted_by_page_too_many_images(module):
+    _clean(_html(module, _carousel(slides=5, outer_images=7)))
+    _only(_html(module, _carousel(slides=5, outer_images=8)), "PAGE_TOO_MANY_IMAGES")
+
+
+def test_carousel_too_many_slides_flags_6_and_passes_5(module):
+    _only(_html(module, _carousel(slides=6)), "CAROUSEL_TOO_MANY_SLIDES")
+    _clean(_html(module, _carousel(slides=5)))
+
+
+def test_carousel_single_slide_flags_one_and_passes_two(module):
+    _only(_html(module, _carousel(slides=1)), "CAROUSEL_SINGLE_SLIDE")
+    _clean(_html(module, _carousel(slides=2)))
+
+
+@pytest.mark.parametrize("active", [(), (0, 1)])
+def test_carousel_active_flags_none_or_several_and_passes_one(module, active):
+    _only(_html(module, _carousel(active=active)), "CAROUSEL_ACTIVE")
+    _clean(_html(module, _carousel(active=(1,))))
+
+
+def test_carousel_autoplay_flags_data_bs_ride_and_passes_without(module):
+    _only(_html(module, _carousel(ride=' data-bs-ride="carousel"')), "CAROUSEL_AUTOPLAY")
+    _clean(_html(module, _carousel()))
+
+
+@pytest.mark.parametrize("kwargs", [{"indexed": 2}, {"indexed": 4}, {"cid": ""}])
+def test_carousel_index_flags_a_wrong_count_or_a_missing_id(module, kwargs):
+    _only(_html(module, _carousel(**kwargs)), "CAROUSEL_INDEX")
+    _clean(_html(module, _carousel(indexed=3)))
+
+
+def test_carousel_index_counts_only_links_to_its_own_id(module):
+    page = _carousel().replace("#reports", "#other", 1)
+    _only(_html(module, page), "CAROUSEL_INDEX")
+
+
+@pytest.mark.parametrize("slide", [
+    '<div class="carousel-item%s"></div>',
+    '<div class="carousel-item%s"><img src="./assets/form.png"><img src="./assets/form.png"></div>',
+])
+def test_carousel_slide_image_flags_a_slide_without_exactly_one_img(module, slide):
+    proc = _html(module, _carousel(slide_html=slide))
+    assert "CAROUSEL_SLIDE_IMAGE" in _rules(proc), proc.stdout
+    _clean(_html(module, _carousel()))
+
+
+def test_carousel_more_than_one_flags_a_second_carousel(module):
+    page = _carousel() + _carousel(cid="more")
+    _only(_html(module, page), "CAROUSEL_MORE_THAN_ONE")
+    _clean(_html(module, _carousel()))
 
 
 def test_a_guide_and_the_readme_are_not_held_to_the_page_size_limits(module):

@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import struct
+import sys
 import threading
 import wave
 from pathlib import Path
@@ -42,6 +43,7 @@ class _Fake(http.server.BaseHTTPRequestHandler):
     calls = []
     transcript = PROBE_VI
     token_status = 200
+    video_channel = "UCfake"
 
     def log_message(self, *_):
         pass
@@ -68,7 +70,7 @@ class _Fake(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/youtube/v3/channels"):
             return self._send(200, json.dumps({"items": [{"id": "UCfake", "snippet": {"title": "Acme Docs"}}]}).encode())
         if self.path.startswith("/youtube/v3/videos"):
-            return self._send(200, json.dumps({"items": [{"id": "vid123", "snippet": {"title": "Demo", "channelId": "UCfake", "channelTitle": "Acme Docs"},
+            return self._send(200, json.dumps({"items": [{"id": "vid123", "snippet": {"title": "Demo", "channelId": self.video_channel, "channelTitle": "Acme Docs"},
                                                           "status": {"uploadStatus": "processed", "privacyStatus": "unlisted"},
                                                           "processingDetails": {"processingStatus": "succeeded"}}]}).encode())
         return self._send(404, b"{}")
@@ -113,6 +115,7 @@ def fake():
     _Fake.calls = []
     _Fake.transcript = PROBE_VI
     _Fake.token_status = 200
+    _Fake.video_channel = "UCfake"
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Fake)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -155,7 +158,7 @@ def test_initialize_names_the_media_server_and_lists_its_tools(tmp_path):
         names = [t["name"] for t in client.request("tools/list")["result"]["tools"]]
         assert names == ["media_info", "speech_synthesize", "speech_transcribe", "speech_voices", "speech_probe",
                          "youtube_check", "youtube_upload", "youtube_describe", "youtube_set_privacy", "youtube_delete",
-                         "youtube_status"]
+                         "youtube_captions", "youtube_status"]
         assert client.stdout_violations == []
 
 
@@ -278,6 +281,49 @@ def test_youtube_upload_dry_run_plans_and_a_real_upload_runs_the_resumable_proto
     assert status == {"upload_status": "processed", "privacy": "unlisted", "processing": "succeeded"}
 
 
+def test_captions_are_attached_to_an_existing_video_of_the_channel_without_an_upload(media, tmp_path):
+    client, home, fake = media
+    srt = tmp_path / "vi_VN.srt"; srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nXin chào\n")
+    en = tmp_path / "en_US.srt"; en.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n")
+    res = structured(client.call("youtube_captions", {"channel": "docs", "video_id": "vid123",
+                                                      "captions": {"vi_VN": str(srt), "en_US": str(en)}}))
+    assert res == {"channel": "docs", "video_id": "vid123", "ok": True, "captions": {"vi_VN": "ok", "en_US": "ok"}}
+    posts = [c for c in _Fake.calls if c[1].startswith("/upload/youtube/v3/captions")]
+    assert len(posts) == 2 and b"vid123" in posts[0][3]
+    assert not [c for c in _Fake.calls if c[1].startswith("/upload/youtube/v3/videos")]   # no upload
+    assert "fake" not in json.dumps(res) and "GOCSPX" not in json.dumps(res)
+
+
+def test_captions_refuse_a_missing_file_an_empty_set_and_a_video_of_another_channel(media, tmp_path):
+    client, home, fake = media
+    srt = tmp_path / "vi_VN.srt"; srt.write_text("x")
+    missing = structured(client.call("youtube_captions", {"channel": "docs", "video_id": "vid123",
+                                                          "captions": {"vi_VN": str(tmp_path / "none.srt")}}))
+    assert missing["error"]["code"] == "INVALID_ARGUMENTS"
+    empty = structured(client.call("youtube_captions", {"channel": "docs", "video_id": "vid123", "captions": {}}))
+    assert empty["error"]["code"] == "INVALID_ARGUMENTS"
+    unknown = structured(client.call("youtube_captions", {"channel": "training", "video_id": "vid123",
+                                                          "captions": {"vi_VN": str(srt)}}))
+    assert unknown["error"]["code"] == "YOUTUBE_CHANNEL_UNKNOWN"
+    unset = structured(client.call("youtube_captions", {"channel": "marketing", "video_id": "vid123",
+                                                       "captions": {"vi_VN": str(srt)}}))
+    assert unset["error"]["code"] == "VALUE_NOT_CONFIGURED"
+    _Fake.video_channel = "UCother"
+    foreign = structured(client.call("youtube_captions", {"channel": "docs", "video_id": "vid123",
+                                                         "captions": {"vi_VN": str(srt)}}))
+    assert foreign["error"]["code"] == "YOUTUBE_FAILED"
+    assert not [c for c in _Fake.calls if c[1].startswith("/upload/youtube/v3/captions")]
+
+
+def test_the_synthesize_video_type_enum_is_the_config_video_types(tmp_path):
+    sys.path.insert(0, str(PLUGIN / "scripts" / "lib"))
+    import speech_config
+    with McpClient(hermetic_env(tmp_path / "home"), tmp_path, server=MEDIA_SERVER) as client:
+        client.initialize()
+        tools = {t["name"]: t for t in client.request("tools/list")["result"]["tools"]}
+    assert tools["speech_synthesize"]["inputSchema"]["properties"]["video_type"]["enum"] == list(speech_config.VIDEO_TYPES)
+
+
 def test_a_revoked_refresh_token_is_reported_as_youtube_failed_with_the_consent_remedy(media):
     client, home, fake = media
     _Fake.token_status = 400
@@ -311,6 +357,20 @@ def test_speed_and_an_audition_voice_reach_the_engine_and_the_probe_says_whether
     probe = structured(client.call("speech_probe", {"lang": "vi_VN", "speed": 1.3}))
     entry = probe["results"][0]
     assert entry["speed"] == 1.3 and entry["speed_honoured"] is False   # the fake returns the same clip whatever the speed
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+def test_the_video_type_picks_its_voice_and_an_explicit_voice_wins(media, tmp_path):
+    client, home, fake = media
+    with open(home / "speech.toml", "a", encoding="utf-8") as fh:
+        fh.write('[tts.type_voices.marketing]\nvi_VN = "mai-mkt"\n')
+    out = tmp_path / "m.wav"
+    for extra, expected in (({"video_type": "marketing"}, "mai-mkt"), ({"video_type": "tutorial"}, "mai"), ({}, "mai"),
+                            ({"video_type": "marketing", "voice": "mai-2"}, "mai-2")):
+        structured(client.call("speech_synthesize", dict({"text": "Xin chào.", "lang": "vi_VN", "out": str(out)}, **extra)))
+        assert json.loads(_Fake.calls[-1][3].decode("utf-8"))["voice"] == expected
+    bad = structured(client.call("speech_synthesize", {"text": "x", "lang": "vi_VN", "out": str(out), "video_type": "documentary"}))
+    assert bad["error"]["code"] == "INVALID_ARGUMENTS"
 
 
 # --- the one-time upgrade pass at server start ------------------------------------------------

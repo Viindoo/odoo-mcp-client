@@ -57,7 +57,7 @@ USER LANGUAGE: <language>
 ```
 
 `fable` is never the launch tier. When the architect's design return carries
-`fable_proposed: yes`, ask the human in plain words - "<node> changes an inheritance axis across
+`fable_proposed: yes`, ask the human in plain words - "<unit> changes an inheritance axis across
 several modules: run the design on the deepest-reasoning setting? About 2x the cost
 (approve / skip / cancel)" - and on `approve` relaunch the design step at `model: fable`; on
 `skip` keep the opus design and record `fable declined` in the design header.
@@ -70,7 +70,9 @@ Plan-Mode gate per request). The architect stops with `status: NEEDS_CONTEXT` an
 `gate: design`. Read the `artifact` itself, not only the `summary`, and check its pivotal claims
 against the request and the source; then present, in the user's language (paths, module and model
 names verbatim): what the document decides, the points that need the human with your
-recommendation on each, and the path. Ask `approve / refine: [feedback] / cancel`. Send the answer to the SAME architect with
+recommendation on each, and the path. At the SRS gate those points include every report or
+dashboard the SRS marks `proposed` (`${CLAUDE_PLUGIN_ROOT}/snippets/management-insight.md`): the
+human puts each in or out of scope. Ask `approve / refine: [feedback] / cancel`. Send the answer to the SAME architect with
 `SendMessage` - never a new launch; the session holds the SRS, the recon and the grounding. On
 `cancel` the artifacts stay on disk.
 
@@ -144,8 +146,8 @@ A caller such as `odoo-forward-port` supplies `return_to` and a payload; map it 
 Three documents under `<SHARE_DIR>/designs/`: the SRS (`<slug>-<date>-srs.md`: roles, scope,
 interactions, non-functional, demo data, acceptance criteria with expected values, effort, the
 Domain line), the recon (`<SHARE_DIR>/recon/<slug>-<date>/recon.md`, written by
-`odoo-impact-recon`), and the design (`<slug>-<date>.md`, light or full, with one `## Nodes`
-block carrying `build_tier_hint` per node).
+`odoo-impact-recon`), and the design (`<slug>-<date>.md`, light or full, with one `## Work units`
+block carrying `build_tier_hint` per unit).
 
 ## Standalone-first fallback
 

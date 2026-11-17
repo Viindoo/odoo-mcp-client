@@ -4,7 +4,6 @@ argument-hint: "[PR# / branch]"
 description: >-
   Watches an open PR until merge: CI, reviews, merge gate
 user-invocable: true
-model: inherit
 ---
 
 # odoo-pr-monitoring - the post-PR lifecycle owner (poller)
@@ -60,7 +59,7 @@ re-run the cadence choice below.
 
 **Orphan sweep (every run, BEFORE step 1 below).**
 
-`find <ISOLATE_DIR>/pr-monitoring/ -maxdepth 1 -type f -name '*.md' -mmin +43200 -exec rm -rf {} +`
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/pr-monitoring --older-than-minutes 43200 --files --name '*.md'`
 
 Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 
@@ -137,15 +136,14 @@ message, and put every test on that list into the verification run.
    as `confirmed: yes - <quote>`). There is no auto-merge and no CI-triggered merge.
 3. **Post-merge cleanup.** After the merge is confirmed on the remote, invoke `git-ops` to run the
    cleanup in one brief (`op=integration-cleanup`): remove every node worktree and the
-   run-integration worktree, delete the per-node branches and the run-integration branch, delete
-   the run-integration-backup tag, and prune stale worktree refs:
+   run-integration worktree, delete the per-node branches and the run-integration branch, and
+   prune stale worktree refs:
 
    ```
    [ ] remove worktree <worktree_root>/<node-id>   (every node worktree of this run)
    [ ] remove worktree <worktree_root>/run-integration
    [ ] delete branch node/<slug>-<node-id>         (every node branch of this run)
    [ ] delete branch run-integration-<slug>        (after the merge is confirmed on the remote)
-   [ ] delete tag run-integration-backup-<slug>
    [ ] worktree-prune
    ```
 

@@ -3,7 +3,6 @@ name: odoo-data-migration
 argument-hint: "[source] [target] [model/data]"
 description: >-
   Writes in-series module migration scripts: field rename, type change, backfill
-model: inherit
 ---
 
 ## Role

@@ -190,6 +190,34 @@ def test_session_root_that_does_not_exist_yet_is_not_pruned(world):
     assert len(world.backups()) == backups and again.stdout == ""
 
 
+_PLUGIN_NAME = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["name"]
+GIVE_BACK = [f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_release",
+             f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_park"]
+
+
+def test_ephemeral_root_still_gets_the_lease_give_back_rules(world):
+    """The give-back rules do not depend on the state root: an ephemeral root gets them (and
+    still no Read/Edit rule), and they survive the pruning of a vanished root's pair."""
+    world.seed(pair(world.home / "vanished"))
+    world.run(world.systemp / "run" / ".odoo-ai")
+    allow = world.allow()
+    assert all(rule in allow for rule in GIVE_BACK)
+    assert state_rules(allow) == []
+    world.run(world.systemp / "run" / ".odoo-ai")
+    assert all(rule in world.allow() for rule in GIVE_BACK), "a later prune must keep them"
+
+
+def test_ephemeral_root_with_give_back_rules_present_has_nothing_to_announce(world):
+    world.run(world.systemp / "run1" / ".odoo-ai")
+    again = world.run(world.systemp / "run2" / ".odoo-ai")
+    assert again.stdout == ""
+
+
+def test_opt_out_writes_no_give_back_rule(world):
+    world.run(world.systemp / "run" / ".odoo-ai", ODOO_AI_NO_AUTO_PERMS="1")
+    assert not any(rule in world.allow() for rule in GIVE_BACK)
+
+
 def test_opt_out_neither_writes_nor_prunes(world):
     stale = pair(world.home / "vanished")
     world.seed(stale)

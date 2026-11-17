@@ -27,7 +27,7 @@ New modules across runs and worktrees are coordinated through
 
 Any one of these means an approved plan is in scope:
 
-1. an active `run-<id>` blackboard (the serialization of the approved plan);
+1. an active `run-<id>` blackboard;
 2. a `WORKTREE_PATH` handed down by the plan runner;
 3. plan-provided `inputs` in the Continuation Contract: the module set, the node DAG and the
    design pointers (`design_index`, `design_doc`, `design_docs`).
@@ -52,7 +52,7 @@ with `return_to` is under its caller's gate.
    reviews - is a text question with the reply words above; `odoo-intake` never enters Plan Mode.
    Before any gate the owner reads the artifact and its review in full, settles every question a
    rule already answers, and asks only those with two materially different readings, each with a
-   recommendation and a default. An agent's questions are never forwarded unread. A gate presents
+   recommendation and a default. A gate presents
    the current state with its evidence (file and symbol), each option's consequence per role (who
    does, sees and pays what) and a reasoned recommendation.
 2. The owner authors its plan first (a plan written only under the state root needs no open Plan
@@ -64,7 +64,8 @@ with `return_to` is under its caller's gate.
 3. Under an approved plan nothing enters Plan Mode again and no node or phase stops for approval;
    a skill that owns a gate when standalone writes its plan into its report instead.
 4. A confirmation before an outward or irreversible action - send, publish, merge, push, delete -
-   is a text question with the reply words above.
+   is a text question with the reply words above. Removing what the run itself created is
+   cleanup, not such an action.
 5. `EnterPlanMode` and `ExitPlanMode` are main-context tools; a subagent never calls them.
 6. No approved plan and the work needs several steps: stop and invoke `odoo-planning`; its gate
    is the request's one approval.

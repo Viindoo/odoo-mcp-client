@@ -14,8 +14,17 @@ source/target series (`<source-series>-to-<target-series>`). Artifacts live unde
 
 ## P0 - Recon & triage (read-only, NO stop)
 
+**Target clone.** The checkout the target series builds from hosts every git step of the run and
+the integration worktree. Call `catalog_read` with the target series, and `repo_facts` on the
+repository the request names and on each `addons_path` entry of that series' rows: the row with an
+entry inside a checkout whose `origin_url` equals this repository's names `TARGET_CLONE` (that
+checkout's `principal_root`). The catalog declares the target series but no row covers a checkout
+of this repository: `NEEDS_CONTEXT(target clone)` - the build steps could not load the port. No
+row of the target series at all: `TARGET_CLONE` is the repository the request names; say so in
+the plan. Every git-ops request of this run carries `repo: <TARGET_CLONE>`.
+
 Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `isolate` and
-`cwd` = the target repo root, and substitute the returned absolute path for `<ISOLATE_DIR>` below.
+`cwd` = `TARGET_CLONE`, and substitute the returned absolute path for `<ISOLATE_DIR>` below.
 
 1. Resume: read any existing worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) and
    `<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json` (`{<sha>: status}`) when they exist. Skip ONLY
@@ -24,8 +33,9 @@ Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agent
    "one-shot" / "one-time" in a request means ONE RUN, not a different git shape: never a licence to
    cherry-pick; to land only part of the branch, pass that sub-range's TIP SHA (Hard rule 2).
 2. Enumerate the commits to forward (read-only; no worktree, no branch yet) with ONE git-ops request.
-   A cross-repo port (the source is another repository) adds the source repository as a remote and
-   fetches it first (`repo: <main-checkout-root>`). Results, all written to
+   A source ref `TARGET_CLONE` cannot reach is brought in first: the request asks for the source
+   branch to be fetched, from the source repository added as a remote when the source is another
+   repository. Results, all written to
    `<ISOLATE_DIR>/forward-port/<slug>/range.md`:
    - `merge_base:` - the merge base of `<target-branch>` and the source ref (the fetched source
      branch on a cross-repo port); later phases read it from this file.
@@ -65,8 +75,9 @@ must not re-triage the range.
 
 **BAN (R2b): dispatch ONE `odoo-intent-extractor` per MODULE, never per commit.** Walk the P0
 `module -> [ordered sha list]` map; for each module, launch exactly one subagent (real tool calls,
-never narrated) carrying that module's FULL ordered commit list. Set BOTH the `model` parameter
-(the module bundle's triaged EXTRACT tier, `references/fp-triage-table.md` Table 1) and the brief.
+never narrated) carrying that module's FULL ordered commit list, at `model` = the module
+bundle's triaged EXTRACT tier (`references/fp-triage-table.md` Table 1) and `effort` per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
 Concurrency: Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`; the budget
 counts MODULES in flight, not commits). No child worktree. Retry rules (resume the SAME instance;
 Tier-C superseding replacement): `references/fp-phase-briefs.md` § P1 - one extractor per module (R2b).
@@ -76,19 +87,12 @@ in a batch pass to write per-commit dump files. For each commit SHA in the range
 
 - op: write the commit's full message and diff for the sha
 - `output: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`
-- `repo: <main-checkout-root>`   (cross-repo ports only)
 
-Collect the `{ <sha>: <abs-path> }` map before dispatching any extractor, then group it BY MODULE
-using the P0 `module -> [ordered sha list]` map to build each module's `commit_dump_paths`. Every
-extractor brief MUST include `commit_dump_paths` (the module's ordered map).
-
-**SLUG is PER-MODULE here, never the bare run slug.** A commit shared between modules A and B is
-dispatched to BOTH modules' extractor instances. Set the brief's `SLUG` field to `<slug>/<module>`.
-`commit_dump_paths` stays keyed by the run-level `<slug>`.
+Group the resulting `{<sha>: <abs-path>}` map by module (the P0 map) into each brief's
+`commit_dump_paths`. A commit shared between two modules goes to both extractors, so the brief's
+`SLUG` is `<slug>/<module>`; the dump paths stay under the run-level `<slug>`.
 
 Brief (run-specific inputs only):
-
-Launch parameters, not brief lines: `model` = extract-tier; `effort` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort.
 
 ```
 MODULE: <module-name>
@@ -120,8 +124,8 @@ model_inspect(model='account.move', method='summary', odoo_version='<target_vers
 ```
 
 Every Odoo Semantic call carries `odoo_version=` - never omit it. Assign exactly one bucket a/b/c/d per `[[fp-intent-4outcome]]`. Append one row per commit to `merge-log.md` (intent / bucket / reason / evidence -
-no blank Reason or Evidence cell). C3 escalations use the canonical row
-`<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`. `odoo-version-diff` forward-port mode supplies the per-symbol
+no blank Reason or Evidence cell). A C3 row uses the canonical record of
+`[[fp-merge-absorption]]` § C3. `odoo-version-diff` forward-port mode supplies the per-symbol
 bucket suggestion when the diff is large. Refine the commit's ADAPT tier now that the bucket is
 known (bucket a/d -> haiku, test-only).
 
@@ -145,8 +149,7 @@ state unclear). For categories 1-2 your own clean-tip read suffices. Whether res
 record `installable_false=yes|no` as the module's OWN row in `merge-log.md`, keyed by module and
 distinct from the per-commit rows - the ONE field any later phase reads for its installable state.
 
-Pre-step (for EVERY touched module): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files. For
-cross-repo ports include `repo: <main-checkout-root>`:
+Pre-step (for EVERY touched module): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files:
 
 - `manifest_path`: read `<module>/<tgt-descriptor>` at `target_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`
@@ -245,7 +248,9 @@ that number explicitly (the human's ONLY chance to choose a multi-batch split; t
 batch = ONE merge commit, never derived from the commit count). The plan also carries one
 `Docs: <module | site | both | none> - <facts>` line: the documentation target of the closing step,
 taken from `odoo-intake`'s Documentation routing facts in the brief, or decided here by that rule when
-none came (ask only on a miss); `refine: no docs` drops it.
+none came (ask only on a miss), with the finding count of
+`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` for a target other than `none`;
+`refine: no docs` drops it.
 
 `EnterPlanMode` MUST come before any branch, worktree, or file touch.
 
@@ -254,6 +259,7 @@ JOB-tier integration worktree branched FROM B (Hard rule 1 - no branch before th
 
 ```
 op: create integration worktree
+repo: <TARGET_CLONE>
 scope: branch fp/<slug>, base <target-branch>
 worktree: <path>/fp-integration
 ```

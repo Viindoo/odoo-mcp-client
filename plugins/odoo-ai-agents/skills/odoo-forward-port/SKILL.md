@@ -3,7 +3,6 @@ name: odoo-forward-port
 argument-hint: "[from-series] [to-series] [module/range]"
 description: >-
   Ports commits, module docs or docs-site pages from a lower Odoo series to a higher one
-model: sonnet
 ---
 
 ## Role
@@ -64,7 +63,7 @@ or git-ops request). ONE shape, no mode flag; to land PART of a branch pass that
 
 Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan-out: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 (Mode B). Before P0, sweep:
-`find <ISOLATE_DIR>/forward-port/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/forward-port --older-than-minutes 43200`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
 
 - **P0 Recon** [read-only]: read the Forward-port row of `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md`;

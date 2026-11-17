@@ -27,6 +27,11 @@ Public API (stable - other scripts import it):
       states none or a non-string). The readers below answer from it; None
       when config.py is unreadable.
 
+  python_requirements(odoo_root) -> list[str] | None
+      The normalised names of the Python packages listed in the `requirements.txt` at the
+      checkout root (case, `-`/`_`/`.`, version specifiers, extras, environment markers and
+      comments folded away). None when the file cannot be read.
+
   demo_opt_in(odoo_root) -> bool | None
       True when config.py declares `--with-demo` (demo data is off by default
       and opt-in), False when it declares only `--without-demo` (demo loads by
@@ -190,6 +195,9 @@ CLI (for shell setup steps; every fact prints as KEY=value on stdout):
   python3 odoo_source_facts.py python <odoo_root>
       PY_MIN=3.10 / PY_MAX=3.14 (empty when open) / PY_SOURCE=release.py
                                                    exit 0; exit 3 when unreadable
+  python3 odoo_source_facts.py python-requirements <odoo_root>
+      PYTHON_REQUIREMENTS=<comma list of normalised names>
+                                                   exit 0; exit 3 when requirements.txt is unreadable
   python3 odoo_source_facts.py python-suggest <series> [<odoo_root>]
       PY_RECOMMENDED / PY_MIN / PY_MAX / PY_SOURCE / PY_PYTHON2=0|1
                                                    exit 0; exit 3 when nothing is known
@@ -240,6 +248,7 @@ __all__ = [
     "module_search_dirs",
     "optional_test_imports",
     "python_recommendation",
+    "python_requirements",
     "python_support",
     "second_port_key",
     "self_declared_server_wide",
@@ -1078,6 +1087,39 @@ def dark_asset_bundle(odoo_root) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------- the checkout's Python requirements
+
+def normalise_requirement(spec: str) -> str | None:
+    """The distribution name a requirement line or a declared dependency names, lower-cased with
+    runs of `-`, `_` and `.` folded to one `-`; version specifiers, extras, environment markers,
+    direct-URL references and comments are dropped. None for a blank, comment-only or option line."""
+    line = spec.split("#", 1)[0].strip()
+    if not line or line.startswith("-"):
+        return None
+    line = line.split(";", 1)[0]
+    line = re.split(r"[\s@<>=!~(\[]", line.strip(), maxsplit=1)[0]
+    if not line:
+        return None
+    return re.sub(r"[-_.]+", "-", line).lower()
+
+
+def python_requirements(odoo_root) -> list[str] | None:
+    """The Python packages the checkout itself requires: the normalised names listed in the
+    `requirements.txt` at the checkout root, in file order without duplicates. None when that file
+    is missing or unreadable, [] when it lists none."""
+    if not odoo_root:
+        return None
+    text = _read_text(os.path.join(str(odoo_root), "requirements.txt"))
+    if text is None:
+        return None
+    out: list[str] = []
+    for line in text.splitlines():
+        name = normalise_requirement(line)
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 # ---------------------------------------------------------------- CLI
 
 def _emit(key: str, value: str) -> None:
@@ -1087,7 +1129,7 @@ def _emit(key: str, value: str) -> None:
 def _usage() -> int:
     sys.stderr.write(
         "usage: odoo_source_facts.py core-load <odoo_root> | cli-facts <odoo_root> | "
-        "python <odoo_root> | "
+        "python <odoo_root> | python-requirements <odoo_root> | "
         "i18n-facts <odoo_root> | python-suggest <series> [<odoo_root>] | locate-root|locate-launcher [--odoo-root <dir>] "
         "[<addons_dir>...] | "
         "self-declared <addons_dir>... | warnings [<logfile>...] | test-deps <odoo_root> | "
@@ -1147,6 +1189,15 @@ def main(argv) -> int:
         _emit("PY_MIN", info["min"])
         _emit("PY_MAX", info["max"] or "")
         _emit("PY_SOURCE", info["source"])
+        return 0
+    if cmd == "python-requirements":
+        if len(args) != 1:
+            return _usage()
+        reqs = python_requirements(args[0])
+        if reqs is None:
+            sys.stderr.write("no readable requirements.txt at the root of %s\n" % args[0])
+            return 3
+        _emit("PYTHON_REQUIREMENTS", ",".join(reqs))
         return 0
     if cmd == "python-suggest":
         if len(args) not in (1, 2):

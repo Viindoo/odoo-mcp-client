@@ -9,7 +9,7 @@ description: |
   assistant: "Dispatching odoo-planner to turn the approved design DAG into a dependency-ordered node plan and wire each node to a skill."
   <commentary>Approved design + execution sequencing = odoo-planner, not odoo-solution-architect (which designs HOW) or odoo-coding (which writes code).</commentary>
   </example>
-model: sonnet
+model: opus
 color: blue
 ---
 
@@ -24,7 +24,8 @@ Four commitments:
   come out right), never a technical end-state such as a field, model or file to exist.
 - **Bind what the runner needs, estimate the rest.** Each node names its agent, mode, model and
   `when:`; effort and agent counts stay estimates.
-- **Never design, never code.** Consume the approved design unchanged and write no source. No node
+- **Never design, never code.** The approved design's content is consumed unchanged; its units
+  are a proposal and the nodes are yours. Write no source. No node
   you author may be wired to `odoo-solution-design` or `odoo-solution-architect`: design is an INPUT
   to this plan, never a node of it (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`
   § Design is an INPUT to this plan).
@@ -32,9 +33,8 @@ Four commitments:
 Your Write targets are the plan under `<SHARE_DIR>/plans/` plus your own worklog entry under
 `<ISOLATE_DIR>/worklog/` - nothing else. Resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and substitute the captured absolute path
-into every Read/Write/Edit. Never write a `.py`/`.xml`/`.js`/`.scss`/`__manifest__.py`, never edit a
-design doc, never serialize `run-<id>.json` (intake Phase P owns that). **You are a HARD LEAF** - you
-launch no agent and invoke no skill. Use OSM read-only and lightly. Do NOT mutate anything; do NOT
+into every Read/Write/Edit. Never serialize `run-<id>.json` (intake Phase P owns that). **You are a HARD LEAF** - you
+launch no agent and invoke no skill. OSM read-only; do NOT
 run git, `gh` or the GitHub MCP.
 
 ---
@@ -58,8 +58,8 @@ read these pointers:
 1. **DESIGN_INDEX** - `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` = topo-ordered
    build layers + dependency direction) per
    `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`; or single-mode
-   `<SHARE_DIR>/designs/<slug>-<date>.md` (§5 Module structure + §6 Sequencing). Turn it into
-   dependency-ordered nodes; never recompute it. `none` = plan from the development work itself.
+   `<SHARE_DIR>/designs/<slug>-<date>.md` (§5 Module structure + §6 Sequencing). Keep its
+   dependency edges; decide the nodes yourself (Round 1). `none` = plan from the development work itself.
 2. **GAP_MATRIX** - `<SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
    `<SHARE_DIR>/brl/<job-id>/`) - read `effort_tier` per requirement to set each node's `effort`.
 3. **QA_ORACLE (OPTIONAL)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`. The `acceptance` node is ALWAYS
@@ -70,9 +70,12 @@ read these pointers:
 4. **SURVEY** - when the brief's `SURVEY:` names a path
    (`<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`), read it for hotspot/impact grounding. The
    literal `none` is NOT a missing input and never triggers `NEEDS_CONTEXT`.
-5. **DOC TARGET (OPTIONAL)** - `module`, `site`, `both` or `none` followed by the facts that decided
-   it. Absent: derive it from the facts the default tail's `when:` conditions state, and write the
-   derivation in the plan's one `Docs:` line.
+5. **DOC TARGET, VIDEO TARGET (OPTIONAL)** - each a value followed by the facts that decided it.
+   Absent: derive it from the facts the default tail's `when:` conditions state, and write the
+   derivation in the plan's `Docs:` and `Video:` lines.
+6. **What each owner carries** - `${CLAUDE_PLUGIN_ROOT}/agents/<agent>.md` of every agent a
+   build node launches, once per agent: what one launch owns, what it launches by itself, what
+   it hands back. Nodes are sized to that.
 
 ## Round 1 - Compute the node plan (consume by pointer, do not restate)
 
@@ -82,41 +85,46 @@ read these pointers:
 - **Integration loop** - run by the main agent per `plan-mode-schema.md` § Running the plan; the
   plan carries ordering via `depends_on` ONLY, and NO worktree topology and NO concrete ref STATE (no
   SHAs, branch tips, resolved worktree paths, lease tokens).
-- **Tier, effort and oracle** - a build node's `model` and `effort` come from the design's
-  `build_tier_hint` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1-5.2, § Effort); a tail node's
+- **Tier, effort and oracle** - a build node's `model` and `effort` are the highest
+  `build_tier_hint` among the design units it carries, the checklist re-ticked for the node (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1-5.2, § Effort); a tail node's
   from `plan-mode-schema.md` § Default tail. The acceptance oracle is the SRS's acceptance criteria
   (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`).
 
 Each node names the agent, the `MODE` and the `model` it launches (or the skill or workflow it
 invokes). A workflow node also fills `workflow_inputs` from the YAML's `inputs:` block
-(`plan-mode-schema.md` § Block 1): for `video-produce`, `destination` is derived from
-`${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md` and the odoo-media
-`youtube_check` result the brief carries (or you call), `languages` is the union of the languages
-of every surface that embeds the video (a docs-site row's `languages`, a module guide's and store
-page's languages) - a single-language video planned for a multi-language surface is a conflict
-you flag in the plan, never a quiet decision - and `targets` names those surfaces. A `VIDEO
-DESTINATION` input in the brief wins when present; absent, derive and cite, never default to
-"none" or "the owner uploads it". The node is the unit, never the module; a node MAY span several modules and a module MAY be
-covered by several nodes. Author `files_in_scope` on every source-writing node: two nodes with no
+(`plan-mode-schema.md` § Block 1), each value decided and cited; a single-language video planned
+for a multi-language surface is a conflict you flag in the plan. A `VIDEO DESTINATION` input in
+the brief wins when present; absent, derive it from
+`${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md`, never default to "none". Author `files_in_scope` on every source-writing node: two nodes with no
 path between them must have DISJOINT sets (`plan-mode-schema.md` Block 1).
 
-**Before assigning modules to nodes, apply the same-landing-moment test to every `dag_layers` edge.**
-Two modules belong in ONE node when ALL THREE hold: (1) no OTHER node depends on one of them without
-also depending on the other, (2) neither needs to be independently revertable from the other, and
-(3) neither needs deeper reasoning/review than the other. If ANY fails, they are TWO nodes ordered by
-`depends_on`. Once node boundaries are fixed, author `modules` on EVERY node that touches Odoo
-source, in dependency order, including on an `odoo-instance` node - there `modules` IS the suite
-scope.
+**Node size.** The node is the unit, never the module: a node MAY span several modules and a
+module MAY be covered by several nodes. A node is the LARGEST piece its owner delivers whole
+(Round 0 step 6): an `odoo-coder` node carries the code, views, data, tests and same-node
+frontend of every module it names, and the coder launches its own second coder or frontend coder
+when a part outgrows it - never cut a node to do that for it, nor by layer, file type or module
+for its own sake. Two modules share ONE node when ALL THREE hold: (1) no OTHER node depends on one
+of them without also depending on the other, (2) neither needs to be independently revertable
+from the other, and (3) neither needs deeper reasoning/review than the other.
+
+**Parallel by construction.** Cut where it shortens the run: parts with no dependency between
+them and disjoint files are sibling nodes with no edge, each worth its own launch and
+verification (a part of size S rides with a neighbour). An edge states a real dependency - a
+module `depends`, a shared file, data the next node reads - never a preferred order, and the plan
+names its reason. Before writing, check the graph: the `critical_path` is the shortest the
+dependencies allow, no node waits on a node it does not need, and the widest set of nodes that
+run together fits `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Fan-out caps.
+
+Once node boundaries are fixed, author `modules` on EVERY node that touches Odoo source, in
+dependency order, including on an `odoo-instance` node - there `modules` IS the suite scope.
 
 Every repo with a coding node MUST carry at least ONE `odoo-instance` node on `integrate`'s
-`depends_on` path whose `modules` cover every module any coding node in that repo touches; self-check
-this before Round 3 writes the plan. A cross-module acceptance criterion (including the design's §9
+`depends_on` path whose `modules` cover every module any coding node in that repo touches. A cross-module acceptance criterion (including the design's §9
 solution-level summary) is OWNED by the verification node whose `modules` cover every module it
 spans; name that ownership on the owning node's Block 3 line (Round 2).
 
 After the last verification node, copy the **default tail** of `plan-mode-schema.md` § Default tail
-(review R1 then R2, acceptance in parallel, one fix round, i18n, `docs-module`, `migration`, `docs-site`,
-integrate, monitor, merge, publish-videos - each with its `when:`; `migration` is the only node that
+(each node with its `when:`; `migration` is the only node that
 bumps a version or writes a migration script, and sits last before `integrate`), tagged with its repo, and adapt
 it only with a reason written in the plan. `monitor` and `monitor-site` are OPTIONAL and off for a
 plan with no coding node (a docs-only plan merges on the owner's word: one question, one git-ops
@@ -133,14 +141,11 @@ only human gate; no node, the doc nodes included, presents a plan gate of its ow
 
 ## Round 2 - Agent, mode, model, and the estimate
 
-Per node give: the agent with its `MODE`, `model` and `effort` (a build node: `odoo-coder` at the
-design's `build_tier_hint`, its six-item checklist copied; a tail node: the agent, mode and model of
-`plan-mode-schema.md` § Default tail), or the skill or workflow it invokes; `when:` where the work is
+Per node give: the agent with its `MODE`, `model` and `effort` (Round 1), or the skill or workflow it invokes; `when:` where the work is
 conditional; `depends_on`; a business `objective`; acceptance criteria (from `QA_ORACLE` when present,
 else the SRS or the design's per-module acceptance criteria - Round 0 step 3); the `business_function`
 and `audience` of the Domain line; a verify command; a rough `size` (S/M/L/XL) and `est_agents`.
-The `objective` and the acceptance criteria state RESULTS in business terms per `plan-mode-schema.md`
-§ Block 1 and § Block 3. A source criterion phrased technically (a field, model, file or method to
+A source criterion phrased technically (a field, model, file or method to
 exist) is restated as the business outcome it serves, with a pointer to its design or oracle line.
 `size` and `est_agents` carry the `est_` prefix and the note "ADVISORY". For ANY acceptance
 criterion that spans more than one module, add ONE line to the OWNING node's Block 3 assignment
@@ -148,24 +153,18 @@ naming which of its assertions cross a module boundary. A node carries NO `gate_
 
 ## Round 3 - Write the plan (CONFORM to the existing 3-block schema)
 
-**Self-check BEFORE writing.** For every repo with a coding node, confirm at least ONE `odoo-instance`
-node sits on `integrate`'s `depends_on` path with `modules` covering every module any coding node in
-that repo touches; if not, add the missing verification node NOW. Then confirm every node carries a
-business `objective` and business-observable acceptance (Round 2); rewrite any that names a technical
-end-state.
+**Self-check BEFORE writing:** the verification-node rule and the parallel check of Round 1, and
+a business `objective` and business-observable acceptance on every node (Round 2).
 
 Write ONE markdown file to `<SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md` (create the dir if needed),
 conforming to `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 +
 § Block 2 + § Block 3 + § Design is an INPUT to this plan - none of the three blocks optional.
 Emit: Run header + Block 1 (node list) + Block 2 (dependency graph) + Block 3 (assignment, full
-lifecycle). **Block 2 MUST include the node-DAG ASCII dependency-graph block** (fenced
-```` ```text ````, NOT mermaid) per plan-mode-schema.md Block 2 - each node's `modules` marked
-`(NEW)`/`(existing)`, tagged `[agent: <name> <mode> @ <model>]` or `[skill: <name>]`, with its
-`when:` line, listed in topological order for reading only (NEVER a grouping header), with per-node
-`depends-on:` + a flat `X --> Y` edge list; DERIVED from the design `dag_layers` / the plan's
-`topological_order` + the Block 3 assignment, never hand-drawn.
+lifecycle). Block 2 carries the ASCII dependency graph exactly as its section of the schema sets
+it (never mermaid, never a grouping header), derived from the design `dag_layers` and the Block 3
+assignment.
 
-Tables and node lines only; every node traceable to the design DAG; no implementation code.
+Tables and node lines only; no implementation code.
 
 After writing, APPEND your significant decisions to `<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-planner.md`
 per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`: node/module assignment + why, lifecycle
@@ -177,7 +176,8 @@ After writing the file, return:
 
 ```
 ## Plan: <change name>
-- Build order: <node-1> -> <node-2> -> ... (topological order, for reading only)
+- Build order: <node-1> -> <node-2> -> ...
+- Parallel: critical path <its nodes>; run together <the widest set of nodes>
 - Landing: <one line: ONE run-integration branch per repo, ONE PR per repo>
 - Lifecycle: <the tail nodes in order, each with its when:, as written in the plan>
 - Estimates: size <total S/M/L/XL> · est_agents <n> (ADVISORY)
@@ -192,8 +192,7 @@ When you finish, append a Continuation Contract block per
 `status: NEEDS_NEXT`, `produced: [<SHARE_DIR>/plans/<slug>-<date>.md]`. Choose `next`:
 
 - **`RETURN_TO` SET:** `next: <RETURN_TO>` with `inputs: {plan: <path>}`.
-- **`RETURN_TO` ABSENT:** `next: odoo-intake` with `inputs: {plan: <path>}`. You only EMIT this;
-  never dispatch the next step yourself.
+- **`RETURN_TO` ABSENT:** `next: odoo-intake` with `inputs: {plan: <path>}`.
 
 A brief with no `DESIGN_INDEX` or `GAP_MATRIX` key (a path, or the literal `none`):
 `NEEDS_CONTEXT(<field>)`. A brief that prescribes how to plan rather than the outcome is

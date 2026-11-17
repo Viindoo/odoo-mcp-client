@@ -33,9 +33,8 @@ handoff (T4) moves that ownership to the catcher; forwarding a handle down to a 
 | A `shared` lease (a multi-reader render server) | no single consumer; its launcher only on the user's explicit request | `lease_gc` once its server is dead |
 | A lease you parked | you, or whoever resumes it by `lease_adopt` + `instance_serve` | the park is your teardown; then the adopter owns it |
 
-Release or park only what you own, with the `run_id` you were given. A handle that reached you
-down is never yours to release or park, although its token would let the call succeed: leave it
-and name it in your report.
+Release or park only what you own, with the `run_id` you were given. A handle forwarded down to
+you is left alone and named in your report, although its token would let the call succeed.
 
 ### The three exits
 
@@ -56,11 +55,8 @@ a lease: release it.
   page is navigated to `about:blank` instead. playwright - `browser_close` (and stop a video or
   trace you started). pagecast - `stop_recording` for every session you started.
 - **As you go:** reuse one page across a sweep instead of one per screen, breakpoint or role.
-- **One driver per family at a time.** Each family (chrome-devtools, playwright, pagecast; headed
-  and headless variants each count) carries at most one browser-driving agent; distinct families
-  may run in parallel up to the cap of
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, and at most two
-  state-changing drives run at once.
+- **One driver per family at a time**, within the caps of
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity.
 - **A page the human asked to watch** may stay open: say so, and name the human as the owner who
   closes it.
 
@@ -78,10 +74,12 @@ a lease: release it.
 
 - A failure does not waive teardown: after an error, a failed oracle or a rejected verdict, close
   your pages and release or park your leases before the terminal status.
-- The one exception rides any status: a lease you own may stay running only when your
-  continuation forwards its `INSTANCE_HANDLE` (with `lease_token` and `run_id`) in `next.inputs`
-  to a named catcher that needs the live state. "Forwarded for later release" names nobody and is
-  not a handoff. Pages get no such exception, except the watched page of T2.
+- A handoff names its catcher and carries `lease_token` and `run_id`, on any status: "forwarded
+  for later release" names nobody. Pages get no handoff, except the watched page of T2.
 - When teardown itself fails - the release errors, a process will not die, or the harness denies
-  the call - you are `BLOCKED`: quote the refusal and take the named handoff with your caller as
-  catcher. Never re-issue or reword a refused give-back.
+  the call - quote the refusal, never re-issue or reword the give-back, and take the named
+  handoff with your caller as catcher, on the status your work earned.
+- The catcher of a handed-up lease owns it (T1) and releases it itself. The main agent is the
+  last catcher: a lease its own session acquired is released by it without asking anyone. When
+  its own release is refused too, it tells the user once - the lease token, the run id, the
+  refusal label - and never retries.

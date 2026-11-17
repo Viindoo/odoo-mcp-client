@@ -2,7 +2,7 @@
 name: odoo-doc-illustration
 argument-hint: "[module] [doc target]"
 description: >-
-  Module docs with live screenshots: in-module user guide and App Store page
+  Module docs with live screenshots: user guide and App Store page
 ---
 
 ## Role
@@ -38,7 +38,8 @@ module's feature list is the lines of that file that name the module. `CHANGE` i
 the writer rewrites only the affected sections and recaptures only the affected screens; `whole`
 documents the module again from scratch; absent, a module that already ships docs is left alone
 (`doc:false`, step 3). A caller may supply per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`,
-`MARKETING COPY`, `BUYER PROFILE`; each is forwarded and never rebuilt. `INSTANCE_HANDLE`
+`MARKETING COPY`, `BUYER PROFILE`, and `VIDEO` (per language, the watch URL of the module's
+video); each is forwarded and never rebuilt. `INSTANCE_HANDLE`
 (optional): a demo build the caller already holds; when its `addons_path` covers `doc_root`,
 `demo` is true and `languages_loaded` holds every resolved language, the run captures on it and
 provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance
@@ -57,7 +58,8 @@ per build shape).
    (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/author_profile_config.py show`, saved to
    `<SHARE_DIR>/documentation/<slug>-<date>/author-profile.json`) and pass its path as `AUTHOR PROFILE`; none declared ->
    continue with `AUTHOR PROFILE: none` and tell the user once that `/odoo-ai-agents:odoo-setup
-   author` declares it (the page then ships without a contact tab).
+   author` declares it (the page then ships without a contact tab). Resolve the vendor's palette
+   and logo once per `${CLAUDE_PLUGIN_ROOT}/snippets/vendor-facts.md` and pass them as `BRAND`.
 2. **Scope and plan (inline, no launch).** Per module: `abs_path`, `version`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), `languages` (§ Language
    resolution), `doc_layer`, `has_demo`, `depends_in_scope`, `has_ondisk_doc`, `change`, `target_market`
@@ -86,7 +88,7 @@ per build shape).
 4. **Orphan sweep**, before any launch: remove abandoned staging of earlier runs -
 
    ```
-   find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos ! -name adhoc -mmin +1440 -exec rm -rf {} +
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/visual --older-than-minutes 1440 --exclude baselines doc current qa debug screenshots videos adhoc
    ```
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
 5. **Per instance path** (sequential within a path; paths in parallel up to `W`, each on its own
@@ -111,7 +113,10 @@ per build shape).
       `odoo-marketer` with `MODE: landing` (`references/writer-brief.md` § The landing launch),
       passing the writer's catalog, role map, `facts.md` and staging directory so no screen is
       captured twice; `model` per the same section (a page composed for buyers is opus; a `change`
-      of relabels and recaptures is haiku).
+      of relabels and recaptures is haiku). When the marketer returns and `CHANGE` is `whole`, or
+      the manifest `images` list is not the one store cover of
+      `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images, invoke
+      `Skill(odoo-icon-design)` inline with `MODE: cover` and `BRAND`.
    4. **Verify.** Every reported file exists. `DOC SCOPE: full-guide`: run
       `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_coverage_check.py <feature-catalog.jsonl>`;
       every `GAP=` line (a capability the guide neither documents nor excludes with a reason) goes
@@ -154,8 +159,8 @@ writes the structure with `[Image: <slug>]` placeholders and returns `NEEDS_NEXT
 
 ## Agent-managed tools
 
-`odoo-doc-writer` (`MODE: full`); `odoo-marketer` (`MODE: landing`); `odoo-instance` inline for
-every lease.
+`odoo-doc-writer` (`MODE: full`); `odoo-marketer` (`MODE: landing`); `odoo-icon-design` inline for
+the store cover; `odoo-instance` inline for every lease.
 
 ## Continuation Contract
 

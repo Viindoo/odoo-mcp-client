@@ -127,6 +127,16 @@ def test_first_apply_wires_step_32_rules_into_settings(settings, odoo_ai_home):
     assert r.stderr.strip(), "first apply must also emit a visible console nudge on stderr"
 
 
+def test_first_apply_lands_the_lease_give_back_rules(settings, odoo_ai_home):
+    """The hook's apply also grants the two lease give-back tools as exact allow rules."""
+    name = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["name"]
+    r = _run(settings, odoo_ai_home)
+    assert r.returncode == 0, f"stderr={r.stderr}"
+    allow = _allow(settings)
+    assert {f"mcp__plugin_{name}_odoo-local__lease_release",
+            f"mcp__plugin_{name}_odoo-local__lease_park"} <= allow
+
+
 def test_second_run_is_silent_idempotent_noop(settings, odoo_ai_home):
     """Steady state: once `check` already passes, the hook must not re-apply or print
     anything at all - only the FIRST apply is newsworthy."""

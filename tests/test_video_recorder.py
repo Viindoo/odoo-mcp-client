@@ -10,6 +10,8 @@ import functools
 import http.server
 import json
 import math
+import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -64,6 +66,19 @@ BUS_PAGE = '<!doctype html><title>bus</title><div id=ready>ready</div><script>ne
 
 SLOW_S = 3
 
+HAS_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+needs_ffmpeg = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
+
+# A click turns the whole page red and shows #done in the same task: the first red frame is the frame
+# that shows the click, and a wait for #done ends when the recorder sees the same change.
+FLIP_PAGE = ('<!doctype html><title>flip</title><body style="margin:0;background:#fff">'
+             '<button id=flip style="margin:200px;padding:30px">Flip</button><div id=done style="display:none">done</div>'
+             '<script>document.getElementById("flip").onclick = () => {'
+             ' document.body.style.background = "#f00"; document.getElementById("done").style.display = "block"; };</script>')
+# A bar half a CSS pixel wide, 20 CSS pixels from the left edge: one device pixel at density 2.
+DETAIL_PAGE = ('<!doctype html><title>detail</title><body style="margin:0;background:#fff">'
+               '<div style="width:0.5px;height:40px;background:#000;margin-left:20px"></div>')
+
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
     """Serves the fixture files, plus `/stream`: an event stream that stays open until the client leaves."""
@@ -106,6 +121,8 @@ def site(tmp_path_factory):
         "<!doctype html><title>e</title><button id=empty style='width:0;height:0;padding:0;border:0'></button>",
         encoding="utf-8")
     (root / "bus.html").write_text(BUS_PAGE, encoding="utf-8")
+    (root / "flip.html").write_text(FLIP_PAGE, encoding="utf-8")
+    (root / "detail.html").write_text(DETAIL_PAGE, encoding="utf-8")
     _tone(root / "tone.wav")
     handler = functools.partial(_Handler, directory=str(root))
     handler.log_message = lambda *a, **k: None
@@ -293,3 +310,90 @@ def test_an_element_without_size_is_not_visible_and_a_missing_one_is_not_found(t
 
     assert "ERROR=step 2 wait_for #empty: not visible" in fail("#empty")
     assert "ERROR=step 2 wait_for #absent: not found" in fail("#absent")
+
+
+def _video_size(webm):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                          "stream=width,height", "-of", "csv=p=0", str(webm)],
+                         capture_output=True, text=True, timeout=60).stdout.strip()
+    width, height = out.split(",")
+    return int(width), int(height)
+
+
+def _mean_colours(webm):
+    """[(video time in s, (r, g, b))] - the mean colour of every frame of the clip."""
+    proc = subprocess.run(["ffmpeg", "-v", "info", "-i", str(webm), "-vf", "scale=1:1,showinfo", "-f", "rawvideo",
+                           "-pix_fmt", "rgb24", "-"], capture_output=True, timeout=120)
+    times = [float(t) for t in re.findall(rb"pts_time:([0-9.]+)", proc.stderr)]
+    pixels = [tuple(proc.stdout[i * 3:i * 3 + 3]) for i in range(len(proc.stdout) // 3)]
+    assert times and len(times) == len(pixels), proc.stderr[-500:]
+    return list(zip(times, pixels))
+
+
+def _first_change_s(webm):
+    """The video time of the first frame whose mean colour differs strongly from the first frame's."""
+    frames = _mean_colours(webm)
+    base = frames[0][1]
+    return next(t for t, c in frames if sum(abs(a - b) for a, b in zip(c, base)) > 100)
+
+
+# A wait for the change a click causes ends when the recorder sees that change; the frame that shows it
+# follows by the capture latency (under three frames) and never precedes it by more than one frame.
+CLOCK_TOLERANCE_S = 0.1
+CLOCK_EARLIEST_S = -0.04
+
+
+@needs_ffmpeg
+def test_an_event_time_and_the_video_time_of_the_frame_it_causes_share_one_clock(tmp_path, site):
+    gaps = []
+    for take in range(3):
+        out = tmp_path / ("take%d" % take)
+        out.mkdir()
+        scene = _scene(out, site, [{"do": "goto", "url": "/flip.html"}, {"do": "click", "selector": "#flip"},
+                                   {"do": "wait_for", "selector": "#done", "state": "visible"},
+                                   {"do": "hold", "seconds": 1.5}])
+        proc = _run("record", "--script", str(scene), "--out-dir", str(out))
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        events = json.loads((out / "s1.webm.events.json").read_text())
+        seen_s = [e for e in events if e["kind"] == "wait"][-1]["end"]
+        gaps.append(round(_first_change_s(out / "s1.webm") - seen_s, 3))
+    print("event-vs-frame gaps (s):", gaps)
+    assert all(CLOCK_EARLIEST_S <= gap <= CLOCK_TOLERANCE_S for gap in gaps), gaps
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("viewport, scale, pixels", [
+    ([1280, 720], 1, (1280, 720)),
+    ([640, 360], 2, (1280, 720)),
+    ([800, 600], 1.5, (1200, 900)),
+])
+def test_the_clip_is_the_viewport_times_the_device_scale_factor_in_pixels(tmp_path, site, viewport, scale, pixels):
+    scene = _scene(tmp_path, site, [{"do": "goto", "url": "/index.html"}, {"do": "hold", "seconds": 1}],
+                   viewport=viewport, device_scale_factor=scale)
+    proc = _run("record", "--script", str(scene), "--out-dir", str(tmp_path / "out"))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _video_size(tmp_path / "out" / "s1.webm") == pixels
+
+
+@needs_ffmpeg
+def test_a_high_density_take_keeps_real_device_pixels(tmp_path, site):
+    scene = _scene(tmp_path, site, [{"do": "goto", "url": "/detail.html"}, {"do": "hold", "seconds": 1.5}],
+                   viewport=[640, 360], device_scale_factor=2)
+    proc = _run("record", "--script", str(scene), "--out-dir", str(tmp_path / "out"))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    width, _height = _video_size(tmp_path / "out" / "s1.webm")
+    frame = subprocess.run(["ffmpeg", "-v", "error", "-ss", "1.2", "-i", str(tmp_path / "out" / "s1.webm"),
+                            "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                           capture_output=True, timeout=60).stdout
+    row = frame[10 * width:11 * width]
+    dark = [x for x, v in enumerate(row) if v < 64]
+    assert dark == [40], "the half-pixel bar at 20 CSS px is one device pixel at x=40, got %s" % dark[:5]
+
+
+def test_an_unusable_viewport_or_scale_factor_exits_4(tmp_path, site):
+    for extra in ({"viewport": [1280]}, {"viewport": [0, 720]}, {"device_scale_factor": "2"},
+                  {"device_scale_factor": 0}):
+        scene = _scene(tmp_path, site, [{"do": "goto", "url": "/index.html"}], **extra)
+        proc = _run("record", "--script", str(scene), "--out-dir", str(tmp_path / "out"))
+        assert proc.returncode == 4, (extra, proc.stdout + proc.stderr)
+        assert not list((tmp_path / "out").glob("*.webm"))

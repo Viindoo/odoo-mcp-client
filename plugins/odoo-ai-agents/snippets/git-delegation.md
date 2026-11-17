@@ -6,9 +6,8 @@ No actor of this plugin runs git - not a mutation, not a read, not inside a wrap
 you write. How to operate git lives only in git-toolkit. Two doors:
 
 1. **A repo fact -> the odoo-local `repo_facts` tool:** the repository root and the main checkout
-   behind a linked worktree, the current branch or ref, the short HEAD SHA, the origin URL,
-   whether given paths are clean or dirty (`status_paths`), whether a merge, rebase or cherry-pick
-   is in progress. `is_repo=false` means the directory is outside any repository.
+   behind a linked worktree, the branch or ref, the HEAD SHA, the origin URL, clean or dirty
+   paths (`status_paths`), an operation in progress. `is_repo=false`: outside any repository.
 2. **Everything else -> a request to the `git-toolkit:git-ops` skill:** history, diffs, file
    lists, ancestry, branch lists, a worktree, every change to the repository, every GitHub
    operation (`gh` and the GitHub MCP tools are git-ops's too).
@@ -35,6 +34,7 @@ come back; git-ops picks the specialist, the commands and the safety steps.
 A request carries at least:
 
 - `op`: one line describing the operation;
+- `repo`: the principal checkout to act on, when not this session's own;
 - `scope`: the refs, range or paths;
 - `worktree`: the absolute path of the dedicated worktree - an existing one, or the path
   `project_dir` (axis `worktree`) returned for a new one

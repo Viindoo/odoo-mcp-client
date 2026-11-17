@@ -1,7 +1,11 @@
 # Documentation after a change
 
 Runs once the change's PR is presented, for the target the approved plan's `Docs:` line names
-(`none`: nothing runs). Under that approved plan it presents no gate.
+(`none`: nothing runs). Under that approved plan it presents no gate. Whoever proposes a target
+other than `none` runs the reference gate of
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` on each touched module first and writes
+the count of findings on the `Docs:` line: a doc file the step edits is brought into the
+convention as a whole, so that count is the size of the step.
 
 **One capture instance per build shape.** Module docs show the module alone (auto-install
 skipped); site docs show the product as users run it (auto-install on), and an update never adds

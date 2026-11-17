@@ -65,8 +65,7 @@ depth it calls for and write the choice and its reason in the worklog:
 - one or two modules: read them yourself, no launch;
 - the usual case: ONE `odoo-impact-recon` (model `haiku`, launch reason (d)) with `SCOPE` = the modules and models of the scope, `WORKTREE_PATH`, `ODOO VERSION`,
   `PROFILE`, `SHARE_DIR`, `DOMAIN`; read its `recon.md`;
-- too wide or too unfamiliar for one recon (many modules or business functions, a cluster you
-  cannot map from the request): invoke skill `odoo-deep-survey` unless a `synthesis.md` already
+- too wide or too unfamiliar for one recon: invoke skill `odoo-deep-survey` unless a `synthesis.md` already
   covers the scope, then run the recon on the hot spots it ranks.
 
 **Step 3 - depth.** Light design when the effort is `Standard` or `Config` AND the survey raised
@@ -77,8 +76,7 @@ modules, add `fable_proposed: yes` to the return of Step 5; the caller asks the 
 source row is recon's or your own: a module in `W` from disk, otherwise OSM. Every PROPOSED
 compute, relation, domain or related chain outside `W` passes the index validators; inside `W`,
 the definitions on disk. A `BROKEN` or `MISMATCH` changes the design before the document is
-written. What the series and the `depends` closure already offer (a model, a mixin, a wizard, a
-view, a helper) is reused before anything new is designed. A change that touches a screen
+written. What the series and the `depends` closure already offer is reused before anything new is designed. A change that touches a screen
 (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`): invoke skill `odoo-frontend-design` and, for every
 screen, make the mockup or the placement note it asks for before Step 5. Platform rules:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`,
@@ -95,7 +93,7 @@ artifact: <SHARE_DIR>/designs/<slug>-<date>.md
 depth: light | full
 fable_proposed: yes | no
 mockups: <sheet paths | none>
-summary: <approach in one line>; <top risk>; nodes: <n> (<build_tier_hint per node>)
+summary: <approach in one line>; <top risk>; units: <n> (<build_tier_hint per unit>)
 ```
 
 **Step 6 - approval** (on resume). `refine: <text>` rewrites the same document and returns to
@@ -117,6 +115,7 @@ Odoo version: <v>   Profile: <p>   Effort: Standard | Config | Extension | Exten
 ## Interactions                (`A -> B: <business result>` per cross-function interaction)
 ## Non-functional              (multi-company; languages; volumes and performance; access and
                                 security; upgrade impact; localization)
+## Management insight          (${CLAUDE_PLUGIN_ROOT}/snippets/management-insight.md § At design)
 ## Demo data                   (per user-visible model: the records to ship; time-relative dates)
 ## Legal rules as data         (only when a law or regulation sets a value or rule the change
                                 touches: per element, the four questions of
@@ -136,21 +135,22 @@ Header of both: `SRS: <path or none>`, `Recon: <path>`, `grounded: osm | hybrid 
 `Odoo version`, `Stack: backend | frontend | full-stack`, the Domain line. A change that touches a
 screen adds `## Screens`, one block per screen as the mockup reference of that skill sets it.
 
-**Light** (one page): `## Nodes` - one block per node with `modules`, `models` (each confirmed
+**Light** (one page): `## Work units` - one block per unit (modules that change together for
+one reason; the planner, not you, turns units into nodes) with `modules`, `models` (each confirmed
 by a source row), `fields` (name, type, relation target, required, compute `depends` and rule as
 condition -> value), `overrides` (method, `super()` position, rule as condition -> outcome),
 `views` (parent xml_id, xpath or anchor field), `security` (groups for ACL and record rules),
-`acceptance` (the SRS criteria the node satisfies), `build_tier_hint` - the tier with the six 5.1 items ticked and the
+`acceptance` (the SRS criteria the unit satisfies), `build_tier_hint` - the tier with the six 5.1 items ticked and the
 5.2 answer, and the effort with the row that holds
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, § Effort).
 
-**Full**: the light `## Nodes` block, then `## Approach` (axis chosen: `_inherit`, `_inherits`,
+**Full**: the light `## Work units` block, then `## Approach` (axis chosen: `_inherit`, `_inherits`,
 mixin or new model, with the reason that holds), `## Data model` (table: field, new or
 existing with its source row, type, stored or computed, depends or related, index, required or
 default), `## Override strategy` (model, method, `super()` position, chain length and source,
 conflict risk), `## Module structure` (`depends`, data load order, security, company scoping,
-new module or extension), `## Sequencing` (logical build order and edges only; node partition
-belongs to planning), `## Test outline` (per module: behaviour, base class and existing test helpers to reuse, workflow
+new module or extension), `## Sequencing` (the dependency edges between units, each with
+its reason: facts for the planner, never a node plan), `## Test outline` (per module: behaviour, base class and existing test helpers to reuse, workflow
 path, existing cover, gap), `## Risks`
 (performance, upgrade, multi-company; upstream and downstream ripple from recon),
 `## Grounding evidence` (every source row the design used; the guideline files read). Master

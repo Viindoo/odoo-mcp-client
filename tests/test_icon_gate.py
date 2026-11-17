@@ -143,7 +143,7 @@ def test_render_falls_through_to_the_next_rasterizer_when_one_fails(stubs):
     res, kv = _run("render", stubs.svg_path, stubs.out, "--size", "128", env=env,
                    python_args=["-S"])
     assert res.returncode == 0 and kv["RASTERIZER"] == "convert"
-    assert "128x128" in stubs.argv("convert")
+    assert "128x128!" in stubs.argv("convert")
 
 
 def test_chrome_is_driven_headless_with_a_transparent_background_and_no_temp_file(stubs):
@@ -163,6 +163,33 @@ def test_chrome_is_driven_headless_with_a_transparent_background_and_no_temp_fil
     assert sorted(p.name for p in stubs.out.parent.iterdir()) == ["icon.png"], (
         "no temp file may be left beside the output"
     )
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("rsvg-convert", ["-w", "600", "-h", "300"]),
+    ("inkscape", ["--export-width=600", "--export-height=300"]),
+    ("chromium", ["--window-size=600,300"]),
+    ("convert", ["600x300!"]),
+])
+def test_render_takes_an_exact_width_and_height_in_every_rasterizer(stubs, name, expected):
+    stubs.add(name)
+    res, kv = _run("render", stubs.svg_path, stubs.out, "--size", "600x300", env=stubs.env,
+                   python_args=["-S"])
+    assert res.returncode == 0, res.stdout + res.stderr
+    argv = stubs.argv(name)
+    for part in expected:
+        assert part in argv, f"{part} missing from {argv}"
+    if name == "chromium":
+        html = base64.b64decode(argv[-1].split(",", 1)[1]).decode()
+        assert "width=600" in html and "height=300" in html
+
+
+@pytest.mark.parametrize("size", ["0", "600x", "axb", "600x300x2", "-4"])
+def test_render_refuses_a_size_that_is_not_n_or_w_x_h(stubs, size):
+    stubs.add("rsvg-convert")
+    res, kv = _run("render", stubs.svg_path, stubs.out, "--size", size, env=stubs.env,
+                   python_args=["-S"])
+    assert res.returncode == 3
 
 
 def test_no_rasterizer_is_cannot_verify_naming_the_install_options(tmp_path):
@@ -612,3 +639,157 @@ def test_observe_without_the_recorder_library_exits_two_with_the_remedy(tmp_path
                    "--module", "m", env=env)
     assert res.returncode == 2
     assert kv["REMEDY"] == "run /odoo-ai-agents:odoo-setup browser"
+
+
+# ---------------------------------------------------------------------------
+# cover
+# ---------------------------------------------------------------------------
+def _cover(Image, path, size=(1280, 640), fmt="PNG"):
+    """A two-colour image: not blank."""
+    from PIL import ImageDraw
+    img = Image.new("RGB", size, (0, 187, 206))
+    ImageDraw.Draw(img).rectangle([size[0] // 4, size[1] // 4, size[0] // 2, size[1] // 2],
+                                  fill=(127, 66, 130))
+    img.save(path, fmt)
+    return path
+
+
+def test_a_two_to_one_cover_passes_and_gets_a_preview_at_the_default_width(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "main_screenshot.png"))
+    assert res.returncode == 0, res.stdout
+    assert kv["COVER_GATE"] == "PASS" and kv["_reasons"] == [] and kv["SIZE"] == "1280x640"
+    assert Path(kv["PREVIEW"]).parent == tmp_path, "the preview lands beside the image"
+    with pil.open(kv["PREVIEW"]) as preview:
+        assert preview.size == (300, 150)
+
+
+def test_a_jpeg_cover_passes(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.jpg", fmt="JPEG"))
+    assert res.returncode == 0 and kv["COVER_GATE"] == "PASS"
+
+
+def test_the_preview_follows_out_dir_and_preview_width(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.png"), "--out-dir", tmp_path / "o",
+                   "--preview-width", "400")
+    assert res.returncode == 0, res.stdout
+    assert Path(kv["PREVIEW"]).parent == tmp_path / "o"
+    with pil.open(kv["PREVIEW"]) as preview:
+        assert preview.size == (400, 200)
+
+
+@pytest.mark.parametrize("size,ok", [((1280, 634), True), ((1280, 646), True),
+                                     ((1280, 633), False), ((1280, 647), False),
+                                     ((1280, 1280), False), ((1280, 320), False)])
+def test_the_cover_ratio_is_two_to_one_within_one_percent(pil, tmp_path, size, ok):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.png", size=size))
+    assert (res.returncode, kv["COVER_GATE"]) == ((0, "PASS") if ok else (1, "FAIL"))
+    assert kv["SIZE"] == "%dx%d" % size
+
+
+def test_a_cover_narrower_than_1200_px_fails(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.png", size=(1100, 550)))
+    assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL" and len(kv["_reasons"]) == 1
+
+
+def test_a_cover_of_exactly_1200_px_passes(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.png", size=(1200, 600)))
+    assert res.returncode == 0 and kv["COVER_GATE"] == "PASS"
+
+
+def test_a_cover_in_another_format_fails(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.gif", fmt="GIF"))
+    assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL" and len(kv["_reasons"]) == 1
+
+
+def test_a_single_colour_cover_fails(pil, tmp_path):
+    pil.new("RGB", (1280, 640), (10, 20, 30)).save(tmp_path / "c.png")
+    res, kv = _run("cover", tmp_path / "c.png")
+    assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL" and len(kv["_reasons"]) == 1
+
+
+def test_a_cover_that_fails_twice_gives_one_reason_per_failure(pil, tmp_path):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.png", size=(800, 800)))
+    assert res.returncode == 1 and len(kv["_reasons"]) == 2
+
+
+def test_an_unreadable_cover_fails(tmp_path):
+    (tmp_path / "c.png").write_bytes(b"not an image")
+    pytest.importorskip("PIL")
+    res, kv = _run("cover", tmp_path / "c.png")
+    assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL"
+
+
+def test_a_cover_without_pillow_is_cannot_verify_never_a_pass(tmp_path):
+    (tmp_path / "c.png").write_bytes(b"x")
+    res, kv = _run("cover", tmp_path / "c.png", python_args=["-S"])
+    assert res.returncode == 2 and kv["COVER_GATE"] == "CANNOT-VERIFY"
+
+
+# ---------------------------------------------------------------------------
+# cover --svg (the SVG is read as text; Pillow is only needed for the PNG half of the command)
+# ---------------------------------------------------------------------------
+def _svg(path, body, viewbox='viewBox="0 0 1280 640"'):
+    path.write_text(f'<svg xmlns="http://www.w3.org/2000/svg" {viewbox}>{body}</svg>')
+    return path
+
+
+def _cover_svg(pil, tmp_path, body, **kw):
+    return _run("cover", _cover(pil, tmp_path / "c.png"), "--svg", _svg(tmp_path / "c.svg", body, **kw))
+
+
+def test_a_cover_svg_with_a_large_name_and_a_small_icon_passes(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path,
+                         '<text font-size="96">Sales</text><image width="100" height="100" href="i.png"/>')
+    assert res.returncode == 0, res.stdout
+    assert kv["COVER_GATE"] == "PASS" and kv["_reasons"] == []
+    assert (kv["NAME_SIZE"], kv["NAME_MIN"], kv["IMAGES"]) == ("96", "64", "1")
+
+
+def test_a_name_set_in_a_style_attribute_is_measured(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path, '<text style="fill:red; font-size:80px">Sales</text>')
+    assert res.returncode == 0 and kv["NAME_SIZE"] == "80"
+
+
+def test_a_name_smaller_than_a_tenth_of_the_height_fails(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path, '<text font-size="40">Sales</text>')
+    assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL"
+    assert kv["_reasons"] == ["name-too-small"]
+    assert (kv["NAME_SIZE"], kv["NAME_MIN"]) == ("40", "64")
+
+
+def test_a_text_inherits_its_size_from_a_group(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path, '<g font-size="90"><text>Sales</text></g>')
+    assert res.returncode == 0 and kv["NAME_SIZE"] == "90"
+    res, kv = _cover_svg(pil, tmp_path, '<g font-size="30"><text>Sales</text></g>')
+    assert res.returncode == 1 and kv["_reasons"] == ["name-too-small"]
+
+
+def test_a_cover_svg_without_text_fails_as_name_too_small(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path, '<rect width="10" height="10"/>')
+    assert res.returncode == 1 and kv["_reasons"] == ["name-too-small"]
+
+
+def test_an_image_over_a_quarter_of_the_cover_fails_as_raster_image(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path,
+                         '<text font-size="96">Sales</text><image width="700" height="400" href="s.png"/>')
+    assert res.returncode == 1 and kv["_reasons"] == ["raster-image"] and kv["IMAGES"] == "1"
+
+
+def test_an_image_without_a_size_counts_as_the_whole_cover(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path, '<text font-size="96">Sales</text><image href="s.png"/>')
+    assert res.returncode == 1 and kv["_reasons"] == ["raster-image"]
+
+
+def test_a_cover_svg_that_fails_twice_gives_one_reason_per_failure(pil, tmp_path):
+    res, kv = _cover_svg(pil, tmp_path, '<text font-size="10">x</text><image href="s.png"/>')
+    assert res.returncode == 1 and sorted(kv["_reasons"]) == ["name-too-small", "raster-image"]
+
+
+@pytest.mark.parametrize("svg,viewbox", [("<svg", None), ('<rect/>', 'width="1280"')])
+def test_an_unreadable_cover_svg_is_cannot_verify(pil, tmp_path, svg, viewbox):
+    if viewbox is None:
+        (tmp_path / "c.svg").write_text(svg)
+        res, kv = _run("cover", _cover(pil, tmp_path / "c.png"), "--svg", tmp_path / "c.svg")
+    else:
+        res, kv = _cover_svg(pil, tmp_path, svg, viewbox=viewbox)
+    assert res.returncode == 2 and kv["COVER_GATE"] == "CANNOT-VERIFY" and len(kv["_reasons"]) == 1

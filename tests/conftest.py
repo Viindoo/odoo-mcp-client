@@ -456,6 +456,8 @@ SERIAL_TESTS = (
     "tests/test_video_recorder.py::test_network_idle_ignores_the_long_lived_bus_connection_of_a_web_client",
     "tests/test_video_recorder.py::test_ui_user_signs_in_off_camera_and_the_clip_starts_at_the_scene",
     "tests/test_video_recorder.py::test_language_switch_runs_off_camera_before_the_take",
+    # Compares an event time with the frame it causes (0.1 s) in a real browser.
+    "tests/test_video_recorder.py::test_an_event_time_and_the_video_time_of_the_frame_it_causes_share_one_clock",
     # Readiness, spin-up and probe time bounds.
     "tests/test_step45_50_harden.py::test_step50_readiness_poll_is_bounded_never_hangs",
     "tests/test_step45_50_harden.py::test_step50_a_timed_out_exclusive_spinup_binds_its_pid_and_reaps_the_whole_group",

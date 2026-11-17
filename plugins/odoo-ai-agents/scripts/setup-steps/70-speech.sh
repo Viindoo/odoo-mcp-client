@@ -15,7 +15,8 @@
 #             whether ffmpeg has the filters the assembler needs. Writes nothing.
 #   record    --from-json FILE  validates the operator-CONFIRMED configuration and writes it.
 #             Refuses a value where a configuration key belongs, a voice recorded under two
-#             languages, a non-locale language key.
+#             languages, a non-locale language key. `[tts.type_voices.<tutorial|marketing>]`
+#             records a voice per video type and locale, checked the same way.
 #   show      prints the configuration as JSON.
 #   probe     [--lang xx_YY]  the CLI round trip for a human with the value exported as
 #             SPEECH_API_KEY; an agent calls the odoo-media speech_probe tool instead.

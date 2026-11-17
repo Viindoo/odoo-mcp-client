@@ -9,8 +9,9 @@ rebuilds a file it is given.
 
 ## `feature-catalog.jsonl` - one JSON object per user-visible capability
 
-A capability is a menu item with its action, a standalone action or wizard, or a model with its
-own views but no menu (embedded in another model's form). Never one entry per field. Rank by menu
+A capability is a menu item with its action, a standalone action or wizard, a model with its
+own views but no menu (embedded in another model's form), or a report: an analysis view a manager
+reads rather than edits (pivot, graph, a dashboard) or a printed document for a manager. Never one entry per field. Rank by menu
 depth, then alphabetically; `feature_id` is `<module-slug>-<NN>` and never changes once assigned.
 
 ```json
@@ -25,7 +26,8 @@ depth, then alphabetically; `feature_id` is `<module-slug>-<NN>` and never chang
 | Field | Value |
 |---|---|
 | `name` | the label the user sees (menu name or view string), never a technical name |
-| `type` | `model`, `view`, `menu`, `action` or `component` |
+| `type` | `model`, `view`, `menu`, `action`, `component` or `report` |
+| `answers` | `type: report` only: the management question it answers, in the manager's words |
 | `menu_path` | the full breadcrumb from the root; empty for an invisible action |
 | `entry_point` | the action xmlid, or `<model>:<view_type>` for an embedded view |
 | `models` | the models involved, main model first |

@@ -6,6 +6,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- App Store page: a FEATURES section (the catalog as a list to scan, grouped by area of work, with
+  a closing group for what the module guarantees beyond functions), EXTENSIONS as a section of its
+  own, and a TECH section shown only when the module needs something Odoo itself does not install
+  (`scripts/lib/module_requirements.py`, which compares the manifest's `external_dependencies` with
+  the checkout's own requirements). The page names no Odoo or product version: the stores show it.
+- Store cover: `odoo-icon-design` designs it (`odoo-icon-designer`, `MODE: cover`) as one product
+  cover at 2:1 that reads at the size of a store card: the product name as the largest element
+  and one flat illustration from the module's icon, in the vendor's palette and in the family of
+  the vendor's other covers, never a screenshot; the only entry of the manifest `images` list.
+  `icon_gate.py render --size WxH` renders it and `icon_gate.py cover --svg` gates it (the name's
+  size, no large raster image, a preview at card width).
+- App Store page: an INSIGHTS section after WHAT-CHANGES shows the module's reports and
+  dashboards to the owner and the managers - one capture per report, titled with the management
+  question it answers, as a carousel of two to five slides that never starts by itself, with an
+  index that lists every report. The reference gate knows the carousel (`CAROUSEL_*` findings;
+  slides do not count in the page's image budget), and the feature catalog marks a report
+  (`type: report`, `answers`).
+- `snippets/management-insight.md`: a design proposes, per management role, the reports and
+  dashboards the change's data should feed - an existing one adjusted or extended before a new
+  one - as an SRS section the human settles at the SRS gate; a coder makes the data its node adds
+  reachable in the existing reports and lists what it added.
+- `snippets/vendor-facts.md`: the vendor's brand palette, logo and store pages are resolved from
+  the brief, the project and author-profile records, the runtime's persistent memory, then one
+  question whose answer is saved to that memory. The palette is read by role (`primary`,
+  `secondary`, the state colours, text and surfaces): the primary carries the largest field, the
+  secondary is an accent, a state colour is never decoration.
+- Plans carry a `Video:` line beside `Docs:` and a `video` node in the default tail: a video is
+  produced and uploaded unlisted before the docs that embed it, and `publish-videos` makes it
+  public once the pull request merged. The watch URL also goes into the manifest key the vendor's
+  modules use for a video link, and a video's description ends with the module's store links.
+- odoo-media: `youtube_captions` attaches caption files to an existing video; `speech.toml` records
+  a voice per video type and locale (`[tts.type_voices.<type>]`), picked by `speech_synthesize`
+  through `video_type`.
+- `video_publish.py`: `map-times` (times of one language's take mapped onto another's by event
+  boundaries), `tempo` (a narration's speed changed after synthesis), `speedup --trim-head` and
+  `--narration` (the blank head cut, holds shortened to the narration), `sidecar --link`.
+- `scripts/lib/state_sweep.py`: the one sweep of run-scoped state directories; it judges an entry
+  by its newest file and prints what it removed.
+- Acceptance: an `EXTERNAL` verdict for a scenario that needs a third-party system the environment
+  cannot reach; it is listed for the human and stays outside the ACCEPTED rule.
+- `check_orchestration.py` rule `[skill-model]`: a skill's frontmatter carries no `model:`.
+
+### Changed
+
+- The node partition is the planner's alone: a design describes work units with their dependency
+  edges and tier hints (`## Work units`), as a proposal. `odoo-planner` sizes a node to what its
+  owner delivers whole (it reads the definition of every agent a build node launches, so work a
+  coder splits by itself is not split in the plan) and cuts the graph for parallel runs: edges
+  only for real dependencies, the critical path and the nodes that run together stated in its
+  return.
+- Planning and image design run at opus (`odoo-planner`, `odoo-icon-designer`, the tier table).
+  No skill sets a `model:` any more, so a conductor skill runs on the model of the session that
+  invoked it.
+- Giving a lease back no longer depends on the auto-mode classifier: the setup step
+  `32-permissions-state-root` allow-lists the two odoo-local tools `lease_release` and
+  `lease_park`; ownership stays enforced by the lease hook and the allocator. The teardown contract
+  names the main agent as the last catcher of a handed-up lease, which it releases without asking,
+  and `permission-denial.md` no longer tells an agent to restate and retry a refused call.
+- The reference gate: a store page may hold 900 words; the manifest `images` list holds exactly one
+  entry (`MANIFEST_IMAGES_COUNT`), a cover at 2:1 (`MANIFEST_COVER_RATIO`); a page that names the
+  series is a finding (`PAGE_NAMES_SERIES`); a page no longer has to embed the cover.
+- Forward-port: the run resolves the checkout the target series builds from and creates its
+  integration worktree there; intent extraction launches `odoo-intent-extractor` at the triaged
+  model (a fork always runs on its launcher's model, so the fork routes of forward-port,
+  gap-analysis, deep-survey and BRL are fresh launches); the pre-adapt gate runs no test framework;
+  the i18n reconcile reuses the source series' translations as translation memory; a port review
+  receives the diff against the source series; defects the source series carries are listed at the
+  final gate.
+- A coder returns a `BLOCKED` of the instance route instead of leasing on its own; a proposed
+  `Docs:` target states the reference gate's finding count; the `odoo-instance-ops` brief names
+  the worklog.
+- git-toolkit 0.10.1 -> 0.10.2: a backup is deleted once its rewrite is verified and the branch is
+  pushed, merged into another local branch or its worktree removed; the principal branch of a
+  clean primary checkout may be fast-forwarded to its upstream; the local copy of a remote branch
+  tracks it under the same name; working files stay in the findings directory or a temporary one
+  and are removed before the report; a listing a caller asks for is command output.
+
+### Fixed
+
+- Narrated videos: `fit` and `concat` produce an audio track with a continuous packet timeline,
+  and `verify` fails a deliverable that has holes in it (`AUDIO_PACKETS`, `AUDIO_SAMPLES`); a take
+  of any frame size is fitted to the publish profile.
+- `sidecar`: caption cues follow the narration clip's own sentence starts; chapters start at
+  0:00, last at least 10 seconds and come in threes or not at all; the description file holds
+  only what the video's description shows.
+- YouTube: captions are retried while the new video is not visible yet, and the result reports
+  them per language.
+
 ## [8.12.2] - 2026-11-12
 
 ### Fixed

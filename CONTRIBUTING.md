@@ -310,14 +310,14 @@ repo, but rotate immediately if exposure is suspected.
 
 ### Versioning
 
-`VERSION` is the single source of truth for the client version. The repo ships **two
+`VERSION` is the single source of truth for the client version. The repo ships **three
 plugins** with independent version numbers: the `odoo-ai-agents` plugin's
 `plugin.json.version` is kept in lockstep with `VERSION`, while the
-`odoo-semantic-mcp` plugin versions independently. Tagging `v*`
-should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump the
-mcp plugin's version only when its own contents change. `pin-sha.yml` updates `source.sha`
-for both plugins on every qualifying push; each marketplace entry's `source.version`
-tracks its respective `plugin.json.version`.
+`odoo-semantic-mcp` and `git-toolkit` plugins version independently. Tagging `v*`
+should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump another
+plugin's version, in its own `plugin.json`, only when its own contents change. `pin-sha.yml`
+updates `source.sha` for every plugin on every qualifying push; each marketplace entry's
+`source.version` tracks its respective `plugin.json.version`.
 
 **Bumping.** Prefer `make bump`, which **auto-classifies** the level from the commits
 since `VERSION` last changed and then bumps. It updates `VERSION`, the `odoo-ai-agents`

@@ -44,7 +44,10 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
    series main branch, or the PR base) and the tree's HEAD, and for the diff of that range written
    to `<ISOLATE_DIR>/reviews/<slug>-<date>/diff.patch` (`DIFF_PATH`); the files give `CHANGED_SET`; the modules it touches and their manifests give
    the Domain line when the brief carries none (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`).
-   Delete `<ISOLATE_DIR>/reviews/<slug>-<date>/` directories untouched for 30 days
+   A port names its `SOURCE_REF`: the same request also writes the diff between `SOURCE_REF` and
+   HEAD for the modules of `CHANGED_SET` to `source-diff.patch` beside it (`SOURCE_DIFF_PATH`), so
+   a reviewer tells what the port changed from what the source already carried.
+   Sweep `<ISOLATE_DIR>/reviews/`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
 3. **Launch R1** (`odoo-code-reviewer`, `MODE: R1`, `model: haiku`) with the brief in
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`. A diff whose

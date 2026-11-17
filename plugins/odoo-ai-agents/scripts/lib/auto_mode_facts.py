@@ -172,12 +172,16 @@ def build_entries(facts: dict) -> dict:
         f"issues. The exceptions are pushing to or deleting a protected branch of {org_globs} and "
         "merging a pull request without the user's confirmation.",
         TAG + "Building, running, testing, parking and dropping local Odoo instances and their "
-        "localhost PostgreSQL databases (odoo-bin and the odoo-local MCP tools) is routine.",
+        "localhost PostgreSQL databases (odoo-bin and the odoo-local MCP tools) is routine, and so "
+        "is giving back a lease the agent's own run acquired: releasing or parking it stops its "
+        "server and, for a throwaway database, drops it.",
         TAG + f"Destructive steps of development inside the trusted roots ({_join(roots)}) are "
         "intended: deleting or rewriting code, tests and modules as part of the task, "
         "`git checkout <ref> -- <paths>`, `git restore`, `git reset --hard <sha recorded earlier "
         "in the same session>`, `git clean` and `git worktree remove --force` on worktrees the "
-        "agent's own run created. Discarding uncommitted work the agent did not create stays blocked.",
+        "agent's own run created, and deleting the local backup branches, backup tags and "
+        "temporary files that run created. Discarding uncommitted work the agent did not create "
+        "stays blocked.",
     ]
     soft_deny = []
     if branches:

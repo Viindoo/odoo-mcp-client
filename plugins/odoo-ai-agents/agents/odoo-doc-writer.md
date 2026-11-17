@@ -98,7 +98,8 @@ Write the three shared files (skip each one the brief already names):
    of every parent up to the root - the chain decides who sees it); views from
    `module_inspect(method='views')` and disk; OWL components from `module_inspect(method='owl')`;
    per model `model_inspect(method='summary')` for `key_fields` and `states`; `entity_lookup` on
-   each main form view for which state shows each header button. One entry per capability,
+   each main form view for which state shows each header button; the analysis views, dashboards
+   and printed reports a manager reads are entries of `type: report`. One entry per capability,
    `grounded` per source. Write `feature-catalog.jsonl` and `feature-catalog.md`.
 2. **Role map.** `security/ir.model.access.csv`, `ir.rule` records, `res.groups` records with
    `implied_ids`, and every `groups=` on menus, buttons, fields and settings, from disk; a

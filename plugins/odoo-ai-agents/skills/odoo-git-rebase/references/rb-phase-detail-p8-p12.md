@@ -153,23 +153,14 @@ PASS/FAIL verdict only.
 pyflakes <every-feature-touched-.py-from-the-Explore-list>   # any F821 = blocker
 ```
 
-### Collection acceptance gate (two lanes, both delegated)
+### Collection acceptance gate (delegated)
 
-Two lanes; record each verdict and never read a diff or log inline.
-
-**Lane 1 - static collection (always; no DB, no server).** After all symbol-survival +
-import-resolvability blockers are resolved, dispatch `Explore` (read-only) - the delegate
-`[[fp-symbol-survival-check]]` § Who runs this check assigns to this lane - with the
-`rb-integration` worktree path, the feature-touched test files, and this command. It returns ONLY
-`PASS`, or `FAIL` plus one line per collection error (`<file>::<node> | <error class> | <message>`):
-
-```bash
-python -m pytest --collect-only <feature-touched test files>   # zero collection errors
-```
-
-**Lane 2 - Odoo collection (only when a feature-touched test subclasses an Odoo database-backed
-test class - `TransactionCase`, `HttpCase`, or another the series ships, per Odoo Semantic
-`test_base_classes`).** Never run `odoo-bin` for this yourself and never have `Explore` run it: invoke the `odoo-instance` skill (via the Skill tool) with:
+The gates above prove a feature-touched test file compiles and names no undefined symbol; no
+test framework runs for that. Collection itself is proven on an instance, only when a
+feature-touched test subclasses an Odoo database-backed test class (`TransactionCase`, `HttpCase`,
+or another the series ships, per Odoo Semantic `test_base_classes`). Never run `odoo-bin` for this
+yourself and never have `Explore` run it: invoke the `odoo-instance` skill (via the Skill tool)
+with:
 
 ```
 OPERATION: run-tests
@@ -184,7 +175,7 @@ TEST_TAGS: </<m> per module in MODULES, comma-joined - never untagged>
 MODE: fresh
 ```
 
-`odoo-instance` returns the `instance-ops` block. Lane 2 PASSES only on `status: tests-passed` or `tests-passed-with-warnings`
+`odoo-instance` returns the `instance-ops` block. The gate PASSES only on `status: tests-passed` or `tests-passed-with-warnings`
 with `failed` and `errors` both 0 and every module in `modules_installed`; `tests-failed`,
 `tests-inconclusive` (no proof a suite ran) or any `errors > 0` is a FAIL. Warnings are findings for P9, not a collection failure. Capture the returned
 `INSTANCE_HANDLE` as this run's ONE instance: forward it to the P9 briefs and reuse it at P10 B3
@@ -219,7 +210,7 @@ BROKEN TEST-SYMBOLS: <the P8b symbol-survival entries that land in those test fi
 ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 RUN_ID: <this run's id>
-INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none' when P8b provisioned none>
+INSTANCE_HANDLE: <the P8b collection-gate instance-ops block, verbatim - or 'none' when P8b provisioned none>
 ADDONS_PATH: <that handle's addons_path, comma-joined - the coder's addons coverage assertion
       reads it; omit with INSTANCE_HANDLE: none>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
@@ -262,7 +253,7 @@ Loop + escalate:
    SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
    ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
    ADAPT TIER: <same tier as the P8 adapt for these files>
-   INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none'>
+   INSTANCE_HANDLE: <the P8b collection-gate instance-ops block, verbatim - or 'none'>
    ADDONS_PATH: <that handle's addons_path, comma-joined - omit with INSTANCE_HANDLE: none>
    FIX BRIEF: <the CRITICAL/HIGH findings + reviewer's corrected version>
    RULE: fix to the finding's root cause only; do not expand scope; keep tests GREEN.
@@ -313,7 +304,7 @@ Step 4 `duplicate_blockers` field gates whether you may proceed.
 
 ### B3 - conditional instance verify
 
-If P8b Lane 2 already provisioned the run's instance, reuse its `INSTANCE_HANDLE` here (`mode: reuse`)
+If the P8b collection gate already provisioned the run's instance, reuse its `INSTANCE_HANDLE` here (`mode: reuse`)
 and provision nothing; when a break the test leg ran on this database touched data files or schema,
 release that lease and take the verdict from ONE fresh build via the `odoo-instance` skill (`mode: fresh`, same `WORKTREE_PATH`,
 modules and test tags). Otherwise provision ONE instance via the `odoo-instance` skill ONLY when the

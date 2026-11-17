@@ -4,7 +4,6 @@ argument-hint: "[workflow name/file]"
 user-invocable: false
 description: >-
   Internal: runs a workflow YAML phase by phase
-model: inherit
 ---
 
 # workflow-chaining - Generic Declarative Workflow Runner
@@ -41,11 +40,9 @@ command, or a plan's workflow node.
    dir (call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `isolate`, `cwd` = the run's target root) at
    RUNTIME - never write to the bare project-relative `.odoo-ai/<name>` path. Resolve
    series + profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
-3. **Orphan sweep (do this every invocation, before the resume check below).** Run `find <resolved
-   ISOLATE output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (it removes
-   whatever `output_dir` THIS workflow declares that was untouched for over 30 days). Full rule +
-   bound: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` § Clause 3. Run it
-   unconditionally, every run.
+3. **Orphan sweep, every invocation, before the resume check below:** `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <resolved ISOLATE output_dir>
+   --older-than-minutes 43200` on the `output_dir` THIS workflow declares
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` § Clause 3).
 4. If `resume: true`, check for `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir; if
    found, load it and determine the last completed phase.
 5. Collect any missing `inputs[]` from the user (one question per missing input).
@@ -190,7 +187,7 @@ contract AND state plainly: "on_complete suggests `<next>` - auto-chaining needs
 
 ## Gate handling
 
-A `gate` confirms an outward or irreversible action (send, publish, merge, push, delete) and
+A `gate` confirms an outward or irreversible action (rule 4 of the contract below) and
 nothing else. Present the options from the YAML `gate` field verbatim; it is ONE of the two reply
 sets of `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`, never a third:
 

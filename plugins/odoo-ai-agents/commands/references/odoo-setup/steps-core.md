@@ -68,9 +68,11 @@ session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Th
   exclusively step 10/12's job.
 - **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
-- **32-permissions-state-root** - appends the 5 narrow state-root
-  Bash/Read/Edit rules the planning pipeline needs (resolving and writing
-  under `$ODOO_AI_HOME`) to `permissions.allow[]` in the same `$CLAUDE_SETTINGS`.
+- **32-permissions-state-root** - appends to `permissions.allow[]` in the same `$CLAUDE_SETTINGS`
+  the narrow state-root Bash/Read/Edit rules the planning pipeline needs (resolving and writing
+  under `$ODOO_AI_HOME`), and the two odoo-local tools that give a lease back (`lease_release`,
+  `lease_park`), so an agent's cleanup of its own instance never waits on the auto-mode
+  classifier; the give-back rules are written for every state root.
   Writes `permissions.allow[]` ONLY (never `deny[]`/`ask[]`/
   `additionalDirectories`), and its Write/Edit rules cover ONLY
   `$ODOO_AI_HOME/projects/**` (see `snippets/state-root-resolution.md`), EXCLUDING `bin/`,

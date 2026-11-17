@@ -37,6 +37,13 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 STEP = PLUGIN / "scripts" / "setup-steps" / "32-permissions-state-root.sh"
 
+_PLUGIN_NAME = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["name"]
+# The give-back group: the only tools of any local server granted as exact allow rules.
+GIVE_BACK_RULES = (
+    f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_release",
+    f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_park",
+)
+
 EXCLUDED_SUBPATHS = ("bin/", "venvs/", "node_tools/", "setup-scripts/", "runtime/", "instances.toml")
 
 
@@ -163,10 +170,12 @@ def test_apply_is_idempotent(applied):
     assert applied.allow_second == applied.allow, "second apply changed the allow-list (not idempotent)"
 
 
-def test_four_exact_rules_written_to_the_file_named_by_claude_settings(applied):
-    """Exactly the 4 rules that cover a REAL write path, no more, no fewer - written to the path
-    named by $CLAUDE_SETTINGS and nowhere else (not a sibling settings file, not ~/.claude.json)."""
+def test_exact_rules_written_to_the_file_named_by_claude_settings(applied):
+    """Exactly the 4 state-root rules that cover a REAL write path plus the 2 lease give-back
+    rules, no more, no fewer - written to the path named by $CLAUDE_SETTINGS and nowhere else
+    (not a sibling settings file, not ~/.claude.json)."""
     expected = {
+        *GIVE_BACK_RULES,
         f"Bash(bash {STEP.parent.parent.parent}/scripts/lib/resolve_project_dir.sh share)",
         f"Bash(bash {STEP.parent.parent.parent}/scripts/lib/resolve_project_dir.sh isolate)",
         # `//<abs-path>` = one extra leading slash over the already-absolute $ODOO_AI_HOME, the
@@ -271,6 +280,54 @@ def test_refuses_invalid_json(settings, odoo_ai_home):
     assert settings.read_text(encoding="utf-8") == "not valid json", (
         "must refuse to overwrite a settings file that is not valid JSON"
     )
+
+
+def test_give_back_rules_are_exactly_the_two_lease_give_back_tools_and_nothing_else_of_a_local_server(applied):
+    """Only lease_release and lease_park are granted; no other odoo-local / odoo-media tool and no
+    blanket server rule is ever written."""
+    mcp = [a for a in applied.allow if a.startswith("mcp__")]
+    assert sorted(mcp) == sorted(GIVE_BACK_RULES), f"unexpected MCP rules: {mcp}"
+
+
+def test_give_back_rules_are_skipped_when_the_odoo_local_server_rule_already_grants_them(
+        settings, odoo_ai_home, plugin_root):
+    server_rule = f"mcp__plugin_{_PLUGIN_NAME}_odoo-local"
+    settings.write_text(json.dumps({"permissions": {"allow": [server_rule]}}), encoding="utf-8")
+
+    allow, r_check = _apply_and_check(settings, odoo_ai_home, plugin_root)
+    assert not any(a in GIVE_BACK_RULES for a in allow), f"a broader rule covers them; got {allow}"
+    assert server_rule in allow
+    assert r_check.returncode == 0, f"check must agree they are covered; stderr={r_check.stderr}"
+
+
+def test_give_back_rules_are_still_added_when_only_another_servers_rule_exists(
+        settings, odoo_ai_home, plugin_root):
+    other = f"mcp__plugin_{_PLUGIN_NAME}_odoo-media"
+    settings.write_text(json.dumps({"permissions": {"allow": [other]}}), encoding="utf-8")
+
+    allow, _ = _apply_and_check(settings, odoo_ai_home, plugin_root)
+    for rule in GIVE_BACK_RULES:
+        assert rule in allow, f"{rule} must be added; got {allow}"
+
+
+def test_another_plugins_rules_survive_apply(settings, odoo_ai_home, plugin_root):
+    others = ["mcp__plugin_other_odoo-local__lease_release", "mcp__plugin_other_odoo-local"]
+    settings.write_text(json.dumps({"permissions": {"allow": others}}), encoding="utf-8")
+
+    allow, _ = _apply_and_check(settings, odoo_ai_home, plugin_root)
+    assert all(o in allow for o in others), f"another plugin's rules must stay; got {allow}"
+    assert all(g in allow for g in GIVE_BACK_RULES)
+
+
+def test_check_fails_while_a_give_back_rule_is_missing(settings, odoo_ai_home, plugin_root):
+    """Everything but one give-back rule is present: check reports the step incomplete."""
+    _apply_and_check(settings, odoo_ai_home, plugin_root)
+    data = json.loads(settings.read_text(encoding="utf-8"))
+    data["permissions"]["allow"].remove(GIVE_BACK_RULES[0])
+    settings.write_text(json.dumps(data), encoding="utf-8")
+
+    r = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 1, f"check must exit 1; stderr={r.stderr}"
 
 
 def test_opt_out_writes_nothing(settings, odoo_ai_home):
@@ -460,10 +517,11 @@ def plugin_root(tmp_path):
 
 def test_apply_skips_what_an_exact_duplicate_or_a_blanket_already_covers_and_writes_nothing(
         settings, odoo_ai_home, plugin_root):
-    """Bash(*) covers both Bash rules, a bare Read covers the Read rule and the Edit rule is an
-    exact duplicate: all 4 covered, so apply performs zero writes - no backup at all."""
+    """Bash(*) covers both Bash rules, a bare Read covers the Read rule, the Edit rule is an
+    exact duplicate and the give-back rules are exact duplicates: all covered, so apply performs
+    zero writes - no backup at all."""
     edit_rule = f"Edit(/{odoo_ai_home}/projects/**)"
-    seed = ["Bash(*)", "Read", edit_rule]
+    seed = ["Bash(*)", "Read", edit_rule, *GIVE_BACK_RULES]
     settings.write_text(json.dumps({"permissions": {"allow": seed}}), encoding="utf-8")
 
     allow, r_check = _apply_and_check(settings, odoo_ai_home, plugin_root)

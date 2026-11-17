@@ -80,3 +80,43 @@ def test_a_sentence_longer_than_the_spoken_limit_fails_the_script_check(tmp_path
     assert proc.returncode == 1 and "SENTENCES_LONG=1:" in proc.stdout and "LONG=1" in proc.stdout
     assert subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script), "--max-words", "0"],
                           capture_output=True, text=True).returncode == 0
+
+
+def _check_script(tmp_path, text, *extra):
+    script = tmp_path / "s.txt"
+    script.write_text(text, encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(LIB / "narration_check.py"), "--script", str(script), *extra],
+                          capture_output=True, text=True)
+    return proc, dict(ln.split("=", 1) for ln in proc.stdout.splitlines() if "=" in ln and ln.split("=", 1)[0].isupper())
+
+
+def test_a_sentence_below_eight_words_is_reported_and_changes_neither_verdict_nor_exit_code(tmp_path):
+    seven = "Mở đơn hàng rồi bấm xác nhận."
+    eight = "Mở đơn hàng rồi bấm xác nhận ngay."
+    assert [n for _no, n, _s in nc.short_sentences(seven)] == [7]
+    assert nc.short_sentences(eight) == []
+    assert nc.short_sentences("Xong.\n...\n") == [(1, 1, "Xong.")]
+    proc, kv = _check_script(tmp_path, seven + "\n" + eight + "\n")
+    assert proc.returncode == 0 and kv["VERDICT"] == "pass"
+    assert kv["SENTENCES_SHORT"] == "1:7w" and kv["SENTENCES_LONG"] == "none" and kv["LINES_BROKEN"] == "none"
+    assert any(ln.startswith("SHORT=1 ") for ln in proc.stdout.splitlines())
+    proc, kv = _check_script(tmp_path, eight + "\n")
+    assert proc.returncode == 0 and kv["SENTENCES_SHORT"] == "none"
+
+
+def test_the_short_sentence_bound_is_adjustable_and_never_decides_the_verdict_with_a_transcript(tmp_path):
+    proc, kv = _check_script(tmp_path, "Xin chào các bạn.\n", "--min-words", "0")
+    assert proc.returncode == 0 and kv["SENTENCES_SHORT"] == "none"
+    proc, kv = _check_script(tmp_path, "Xin chào các bạn.\n", "--min-words", "4")
+    assert kv["SENTENCES_SHORT"] == "none"
+    t = tmp_path / "t.txt"
+    t.write_text("xin chào các bạn", encoding="utf-8")
+    proc, kv = _check_script(tmp_path, "Xin chào các bạn.\n", "--transcript", str(t))
+    assert proc.returncode == 0 and kv["VERDICT"] == "pass" and kv["SENTENCES_SHORT"] == "1:4w"
+
+
+def test_words_are_counted_the_same_way_in_every_language_after_punctuation_is_removed():
+    assert len(nc.tokens("Bấm nút Xác nhận, rồi chờ.")) == 6          # Vietnamese: one syllable, one word
+    assert len(nc.tokens("Open the e-mail, then (quickly) send it!")) == 8   # a hyphenated compound is two
+    assert len(nc.tokens("Open - then - send")) == 3                    # a bare hyphen is none
+    assert len(nc.tokens("営業 担当者 が 見積 を 作成 し ます")) == 8       # whitespace separates words

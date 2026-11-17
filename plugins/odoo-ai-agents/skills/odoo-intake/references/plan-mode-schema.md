@@ -28,8 +28,8 @@ must land separately. Each node carries:
 | `modules` | technical names the node touches, in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`); omitted for a node that touches no module. On an `odoo-instance` node this IS the suite scope |
 | `approach`, `approach_kind` | the skill, agent or workflow; `skill | agent | workflow | inline | integrate` |
 | `agent`, `mode` | the agent the node launches and its `MODE` (e.g. `odoo-code-reviewer` `R1`), when the node launches one directly |
-| `model`, `effort` | the launch tier (`haiku`, `sonnet`, `opus`, `fable`) and effort (`low`, `medium`, `high`, `xhigh`) of an agent node: from `build_tier_hint` for a build node, else the default tail's tier and the effort row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort that fits the node's work. A skill node is invoked inline and carries none: it runs in the runner's context, and the skill's own frontmatter `model:` applies for that turn |
-| `build_tier_hint` | a build node: the design's tier and effort plus its six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the plan copies, the runner checks presence |
+| `model`, `effort` | the launch tier (`haiku`, `sonnet`, `opus`, `fable`) and effort (`low`, `medium`, `high`, `xhigh`) of an agent node: from `build_tier_hint` for a build node, else the default tail's tier and the effort row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort that fits the node's work. A skill node is invoked inline and carries none: it runs in the runner's context and model |
+| `build_tier_hint` | a build node: the tier and effort the planner set from the design's hints for the units the node carries, with the six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the runner checks presence |
 | `business_function`, `audience` | the unit's Domain line (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`); `audience: n/a` for a unit with no user-facing screen |
 | `when` | a condition the runner evaluates with a tool before launching (§ Default tail); absent = always |
 | `depends_on` | node ids; the only ordering statement |
@@ -75,29 +75,10 @@ Template:
 
   [review-r1] [repo: fleet-addons] [agent: odoo-code-reviewer R1 @ haiku]
       depends-on: verify
-  [review-r2] [repo: fleet-addons] [agent: odoo-code-reviewer R2 @ sonnet]
-      depends-on: review-r1
   [acceptance] [repo: fleet-addons] [agent: odoo-qa-tester A1A2 @ haiku]
       depends-on: verify
       when: the diff touches a screen, a menu, a controller, or a state change of a model with a workflow
-  [ui-review] [repo: fleet-addons] [skill: odoo-ui-review]
-      depends-on: verify
-      when: the diff touches a screen
-  [fix-round] [repo: fleet-addons] [inline: merge findings, SendMessage the node's coder]
-      depends-on: review-r2, acceptance, ui-review
-  [i18n] [repo: fleet-addons] [agent: odoo-translator @ sonnet]
-      depends-on: fix-round
-      when: the .pot exported on the stable tip has a msgid the committed .pot lacks
-  [docs-module] [repo: fleet-addons] [skill: odoo-doc-illustration]
-      depends-on: i18n
-      when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
-  [migration] [repo: fleet-addons] [skill: odoo-data-migration]
-      depends-on: i18n, docs-module
-      when: a module that was installable before this change has a change outside its tests, and a fresh install of it passed
-  [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
-      depends-on: migration
-  [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring]
-      depends-on: integrate
+  ... every other node of § Default tail, one box each in this form, down to
   [merge] [repo: fleet-addons] [skill: odoo-pr-monitoring]   human gate, always
       depends-on: monitor
 
@@ -105,16 +86,8 @@ Template:
     billing-core --> billing-accounting-bridge
     billing-accounting-bridge --> verify
     verify --> review-r1
-    review-r1 --> review-r2
     verify --> acceptance
-    review-r2 --> fix-round
-    acceptance --> fix-round
-    fix-round --> i18n
-    i18n --> docs-module
-    i18n --> migration
-    docs-module --> migration
-    migration --> integrate
-    integrate --> monitor
+    ... one line per `depends_on` entry
     monitor --> merge
 ```
 ````
@@ -134,8 +107,9 @@ pointer and approved before the plan exists. A design is optional at every compl
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule); its absence
 is carried as `none`, never a node.
 
-**Data source.** The node graph derives from the design's `dag_layers`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`) plus the Block 3 assignment;
+**Data source.** The node graph is the planner's: it keeps the dependency edges of the design's
+`dag_layers` (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`) and decides the
+partition, the order and what runs in parallel;
 `(NEW)` vs `(existing)` from `odoo-module-graph.md`. Every repo that has a coding node carries at least ONE
 `odoo-instance` node on `integrate`'s path whose `modules` cover every module a coding node of that
 repo names (never a PR on a red suite); its `modules` grow monotonically down the graph
@@ -214,10 +188,15 @@ place; the rest keep their order.
   model: sonnet
   depends_on: [fix-round]
   when: instance_i18n_export on the stable tip yields a msgid the committed .pot lacks or changed
-- id: docs-module
-  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file (Loop step 3); never the bare odoo-doc-writer
-  approach_kind: skill
+- id: video   # the narrated videos the plan's Video: line names, uploaded unlisted so their URLs exist before the docs that embed them
+  approach: video-produce   # workflow_inputs: destination youtube:<purpose>, video_type (marketing for the store page, tutorial for the guide), languages = the union of the embedding surfaces' languages, targets = those surfaces
+  approach_kind: workflow
   depends_on: [i18n]
+  when: the plan's Video: line is not none
+- id: docs-module
+  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file and VIDEO = the watch URLs of produced.videos (Loop step 3); never the bare odoo-doc-writer
+  approach_kind: skill
+  depends_on: [i18n, video]   # video only where the plan has it
   when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
 - id: docs-site   # tagged with the docs repo; lands its own PR; only monitor-site and merge-site follow it
   approach: odoo-doc-site   # invoked inline with FROM CHANGE = the change file and INSTANCE_HANDLE = the handle docs-module returned (Loop step 3)
@@ -266,7 +245,9 @@ place; the rest keep their order.
 `odoo-intake`** (module, site, both or none). The plan gate shows ONE line, `Docs: <module | site |
 both | none> - <the facts that decided it>`, so the user can change it; `none` drops `docs-module`
 and `docs-site` with the user's reason written in the plan. What the change file holds and which
-modules it leaves out: `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`. A docs-only request (target `both`)
+modules it leaves out: `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`. Beside it the gate
+shows `Video: <store | guide | both | none> - <the facts that decided it>`, decided by the same
+rule; `none` drops the `video` node. A docs-only request (target `both`)
 is a plan with the nodes `docs-module` then `docs-site`, the code repo's `integrate` and `merge`,
 the docs repo's `merge-site`, `publish-videos` when a video was uploaded, and no build,
 verification or monitor node: no coding node exists, so there is no module set for
@@ -331,7 +312,7 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    verification node on the new tip. A `.po`, `.pot` or `migration` change alone does not change behaviour and
    does not trigger it.
 7. **Human gates** under the approved plan are exactly `merge` and any other outward or
-   irreversible operation (send, publish, push, delete), each a text question. At a gate: write
+   irreversible operation (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` rule 4), each a text question. At a gate: write
    the state to the run file, ask (`approve / skip / cancel`), end the turn; on the reply read the
    run file and continue. Nothing under the plan enters Plan Mode, and a node's skill presents no
    plan of its own (it writes its plan into its report). A finished node is never a reason to stop.
@@ -392,7 +373,7 @@ Written once by intake Phase P, then only by the runner. `run_id`, `intent`, `au
 continuation block), `dynamic_nodes[]`, `gate_log[]`, `completion`. A node that uploaded a video
 records it in its `produced.videos[]`: `{video_id, lang, purpose, watch_url, embed_url,
 embedded_in: [<repo id>#<PR number>, ...]}` - what `publish-videos` reads to know which video
-belongs to which PR. `repo: null` only for a node
+belongs to which PR; the runner fills `embedded_in` when `integrate` returns the PR. `repo: null` only for a node
 that writes into no repository and gates no delivery; every source-writing, verification,
 `integrate` and tail node names a declared `repos[].id`. Resume: skip `DONE` nodes, continue at
 the first ready node in topological order.

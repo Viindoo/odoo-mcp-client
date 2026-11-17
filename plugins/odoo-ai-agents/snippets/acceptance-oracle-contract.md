@@ -1,10 +1,8 @@
 # Acceptance Oracle Contract (derive the truth from intent, never from the code)
 
-An acceptance oracle is the source of truth that decides whether an observed result is CORRECT
-for a given input. An oracle derived from the implementation - or from the output the system
-is currently producing - passes at all times, catches zero bugs, and rationalizes whatever the
-code happens to do. An oracle derived from the REQUIREMENT catches the gap between what the code
-does and what the business needs. That gap is the bug. These rules make the oracle independent.
+An acceptance oracle decides whether an observed result is CORRECT for a given input. Derived
+from the implementation or from the system's current output it always passes; derived from the
+REQUIREMENT it catches the gap between what the code does and what the business needs.
 
 ## The five invariants (non-negotiable)
 
@@ -12,8 +10,8 @@ does and what the business needs. That gap is the bug. These rules make the orac
    derived from the stated requirement, the acceptance criteria, the business rule, or a value
    you compute independently by hand (an independent/calculated oracle). NEVER read the
    implementation to decide what `expected` should be, and NEVER set `expected` to whatever the
-   running system returned. Reading the implementation to learn what `expected` should be is the
-   defect this contract exists to prevent.
+   running system returned. Each `expected` names the requirement sentence it rests on; an
+   outcome the requirement does not state is a question for its owner, not a scenario.
 
    The SRS acceptance criteria (`<SHARE_DIR>/designs/<slug>-<date>-srs.md`, or the header of a
    design written without an SRS) are the oracle: requirement-derived by the architect, never
@@ -22,7 +20,7 @@ does and what the business needs. That gap is the bug. These rules make the orac
    architect in the SRS, before any code exists; `odoo-qa-planner` authors a scenario only when an
    SRS criterion lacks a comparable expected value. Neither is the coder that wrote the code
    (`odoo-coder`), and neither is the agent that compares system-vs-oracle and rules PASS/FAIL
-   (`odoo-qa-tester`). Independence is structural - each runs in its own context.
+   (`odoo-qa-tester`).
 3. **Never edit `expected` to match `actual`.** When the system disagrees with the oracle, the
    verdict is FAIL - you do NOT widen, relax, delete, or rewrite the expected value to make it
    green. If the oracle itself is genuinely wrong (the requirement was misread), flag it back to
@@ -38,7 +36,7 @@ does and what the business needs. That gap is the bug. These rules make the orac
    (integrity refusals, and policy cases that flag and allow) - not only the happy path the
    author first imagined.
 
-## Verdict vocabulary (the only three; shared by planner, tester, adjudicator)
+## Verdict vocabulary (the only four; shared by planner, tester, adjudicator)
 
 - **PASS** - the observed result matches the oracle's `expected` AND every required-evidence item
   for the scenario was captured.
@@ -47,6 +45,9 @@ does and what the business needs. That gap is the bug. These rules make the orac
   accompanied by the evidence that proves the contradiction.
 - **UNVERIFIED** - required evidence was not obtained (step blocked, instance/role unavailable,
   evidence not captured). Not a PASS and not a FAIL - it is unproven. Surface it; do not bury it.
+- **EXTERNAL** - the scenario needs a third-party system this environment cannot reach (no
+  credentials, no sandbox). It is not run, counts neither for nor against the roll-up, and is
+  listed with the system it needs for the human to verify.
 
 ## Scenario-design techniques (the author applies all that fit)
 
@@ -78,7 +79,7 @@ Each scenario must be capable of FAILING for the right reason - a scenario that 
 protects nothing - and one that fails because the screen or record it names does not exist never
 ran at all (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Broken measurement is
 not a red). Drive the real workflow when realizing a scenario as an executable test:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` (reference, do not duplicate).
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`.
 
 **An expected result is never a piece of DISPLAY TEXT.** Write it as the state, the record produced,
 the exception TYPE, or the permission refused - never as the wording of a label, button, help

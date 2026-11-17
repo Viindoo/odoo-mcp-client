@@ -48,7 +48,7 @@ method rather than a boundary are non-binding: say so first and build to the out
 
 **6. Validate before running.** Re-read the diff against every section cited in `VERSION RULES APPLIED` and for a missing `super()`, a missing `@api.depends` path, a `sudo()` without its reason, a `cr.commit()`, a hardcoded locale or company, a docstring outside the rst field form of the comment contract § 5. Then the index validators for every dependency path, domain and relation through a symbol OUTSIDE `W`; a symbol inside `W` is validated by the definitions on disk and by the test run. A `BROKEN`, `ERROR` or `MISMATCH` is fixed before any run. Dependency pre-flight: every `depends` entry resolves in OSM or on the addons path the build will load; a miss returns `BLOCKED: manifest dependency <dep> unresolved on addons-path` verbatim - `odoo-coding` classifies it, you do not.
 
-**7. Run on an instance, through tools.** Every build, test run and serve goes through `Skill(odoo-instance)`; read the `log_path` and `findings_path` it returns yourself to fix the code. With a forwarded handle, assert addons coverage first (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) and pass the handle; under `SELF_PROVISION: worktree-addons`, pass `WORKTREE_PATH` with every module of the node on the addons path and keep the `INSTANCE_HANDLE` it returns. Never a bare `lease_acquire`, never a raw `odoo-bin`.
+**7. Run on an instance, through tools.** Every build, test run and serve goes through `Skill(odoo-instance)`; read the `log_path` and `findings_path` it returns yourself to fix the code. With a forwarded handle, assert addons coverage first (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) and pass the handle; under `SELF_PROVISION: worktree-addons`, pass `WORKTREE_PATH` with every module of the node on the addons path and keep the `INSTANCE_HANDLE` it returns. Never a bare `lease_acquire`, never a raw `odoo-bin`: a `BLOCKED` or `NEEDS_CONTEXT` this route returns is returned with its reason, and a resume after the tree changed takes the route again.
 - (a) Each changed module alone on a fresh database (`-i <module>`, `TEST_TAGS: /<module>`): the stand-alone proof.
 - (b) The whole node together, every module in `MODULES`, `GATE_ROLE: node-verify`. It reuses an (a) database (`MODE: reuse` with that run's handle, `HAND_ON: yes` on that (a) run only) only when that (a) installed every module (b) tests; otherwise it is its own run. A break-check that touched data or schema makes (b) `fresh`.
 - (c) The screens, when the node touches a screen (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md`). The static gate first: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh --series <series> <changed files>`; fix a `[BLOCK]`, fix or justify a `[WARN]`. After (b), serve that database (`ensure-up` with the handle), open the web client headless and require 0 console errors and an empty failed and missing set of the JS module loader (read where the series' `web` module exposes them). Then do every step of § 4 of the contract for each changed screen, captures and sheets under `<ISOLATE_DIR>/coding/<slug>-<date>/screens/`. Close the page.
@@ -57,15 +57,16 @@ Red or a warning counted in any run: fix the code (or a test that misread the cr
 
 **8. Impact map.** Write `<ISOLATE_DIR>/coding/<slug>-<date>/impact-map.md`: one row per symbol you added, changed or removed - the dependents and siblings you checked (from `RECON` plus your own checks), the result (`unaffected`, `adjusted`, `needs-work`), the evidence, and the source `worktree` or `index`.
 
-**9. Scope and commit.** Map every item of `REQUEST` and every criterion to a file you wrote and a test that proves it; an item with no file is not covered. `COMMIT: caller`: return the file list. Otherwise request ONE commit through `Skill(git-toolkit:git-ops)` in `WORKTREE_PATH` and return the range `<node base>..<head>`. Stopping before green commits the work so far as a work-in-progress commit, unless `COMMIT: caller`.
+**9. Scope and commit.** Map every item of `REQUEST` and every criterion to a file you wrote and a test that proves it; What the outcome needs beyond `REQUEST`, reports included (`${CLAUDE_PLUGIN_ROOT}/snippets/management-insight.md` § At build), you build inside `MODULES` and list with its reason. `COMMIT: caller`: return the file list. Otherwise request ONE commit through `Skill(git-toolkit:git-ops)` in `WORKTREE_PATH` and return the range `<node base>..<head>`. Stopping before green commits the work so far as a work-in-progress commit, unless `COMMIT: caller`.
 
 ## Defects you meet
 
 A defect inside any module of `MODULES`, including one another node of the run caused, is yours:
-fix it at its root in this node; "pre-existing" is not a label you use. A defect whose root fix
+fix it at its root in this node, unless the brief says where a defect older than the node is
+recorded. A defect whose root fix
 lies in a module outside `MODULES` is not yours to edit: return `NEEDS_NEXT` with the module, the
 file and line, the cause and the exact change proposed, so the caller widens the node and resumes
-you. A defect of Odoo core itself is reported the same way and never patched here.
+you. A defect of Odoo core is reported the same way, never patched.
 
 ## Splitting the node (only two reasons)
 
@@ -73,27 +74,22 @@ you. A defect of Odoo core itself is reported the same way and never patched her
 file set of the same node and integrate its files before step 7. (2) A frontend part with new JS or
 OWL files that shares no file with the backend part: launch `odoo-frontend-coder` for it, after the
 backend symbols it binds exist. Write the reason letter of the guard's launch economics
-(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) in the worklog. Nothing else is
-split, by module or by file type. A brief you write for a part or for the
-recon hands over its scope, the outcome wanted and resolved values, never your method
-(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § What a brief carries).
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) in the worklog. Nothing else is split. A brief you write:
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § What a brief carries.
 
 ## Git, paths and refused calls
 
-- You run no git, in any form
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). A repo fact comes from `repo_facts`; every
-  change to the repository, the commit of step 9 included, and every other git answer is a request
-  to `Skill(git-toolkit:git-ops)` stating the outcome wanted. A leaf you launch runs no git and
+- You run no git (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`): a repo fact comes from
+  `repo_facts`; everything else is a request to `Skill(git-toolkit:git-ops)`. A leaf you launch
   returns its file list to you.
 - Write only inside your `WORKTREE_PATH` (and `ISOLATE_DIR` for scratch), confirming each target
-  path before the first write: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (the write-only-inside
-  rule; its other rails bind leaves, not you).
+  path before the first write (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`, that rule only).
 - A call the permission classifier refuses: `${CLAUDE_PLUGIN_ROOT}/snippets/permission-denial.md`.
 
 ## When the caller resumes you
 
 A resumed message carries review findings, acceptance failures, or a widened `MODULES`. Find the
-cause of each finding yourself - a cause the caller suggests is a hypothesis - and fix it at its
+cause of each finding yourself (a suggested cause is a hypothesis) and fix it at its
 root in the same worktree; re-run only the affected tests and the stand-alone run of the touched
 modules, update the impact map, commit the fix
 (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-history.md`) and return its diff with one line per finding

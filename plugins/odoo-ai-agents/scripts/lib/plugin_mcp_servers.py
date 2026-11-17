@@ -47,6 +47,17 @@ Python modules directly:
     python3 plugin_mcp_servers.py match <tool_name>
         Exit 0 if <tool_name> is namespaced to one of these local servers, else
         exit 1.
+
+    python3 plugin_mcp_servers.py give-back
+        Print the full tool-call name of each lease give-back tool
+        (``mcp__plugin_<name>_odoo-local__lease_release`` and ``..._lease_park``),
+        one per line. These two are the only tools of any local server that
+        `32-permissions-state-root.sh` writes as exact `permissions.allow` rules.
+
+    python3 plugin_mcp_servers.py give-back-covered <settings.json> <tool_name>
+        Exit 0 if the settings file's `permissions.allow` already grants
+        <tool_name>: the exact name, or the `odoo-local` server rule (bare or
+        with `__*`). Else exit 1.
 """
 import json
 import re
@@ -96,6 +107,27 @@ def local_tool_prefix(server: str, plugin_root: Path = PLUGIN_ROOT) -> str:
     return f"mcp__plugin_{name}_{_normalize(server)}"
 
 
+# The lease give-back tools: an agent returns a lease its own session acquired
+# without depending on the auto-mode permission classifier. Ownership stays
+# enforced by hooks/block-unowned-lease-mutation.sh and by the allocator.
+GIVE_BACK_SERVER = "odoo-local"
+GIVE_BACK_TOOLS = ("lease_release", "lease_park")
+
+
+def give_back_tools(plugin_root: Path = PLUGIN_ROOT):
+    """Full tool-call names of the lease give-back tools, in declaration order."""
+    prefix = local_tool_prefix(GIVE_BACK_SERVER, plugin_root)
+    return [f"{prefix}__{t}" for t in GIVE_BACK_TOOLS]
+
+
+def give_back_covered(allow, tool_name: str, plugin_root: Path = PLUGIN_ROOT) -> bool:
+    """True if an `allow` list already grants `tool_name`: the exact name, or the
+    `odoo-local` server rule (bare or with `__*`) that covers every tool of it."""
+    server_rule = local_tool_prefix(GIVE_BACK_SERVER, plugin_root)
+    covering = {tool_name, server_rule, server_rule + "__*"}
+    return any(a in covering for a in allow)
+
+
 def split_local_tool(tool_name: str, plugin_root: Path = PLUGIN_ROOT):
     """If `tool_name` is namespaced to one of this plugin's local servers, return
     `(server, short_tool_name)`; otherwise return `(None, None)`.
@@ -127,7 +159,19 @@ def main(argv) -> int:
         return 0
     if len(argv) >= 3 and argv[1] == "match":
         return 0 if is_local_tool(argv[2]) else 1
-    print("Usage: plugin_mcp_servers.py {servers|prefixes|match <tool_name>}", file=sys.stderr)
+    if len(argv) >= 2 and argv[1] == "give-back":
+        for t in give_back_tools():
+            print(t)
+        return 0
+    if len(argv) >= 4 and argv[1] == "give-back-covered":
+        try:
+            data = json.loads(Path(argv[2]).read_text(encoding="utf-8"))
+            allow = (data.get("permissions") or {}).get("allow") or []
+        except Exception:
+            allow = []
+        return 0 if give_back_covered(allow, argv[3]) else 1
+    print("Usage: plugin_mcp_servers.py {servers|prefixes|match <tool_name>|give-back|"
+          "give-back-covered <settings.json> <tool_name>}", file=sys.stderr)
     return 2
 
 

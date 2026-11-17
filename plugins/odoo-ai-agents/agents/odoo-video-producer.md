@@ -23,6 +23,7 @@ budget stops you, a key field on screen stops a take, a failed verification stop
 | `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE` | the tree under demonstration; concrete values |
 | `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals; everything you write goes under `<ISOLATE_DIR>/video/<label>/` |
 | `AUTHOR PROFILE` | the vendor profile JSON (font, music, licence), or `none` |
+| `STORE LINKS` | `assemble`: the URLs that close the video's description, or `none` |
 | `BUDGET_MARGIN` | the overrun margin for `video_budget.py check`; default 0.25 |
 | `USER LANGUAGE` | optional; governs your report, never a deliverable |
 
@@ -39,7 +40,8 @@ read it before the first call of each script. The ledger of every `video_budget.
 
 1. `storyboard_check.py check --storyboard <STORYBOARD>`: exit 1 -> `NEEDS_CONTEXT` with its
    `ERROR=` lines; a `TEXT_ONLY_SCENES` list -> `NEEDS_CONTEXT(scene <id>: click_path has no
-   action)`.
+   action)`; a `WARNING=` line -> `NEEDS_CONTEXT` with it (a scene that does not open with a
+   `goto` records a blank page).
 2. `video_budget.py keys --storyboard <STORYBOARD>`: exit 1 -> `BLOCKED` with its `ERROR=` line.
    `video_budget.py estimate` -> keep the two figures for the report.
 3. `video_record.py self-test`: exit 1 -> `BLOCKED` with its lines and the remedy
@@ -73,16 +75,20 @@ read it before the first call of each script. The ledger of every `video_budget.
    something is not retaken: `BLOCKED` naming the step, the storyboard owner restores the demo
    state); twice -> `BLOCKED` naming the step. Exit 6: the take showed a key field - record the `key_visible` span in the report and stop this scene; the storyboard owner decides, never you. Log each
    take with `video_budget.py log --kind take`.
-8. A defect of the product you saw on screen (a wrong value, an error, a broken layout) goes into
-   `findings.md` with the scene, the language and the clip time; the take is kept as it is.
+8. A defect of the product you saw on screen (a wrong value, an error, a broken layout) is a row
+   of the `findings` of your report - the scene, the language, the clip time, what you saw - and
+   you write no file for it; the take is kept as it is.
 
 ## MODE narrate
 
 Per scene and language: write `narration/<lang>/<id>.txt` from the storyboard;
 `narration_check.py --script <txt>` (exit 1 -> `NEEDS_CONTEXT` naming the line: the storyboard
-owner rewrites it); `pronunciation.py selfcheck --map <storyboard map>` once per run; the
+owner rewrites it; a `SHORT=` line is reported, never a stop); `pronunciation.py selfcheck --map <storyboard map>` once per run; the
 odoo-media `speech_synthesize` tool (text_file, lang, out `narration/<lang>/<id>.wav`,
-pronunciation = the storyboard map, voice and speed from the storyboard), one clip at a time;
+pronunciation = the storyboard map, the storyboard's `voice` for the language, else `video_type`
+= the storyboard's; `speed` = the storyboard's), one clip at a time; under `speed_post` synthesise
+without `speed` to `<id>.raw.wav`, then `video_publish.py tempo --factor <speed>` writes
+`<id>.wav` and the raw clip is deleted;
 `speech_transcribe` -> `<id>.stt.txt`; `narration_check.py --script --transcript --slots
 --map --lang`: exit 1 -> another take, at most 3, keep the lowest `WER`; exit 3 -> keep the take
 and list the line under `listen`. Write `narration/<lang>/durations.json` (`{"<id>": seconds}`
@@ -91,24 +97,30 @@ from the clips). A `VALUE_NOT_CONFIGURED` result is `NEEDS_CONTEXT(<option>)`.
 ## MODE assemble
 
 Per language, per scene in order, under `assembly/<lang>/`:
-1. `video_publish.py speedup --clip takes/<lang>/scene-<id>.webm --events <its .events.json>
-   --wait-keep 1 --wait-squeeze <the storyboard's wait_squeeze_s, 1.0 when absent> [--must-see
-   "<the scene's must_see>"] --out <id>.paced.mp4`: exit 6 -> the clip never ships;
-   `BLOCKED(scene <id>: key field visible)`.
-2. Per storyboard `focus`: `video_publish.py zoom`.
-3. `video_publish.py fit --clip <paced> --narration narration/<lang>/<id>.wav --lead-in
+1. **Times.** The storyboard's `must_see` and `focus` times are those of the first language's
+   take. For another language map them first: `video_publish.py map-times --events-from <the
+   first language's events> --events-to <this take's events> --times "<ranges>"` -> `TIMES=`;
+   exit 1 -> `BLOCKED(scene <id>: the <lang> take differs from the first language's)`.
+2. Per storyboard `focus`: `video_publish.py zoom` on the take, at those times.
+3. `video_publish.py speedup --clip <the take, or its zoomed copy> --events <the take's
+   .events.json> --trim-head --wait-keep 1 --wait-squeeze <the storyboard's wait_squeeze_s, 1.0
+   when absent> [--must-see "<ranges>"] [--narration narration/<lang>/<id>.wav --lead-in
+   <lead_in_s>] --out <id>.paced.mp4`: exit 6 -> the clip never ships; `BLOCKED(scene <id>: key
+   field visible)`.
+4. `video_publish.py fit --clip <paced> --narration narration/<lang>/<id>.wav --lead-in
    <lead_in_s> --fade <fade_s> --max-silence <max_silence_s> --max-hold <max_hold_s>
    [--voice <voice_out file>@<its start from the events>]... --out <id>.mp4`: exit 4 or 5 -> the
    scene goes back to the storyboard owner with the measured `SILENT_S` or `HOLD_S`. Silent run
    (no narration): `fit --clip <paced> --fade <fade_s> --out <id>.mp4`.
-4. `video_publish.py title --text <publish.<lang>.title>` (font: the profile's `font_file`, else the
+5. `video_publish.py title --text <publish.<lang>.title>` (font: the profile's `font_file`, else the
    `FONT=` of `verify-tools`), then `concat` (music per the storyboard `music` block and the profile's licence) to
    `deliverables/<lang>/<label>-<lang>.mp4`, `verify --profile <publish_profile>` (`--silent` on a
    silent run; any `FAIL` line = not a deliverable), `sidecar --list <the concat list>`
-   (`--narration-dir narration/<lang>/` on a narrated run; it writes `deliverables/<lang>/<lang>.txt`
-   and `.srt`), `thumbnail --at <the first CHAPTERS time of <lang>.txt plus 3 s>`,
-   `preview --max-mb 10`.
-5. `video_keyscan.py scan --dir <ISOLATE_DIR>/video/<label>` (`--key-env <ai.key_env>` only when
+   (`--narration-dir narration/<lang>/` on a narrated run, one `--link` per entry of `STORE
+   LINKS`; it writes the description `deliverables/<lang>/<lang>.txt` and the captions `.srt`, and
+   prints `TITLE=`, `THUMBNAIL_AT_S=` and, for a scene whose captions fell back to an even split,
+   `CAPTION_FALLBACK=`), `thumbnail --at <THUMBNAIL_AT_S>`, `preview --max-mb 10`.
+6. `video_keyscan.py scan --dir <ISOLATE_DIR>/video/<label>` (`--key-env <ai.key_env>` only when
    the storyboard has an `ai` block): exit 1 -> `BLOCKED` with its `HIT=` lines.
 
 ## Teardown, then return
@@ -117,8 +129,8 @@ The recorder closes its own browser on every path, so no browser of yours is lef
 `INSTANCE_HANDLE`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). Then the first line `DONE`,
 `BLOCKED` or `NEEDS_CONTEXT`; per language the deliverable paths, the `verify` lines, the `listen`
-lines, the clips and their durations; the budget figures (`ESTIMATE_*`, `SPENT_*`); `findings.md`
-when it has rows; the kept artifacts; the Continuation Contract of
+lines, the `CAPTION_FALLBACK` scenes, the clips and their durations; the budget figures
+(`ESTIMATE_*`, `SPENT_*`); the `findings` rows; the kept artifacts; the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Prose in `USER LANGUAGE`; paths and
 identifiers verbatim.
 

@@ -235,6 +235,10 @@ acceptance).
   own change.
 - **A defect one of these fixes introduced** is folded into the commit of that fix.
 
+A pre-existing defect the source series carries too is also reported to it (a source-series
+issue through git-ops, else a `merge-log.md` line) and listed at the P12 gate with the fix it got
+here, so the owner can ask for the other order: fixed on the source series first, then forwarded.
+
 Canonical merge-log record: `<sha> | C3 | fixed in <fix commit> | <evidence one-liner>`.
 Reviewer backstop (P12): flag a proven pre-existing defect left unfixed, a pre-existing fix
 inside the merge commit, and an FP-delta fix in a commit of its own.

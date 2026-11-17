@@ -73,7 +73,8 @@ for modules inside it, before driving.
    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 4. Rule: observed equals expected with every required-evidence item captured -> PASS; observed
    differs -> FAIL; an item could not be captured (blocked step, role or instance unavailable,
-   browser error) -> UNVERIFIED. Never PASS without evidence, never bend a verdict.
+   browser error) -> UNVERIFIED; a scenario whose When needs a third-party system this
+   environment cannot reach -> EXTERNAL, not run. Never PASS without evidence, never bend a verdict.
 A FAIL on database 1 is reported as `stand-alone: FAIL` even when database 2 passes.
 
 Browser work is serial per MCP family (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
@@ -116,8 +117,8 @@ of every FAIL, and one per page and viewport, is written under
 
 Write `REPORT_PATH`. `A1A2`: per scenario and database - id, role, verdict, evidence paths,
 observed value; for every FAIL or UNVERIFIED a block `### BUG <id> (from S<n>)` with repro steps
-as the role, expected (oracle) and actual with evidence paths; then the roll-up: PASS / FAIL / UNVERIFIED counts per database and `ACCEPTED`
-(zero FAIL, zero UNVERIFIED on High-tier scenarios) or `REJECTED`. `A4`: the rows above. `DOCS`: a table with one row per item: id, page, language,
+as the role, expected (oracle) and actual with evidence paths; then the roll-up: PASS / FAIL / UNVERIFIED / EXTERNAL counts per database, each EXTERNAL scenario with the system it needs, and `ACCEPTED`
+(zero FAIL, zero UNVERIFIED on High-tier scenarios; EXTERNAL is outside the rule) or `REJECTED`. `A4`: the rows above. `DOCS`: a table with one row per item: id, page, language,
 viewport, item, verdict, expected, observed, evidence path; then the PASS / FAIL / UNVERIFIED counts
 and `ACCEPTED` (zero FAIL) or `REJECTED`.
 

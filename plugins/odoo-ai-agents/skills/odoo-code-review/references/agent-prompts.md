@@ -12,6 +12,7 @@ Launch parameters, not brief lines: `model` = haiku; `effort` per `${CLAUDE_PLUG
 MODE: R1
 TARGET: <abs path of the tree> <BASE>..<HEAD>
 CHANGED_SET: <repo-relative paths, one per line>   DIFF_PATH: <path | none>
+SOURCE_DIFF_PATH: <path | none>   (a port only)
 ODOO VERSION: <version>   PROFILE: <profile | none>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
 DOMAIN: <Domain line | none>
@@ -25,7 +26,7 @@ Launch parameters, not brief lines: `model` = sonnet; `effort` per `${CLAUDE_PLU
 
 ```
 MODE: R2
-TARGET, CHANGED_SET, DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
+TARGET, CHANGED_SET, DIFF_PATH, SOURCE_DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
 R1_FINDINGS: <ISOLATE_DIR>/reviews/<slug>-<date>/r1-findings.md
 R3_FINDINGS: <path | none>
 SRS: <path | none>   DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>
@@ -41,7 +42,7 @@ Launch parameters, not brief lines: `model` = opus; `effort` per `${CLAUDE_PLUGI
 
 ```
 MODE: R3
-TARGET, CHANGED_SET, DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
+TARGET, CHANGED_SET, DIFF_PATH, SOURCE_DIFF_PATH, ODOO VERSION, PROFILE, SHARE_DIR, ISOLATE_DIR, RUN_ID, DOMAIN: <as R1>
 R1_FINDINGS: <path>
 SRS: <path | none>   DESIGN_DOC: <path | none>   MASTER_DESIGN_DOC: <path | none>
 RECON: <path>

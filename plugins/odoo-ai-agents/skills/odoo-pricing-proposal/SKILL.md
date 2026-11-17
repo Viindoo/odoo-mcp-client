@@ -3,7 +3,6 @@ name: odoo-pricing-proposal
 argument-hint: "[customer/deal context]"
 description: >-
   Customer price proposal: license, implementation, support
-model: inherit
 ---
 
 ## Role

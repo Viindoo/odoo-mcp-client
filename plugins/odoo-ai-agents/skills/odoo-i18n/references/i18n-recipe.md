@@ -144,12 +144,9 @@ once, and export the `.pot` and every `<lang>.po` from that same database before
 the build must be replaced mid-run, re-export EVERY artifact from the replacement - never mix
 artifacts across builds.
 
-When dispatched from `odoo-forward-port`, copy each source-series `<lang>.po` into the target
-module's `i18n/<lang>.po` BEFORE L1 - that makes the source translation the "existing `.po`" L1
-loads, so the same fresh-instance -> load -> re-export -> diff-review path forwards it (no polib
-lift). L2's diff-review then adjudicates every difference the version gap introduced (a renamed
-label, a removed feature). The general re-export-existing-translation case likewise REQUIRES the
-load step.
+A port passes the source series' catalogs as `SOURCE CATALOGS`: they feed the translation memory
+(`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`, layer 0), never the `.po` L1 loads,
+which is the target's own. Re-exporting an existing translation always REQUIRES the load step.
 
 ### Isolate the term inventory
 

@@ -30,7 +30,8 @@ fallback: standalone
 # Layout, every artifact under <ISOLATE_DIR>/video/<project_label>/: storyboard.json (the
 # plan), storyboard.md (its rendering for the gate), scripts/ (scene scripts), takes/<lang>/,
 # narration/<lang>/, assembly/<lang>/, deliverables/<lang>/, ledger.jsonl (AI spend),
-# findings.md (product defects seen on screen). Nothing in a temporary directory. Scripts:
+# findings.md (product defects seen on screen; the runner writes it from the producer's report).
+# Nothing in a temporary directory. Scripts:
 # ${CLAUDE_PLUGIN_ROOT}/scripts/lib/{storyboard_check,video_record,video_budget,video_keyscan,
 # video_publish,narration_check,pronunciation}.py; every one prints KEY=VALUE lines.
 
@@ -61,11 +62,15 @@ phases:
     # storyboard.md, `video_budget.py estimate`. The plan the gate shows = storyboard.md + the
     # estimate + the instance to build. Rules the storyboard encodes:
     #   - Every scene's click_path is structured actions (`do` objects); a human string beside
-    #     them is allowed, a scene with no action is not recordable.
+    #     them is allowed, a scene with no action is not recordable. Every take starts on a new,
+    #     blank page, so a scene opens with a `goto` (a `WARNING=` line of `check` is fixed, not
+    #     shipped). A tablet or handheld application gets its own `viewport`; a scene with a
+    #     `focus` gets a `device_scale_factor` above 1.
     #   - A shot opens when the result appears and cuts at the click; no still frame longer than
     #     max_hold_s without narration; marketing shots 2-4 s, a tutorial's longer, under the cap.
-    #   - Narration is SPOKEN text: sentences of 8-15 words with one idea each
-    #     (narration_check.py refuses a longer one), a hook in the first 5 seconds, second
+    #   - Narration is SPOKEN text: sentences of 8-15 words with one idea each, a word being
+    #     what stands between two spaces (narration_check.py refuses a longer sentence and
+    #     reports a shorter one), a hook in the first 5 seconds, second
     #     person, the benefit before the feature, marketing shows the result first; written brands
     #     and acronyms (the pronunciation map respells them for the engine only).
     #     One sentence never spans two lines: the engine pauses at every line break as at a full
@@ -79,13 +84,14 @@ phases:
     #     (`speech_synthesize` with `voice`, `speech_transcribe` + narration_check,
     #     `video_publish.py audition --music <author profile music_file>`), ONE AskUserQuestion
     #     per language (the voice; music on or off); no listing and no candidates -> the
-    #     `tts.voices` voice of the locale, no audition, no question. No voice name is written in
-    #     plugin prose.
+    #     configuration's voice for the video type, else for the locale (the storyboard names
+    #     none), no audition, no question. No voice name is written in plugin prose.
     #   - A scene whose actions compute a figure (a total, a count, a state) ends with
     #     `expect_text` on it: the recorder prints it and the producer compares it across
     #     languages; a typed record name is a `{locale: string}` map when the UI translates it.
     #     Speaking rate = speech.toml `tts.rate` for the video type, verified by `speech_probe`
-    #     with `speed` (`speed_honoured` false -> keep 1.0 and say so).
+    #     with `speed` (`speed_honoured` false -> `speed_post: true`: the producer applies the
+    #     rate to each clip after synthesis).
     #   - Pronunciation: the machine registry (`pronunciation.py registry list`) always applies;
     #     the storyboard map only adds terms; `registry missing --lang --text --map` per
     #     language, every MISSING term asked once and recorded with `registry add --confirmed`.
@@ -121,10 +127,13 @@ phases:
   - id: assemble
     agent: odoo-video-producer
     nl_trigger: >
-      Resume WORKER_AGENT_ID with MODE: assemble and the same brief. Its report carries, per
+      Resume WORKER_AGENT_ID with MODE: assemble and the same brief plus STORE LINKS: for a video
+      about a module, one URL per store that lists the vendor's modules, resolved per
+      snippets/vendor-facts.md and built from the store's pattern, the series and the module name;
+      none otherwise. Its report carries, per
       language, the deliverable path under deliverables/<lang>/, the verify lines, the listen
-      lines, the budget figures and findings.md; a BLOCKED (a key field on screen, a failed verify) stops
-      the workflow with those lines. Silent run: the scene clips paced and concatenated with a
+      lines, the budget figures and the findings rows, which you write to findings.md; a BLOCKED
+      (a key field on screen, a failed verify) stops the workflow with those lines. Silent run: the scene clips paced and concatenated with a
       silent track, no narration, verified with `--silent`. Recorder unavailable for a scene: the producer says so and the scene is
       recorded by odoo-demo-recording's MCP path, assembled from its clip.
     model_tier: sonnet
@@ -144,9 +153,11 @@ phases:
     #     names its path and `/odoo-ai-agents:odoo-setup youtube`; VALUE_NOT_CONFIGURED =
     #     NEEDS_CONTEXT naming the option. Then per language `youtube_upload` (channel, video,
     #     title from publish.<lang>.title, description_file deliverables/<lang>/<lang>.txt, language,
-    #     captions {<lang>: deliverables/<lang>/<lang>.srt}, thumbnail); record per language {video_id,
-    #     lang, purpose, watch_url, embed_url} as `videos` in the return (the run file's
-    #     produced.videos, read by the plan's publish-videos node). Privacy is the channel's
+    #     captions {<lang>: deliverables/<lang>/<lang>.srt}, thumbnail); a language whose captions
+    #     the result reports failed gets one `youtube_captions` call on the returned video id,
+    #     never a second upload. Record per language {video_id, lang, purpose, watch_url, embed_url}
+    #     as `videos` in the return (the run file's produced.videos, read by the docs node that
+    #     embeds the URL and by the plan's publish-videos node). Privacy is the channel's
     #     default (unlisted) unless the caller states `public`, confirmed with the user first.
     #   - `none` (default): the deliverables stay under the run directory.
     # Then delete takes/, narration/ and assembly/ (deliverables, storyboard, ledger and

@@ -81,7 +81,9 @@ tester's job.
 4. **Choose the expected up front.** Fix the single observable `expected` (state/value/side-effect
    record/rendered element/raised error), derived from the requirement, plus the concrete evidence
    that proves it. It is an outcome the scenario's role can observe - never a transient internal
-   row (a record the flow creates and then removes, a queue entry, a log line).
+   row (a record the flow creates and then removes, a queue entry, a log line). Quote the
+   requirement sentence it rests on; an outcome the requirement does not state is not written as
+   a scenario: return it as a question for the requirement's owner.
 5. **Ground references**, then write the file.
 
 ## Output - the oracle file (immutable)
@@ -98,6 +100,8 @@ NOT edit any expected to match actual`. Then one block per scenario:
 - Given:  <precondition / fixture state>
 - When:   <action - the real workflow step, e.g. press Confirm / set field / search filter>
 - Then (expected): <single outcome the role can observe, derived from REQUIREMENT - never a transient internal row>
+- source: "<the requirement sentence the expected rests on>"
+- external: <the third-party system the When cannot run without | none>
 - required-evidence: <what proves it - screenshot of field=X / server state / raised AccessError / console clean / record created>
 - FAIL looks like: <the observation that would make this FAIL - so the tester knows the contradiction to watch for>
 ```

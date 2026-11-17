@@ -8,7 +8,7 @@ description: >-
 ## Role
 
 Developer front door: turn an approved node (or a small change with no plan) into committed,
-tested code by launching ONE `odoo-coder` per node, at the tier the design hints, inside the
+tested code by launching ONE `odoo-coder` per node, at the node's tier, inside the
 node's worktree. Compute nothing the plan already computed, write no source yourself, and own the
 cross-run module-coordination ledger.
 
@@ -51,8 +51,7 @@ cross-run module-coordination ledger.
    § 2 governs every question you raise) and
    `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0, which every coder
    you launch is bound by. Use the captured state dirs; read the worklog
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Delete `coding/<slug>-<date>/`
-   directories under `<ISOLATE_DIR>` untouched for 30 days
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Sweep `<ISOLATE_DIR>/coding/`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
 2. **One node, one coder.** A plan gives the node; standalone, the change is one node with the
    modules it touches in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`)
@@ -60,7 +59,7 @@ cross-run module-coordination ledger.
    Standalone work that needs more than one node: stop and invoke `odoo-planning`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One Plan-Mode gate per request, rule 6).
    Two nodes that touch the same module never run at once.
-3. **Tier and effort.** `model` and `effort` = `build_tier_hint` from the design; absent, the
+3. **Tier and effort.** `model` and `effort` = the plan node's `build_tier_hint`, else the design unit's; absent, the
    tables of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection
    (5.1 for haiku, 5.2 for opus, else sonnet) and § Effort. Record them in `plan.md`. Fable is never set here.
 4. **Ledger.** For every NEW module the node creates (in neither OSM nor the addons path), claim

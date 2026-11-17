@@ -11,8 +11,7 @@
 #
 # Ground truth is the allocator's own VERDICT (`allocator.py list --with-verdict`), never the
 # transcript and never a liveness rule copied here: the verdict is the SSOT for "would anything
-# reclaim this lease", and a second copy is what drifted before (a hard-coded TTL fallback that
-# silently disagreed with the allocator the day its default changed).
+# reclaim this lease".
 #
 # Fails open: no python3, no CLAUDE_PLUGIN_ROOT/scripts/lib/allocator.py, an allocator error, a
 # row with no verdict - every one prints nothing and returns non-zero.
@@ -104,8 +103,7 @@ _teardown_block_reason() {
   # declared in snippets/resource-teardown-contract.md T1 section "The three exits" (SSOT); this is a
   # SECOND COPY of it, kept in lockstep by tests/test_enforce_teardown.py rather than rendered from
   # the markdown at hook time. Naming only `release` would tell an agent that preserving a
-  # just-built database is impossible, which is how instances got destroyed and rebuilt every
-  # dispatch.
+  # just-built database is impossible.
   #
   # AFTER A DELIVERED HANDBACK only the first two remain (`give-back`). The handoff is text in the
   # report's continuation fence, and that report already reached the caller: a second

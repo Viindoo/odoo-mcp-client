@@ -3,7 +3,6 @@ name: odoo-deep-survey
 argument-hint: "[scope/codebase path]"
 description: >-
   Deep codebase survey; run by odoo-intake or the design session
-model: sonnet
 ---
 
 # Odoo Deep Survey - broad→narrow→deep, then synthesize
@@ -67,14 +66,11 @@ It produces no routed deliverable, only analysis that sharpens the approach.
 
 ## Fan-out budget
 
-Workers are launched as subagents, one per scope unit, using CHP Tier-B `subagent_type: "fork"`
-(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). Set the model
-explicitly on each fork's launch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-§ Model-tier selection (Phase 1 haiku, Phase 2 sonnet; Phase 3's opus is the evidence-gated
-escalation below, never a default); no custom agentType beyond the fork. Each fork writes its OWN
-findings file; forks never share mutable state.
-Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose`
-spawn with an explicit brief. Write the worklog regardless of tier.
+Workers are fresh `general-purpose` subagents, one per scope unit, each with an explicit brief
+and the `model` of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier
+selection (Phase 1 haiku, Phase 2 sonnet; Phase 3's opus is the evidence-gated escalation below,
+never a default). Each worker writes its OWN findings file; workers never share mutable state.
+Write the worklog.
 
 Concurrency follows **Mode B (model-weighted budget)** in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - SSOT for the weight table and

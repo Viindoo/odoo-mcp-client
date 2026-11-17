@@ -63,3 +63,64 @@ def test_urls_and_absolute_paths_are_text_while_a_bare_hex_run_is_a_hit(tmp_path
     assert _scan(tmp_path).returncode == 0
     (tmp_path / "t.txt").write_text(url + "\n" + path + "\n" + "0123456789abcdef" * 2 + "01234567\n")
     assert _hits(_scan(tmp_path)) == ["HIT=t.txt:3"]
+
+
+def _classes(proc):
+    return [line.split("=", 1)[1] for line in proc.stdout.splitlines() if line.startswith("HIT_CLASS=")]
+
+
+SLUG = "-".join(["create", "a", "quote", "for", "a", "customer", "and", "send", "it", "by", "email"] * 2)
+MCP_NAME = "mcp__plugin_odoo-ai-agents_odoo-media__speech_synthesize"
+
+
+def test_a_lowercase_word_slug_and_an_mcp_tool_identifier_are_not_hits(tmp_path):
+    assert len(SLUG) >= 75 and len(MCP_NAME) >= 40
+    (tmp_path / "scene.json").write_text(
+        '{"label": "%s", "other": "step2_open_the_menu_entry_for_sales_orders_x"}\n' % SLUG)
+    (tmp_path / "notes.md").write_text("Tool: %s, then `%s`.\n" % (MCP_NAME, "mcp__claude_ai_Claude_Docs__batch" + "_x" * 12))
+    proc = _scan(tmp_path)
+    assert proc.returncode == 0 and _hits(proc) == [] and "HITS=0" in proc.stdout
+
+
+def test_a_slug_is_text_only_while_most_of_its_words_carry_no_digit(tmp_path):
+    texts = ["create-a-quote-for-a-customer-on-a-tablet-and-confirm-it",
+             "step2-open-the-sales-order-and-confirm-the-payment-terms-today"]
+    assert all(len(t) >= 40 for t in texts)
+    for i, text in enumerate(texts):
+        (tmp_path / ("ok%d.txt" % i)).write_text(text + "\n")
+    assert _scan(tmp_path).returncode == 0
+    grouped = "-".join(["ab12", "cd34", "ef56", "gh78", "ij90", "kl12", "mn34", "op56", "qr78", "st90"])
+    assert len(grouped) >= 40
+    (tmp_path / "key.txt").write_text(grouped + "\n")
+    proc = _scan(tmp_path)
+    assert _hits(proc) == ["HIT=key.txt:1"] and _classes(proc) == ["opaque-run"]
+
+
+def test_opaque_runs_stay_hits_even_next_to_or_shaped_like_a_slug(tmp_path):
+    (tmp_path / "a.txt").write_text("Ab12Cd34" * 6 + "\n")
+    (tmp_path / "b.txt").write_text("open-" + "x9y8z7w6v5" * 4 + "-then-close\n")
+    (tmp_path / "c.txt").write_text("mcp_" + "ab12" * 12 + "\n")
+    proc = _scan(tmp_path)
+    assert proc.returncode == 1
+    assert _hits(proc) == ["HIT=a.txt:1", "HIT=b.txt:1", "HIT=c.txt:1"]
+
+
+def test_every_hit_is_followed_by_the_class_of_the_token_that_matched(tmp_path):
+    files = {
+        "a.txt": "sk-" + "a1B2c3D4e5" * 3,
+        "b.txt": "Authorization: Bearer " + "x" * 24,
+        "c.txt": "0123456789abcdef" * 3,
+        "d.txt": "xy12" * 12,
+        "e.txt": "AIza" + "a1B2c3D4e5" * 3 + "a1B2c",
+        "f.txt": "token ya29.A0ARrdaM",
+        "g.txt": "ghp_" + "a1B2c3D4e5" * 3,
+        "h.txt": "the key is " + PLANTED,
+    }
+    for name, text in files.items():
+        (tmp_path / name).write_text(text + "\n")
+    proc = _scan(tmp_path, "--key-env", "DEMO_AI_KEY")
+    assert proc.returncode == 1
+    assert _classes(proc) == ["openai-key", "bearer-header", "hex-run", "opaque-run", "google-key",
+                              "oauth-token", "github-token", "env-value"]
+    lines = proc.stdout.splitlines()
+    assert all(lines[i + 1].startswith("HIT_CLASS=") for i, ln in enumerate(lines) if ln.startswith("HIT="))
