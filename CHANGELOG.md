@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.13.0] - 2026-11-17
+
 ### Added
 
 - App Store page: a FEATURES section (the catalog as a list to scan, grouped by area of work, with
