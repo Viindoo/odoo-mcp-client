@@ -51,7 +51,7 @@ the debugger makes every other OSM call itself.
    abandoned evidence first (Clause 2):
 
    ```
-   find <ISOLATE_DIR>/visual/debug/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/visual/debug --older-than-minutes 43200
    ```
 2. **Launch ONE debugger** (`model: sonnet`) with the brief in
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-debug/references/debugger-brief.md`: `odoo-backend-debugger`

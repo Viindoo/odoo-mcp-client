@@ -121,7 +121,7 @@ MEDIA_PREFIX = f"mcp__plugin_{NAME}_{_normalize('odoo-media')}"
 
 
 @pytest.mark.parametrize("tool_short", ["media_info", "speech_synthesize", "speech_transcribe", "speech_probe",
-                                        "youtube_check", "youtube_status"])
+                                        "youtube_check", "youtube_status", "youtube_captions"])
 def test_every_odoo_media_tool_but_a_public_upload_is_allowed(tool_short):
     """odoo-media is the second LOCAL server: its speech and YouTube tools are auto-allowed like
     odoo-local's; only the one outward publication below is left to the human."""

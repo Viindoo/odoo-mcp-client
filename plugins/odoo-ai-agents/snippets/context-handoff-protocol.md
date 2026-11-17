@@ -1,10 +1,8 @@
 # Context-Handoff Protocol (CHP) - 3-tier agent dispatch
 
-You are an orchestrator skill dispatching worker agents. Tier C (fresh spawn + worklog) is the
-always-correct SSOT for handing context between agents - it loses nothing and works on every
-runtime. CHP is an OPTIMIZATION LAYER that cuts cold-start cost by resuming or forking a worker
-instead of re-spawning it cold; it is NEVER a dependency. When in doubt, use Tier C. Every Tier-A
-and Tier-B path below degrades silently to Tier C, so adopting CHP can never make a run fail.
+You are an orchestrator skill dispatching worker agents. Tier C (fresh spawn + worklog) always
+works and loses nothing. Tiers A and B only cut cold-start cost by resuming or forking a worker;
+each falls back to Tier C, and in doubt Tier C is the choice.
 
 ## Tier A - resume a child you launched (by the id your launch returned)
 
@@ -35,17 +33,18 @@ did not launch, and no child can address you
 
 ## Tier B - fork (read-heavy fan-outs)
 
-For read-only fan-outs (survey passes, per-commit intent extraction, cluster classification), spawn
+For read-only fan-outs, spawn
 each worker with `subagent_type: "fork"`. A fork inherits the parent's full context and shares the
 parent's prompt cache, so it skips cold re-grounding. Each fork still writes its OWN findings file -
-forks never share mutable state. Use Tier B only where workers do not mutate shared state.
+forks never share mutable state. Use Tier B only where workers do not mutate shared state and the
+work needs the launcher's own tier: a fork always runs on the launcher's model, whatever `model`
+the launch passes.
 
 ## Tier C - fresh spawn + worklog (always-correct fallback)
 
-The baseline and current behavior: dispatch a fresh worker by launching it with a written brief,
+Dispatch a fresh worker by launching it with a written brief, at the `model` the work needs,
 and rely on the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) for all cross-agent
-context. The fresh worker reconstructs its mental model from the worklog + the brief. This is always
-correct and always available; Tier A and Tier B only ever replace it as a speed optimization.
+context. The fresh worker reconstructs its mental model from the worklog + the brief.
 
 ## Async park-and-be-resumed semantics
 

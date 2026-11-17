@@ -94,9 +94,7 @@ cluster a 2-digit `<NN>` and a short `<area>` label.
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Survey/analyst family
 delta; never inline that file verbatim into a hard-leaf brief. Launch one `odoo-gap-analyzer` worker per cluster (or one worker total on the fast
 path) at the `model` chosen for that cluster's complexity, honoring the Mode B budget with a
-rolling window. Prefer CHP Tier-B `subagent_type: "fork"`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`); if fork is unavailable, launch a
-fresh `odoo-gap-analyzer` (Tier-C) carrying the explicit brief. Each worker brief carries:
+rolling window. Each worker brief carries:
 1. **Leaf restrictions** - `Do NOT invoke the Skill tool. Do NOT spawn a sub-agent. Use
    Read/Bash + OSM MCP only; the ONLY file you Write is your own shard.`
 2. **Scope, hard** - this cluster's requirements (each `req_id` + text) and the `<area>` label.

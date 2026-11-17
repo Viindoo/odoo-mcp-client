@@ -71,6 +71,8 @@ Contents: 60-docs-site - 65-author-profile - 70-speech - 75-youtube. Each runs o
   mismatch is refused). `voices` null (the endpoint publishes no listing, as many gateways do):
   the voice ids come from the endpoint's own documentation - ONE closed question per language
   naming the ids the operator reads there - and `speech_probe` in step 5 is what confirms them.
+  A voice that differs by video type (one for tutorials, another for marketing videos) is
+  recorded only when the operator asks for it, under `tts.type_voices`.
   5. Write the confirmed
   configuration as JSON under `<state root>/scratch/speech-setup/`, run
   `"$STEPS_DIR/70-speech.sh" record --from-json <file>` and remove the file; then call the

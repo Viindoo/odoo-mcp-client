@@ -3,7 +3,6 @@ name: odoo-modules-upgrade
 argument-hint: "[module-cluster] [target-series]"
 description: >-
   Upgrades custom module code to a higher Odoo major; no database migration
-model: sonnet
 ---
 
 ## Role
@@ -42,7 +41,7 @@ Artifacts: `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/`; the symbols `
 
 **Sequence invariant.** `recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`. NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder` dispatch before the Plan Mode gate; a design doc is produced BEFORE the gate.
 
-**Orphan sweep (every run, BEFORE P0).** `find <ISOLATE_DIR>/modules-upgrade/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md § Clause 3).
+**Orphan sweep (every run, BEFORE P0).** `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/modules-upgrade --older-than-minutes 43200` (${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md § Clause 3).
 
 - **P0 Intake [STOP if `open_questions` non-empty]:** one intake subagent (haiku) -> `intake.md`; classify every module per Hard rule 4; present the candidate list and the proposed cluster, ask, resume at P1. `references/upg-phase-detail.md` § P0.
 - **P1 Recon [4 parallel]:** DAG, `odoo-deprecation-audit`, `odoo-version-diff`, Transitive Symbol Survey -> `graph.md`, `deprecation.md`, `version-delta.md`, `transitive-symbol-survey.md`; a DAG cycle is a `concerns:` entry the user breaks. § P1.

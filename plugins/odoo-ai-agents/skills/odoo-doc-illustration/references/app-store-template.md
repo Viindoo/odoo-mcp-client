@@ -1,13 +1,14 @@
 # App Store Template Reference
 
-**Contents:** 1. Sanitizer Rules (mandatory - violations are stripped silently) - 2. Section Map (the buyer's decision path) - 3. Bootstrap-5 Fragment Skeleton - 4. Image Specifications - 5. Manifest Store Keys - 6. i18n Conventions
+**Contents:** 1. Sanitizer Rules - 2. Section Map (the buyer's decision path) - 3. Bootstrap-5 Fragment Skeleton - 4. Images - 5. Manifest keys the page work touches - 6. Files per language
 
-Assembly reference for `static/description/index.html` and related assets of an Odoo App Store
-listing. `{{PRIMARY_HEX}}` resolves from `<SHARE_DIR>/brand-tokens.json` when that file exists - a
-map of CSS custom-property NAME -> COLOUR (e.g. `{ "--primary": "#1E88E5" }`), read by
-VALUE: an unfamiliar token NAME is never a miss, take the colour it maps to - else from user input,
-else the Odoo palette `#714B67`. A typeface never comes from that map: typography is Bootstrap-5
-classes plus inline `font-weight` / `font-size` only. `<SHARE_DIR>` is the captured absolute path
+Assembly reference for `static/description/index.html` of an Odoo App Store listing.
+`{{PRIMARY_HEX}}` is the `primary` of the brief's `BRAND`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/vendor-facts.md` § The palette is roles), else the Odoo palette
+`#714B67` with bg-light `#F8F4F8`. It is the only brand colour of the page's fields and headings;
+`secondary` marks an accent at most, a state colour only its state. A typeface never comes from
+the palette: typography is Bootstrap-5 classes plus
+inline `font-weight` / `font-size` only. `<SHARE_DIR>` is the captured absolute path
 (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), never the placeholder.
 
 ---
@@ -19,11 +20,12 @@ classes plus inline `font-weight` / `font-size` only. `<SHARE_DIR>` is the captu
 | Fragment only | Start at `<section>`. NO `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`. |
 | No JavaScript | No `<script>` tags, no inline event handlers (`onclick`, `onmouseover`, etc.). |
 | No external CDN links | No `<link>` tags (Bootstrap CDN, Google Fonts, Font Awesome CDN). The store pre-loads Bootstrap 5 - use its classes directly. The store's own rule (apps.odoo.com vendor guidelines): YouTube canonical links and Microsoft Teams links survive, every other external link is invalidated - the store rewrites the anchor to plain text and keeps its words. So an external link's visible text IS its URL (host and path, e.g. `support.acme-erp.com/tickets`), never a label such as "Open a ticket"; the reference gate's `LINK_TEXT_HIDES_URL` enforces it (a YouTube link is exempt: the store keeps it). |
+| One carousel, nothing else that hides content | The store keeps Bootstrap 5 carousel markup (`carousel slide`, `carousel-inner`, `carousel-item`, the element's `id`, `data-bs-*` attributes) and loads the script that runs it. The INSIGHTS carousel of § 3 is the only one: no tab, no collapse, no second carousel. |
 | No bare `<iframe>` | The store strips every `<iframe>`. A video is the Odoo website video container - `<div class="media_iframe_video" data-oe-expression="//www.youtube.com/embed/<id>?rel=0">` with the `<iframe>` as its child (§ 3 VIDEO): the store's own frontend rebuilds the iframe from `data-oe-expression` after stripping the child, and a marketplace that keeps the child renders it directly. YouTube only. |
 | No address anywhere | No `mailto:`, no email address in text, alt or title, obfuscated or not: the page is public and indexed, addresses are harvested (`LINK_MAILTO`, `EMAIL_ADDRESS`). Contact goes through the author profile's pre-sales and support URLs (`${CLAUDE_PLUGIN_ROOT}/snippets/public-docs-contract.md`); an address the author insists on ships only as an image made by `${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`, with an alt text that is not the address. |
 | Bootstrap 5 for flexbox | Use `d-flex align-items-center justify-content-between gap-3`, `row`/`col-*` grid. Do NOT use inline `display:flex`, `align-items`, `justify-content`, `flex-wrap`, `flex-direction`, `gap` - all stripped. |
 | Hex colors only | `background-color:#714B67`, `color:#ffffff`. No `rgba()`, no `linear-gradient` (both stripped). |
-| HTML entities | `&rarr;` not `->`, `&mdash;` not `--`, `&copy;` not `(c)`. Raw Unicode glyphs may corrupt on render. |
+| HTML entities | `&rarr;` not `->`, `&mdash;` not `--`, `&copy;` not `(c)`, `&#10003;` for a check mark. Raw Unicode glyphs may corrupt on render. |
 | Image paths and module links | Per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`. |
 | Safe inline styles | `background-color`, `color`, `font-weight`, `font-size`, `line-height`, `padding`, `margin`, `border`, `border-radius`, `width`, `height`, `max-width`, `text-align` survive. Prefer a Bootstrap 5 utility class wherever one exists (`gap-*`, `ratio`, `overflow-hidden`, `mb-3`). |
 | Legacy oe_* classes | Still accepted. Keep them when the module already uses them; otherwise Bootstrap 5. Never both in one file. |
@@ -33,35 +35,41 @@ classes plus inline `font-weight` / `font-size` only. `<SHARE_DIR>` is the captu
 ## 2. Section Map - the buyer's decision path
 
 The buyer is a developer, a business owner or an Odoo consultant: expert, short of time and
-allergic to being sold to. The page answers their questions in the order they ask them, in about
-thirty seconds of reading, then stops. Reviews, ratings and the install or buy button are the
-store's own; the page never imitates them and has no call-to-action section.
+allergic to being sold to. The page answers their questions in the order they ask them, then
+stops. Reviews, ratings, the price, the version and the install or buy button are the store's
+own: the page never imitates them, has no call-to-action section and names no Odoo or product
+version anywhere in its visible text (`PAGE_NAMES_SERIES`).
 
-Targets, enforced by the reference gate (`PAGE_TOO_LONG`, `PAGE_TOO_MANY_IMAGES`): at most 700
-words of visible text and 8 images (the cover, three proof shots, up to four more); exactly three
-WHAT-CHANGES blocks and five FAQ entries.
+Targets, enforced by the reference gate (`PAGE_TOO_LONG`, `PAGE_TOO_MANY_IMAGES`, `CAROUSEL_*`): at most 900
+words of visible text, 8 images outside the INSIGHTS carousel and 5 slides in it; exactly three
+WHAT-CHANGES blocks, five FAQ entries, at most 18 FEATURES lines.
 
 Sources: `copy` = the block of that key in the marketing copy, written from the buyer profile;
 `catalog` = `feature-catalog.jsonl`; `captures` = screenshots of the module's tasks; `manifest` =
 the module descriptor; `brief` = a value the caller supplies; `dependents` = the vendor's own
 installable modules whose `depends` names this one, listed by
 `${CLAUDE_PLUGIN_ROOT}/scripts/lib/module_dependents.py <module> --addons-path <ADDONS_PATH>
---author "<manifest author>"`.
+--author "<manifest author>"`; `requirements` =
+`${CLAUDE_PLUGIN_ROOT}/scripts/lib/module_requirements.py <module directory> --addons-path
+<ADDONS_PATH>`.
 
-| # | Key | ID | The buyer asks | Content | Source | Required |
+| # | Key | ID | The buyer asks | Content | Source | Present |
 |---|---|---|---|---|---|---|
-| 1 | HERO | `#overview_block` | Is this what I am looking for? | One outcome sentence for the buyer persona (the result, never the module name), a "For <segment>" line, the tagline = manifest `summary`, the cover; then the compatibility line - series, every edition the manifest supports, license - what a consultant checks first | copy + manifest | Yes |
-| 2 | WHAT-CHANGES | `#changes_block` | Does it fit my work? | Exactly three blocks "what changes for your team": the work as the team does it today, what it becomes, each tied to ONE verified catalog feature and ONE proof shot | copy + catalog + captures | Yes |
-| 3 | VIDEO | `#video_block` | Show me | One video with ENGLISH narration (the store page is English) in the container of § 1; no English video = no section | brief | Optional |
-| 4 | DAY-ONE | `#day_one_block` | What do I have on day one? | What ships ready to use (data, templates, packs, connections) and what the administrator configures first - from the module's data files and the catalog, never a count or a duration the module does not state | catalog + manifest | Recommended |
-| 5 | INCLUDED | `#included_block` | What else will I need? | What this module covers on its own, then the vendor's optional extensions as cards - the display name linked in the root-relative store form of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module (the same path works on the vendor's marketplace and on the Odoo Apps Store), one or two sentences of the outcome from that module's manifest `summary` or catalog; only modules the `dependents` source lists, up to 6, the ones the buyer needs next first, the rest in the report; no price figure anywhere (the store shows prices; prices change) | manifest + dependents | Yes |
-| 6 | FAQ | `#faq_block` | What could go wrong? | Exactly five questions a buyer asks before paying - where the data goes, how cost is controlled, who sees what, which languages, what it takes to run or extend it - each answered plainly; a real limit stated as a fact earns more trust than a claim | copy | Yes |
-| 7 | TRY-AND-SUPPORT | `#support_block` | How do I evaluate it, whom do I ask? | The evaluation path (the Documentation tab, `live_test_url` when the manifest has one, the video) and two contact cards, pre-sales `{{PRESALES_URL}}` and technical support `{{SUPPORT_URL}}`, from the author profile; a card whose URL the profile lacks is omitted and reported as a gap, never filled | brief + author profile | Recommended |
-| 8 | TECH | `#requirement_block` | (the developer) | Series, editions, required modules (each module of the same vendor linked in the store form, text = its display name; a core or third-party module by name, no link), license, languages shipped | manifest | Yes |
+| 1 | HERO | `#overview_block` | Is this what I am looking for? | One outcome sentence for the buyer persona (the result, never the module name), a "For <segment>" line, the tagline = manifest `summary`, a capture of the module's main screen; then the compatibility line - every edition the manifest supports, the license, the languages shipped | copy + manifest + captures | Always |
+| 2 | WHAT-CHANGES | `#changes_block` | Does it fit my work? | Exactly three blocks "what changes for your team": the work as the team does it today, what it becomes, each tied to ONE verified catalog feature and ONE proof shot | copy + catalog + captures | Always |
+| 3 | INSIGHTS | `#insights_block` | What will I see, to decide? | The module's reports and dashboards, for the owner and the managers: per report one capture taken on demo data that gives the chart or table a shape, titled with the management question it answers, and one sentence saying where its figures come from. One report: the image alone. Two to five: the carousel of § 3, the weightiest question first. More: the five weightiest, the others stay FEATURES lines. An index under the carousel lists every question | catalog (`type: report`) + captures | When the catalog holds a report |
+| 4 | VIDEO | `#video_block` | Show me | One video narrated in the page's language, in the container of § 1 | brief | When such a video exists |
+| 5 | FEATURES | `#features_block` | Does it cover my case? | The catalog as a list to scan: three to five groups named after an area of the user's work (never a menu or a model), one capability per line in the buyer's words, 14 words at most; then, last, one group of what the module guarantees beyond functions (access by role, multi-company, audit trail, behaviour on a weak connection, device) - facts verified like any other claim, the group omitted when there is none. No image | catalog | Always |
+| 6 | DAY-ONE | `#day_one_block` | What do I have on day one? | What ships ready to use (data, templates, packs, connections) and what the administrator configures first - from the module's data files and the catalog, never a count or a duration the module does not state | catalog + manifest | When the source has content |
+| 7 | EXTENSIONS | `#extensions_block` | What else can I add? | The vendor's optional extensions as cards - the display name linked in the root-relative store form of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module, one or two sentences of the outcome from that module's manifest `summary` or catalog; only modules the `dependents` source lists, up to 6, the ones the buyer needs next first, the rest in the report; no price figure anywhere | dependents | When `dependents` lists a module |
+| 8 | FAQ | `#faq_block` | What could go wrong? | Exactly five questions a buyer asks before paying - where the data goes, how cost is controlled, who sees what, what it takes to run or extend it - each answered plainly; a real limit stated as a fact earns more trust than a claim | copy | Always |
+| 9 | TRY-AND-SUPPORT | `#support_block` | How do I evaluate it, whom do I ask? | The evaluation path (the Documentation tab, `live_test_url` when the manifest has one, the video) and two contact cards, pre-sales `{{PRESALES_URL}}` and technical support `{{SUPPORT_URL}}`, from the author profile; a card whose URL the profile lacks is omitted and reported as a gap, never filled | brief + author profile | When the source has content |
+| 10 | TECH | `#requirement_block` | What must be installed on the server? | Only what the module needs beyond Odoo itself: the Python packages and system programs the `requirements` source prints | requirements | When `requirements` prints `TECH_SECTION=yes` |
 
 Page order is table order; every section is full width, one column, no tab block (a tab hides
-content and the buyer does not click to find out). Omit an `Optional` or `Recommended` section
-whose source is empty rather than leaving placeholders.
+content and the buyer does not click to find out). The INSIGHTS carousel stands without a click:
+its first slide and its index are on the page, and it never starts by itself. A section whose condition is not met is
+omitted, never left as a placeholder.
 
 **Voice.** Calm, specific, evidence-led; outcome before feature; the buyer's words, never a class,
 field or model name (unless the buyers are developers and the technical names are the value). No
@@ -73,9 +81,8 @@ is not written. Present tense, no history.
 
 ## 3. Bootstrap-5 Fragment Skeleton
 
-Replace `{{PLACEHOLDER}}` values: `{{PRIMARY_HEX}}` per the header, `{{EXT}}` from the cover's
-captured format, every other placeholder from the source its Section Map row names (§ 2).
-Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light `#F8F4F8`.
+Replace `{{PLACEHOLDER}}` values: `{{PRIMARY_HEX}}` per the header, every other placeholder from
+the source its Section Map row names (§ 2).
 
 ```html
 <!-- static/description/index.html - FRAGMENT ONLY, no html/head/body -->
@@ -112,17 +119,18 @@ Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light 
       </div>
     </div>
   </div>
-  <!-- Cover - the widest image slot: measure its rendered width and frame the shot per
-       doc-capture-mechanics.md § Frame for the placement slot -->
+  <!-- The module's main screen - the widest image slot: measure its rendered width and frame the
+       shot per doc-capture-mechanics.md § Frame for the placement slot. Never the store cover:
+       the store shows that one above the page -->
   <div class="row mt-4">
     <div class="col-md-10 offset-md-1 text-center" style="border-radius:20px;padding:3px;background-color:{{PRIMARY_HEX}};">
-      <img alt="{{MODULE_DISPLAY_NAME}}" class="img-fluid" loading="lazy" src="./main_screenshot.{{EXT}}"
+      <img alt="{{what the screen shows}}" class="img-fluid" loading="lazy" src="./assets/{{SCREEN_FILE}}"
            style="border-radius:15px;display:block;width:100%;height:auto;">
     </div>
   </div>
-  <!-- Compatibility line: what a consultant checks first -->
+  <!-- Compatibility line: what a consultant checks first. No version: the store states it -->
   <p class="text-center mt-3 mb-0" style="font-size:14px;color:#666;">
-    Odoo {{SERIES}} &middot; {{EDITIONS - each edition the manifest supports}} &middot; {{LICENSE}}
+    {{EDITIONS - each edition the manifest supports}} &middot; {{LICENSE}} &middot; {{LANGUAGES - the locales the module ships translations for}}
   </p>
 </section>
 
@@ -147,11 +155,45 @@ Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light 
   </div>
 </section>
 
-<!-- VIDEO - omit the section when no ENGLISH narration exists -->
+<!-- INSIGHTS - omit the section when the catalog holds no report. One report: its image, title
+     and sentence alone, no carousel and no index -->
+<section id="insights_block" class="py-4">
+  <div style="background-color:#f8f8f8;padding:40px;border-radius:15px;">
+    <h2 class="text-center mb-4" style="font-size:30px;font-weight:bold;">What you see as a manager</h2>
+    <!-- No data-bs-ride: a reader needs time to read a chart. Exactly one item is active -->
+    <div id="insights_carousel" class="carousel carousel-dark slide" data-bs-interval="false">
+      <div class="carousel-inner">
+        <!-- One item per report, two to five, the weightiest question first -->
+        <div class="carousel-item active">
+          <img alt="{{QUESTION}}" class="d-block w-100" loading="lazy" src="./assets/{{REPORT_FILE}}"
+               style="border-radius:15px;height:auto;">
+          <p class="text-center mt-3 mb-1" style="font-size:20px;font-weight:700;">{{QUESTION - the management question this report answers}}</p>
+          <p class="text-center mb-0" style="font-size:15px;color:#666;">{{SOURCE - where its figures come from, one sentence}}</p>
+        </div>
+      </div>
+      <a class="carousel-control-prev" href="#insights_carousel" role="button" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+      </a>
+      <a class="carousel-control-next" href="#insights_carousel" role="button" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+      </a>
+    </div>
+    <!-- The index: one entry per slide, in slide order; it names every report where the script
+         does not run -->
+    <div class="row g-2 mt-3">
+      <div class="col-md-4">
+        <a href="#insights_carousel" data-bs-target="#insights_carousel" data-bs-slide-to="0"
+           class="d-block p-2" style="background-color:#fff;border:1px solid #e8e8e8;border-radius:8px;color:#333;font-size:14px;">{{QUESTION}}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VIDEO - omit the section when no video narrated in the page's language exists -->
 <section id="video_block" class="py-4">
   <div style="background-color:#f4f8ff;border-radius:20px;padding:40px 24px;">
     <div class="mx-auto text-center" style="max-width:960px;">
-      <h2 style="font-size:28px;font-weight:bold;">{{VIDEO_TITLE - what the viewer sees, e.g. "Ninety seconds, start to finish"}}</h2>
+      <h2 style="font-size:28px;font-weight:bold;">{{VIDEO_TITLE - what the viewer sees}}</h2>
       <!-- The Odoo website video container (§ 1): the store rebuilds the iframe from
            data-oe-expression; a marketplace that keeps the child iframe renders it as is -->
       <div class="media_iframe_video" data-oe-expression="//www.youtube.com/embed/{{VIDEO_ID}}?rel=0">
@@ -162,6 +204,33 @@ Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light 
       <p class="mt-3 mb-0" style="font-size:14px;">
         <a href="https://www.youtube.com/watch?v={{VIDEO_ID}}">youtube.com/watch?v={{VIDEO_ID}}</a>
       </p>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features_block" class="py-4">
+  <div style="background-color:#f8f8f8;padding:40px;border-radius:15px;">
+    <h2 class="text-center mb-4" style="font-size:30px;font-weight:bold;">Features</h2>
+    <div class="row g-4">
+      <!-- One column per group, three to five groups -->
+      <div class="col-md-6 col-lg-4">
+        <h3 style="font-size:17px;font-weight:700;color:{{PRIMARY_HEX}};">{{GROUP - an area of the user's work}}</h3>
+        <ul style="list-style:none;padding-left:0;margin-bottom:0;">
+          <li class="py-1" style="font-size:14px;">&#10003; {{ONE CAPABILITY - one line}}</li>
+        </ul>
+      </div>
+    </div>
+    <!-- Last, only when the module has such facts: what it guarantees beyond functions -->
+    <div class="bg-white rounded p-4 mt-4" style="border:1px solid #e8e8e8;">
+      <h3 style="font-size:17px;font-weight:700;color:{{PRIMARY_HEX}};">{{GROUP TITLE - e.g. "Built for daily use"}}</h3>
+      <div class="row">
+        <div class="col-md-6">
+          <ul style="list-style:none;padding-left:0;margin-bottom:0;">
+            <li class="py-1" style="font-size:14px;">&#10003; {{ONE VERIFIED FACT - one line}}</li>
+          </ul>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -183,16 +252,10 @@ Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light 
   </div>
 </section>
 
-<!-- INCLUDED -->
-<section id="included_block" class="py-4">
+<!-- EXTENSIONS - only modules module_dependents.py listed, up to 6 -->
+<section id="extensions_block" class="py-4">
   <div style="background-color:#f8f8f8;padding:40px;border-radius:15px;">
-    <h2 class="text-center mb-2" style="font-size:30px;font-weight:bold;">What is included</h2>
-    <p class="text-center mb-4" style="font-size:15px;">
-      {{ONE OR TWO SENTENCES - what this module covers on its own; no price figure}}
-    </p>
-    <!-- Optional extensions: only modules module_dependents.py listed, up to 6; omit the grid
-         when it lists nothing -->
-    <h3 class="text-center mb-3" style="font-size:20px;font-weight:700;">Optional extensions</h3>
+    <h2 class="text-center mb-4" style="font-size:30px;font-weight:bold;">Extend it</h2>
     <div class="row g-4">
       <div class="col-md-6 col-lg-4 d-flex">
         <div class="flex-fill" style="padding:24px;border-radius:12px;background:#fff;border:1px solid #e8e8e8;">
@@ -245,19 +308,14 @@ Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light 
   </div>
 </section>
 
-<!-- TECH -->
+<!-- TECH - only when module_requirements.py prints TECH_SECTION=yes -->
 <section id="requirement_block" class="py-4">
   <div style="background:#f4f4f4;padding:40px;border-radius:15px;">
     <h2 class="text-center mb-4" style="font-size:30px;font-weight:bold;">Technical requirements</h2>
     <div class="p-3 bg-white rounded">
       <ul style="list-style:none;padding-left:0;margin-bottom:0;">
-        <li class="py-2"><strong>Odoo version:</strong> {{SERIES}}</li>
-        <li class="py-2"><strong>Editions:</strong> {{each edition the manifest supports}}</li>
-        <li class="py-2"><strong>Required modules:</strong> {{depends list from the manifest - each module of the
-            same vendor as a link in the store form of module-doc-references.md § Links to another module,
-            text = its display name; a core or third-party module as its display name, no link}}</li>
-        <li class="py-2"><strong>License:</strong> {{manifest license key}}</li>
-        <li class="py-2"><strong>Languages:</strong> {{the locales the module ships translations for}}</li>
+        <li class="py-2"><strong>Python packages to install:</strong> {{PYTHON_EXTRA}}</li>
+        <li class="py-2"><strong>System programs:</strong> {{BIN}}</li>
       </ul>
     </div>
   </div>
@@ -266,62 +324,40 @@ Default palette when `brand-tokens.json` is absent: primary `#714B67`, bg-light 
 
 ---
 
-## 4. Image Specifications
+## 4. Images
 
 Where each image lives, its file name, format and how a doc references it:
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images and § Manifest images. Every
 screenshot size follows from the measured width of the slot it fills
-(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § Frame for the placement slot);
-the module icon is the only fixed size.
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-capture-mechanics.md` § Frame for the placement slot).
 
-| Asset | Size | Notes |
+| Asset | Made by | Notes |
 |---|---|---|
-| Module icon (`static/description/icon.png`, PNG only) | the size and style of the series' core icons (`icon_gate.py facts`); the store resizes it | No manifest key needed - implicit path. Missing = ranking penalty. Language-neutral. |
-| Cover | from the hero slot | Shown in the HERO and, as the first `images` entry, in the store's browse and grid views. A GIF carries an animated walkthrough. |
-| Proof shots | from the WHAT-CHANGES slot | Inline in `index.html`; further `manifest['images']` entries feed the store carousel. |
+| Module icon (`static/description/icon.png`, PNG only) | `odoo-icon-design` | Implicit path, no manifest key. Missing = ranking penalty. Language-neutral. |
+| Store cover (`static/description/main_screenshot.png`) | `odoo-icon-design`, cover mode | The only `images` entry: a designed product cover at 2:1, shown by the store above the page and in its lists (the Odoo Apps Store shows one image and crops it to 2:1). Not embedded in the page. |
+| Main screen, proof shots, report shots | the page's own captures | Inline in `index.html`, under `assets/`. A report is captured as the manager opens it - grouped, filtered and measured to answer its question - on demo data that gives it a shape; an empty report is not captured. |
 
 ---
 
-## 5. Manifest Store Keys
+## 5. Manifest keys the page work touches
 
-Keys that drive store display or ranking. Never fabricate commercial values (`price`, `currency`,
-`support`, `live_test_url`) - audit what the user provides and suggest; leave absent if unknown.
+Never fabricate a commercial value (`price`, `currency`, `live_test_url`): report it missing.
 
-| Key | Type | Where displayed on store | Audit guidance |
-|---|---|---|---|
-| `name` | str | h1 on listing page + page title + store search | Max 25 chars (vendor guideline). No adjectives or company name prefix. |
-| `summary` | str | Grid/browse teaser text (NOT on the detail page itself). Tagline source for `index.html` hero. | 1-2 sentences, outcome-first. Match to hero tagline in `index.html`. |
-| `description` | str (RST) | Description tab fallback ONLY when `index.html` is absent | Store prefers `index.html`; RST-only incurs a ranking penalty. |
-| `images` | list[str] | First entry = cover in browse/grid. Subsequent entries = store carousel. | At least one entry (ranking penalty if absent). Each entry per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images (the English cover first). |
-| `license` | str | License row in sidebar metadata table | Required (ranking penalty if missing). Common values: `LGPL-3`, `OPL-1`, `AGPL-3`. |
-| `price` | float | Price display; determines Add-to-Cart vs Download button | Minimum 9 EUR if set. Absent or `<= 0` = free. DO NOT fabricate; ask user. |
-| `currency` | str | Price display | `EUR` (default) or `USD` only. Audit: only set when `price` is set. |
-| `support` | str | Shown to purchasers only (after purchase confirmation) | Email address the store shows only after purchase - the one place an address may live. Take it from the author profile (`support_email`); never fabricate, never copy it into the page. |
-| `live_test_url` | str | "Live Preview" button on listing | Must point to a live, accessible demo instance. Verify before writing. |
-| `application` | bool | Browsing category filter (standalone apps vs extensions) | `True` for top-level apps; `False` (default) for extension modules. |
-| `category` | str | Browse navigation tree | Use `/` hierarchy (e.g. `Accounting / Localizations`). Check existing category tree on apps.odoo.com for valid values. |
-| `maintainer` | str | Author/maintainer link in listing header (if different from `author`) | Separate from `author`; use when maintainer differs from original author. |
-| `website` | str | Website row in sidebar metadata | Author/vendor URL. |
-| `version` | str | Version badge (`v SERIES`) in sidebar | Format `SERIES.major.minor.patch` (e.g. `17.0.1.0.0`). SERIES stripped for display. |
+| Key | Rule |
+|---|---|
+| `summary` | The hero tagline matches it: one or two sentences, outcome-first. |
+| `images` | Exactly one entry, the store cover (§ 4). The page work never writes it. |
+| `support` | An email address the store shows to purchasers only - the one place an address may live. From the author profile (`support_email`) when the manifest has none; never copied into the page. |
+| `live_test_url` | Named in TRY-AND-SUPPORT when present; never written. |
+| The video link | The watch URL of the page's video goes into the manifest key the vendor's other modules use for a video link (a key whose value is a video URL; per-locale variants spelled as those manifests spell them). No module of the vendor has one: leave the manifest as it is and return the question. |
+| `license`, `icon.png`, the cover | Missing: listed as a store-readiness gap in the report. |
 
 ---
 
-## 6. i18n Conventions
+## 6. Files per language
 
-**English is the mandatory canonical**: the final language set for any module documentation is
-`{en_US}` union with all registry-resolved locales (`odoo-doc-illustration` § Language resolution).
-
-| File | Role | Notes |
-|---|---|---|
-| `static/description/index.html` | English canonical - Description tab | No locale suffix. Always present. |
-| `static/description/index_<locale>.html` | Localized Description tab | One file per non-English locale (e.g. `index_vi_VN.html`). Its images per `module-doc-references.md` § Images. |
-| `doc/index.rst` | English canonical - Documentation tab | No locale suffix. Tab appears on listing only when this file exists. |
-| `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
-
-Per-locale screenshots are captured separately; their location, their names and which one a
-localized page shows follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
-The icon is language-neutral (one `icon.png`, no locale suffix).
-
-**Tab split discipline**: marketing copy lives in `index.html`; the user guide for the business
-roles (Overview, Setup, one chapter per role, Troubleshooting / FAQ) lives in `doc/index.rst`.
-Nothing is duplicated between the two tabs.
+| File | Role |
+|---|---|
+| `static/description/index.html` | English, canonical - the Description tab. Always present. |
+| `static/description/index_<locale>.html` | The Description tab in another language, with that language's captures and video. |
+| `doc/index.rst`, `doc/index_<locale>.rst` | The Documentation tab - the user guide, never repeated on this page. |

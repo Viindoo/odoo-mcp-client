@@ -175,3 +175,71 @@ def test_the_consent_out_json_is_private_to_the_operator(tmp_path):
     assert json.loads(out.read_text())["youtube_refresh_token_docs"] == "b"
     with pytest.raises(FileExistsError):
         youtube_oauth.write_out_json({}, str(out))
+
+
+# --- captions right after an upload ------------------------------------------------------------
+
+def _caption_world(monkeypatch, answers):
+    """Scripted answers for youtube_upload's requests ('404' = videoNotFound, '404x' = another 404,
+    a number = that HTTP status, 'ok' = success); returns (module, sleeps, calls)."""
+    import io
+    import urllib.error
+    import youtube_upload as yu
+    sleeps, calls = [], []
+    queue = list(answers)
+
+    class _Resp:
+        status = 200
+        headers = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    def fake_urlopen(req, timeout=0):
+        calls.append(req.full_url)
+        answer = queue.pop(0) if queue else "ok"
+        if answer == "ok":
+            return _Resp()
+        body = b'{"error":{"errors":[{"reason":"videoNotFound"}]}}' if answer == "404" else b'{"error":{"errors":[{"reason":"other"}]}}'
+        code = 404 if answer.startswith("404") else int(answer)
+        raise urllib.error.HTTPError(req.full_url, code, "x", {}, io.BytesIO(body))
+
+    monkeypatch.setattr(yu.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(yu, "_wait", lambda delay, cancel: sleeps.append(delay))
+    return yu, sleeps, calls
+
+
+def test_a_caption_insert_is_retried_while_the_video_is_not_there_yet(tmp_path, monkeypatch):
+    srt = tmp_path / "vi_VN.srt"; srt.write_text("x")
+    yu, sleeps, calls = _caption_world(monkeypatch, ["404", "404", "ok"])
+    assert yu.insert_captions("tok", "vid", {"vi_VN": str(srt)}) == {"vi_VN": "ok"}
+    assert len(calls) == 3 and sleeps == list(yu.CAPTION_BACKOFF_S[:2])
+
+
+def test_a_caption_that_never_finds_the_video_is_reported_failed_after_the_backoff_ends(tmp_path, monkeypatch):
+    srt = tmp_path / "vi_VN.srt"; srt.write_text("x")
+    yu, sleeps, calls = _caption_world(monkeypatch, ["404"] * 20)
+    out = yu.insert_captions("tok", "vid", {"vi_VN": str(srt), "en_US": str(srt)})
+    assert set(out) == {"vi_VN", "en_US"} and all(v.startswith("failed") for v in out.values())
+    assert len(calls) == 2 * (len(yu.CAPTION_BACKOFF_S) + 1)
+
+
+def test_another_404_and_a_missing_file_are_not_retried_and_one_language_does_not_stop_the_next(tmp_path, monkeypatch):
+    srt = tmp_path / "en_US.srt"; srt.write_text("x")
+    yu, sleeps, calls = _caption_world(monkeypatch, ["404x"])
+    out = yu.insert_captions("tok", "vid", {"vi_VN": str(tmp_path / "gone.srt"), "en_US": str(srt)})
+    assert out["vi_VN"].startswith("failed") and out["en_US"].startswith("failed")
+    assert sleeps == [] and len(calls) == 1   # the missing file made no request; the other 404 was final
+
+
+def test_the_other_calls_do_not_retry_a_404(monkeypatch):
+    yu, sleeps, calls = _caption_world(monkeypatch, ["404"])
+    with pytest.raises(yu.UploadError):
+        yu.set_thumbnail("tok", "vid", __file__)
+    assert sleeps == [] and len(calls) == 1

@@ -42,9 +42,6 @@ Rules
                        a guide - the forms Odoo and the stores rewrite to the module's
                        static/description/
   IMG_MISSING          image in its doc's form with no file under static/description/
-  IMG_COVER_NOT_SHOWN  static/description/index.html references no image resolving to the file
-                       manifest images[0] names (the manifest is read even when not passed);
-                       reported as `static/description/index.html:0: IMG_COVER_NOT_SHOWN: <entry>`
   IMG_ORPHAN           whole-module mode only: an image under static/description/** or doc/**
                        (icon.png / icon.svg exempt) whose file name no other text file of the
                        module mentions; reported as `<path>:0: IMG_ORPHAN: <path>`. A mention is
@@ -68,6 +65,10 @@ Rules
                        static/description/assets/<file> or static/description/<cover>
   MANIFEST_COVER       manifest images[0] that is not static/description/main_screenshot.<ext>
                        (a locale variant is never the cover)
+  MANIFEST_IMAGES_COUNT manifest `images` list with more than one entry (the store shows only the
+                       first); one finding, at the list
+  MANIFEST_COVER_RATIO manifest cover file, existing with a readable pixel size, that is not 2:1
+                       (width / height within 1% of 2); the finding names the size
   IMG_NOT_FLUID        RST image (image, figure or substitution; module file or https URL) whose
                        `:class:` lacks `img-fluid` (so the image can overflow the page), or - a block
                        image - lacks `d-block` or `mx-auto`, or - an inline substitution image -
@@ -90,10 +91,26 @@ Rules
                        never `Open a ticket`); an anchor to a YouTube host is exempt, the store
                        keeps those as links
   PAGE_TOO_LONG        store page (index.html, index_<locale>.html) whose visible text exceeds
-                       700 words (tags, comments, script and style bodies not counted)
+                       900 words (tags, comments, script and style bodies not counted)
+  PAGE_NAMES_SERIES    store page whose visible text holds the --series value (`19.0`) as a token
+                       of its own - not inside a longer number, an attribute, an href, a comment,
+                       a script or a style; the stores already show the version
   PAGE_TOO_MANY_IMAGES store page with more than 8 <img> tags
-                       (the two page-size rules exist because a buyer reads a store page in about
-                       30 seconds)
+                       outside a carousel (the two page-size rules exist because a buyer reads a
+                       store page in about 30 seconds); the images inside an element whose class
+                       list holds `carousel` are slides and are not counted here
+  CAROUSEL_TOO_MANY_SLIDES  store page carousel with more than 5 `carousel-item` elements
+  CAROUSEL_SINGLE_SLIDE     store page carousel with exactly one `carousel-item` (one report is a
+                       plain image)
+  CAROUSEL_ACTIVE      store page carousel whose number of `carousel-item` elements carrying the
+                       class `active` is not exactly one
+  CAROUSEL_AUTOPLAY    store page carousel element carrying `data-bs-ride`
+  CAROUSEL_INDEX       store page carousel whose slides are not each listed by name outside it: the
+                       count of elements outside the carousel carrying `data-bs-slide-to` and
+                       `data-bs-target="#<carousel id>"` differs from its slide count, or the
+                       carousel has no id
+  CAROUSEL_SLIDE_IMAGE store page `carousel-item` that does not hold exactly one <img>
+  CAROUSEL_MORE_THAN_ONE    store page with a second carousel (one finding per extra carousel)
 Allowed: tel:, #anchors, https links to non-store pages whose text shows the host, the root-relative
 module and vendor-listing store paths above, public https:// images.
 
@@ -178,10 +195,12 @@ _ORPHAN_EXEMPT = ("static/description/icon.png", "static/description/icon.svg")
 _DIR_BEFORE = re.compile(r"([^/\\\s\"'`(<>=]*)/$")
 _SKIP_DIRS = (".git", "__pycache__")
 _MANIFESTS = ("__manifest__.py", "__openerp__.py")
-_ENGLISH_PAGE = "static/description/index.html"
 _STORE_PAGE = re.compile(r"^static/description/index(?:_[A-Za-z0-9]+(?:[_-][A-Za-z0-9]+)*)?\.html$")
-PAGE_MAX_WORDS = 700
+PAGE_MAX_WORDS = 900
 PAGE_MAX_IMAGES = 8
+CAROUSEL_MAX_SLIDES = 5
+_VOID_TAGS = frozenset(("area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
+                        "param", "source", "track", "wbr"))
 _YOUTUBE_HOSTS = ("youtube.com", "www.youtube.com", "youtu.be", "youtube-nocookie.com")
 
 
@@ -274,17 +293,17 @@ def _mentions(pattern, text, parent):
     return False
 
 
-def _pixel_width(path):
-    """Pixel width of a PNG, GIF or JPEG read from the file header; None when unreadable."""
+def _pixel_size(path):
+    """(width, height) of a PNG, GIF or JPEG read from the file header; None when unreadable."""
     try:
         with open(path, "rb") as fh:
             data = fh.read()
     except OSError:
         return None
-    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 20:
-        return struct.unpack(">I", data[16:20])[0]
-    if data[:3] == b"GIF" and len(data) >= 8:
-        return struct.unpack("<H", data[6:8])[0]
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        return struct.unpack(">II", data[16:24])
+    if data[:3] == b"GIF" and len(data) >= 10:
+        return struct.unpack("<HH", data[6:10])
     if data[:2] == b"\xff\xd8":
         i = 2
         while i + 4 <= len(data):
@@ -296,10 +315,19 @@ def _pixel_width(path):
             elif marker == 0x01 or 0xD0 <= marker <= 0xD8:
                 i += 2
             elif 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-                return struct.unpack(">H", data[i + 7:i + 9])[0] if i + 9 <= len(data) else None
+                if i + 9 > len(data):
+                    return None
+                height, width = struct.unpack(">HH", data[i + 5:i + 9])
+                return width, height
             else:
                 i += 2 + struct.unpack(">H", data[i + 2:i + 4])[0]
     return None
+
+
+def _pixel_width(path):
+    """Pixel width of a PNG, GIF or JPEG; None when unreadable."""
+    size = _pixel_size(path)
+    return size[0] if size else None
 
 
 def _rst_options(lines, index, directive_indent):
@@ -316,12 +344,17 @@ def _rst_options(lines, index, directive_indent):
 
 def _manifest_images(manifest_file):
     """(lineno, value) of each string in the descriptor's `images` list."""
+    return _manifest_image_list(manifest_file)[1]
+
+
+def _manifest_image_list(manifest_file):
+    """(line of the `images` list, [(lineno, value) of each string in it])."""
     with open(manifest_file, encoding="utf-8", errors="replace") as fh:
         source = fh.read()
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return []
+        return 0, []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Dict):
             continue
@@ -330,10 +363,10 @@ def _manifest_images(manifest_file):
                 continue
             if not isinstance(value, (ast.List, ast.Tuple)):
                 continue
-            return [(elt.lineno, elt.value) for elt in value.elts
-                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
-        return []
-    return []
+            return value.lineno, [(elt.lineno, elt.value) for elt in value.elts
+                                  if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
+        return 0, []
+    return 0, []
 
 
 class Checker(object):
@@ -525,16 +558,41 @@ class Checker(object):
         anchors = []  # open <a> elements: [line, href, text parts]
         words = [0]
         image_tags = [0]
+        stack = []  # open non-void elements: [tag, carousel or None, item or None]
+        carousels = []  # {"line", "id", "ride", "items": [{"line", "active", "imgs"}]}
+        index_links = {}  # data-bs-target -> count of slide-to elements outside any carousel
         hidden = []  # open <script> / <style> elements
+        self_series = self.series
+        series_hits = []  # (line, series) of each visible mention of the series
+        series_token = re.compile(r"(?<!\d)(?<!\d\.)%s(?!\d)(?!\.\d)" % re.escape(self.series))
 
         class Parser(HTMLParser):
-            def handle_starttag(self, tag, attrs):
+            def handle_starttag(self, tag, attrs, push=True):
                 line = self.getpos()[0]
                 values = dict(attrs)
+                classes = (values.get("class") or "").split()
+                carousel = next((e[1] for e in reversed(stack) if e[1] is not None), None)
+                item = next((e[2] for e in reversed(stack) if e[2] is not None), None)
+                new_carousel = new_item = None
+                if "carousel" in classes:
+                    new_carousel = {"line": line, "id": values.get("id") or "",
+                                    "ride": "data-bs-ride" in values, "items": []}
+                    carousels.append(new_carousel)
+                elif "carousel-item" in classes and carousel is not None:
+                    new_item = {"line": line, "active": "active" in classes, "imgs": 0}
+                    carousel["items"].append(new_item)
+                if carousel is None and new_carousel is None and "data-bs-slide-to" in values:
+                    target = (values.get("data-bs-target") or "").strip()
+                    index_links[target] = index_links.get(target, 0) + 1
+                if push and tag not in _VOID_TAGS:
+                    stack.append([tag, new_carousel, new_item])
                 if tag in ("script", "style"):
                     hidden.append(tag)
                 if tag == "img":
-                    image_tags[0] += 1
+                    if item is not None:
+                        item["imgs"] += 1
+                    if carousel is None:
+                        image_tags[0] += 1
                 if tag in ("img", "source"):
                     if values.get("src"):
                         images.append((line, values["src"]))
@@ -552,11 +610,15 @@ class Checker(object):
                     images.append((line, u.group(1)))
 
             def handle_startendtag(self, tag, attrs):
-                self.handle_starttag(tag, attrs)
+                self.handle_starttag(tag, attrs, push=False)
                 if tag == "a" and anchors:
                     self.handle_endtag(tag)
 
             def handle_endtag(self, tag):
+                for pos in range(len(stack) - 1, -1, -1):
+                    if stack[pos][0] == tag:
+                        del stack[pos:]
+                        break
                 if tag in ("script", "style") and tag in hidden:
                     hidden.remove(tag)
                 if tag == "a" and anchors:
@@ -566,6 +628,9 @@ class Checker(object):
             def handle_data(self, data):
                 if not hidden:
                     words[0] += len(data.split())
+                    for m in series_token.finditer(data):
+                        series_hits.append((self.getpos()[0] + data.count("\n", 0, m.start()),
+                                            self_series))
                 checker.emails(doc_file, self.getpos()[0], data)
                 for anchor in anchors:
                     anchor[2].append(data)
@@ -579,31 +644,55 @@ class Checker(object):
         if _STORE_PAGE.match(self._rel(doc_file)):
             if words[0] > PAGE_MAX_WORDS:
                 self._add(doc_file, 0, "PAGE_TOO_LONG", "%d words (limit %d)" % (words[0], PAGE_MAX_WORDS))
+            for line, series in series_hits:
+                self._add(doc_file, line, "PAGE_NAMES_SERIES", series)
             if image_tags[0] > PAGE_MAX_IMAGES:
                 self._add(doc_file, 0, "PAGE_TOO_MANY_IMAGES",
                           "%d images (limit %d)" % (image_tags[0], PAGE_MAX_IMAGES))
-        if self._rel(doc_file) == _ENGLISH_PAGE:
-            self.cover_shown(doc_file, [ref.strip() for _line, ref in images])
+            self._carousels(doc_file, carousels, index_links)
 
-    def cover_shown(self, page, refs):
-        manifest = self._manifest_file()
-        cover = _manifest_images(manifest) if manifest else []
-        if not cover:
-            return
-        target = os.path.join(self.root, cover[0][1])
-        if not any(_image_kind(ref) == "local" and _same_file(_resolve(ref, page), target)
-                   for ref in refs if ref):
-            self._add(page, 0, "IMG_COVER_NOT_SHOWN", cover[0][1])
+    def _carousels(self, doc_file, carousels, index_links):
+        """Store page: the one screenshot carousel of reports and dashboards."""
+        for number, car in enumerate(carousels):
+            line, items = car["line"], car["items"]
+            if number:
+                self._add(doc_file, line, "CAROUSEL_MORE_THAN_ONE", car["id"] or "carousel")
+            if len(items) > CAROUSEL_MAX_SLIDES:
+                self._add(doc_file, line, "CAROUSEL_TOO_MANY_SLIDES",
+                          "%d slides (limit %d)" % (len(items), CAROUSEL_MAX_SLIDES))
+            if len(items) == 1:
+                self._add(doc_file, line, "CAROUSEL_SINGLE_SLIDE", "1 slide")
+            if sum(1 for i in items if i["active"]) != 1:
+                self._add(doc_file, line, "CAROUSEL_ACTIVE",
+                          "%d active slides" % sum(1 for i in items if i["active"]))
+            if car["ride"]:
+                self._add(doc_file, line, "CAROUSEL_AUTOPLAY", "data-bs-ride")
+            listed = index_links.get("#" + car["id"], 0) if car["id"] else None
+            if listed != len(items):
+                self._add(doc_file, line, "CAROUSEL_INDEX",
+                          "no id" if listed is None else "%d listed, %d slides" % (listed, len(items)))
+            for item in items:
+                if item["imgs"] != 1:
+                    self._add(doc_file, item["line"], "CAROUSEL_SLIDE_IMAGE",
+                              "%d images" % item["imgs"])
 
     # -------------------------------------------------------------- manifest
     def manifest(self, manifest_file):
-        for index, (line, ref) in enumerate(_manifest_images(manifest_file)):
+        list_line, entries = _manifest_image_list(manifest_file)
+        if len(entries) > 1:
+            self._add(manifest_file, list_line, "MANIFEST_IMAGES_COUNT", "%d images" % len(entries))
+        for index, (line, ref) in enumerate(entries):
             if not _IMAGE_NAME.match(_file_name(ref)):
                 self._add(manifest_file, line, "IMG_NAME", ref)
             if not (_MANIFEST_IMAGE.match(ref) and os.path.isfile(os.path.join(self.root, ref))):
                 self._add(manifest_file, line, "MANIFEST_IMAGE", ref)
             if index == 0 and not _MANIFEST_COVER.match(ref):
                 self._add(manifest_file, line, "MANIFEST_COVER", ref)
+            if index == 0:
+                size = _pixel_size(os.path.join(self.root, ref))
+                if size and size[1] and abs(size[0] / size[1] - 2) > 0.02:
+                    self._add(manifest_file, line, "MANIFEST_COVER_RATIO",
+                              "%dx%d" % size)
 
     # --------------------------------------------------------------- orphans
     def orphans(self):

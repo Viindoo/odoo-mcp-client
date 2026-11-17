@@ -9,10 +9,10 @@ What the architect hands back, so this skill can gate it.
   the header of the design.
 - **Recon** (`<SHARE_DIR>/recon/<slug>-<date>/recon.md`, by `odoo-impact-recon`): the dependency,
   dependent, sibling, existing-feature and existing-test facts, one row each with its source.
-- **Design** (`<SHARE_DIR>/designs/<slug>-<date>.md`): the HOW. Light (one `## Nodes` block) when
+- **Design** (`<SHARE_DIR>/designs/<slug>-<date>.md`): the HOW. Light (one `## Work units` block) when
   the effort is Standard or Config and recon raised no flag; full (approach, data model,
   override strategy, module structure, sequencing, test outline, risks, grounding evidence)
-  otherwise. Every node carries `build_tier_hint`: the tier with the 5.1 checklist and the 5.2 answer, and the effort.
+  otherwise. Every unit carries `build_tier_hint`: the tier with the 5.1 checklist and the 5.2 answer, and the effort. The units are the design's proposal; the planner decides the nodes.
 
 The architect's own body owns the templates and the grounding steps; this file only names what
 crosses the gate.

@@ -2,32 +2,33 @@
 name: odoo-icon-design
 argument-hint: "[module] [version]"
 description: >-
-  Designs a module's app icon
+  Designs a module's icon and store cover
 ---
 
 ## Role
 
-Module identity icon designer for Odoo: measures the size, mode and style (tile or flat) of the
-target series' own core app icons, composes a brand-aware SVG in that style with a purpose-drawn
-glyph, rasterizes it to `static/description/icon.png` at the measured size and gates it against
-the family (size, mode, transparent corners, consistency, contrast). Works from static source; a
-live instance is used only when the caller hands one, to see the icon among the installed apps.
-OSM is the primary source for module category, version grounding and the icon mechanism; the
-on-disk descriptor (`__manifest__.py`, or `__openerp__.py` where the module has it) and the
-checkout are the fallback.
+Designer of a module's image assets for Odoo, through `odoo-icon-designer`:
 
-NOT for auditing or rating a rendered screen (-> `odoo-ui-review`); NOT for capturing a live
-screenshot of a module as its icon (-> `odoo-doc-illustration`). Produces a designed vector asset,
-not a viewport crop.
+- **The app icon**: measured against the target series' own core app icons (size, mode, tile or
+  flat style), composed as a brand-aware SVG with a purpose-drawn glyph, rasterized to
+  `static/description/icon.png` and gated against that family.
+- **The store cover**: the one image a store shows for the module, a product cover in the
+  vendor's brand at 2:1, written to `static/description/main_screenshot.png` as the only entry of
+  the manifest `images` list.
+
+Works from static source; a live instance is used only when the caller hands one, to see the icon
+among the installed apps. OSM is the primary source for the module's category, the version
+grounding and the icon mechanism; the on-disk descriptor (`__manifest__.py`, or `__openerp__.py`
+where the module has it) and the checkout are the fallback. Both assets are image files, not
+rendered Odoo screens: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-ui-contract.md` does not govern them.
 
 ## Out of Scope
 
-- **128px viewport CROP of a live screen used as icon** -> `odoo-doc-illustration` (screenshot
-  capture, not design)
-- **In-UI Font Awesome glyph class in a view or button** (not an asset file, no `icon.png`
-  created) -> `odoo-coding` or `odoo-frontend-design`
-- **Website favicon** (`favicon.ico` / `favicon.svg` served at root) -> `odoo-coding`
-- **Aesthetic or a11y review of an icon already in production** -> `odoo-ui-review`
+- **Rating a rendered screen** -> `odoo-ui-review`
+- **A screenshot of a live screen**, for a guide or a store page -> `odoo-doc-illustration`
+- **An in-UI Font Awesome glyph class in a view or button** -> `odoo-coding` or
+  `odoo-frontend-design`
+- **A website favicon** -> `odoo-coding`
 
 ## MCP tools
 
@@ -40,67 +41,51 @@ not a viewport crop.
 
 ## Agent invocation
 
-When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
-agent's family delta; never inline that file verbatim into a hard-leaf brief.
-
-`icon.png`/`icon.svg` and the `__manifest__.py` edit are git-tracked writes, so per
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 resolve `WORKTREE_PATH` BEFORE this
-dispatch: reuse the worktree already in scope, else provision one via `git-toolkit:git-ops` - never
-the principal checkout (S9, see § Verify then commit below) - then dispatch `odoo-icon-designer`
-with a brief:
+Fill the caller-side skeleton of `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal
+skeleton (read it by path) plus the icon designer's family delta. The files are git-tracked
+writes: resolve `WORKTREE_PATH` first - the worktree already in scope, else one provisioned
+through `git-toolkit:git-ops`, never the principal checkout. Resolve the vendor's colours, logo
+and font once per `${CLAUDE_PLUGIN_ROOT}/snippets/vendor-facts.md` and pass what it yields.
+Launch `odoo-icon-designer` at the `model` of
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (designing an
+image asset) with:
 
 ```
+MODE: <icon | cover>
 MODULE: <module name>
-MODULE_PATH: <absolute path to module dir, or omit to let agent resolve under WORKTREE_PATH>
+MODULE_PATH: <absolute path of the module directory>
 WORKTREE_PATH: <abs path resolved above>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
-ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; the agent roots itself at WORKTREE_PATH, so its own resolve would key on that worktree>
-VERSION: <Odoo series, e.g. 17.0 - or omit to let agent resolve from manifest/context>
-BRIEF: <palette hints, symbol hint, or additional context; omit for brand-agnostic defaults>
-INSTANCE_HANDLE: <a live instance with the module installed, when the run holds one; the agent consumes it, never releases it; omit otherwise>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
+VERSION: <Odoo series, or omit to let the agent resolve it>
+BRIEF: <icon: palette or glyph hints; omit for the agent's own resolution>
+BRAND: <cover: the vendor's palette by role and its logo, in the form of vendor-facts.md; omit when none resolved>
+FONT_FILE: <cover: the author profile's font_file; omit when none>
+INSTANCE_HANDLE: <icon: a live instance with the module installed, when the run holds one; the agent never releases it>
 ```
-
-Agent resolves `odoo_version` and palette from context when the brief omits them (Step 0 of the
-agent). Pass `VERSION` explicitly when the caller already has it to save a resolution round-trip.
-
-MCP tool surface for the dispatched agent is the same as `## MCP tools` above - not repeated here.
-
-## Design-system contract
-
-The icon deliverable is a rasterized PNG (`static/description/icon.png`, at the size and in the
-style the series' core icons use, measured by the agent), not a live-rendered Odoo UI component -
-`snippets/odoo-ui-contract.md` governs rendered Odoo screens and does not apply to it. Palette resolution (brief -> `brand-tokens.json` -> sibling family -> category hue -> Odoo
-default) and the brand-agnostic, no-vendor-palette rule are owned by `odoo-icon-designer`'s own
-Step 1 and Hard constraints - not restated here.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** agent proceeds disk-only from the manifest descriptor; exact fields read
-  and warning text owned by `odoo-icon-designer`'s own Step 0.
-- **Rasterizer absent:** the agent tries rsvg-convert, inkscape, headless Chrome/Chromium, cairosvg
-  and ImageMagick in turn; with none of them, not a hard fail - `icon.svg` ships alone with install
-  guidance; full fallback behavior owned by `odoo-icon-designer`'s own Step 4.
+OSM unreachable: the agent works from the descriptor on disk and says so. No SVG rasterizer on
+the machine: the SVG ships alone with the install guidance and the agent returns `NEEDS_CONTEXT`.
 
-## Verify then commit (git-delegation)
+## Verify then commit
 
-**Verify then commit.** Verify the `odoo-icon-designer` agent's returned artifacts against its
-Output block (files exist at the reported paths under the `WORKTREE_PATH` resolved above -
-`icon.png`, plus `icon.svg` and the `__manifest__.py` `icon` key whenever the run wrote them;
-which asset formats the target series accepts is resolved by the agent against OSM, never
-assumed from a series here). Re-run the gate yourself:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py check <icon.png> --facts <the facts file
-the agent reported>` must print `ICON_GATE=PASS` and `CONSISTENCY=ok` - `FAIL` or `outlier` goes
-back to the agent, and `CANNOT-VERIFY` is reported as unverified, never as a pass. The agent's
-report must carry the family review (Read its `CONTACT_SHEET` image, and the Step 7 screenshot
-when an instance was handed over: an icon that stands out among the core icons goes back to the
-agent) and at least two 32 px loop passes, each with its cold read; Read its `PREVIEW_ZOOM` image
-and confirm the last cold read names the module's purpose. Then COMMIT
-`icon.png`/`icon.svg`/the manifest `icon` key via git-toolkit `git-ops` (one-way git; the skill
-never runs raw git mutations) - never the principal checkout (S9). Full contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+Every file the agent reports exists under `WORKTREE_PATH`. Re-run the gate yourself:
+
+- icon: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py check <icon.png> --facts <the
+  facts file the agent reported>` prints `ICON_GATE=PASS` and `CONSISTENCY=ok`; Read the
+  `CONTACT_SHEET` and the `PREVIEW_ZOOM` images - an icon that stands out among the core icons, or
+  a last cold read that does not name the module's purpose, goes back to the agent;
+- cover: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/icon_gate.py cover <main_screenshot.png>`
+  prints `COVER_GATE=PASS`; Read its `PREVIEW` - a product name that does not read at that width
+  goes back to the agent.
+
+`FAIL` or `outlier` goes back to the agent; `CANNOT-VERIFY` is reported as unverified, never as a
+pass. Then commit the files and the manifest edit through `git-toolkit:git-ops`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive plan-runner output, changes nothing above.
+(status / produced / next).

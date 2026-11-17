@@ -10,6 +10,15 @@
  * scene's first action and the events timeline starts at the scene. Selector waits give up after 30 s
  * (a `wait_for` may carry `timeout_s`); `ai_wait` waits up to 120 s.
  *
+ * One clock: the recorder starts the clip, waits for its first frame and starts the events timeline
+ * at that frame's time, then runs the first action. An event time is therefore the video time of
+ * the same moment, to within one frame. A take always opens a new page (its first action is a
+ * `goto`); the same screencast call that starts the clip reports the first frame.
+ *
+ * Size: the script's `viewport` [width, height] (CSS pixels, default [1920, 1080]) and
+ * `device_scale_factor` (default 1) set the page; the clip is width x factor by height x factor
+ * pixels (both products even whole numbers), rendered at that density.
+ *
  * Every result is a KEY=VALUE line on stdout. Exit codes: 0 ok, 1 self-test failed, 3 a step
  * did not find its target (`ERROR=step N <do> <selector>: not found`, or `not visible` when an element matches but has no size or is hidden; N counts from 1), 4 unusable script or arguments, 5 unexpected failure, 6 the take
  * showed a key (the video is deleted, the events file is kept).
@@ -26,6 +35,7 @@ const DEFAULT_INDICATORS = ['.o_loading_indicator', '.o_blockUI'];
 const STEP_TIMEOUT_MS = 15000;
 const WAIT_TIMEOUT_MS = 120000;
 const SELECTOR_TIMEOUT_MS = 30000;
+const FIRST_FRAME_TIMEOUT_MS = 15000;
 const IDLE_QUIET_MS = 500;
 const IDLE_TIMEOUT_MS = 15000;
 const LONG_LIVED_TYPES = new Set(['websocket', 'eventsource']);
@@ -179,6 +189,43 @@ function pageBundle(cfg) {
     };
     setInterval(() => { window.__recKey && window.__recKey(Date.now(), scan()); }, 500);
   }
+}
+
+/**
+ * Starts recording the clip and returns the clip's clock: the epoch ms of its first frame, which is
+ * video time 0. The same call that starts the clip reports that frame, so the clock cannot drift
+ * from the clip. Stop it with `page.screencast.stop()`.
+ * @param {import('playwright').Page} page
+ * @param {string} file the .webm to write
+ * @param {{width: number, height: number}} size the clip's pixels
+ * @returns {Promise<number>}
+ */
+async function startClip(page, file, size) {
+  let arrived;
+  const first = new Promise((resolve) => { arrived = resolve; });
+  await page.screencast.start({ path: file, size, onFrame: (frame) => arrived(frame.timestamp) });
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('the page produced no video frame')), FIRST_FRAME_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([first, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * @param {object} script
+ * @returns {{viewport: {width: number, height: number}, scale: number}|null} null when unusable
+ */
+function pageSize(script) {
+  const vp = script.viewport === undefined ? [1920, 1080] : script.viewport;
+  const scale = script.device_scale_factor === undefined ? 1 : script.device_scale_factor;
+  const whole = (n) => Number.isInteger(n) && n > 0;
+  if (!Array.isArray(vp) || vp.length !== 2 || !vp.every(whole)) return null;
+  if (typeof scale !== 'number' || !(scale > 0)) return null;
+  return { viewport: { width: vp[0], height: vp[1] }, scale };
 }
 
 /** Drives one scene script on one page and collects the events. */
@@ -426,7 +473,13 @@ async function runScene(mode, args) {
   const outDir = path.resolve(args.outDir || script.out_dir || '.');
   const clip = script.clip_name || script.scene_id || 'clip';
   const allowKeys = script.allow_key_fields === true;
-  const viewport = Array.isArray(script.viewport) ? { width: script.viewport[0], height: script.viewport[1] } : { width: 1920, height: 1080 };
+  const size = pageSize(script);
+  if (!size) {
+    console.log('ERROR=the scene script has an unusable viewport or device_scale_factor');
+    return 4;
+  }
+  const { viewport, scale } = size;
+  const videoSize = { width: Math.round(viewport.width * scale), height: Math.round(viewport.height * scale) };
   const voice = Boolean(script.voice_wav);
   fs.mkdirSync(outDir, { recursive: true });
   const tmp = fs.mkdtempSync(path.join(outDir, '.rec-'));
@@ -434,6 +487,8 @@ async function runScene(mode, args) {
   const launchArgs = voice
     ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${path.resolve(script.voice_wav)}`]
     : [];
+  // The screencast delivers CSS pixels unless the browser itself runs at the density.
+  if (scale !== 1) launchArgs.push(`--force-device-scale-factor=${scale}`);
   const browser = await chromium.launch({ headless: true, args: launchArgs });
   let code = 0;
   let driver = null;
@@ -444,7 +499,7 @@ async function runScene(mode, args) {
   let openKey = null;
   let elapsed = 0;
   try {
-    const ctxOpts = { viewport, locale: localeOf(script.lang) };
+    const ctxOpts = { viewport, deviceScaleFactor: scale, locale: localeOf(script.lang) };
     let storageState;
     if (script.ui_user || (script.language_switch || []).length) {
       // Off camera: sign in and switch the language, keep only the cookies.
@@ -466,9 +521,8 @@ async function runScene(mode, args) {
       await prep.close();
     }
     if (storageState) ctxOpts.storageState = storageState;
-    if (recording) ctxOpts.recordVideo = { dir: tmp, size: viewport };
     const context = await browser.newContext(ctxOpts);
-    const t0 = Date.now();
+    let t0 = Date.now();
     const page = await context.newPage();
     driver = new Driver(page, script, t0);
 
@@ -509,6 +563,8 @@ async function runScene(mode, args) {
       })());
     });
 
+    const clipFile = path.join(tmp, 'clip.webm');
+    if (recording) t0 = driver.t0 = await startClip(page, clipFile, videoSize);
     try {
       await driver.runAll(script.actions);
     } catch (err) {
@@ -523,12 +579,10 @@ async function runScene(mode, args) {
     elapsed = Date.now() - t0;
     if (openKey !== null) keySpans.push({ kind: 'key_visible', start: openKey, end: elapsed });
     await Promise.allSettled(pending);
+    if (recording) await page.screencast.stop();
     await page.close();
     await context.close();
-    if (recording) {
-      const files = fs.readdirSync(tmp).filter((f) => f.endsWith('.webm'));
-      if (files.length) fs.renameSync(path.join(tmp, files[0]), path.join(outDir, `${clip}.webm`));
-    }
+    if (recording && fs.existsSync(clipFile)) fs.renameSync(clipFile, path.join(outDir, `${clip}.webm`));
   } finally {
     await browser.close().catch(() => {});
     fs.rmSync(tmp, { recursive: true, force: true });

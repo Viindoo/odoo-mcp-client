@@ -45,8 +45,7 @@ the OSM grounding in this context.
 1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the conflict-marker scan AND the
    list of files the ported range changed (everything after `merge_base` up to the source SHA) in
    ONE dispatch (git-ops writes both to a findings file, filtered to non-empty entries, and returns
-   the path). For cross-repo ports include
-   `repo: <main-checkout-root>`.
+   the path).
 2. Dispatch `Explore` (read-only, `model: haiku` on the launch) over that returned file list to ground every Odoo symbol it
    references (field / method / model / view ref / external-id / manifest depend / ORM chain)
    against the TARGET version, per `[[fp-symbol-survival-check]]` sections 1-2.5. Never issue the OSM
@@ -68,16 +67,14 @@ same grounding, do not filter them out.
 P7 is distinct from the P6 TEST-survival sub-check (OSM `tests_covering` / `test_coverage_audit`).
 P7 uses the seven static symbol classes from `[[fp-symbol-survival-check]]` section 2.5 over two
 lanes: (d) python-import + (e) AST-pyflakes + (g) ORM create/write dict-key run over ALL
-merged-touched `.py` (production AND `tests/`); the remaining classes (a)(b)(c)(f) and the
-collection ACCEPTANCE GATE apply to the `tests/` lane only. P7 blocks entry to P8 when test
-collection itself would fail.
+merged-touched `.py` (production AND `tests/`); the remaining classes (a)(b)(c)(f) apply to the
+`tests/` lane only. P7 blocks entry to P8 while a finding is open.
 
 **Enumerate scope - two lanes. Dispatched, never run inline** (`[[fp-symbol-survival-check]]`
 § Who runs this check):
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list the files the ported range changed (everything after `merge_base` up to the source SHA;
-git-ops writes the file list). Include `repo: <main-checkout-root>` in the dispatch for
-cross-repo ports. From the returned list the delegate derives:
+git-ops writes the file list). From the returned list the delegate derives:
 
 - **Lane 1** - ALL merged-touched `.py` (production AND `tests/`): the `*.py` entries.
 - **Lane 2** - `tests/` only: the Lane-1 entries whose path contains `tests/`.
@@ -94,23 +91,11 @@ append to `merge-log.md`. Triage each returned finding into a bucket (b adapt / 
 d drop); never leave an auto-merged line referencing a dead symbol. These become the
 `BROKEN TEST-SYMBOLS` input to the P8 adapt brief.
 
-**ACCEPTANCE GATE (collection clean) - mandatory before P8 starts:**
-
-The gate is a `pytest --collect-only` run over the merged test files (no DB). Dispatch it to `Explore` (read-only, `model: haiku` on the launch), the delegate
-`[[fp-symbol-survival-check]]` § Who runs this check assigns to this class. Brief it with: the
-integration worktree path, the merged test file list Lane 2 produced, the exact command
-`python -m pytest --collect-only <those files>`, and the instruction to return ONLY `PASS`, or
-`FAIL` plus one line per collection error (`<file>::<node> | <error class> | <message>`) - never the
-raw log. Record that verdict; never run the command, or read its log, in the orchestrating context.
-
-**No ad hoc provisioning, in any phase.** When a `setUpClass` performs DB-dependent work that
-`--collect-only` cannot exercise, do NOT acquire an ad hoc DB here - the ONLY provisioning path is
-P9's `odoo-instance` dispatch. Record the residual as an open ACCEPTANCE GATE item on that test
-file's `merge-log.md` row; P9's own run-tests result for that file is its true confirmation. The
-`--collect-only` verdict still blocks P8 for every OTHER file it covers.
-
-A collection failure means the tests NEVER RAN - `0 failed, N error(s)` is NOT a passing result.
-Resolve every drift finding (P7 SYMBOL-BROKEN entries) before entering the P8 adapt loop.
+**ACCEPTANCE GATE - mandatory before P8 starts:** every finding of the static lanes above is
+resolved: a merged test file compiles and names no undefined symbol. No test framework runs here
+and nothing is installed for it. An import that fails only at run time surfaces at P9, where
+`0 failed, N error(s)` means the tests NEVER RAN and is a FAIL. There is no ad hoc provisioning in
+any phase: the ONLY provisioning path is P9's `odoo-instance` dispatch.
 
 **View-topology sub-check (bucket-(b)/(c) same-module inherit stacks).** Runs once a bucket-(b) OR
 bucket-(c) commit's own adapt step lands or modifies an `ir.ui.view` record (INCLUDING a clean

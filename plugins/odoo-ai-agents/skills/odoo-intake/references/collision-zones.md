@@ -100,7 +100,7 @@ Deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration` (modu
 
 ## Collision 16 - icon-design vs screenshot crop vs in-UI glyph
 
-- `odoo-icon-design`: design and generate the `icon.png` file.
+- `odoo-icon-design`: design and generate the `icon.png` file or the store cover image.
 - `odoo-doc-illustration`: a live screen crop used as a docs illustration.
 - Font Awesome class name in a view or button -> `odoo-coding`.
 

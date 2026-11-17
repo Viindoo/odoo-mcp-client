@@ -195,11 +195,9 @@ Reason about business-logic + data-flow edges INSIDE each cluster only.
 Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason}]}` JSON).
 
 - Default: reason **inline** in main context, one cluster at a time.
-- Only under Hard rule 1's condition: launch **one subagent per cluster** using CHP Tier-B
-  `subagent_type: "fork"` (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B).
-  The cluster JSON snapshot passed by prompt is the authoritative input for that worker. If
-  `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose` spawn with an explicit
-  brief containing the cluster JSON (Tier C). Write the worklog regardless of tier.
+- Only under Hard rule 1's condition: launch **one fresh `general-purpose` subagent per cluster**
+  with an explicit brief; the cluster JSON snapshot passed by prompt is its authoritative input.
+  Write the worklog.
   Model per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection.
   Fill the cluster subagent's prompt from the caller-side skeleton in
   `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the

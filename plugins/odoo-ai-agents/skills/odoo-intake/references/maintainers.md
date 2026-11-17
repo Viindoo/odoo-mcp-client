@@ -7,9 +7,9 @@ table, or the harness wiring. Not loaded at routing time.
   branches) -> Phase R (Recon, read-only) -> approach question (text, only while unsettled) ->
   hand-off to the plan owner, whose Plan-Mode approval is the request's one gate -> execute.
 - **Inventory discovery**: skill/agent/command existence and description come from runtime context;
-  `output_mode` from `orchestration.<skill>.output_mode` in `skill_tool_deps.json`; `model_tier`
-  from each candidate's own frontmatter (`model:`, absent = `inherit`), never copied into a
-  registry; `effort` is a per-task property owned by `odoo-gap-analysis`, also not registered.
+  `output_mode` from `orchestration.<skill>.output_mode` in `skill_tool_deps.json`; an agent's
+  tier from its own frontmatter `model:` (a skill carries none), never copied into a registry;
+  `effort` is a per-task property owned by `odoo-gap-analysis`, also not registered.
 - **Plan schema, run rules, node brief, run file**: `references/plan-mode-schema.md`. The BRL DAG
   and the gap-analysis effort legend live in their own skills.
 - **Dispatch mechanism**: a skill is not an agentType, so launching an agent by a skill name fails;

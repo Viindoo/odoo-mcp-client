@@ -28,9 +28,11 @@ plugin's configured `speech_api_key` option (Claude Code's own masked dialog, st
 Code), which only the odoo-media MCP server receives; `record` refuses a value that looks like one.
 A configuration that spells `api_key_env = "<NAME>"` is read as `auth` (bearer when a name was
 given, none when empty) and rewritten on the next `record`. Optional tables: `[tts.candidates]`
-(locale -> voice ids to audition for a project) and `[tts.rate]` (`tutorial` / `marketing` ->
+(locale -> voice ids to audition for a project), `[tts.rate]` (`tutorial` / `marketing` ->
 the speaking-rate factor sent as the OpenAI `speed` parameter; the probe measures whether the
-engine honours it).
+engine honours it) and `[tts.type_voices.<video type>]` (the same video types; locale -> the voice
+that video type uses for that locale). A voice is resolved as: the voice the caller passes, else
+`type_voices` of the video type for the locale, else `[tts.voices]` of the locale (`voice_for`).
 
 Subcommands (stdlib only):
   check     exit 0 when speech.toml is valid; 1 otherwise with the remedy; 2 unreadable. Whether the
@@ -111,7 +113,7 @@ def validate(cfg, complete=True):
         return problems
     tts, stt = cfg["tts"], cfg["stt"]
     for key in tts:
-        if key not in TTS_KEYS + ("voices", "candidates", "rate"):
+        if key not in TTS_KEYS + ("voices", "type_voices", "candidates", "rate"):
             problems.append("[tts] unknown key %r" % key)
     cands = tts.get("candidates")
     if cands is not None:
@@ -166,6 +168,30 @@ def validate(cfg, complete=True):
                                 "native to one language" % (voice, seen[voice], lang))
             else:
                 seen[voice] = lang
+    type_voices = tts.get("type_voices")
+    if type_voices is not None:
+        if not isinstance(type_voices, dict):
+            problems.append("[tts.type_voices.<video type>] tables: video type -> locale -> voice id")
+        else:
+            seen = {}
+            if isinstance(voices, dict):
+                seen = {v: k for k, v in voices.items() if isinstance(v, str)}
+            for kind, table in type_voices.items():
+                if kind not in VIDEO_TYPES or not isinstance(table, dict):
+                    problems.append("[tts.type_voices] %r: one of %s, each a table of locale -> voice id"
+                                    % (kind, " | ".join(VIDEO_TYPES)))
+                    continue
+                for lang, voice in table.items():
+                    label = "[tts.type_voices.%s] %s" % (kind, lang)
+                    if not LOCALE_RE.match(str(lang)):
+                        problems.append("[tts.type_voices.%s] %r: a locale such as vi_VN or en_US" % (kind, lang))
+                    elif not isinstance(voice, str) or not voice.strip():
+                        problems.append("%s: a non-empty voice id" % label)
+                    elif seen.get(voice, lang) != lang:
+                        problems.append("[tts.type_voices.%s] voice %r is recorded for both %s and %s - a voice "
+                                        "is native to one language" % (kind, voice, seen[voice], lang))
+                    else:
+                        seen[voice] = lang
     return problems
 
 
@@ -180,6 +206,13 @@ def render(cfg):
         out += ["", "[tts.voices]"]
         for lang in sorted(voices):
             out.append("%s = %s" % (lang, q(str(voices[lang]))))
+    type_voices = cfg["tts"].get("type_voices") or {}
+    for kind in VIDEO_TYPES:
+        table = type_voices.get(kind) or {}
+        if table:
+            out += ["", "[tts.type_voices.%s]" % kind]
+            for lang in sorted(table):
+                out.append("%s = %s" % (lang, q(str(table[lang]))))
     cands = cfg["tts"].get("candidates") or {}
     if cands:
         out += ["", "[tts.candidates]"]
@@ -228,6 +261,16 @@ def rate_for(cfg, video_type):
         return float(table.get(video_type, DEFAULT_RATE.get(video_type, 1.0)))
     except (TypeError, ValueError):
         return 1.0
+
+
+def voice_for(cfg, lang, video_type=None, voice=None):
+    """The voice to synthesise with: the one passed, else the video type's voice for the locale,
+    else the locale's recorded voice; None when none is recorded."""
+    if voice:
+        return voice
+    tts = cfg.get("tts") or {}
+    typed = ((tts.get("type_voices") or {}).get(video_type) or {}).get(lang) if video_type else None
+    return typed or (tts.get("voices") or {}).get(lang)
 
 
 def candidates_for(cfg, lang):

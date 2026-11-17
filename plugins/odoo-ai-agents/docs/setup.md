@@ -315,7 +315,9 @@ drop-in. What it does:
    (`30-permissions`; the allow-list covers all six families, so a re-registration needs no
    permission change), plus the narrow set of state-root Bash/Read/Edit
    rules the planning pipeline needs to resolve and write under `$ODOO_AI_HOME`
-   without a per-call prompt (`32-permissions-state-root`). The state-root
+   without a per-call prompt, and the two odoo-local tools that give a lease back
+   (`lease_release`, `lease_park`), so an agent returns its own instance without waiting on the
+   auto-mode classifier (`32-permissions-state-root`). The state-root
    write rules cover ONLY `$ODOO_AI_HOME/projects/**` - both the plan (SHARE)
    and the per-worktree worklog (ISOLATE) resolve nested under it, so there is
    no separate top-level `worklog/` surface to grant. They exclude `bin/`,

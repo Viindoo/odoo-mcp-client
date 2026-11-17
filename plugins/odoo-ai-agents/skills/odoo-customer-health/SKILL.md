@@ -3,7 +3,6 @@ name: odoo-customer-health
 argument-hint: "[customer/account]"
 description: >-
   Existing customer health: churn risk, upsell, next action
-model: inherit
 ---
 
 ## Role

@@ -1,62 +1,35 @@
 #!/usr/bin/env bash
 # permission-denied-teardown.sh - PermissionDenied ADVISORY. Fires when the harness refuses a
-# tool call; this hook speaks up only when the refused call was a LEASE GIVE-BACK, and shows the
-# user what the dispatch must do instead. Two shapes of give-back are recognized, branching on tool_name:
+# tool call; it speaks only when the refused call was a LEASE GIVE-BACK, and shows the user what
+# the dispatch does instead. Two shapes of give-back are recognized, branching on tool_name:
 #   - Bash: `allocator.py park` / `allocator.py release` (the CLI fallback path), matched against
-#     tool_input.command. The path may be bare or double-quoted
-#     (`"${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park <token>`) - both forms match.
-#   - MCP: `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` /
-#     `..._odoo-local__lease_park` (the odoo-local MCP tool path) - the tool_name alone identifies
-#     the give-back; there is no command string to inspect.
-# Both shapes get the SAME advice below: the tool that failed differs, the fix does not.
+#     tool_input.command; the path may be bare or double-quoted.
+#   - MCP: `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` / `..._lease_park` - the
+#     tool_name alone identifies the give-back.
+# Both get the same advice.
 #
-# WHY THIS EXISTS
-# A dispatched agent can ACQUIRE an instance but the auto-mode classifier may refuse to let it
-# GIVE THE INSTANCE BACK: `release` stops a server process group and drops a database, which the
-# built-in `Irreversible Local Destruction` / `Irreversible Deletion (general)` rules read as
-# destroying a stateful resource. Those rules have escape clauses this situation genuinely meets
-# ("unless clearly ephemeral"; "a stateful resource the agent did not create this session"), but
-# the classifier cannot SEE them in `python3 allocator.py release <32-hex> --run-id <id>` - a hex
-# token proves neither ephemerality nor provenance. Closing that gap for good is the operator's
-# job, in `autoMode.environment` (user settings or managed settings; the classifier deliberately
-# does NOT read a project's `.claude/settings.json`, so this plugin CANNOT ship it). Until then,
-# and whenever teardown fails for any other reason, the advice below - shown here, and given to the
-# dispatch's model by the teardown gates (see CONTRACT) - stops the denial from becoming a LEAKED
-# LEASE.
+# A release stops a server process group and drops a database, and the call text (a hex token and
+# a run id) proves neither that the lease is throwaway nor that this session acquired it, so the
+# auto-mode classifier can refuse it. The MCP give-back is kept out of the classifier by the allow
+# rules scripts/setup-steps/32-permissions-state-root.sh writes; this hook covers the calls that
+# still reach it.
 #
-# Observed failure this closes: a dispatched `odoo-instance-ops` had `park` refused, then later
-# `release` refused, reported a bare `BLOCKED`, and left a live ephemeral database plus its lease
-# behind. Its report was honest and it correctly refused to work around the denial - it simply had
-# nothing telling it that naming a catcher was still available to it, and the SubagentStop gate
-# used to let a stop report past unconditionally.
+# It grants nothing and never sets `retry`: a refused give-back is not re-issued or reworded
+# (snippets/resource-teardown-contract.md T4). Lease ownership is block-unowned-lease-mutation.sh's
+# question, not this hook's.
 #
-# WHAT IT DOES NOT DO
-# - It does NOT grant, widen, or route around any permission. `PermissionDenied` cannot change the
-#   decision, and this hook never sets `retry` - re-issuing the same refused command is pointless,
-#   and re-issuing a REWORDED one is itself the classifier's `Auto-Mode Bypass` rule. The advice
-#   it emits is the opposite of a bypass: stop trying, hand the lease over by name.
-# - It does NOT decide who owns the lease; `block-unowned-lease-mutation.sh` owns that question.
+# CONTRACT: stdin JSON carries tool_name, tool_input.command (Bash) / tool_input (MCP),
+# denial_reason, has_classifier_verdict, and (in a subagent) agent_id / agent_type. Output is
+# `systemMessage` alone: a line on the user's display - the harness reads nothing else from this
+# event's output but hookSpecificOutput.retry, so no field of it reaches the model. The dispatch
+# reads the same advice in the reason of the SubagentStop teardown block and of the
+# SubagentHandback gate (hooks/teardown-check.sh), which fire while a lease it obtained is live.
+# Exit is always 0 and stderr is ignored for this event.
 #
-# CONTRACT: stdin JSON carries tool_name, tool_input.command (Bash) / tool_input (MCP, e.g.
-# {lease_token, run_id} - inspected only to confirm it parses; the give-back decision for MCP rests on
-# tool_name alone), denial_reason, has_classifier_verdict, and (in a subagent) agent_id /
-# agent_type. Output is `systemMessage` alone: a line on the user's display, the only text a
-# PermissionDenied hook can deliver. The harness reads nothing else from this event's output but
-# hookSpecificOutput.retry (Claude Code 2.1.288 hook output schema), so no field of it reaches the
-# model. The dispatch that must act gets the same advice where its model DOES read it: the reason
-# of the SubagentStop teardown block and of the SubagentHandback gate (hooks/teardown-check.sh),
-# both of which fire while a lease it obtained is still live. Exit is ALWAYS 0 and stderr is
-# ignored for this event; a hook failure must never be louder than the denial it is annotating.
-#
-# RESIDUALS it provably cannot catch:
-# - A give-back issued through an interpreter this matcher never sees (a wrapper script, a
-#   `$PY`-style indirection, `xargs`): the command text will not match and the hook stays silent.
-# - A denial of the SPIN-UP path rather than the give-back: out of scope by design; nothing is
-#   leaked when acquisition itself fails.
-# - The main agent: its user sees the line too (the event carries no reliable main/subagent split
-#   beyond agent_id, and the advice is harmless there), but no model-facing gate repeats it to the
-#   main agent - the SubagentStop gate is subagent-only, and a main-session lease is reclaimed by
-#   the SessionEnd backstop.
+# Not covered: a give-back issued through an interpreter this matcher does not see (a wrapper
+# script, `xargs`); a refused acquisition (nothing is leaked); the main agent, which no
+# model-facing gate reminds - a lease it still holds at session end is parked when it records a
+# run and a build, reclaimed otherwise (hooks/session-end-gc.sh).
 set -uo pipefail
 
 _input="$(cat)"

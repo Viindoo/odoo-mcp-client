@@ -23,9 +23,8 @@ to run the suite inline** (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handof
 `odoo-bin` call. Everything from here to P10 is CONTENT for that dispatch brief and the
 adjudication you perform on the RETURNED `instance-ops` block.
 
-**Env-bootstrap (before the first dispatch).** Resolve the CATALOG (principal-checkout) baseline
-from the declared catalog row covering this repo (`addons_path` and `python` from `catalog_locate`
-per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2) as a baseline only;
+**Env-bootstrap (before the first dispatch).** The catalog row of the target series resolved at
+P0 (`addons_path` and `python`) is a baseline only;
 interpreter discovery and addons-path assembly are `odoo-instance-ops`'s job. A multi-repo stack
 needs EVERY repo on disk: confirm every root in that entry's `addons_path` exists before
 dispatching; a missing repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
@@ -200,7 +199,8 @@ remote: origin (`origin_url` of repo_facts)
 ```
 
 Run `odoo-code-review` inline (via the Skill tool, from this orchestrating context) passing
-`TARGET: worktree:<path>/fp-integration` (the JOB-tier integration worktree created at P4) so it
+`TARGET: worktree:<path>/fp-integration` (the JOB-tier integration worktree created at P4) and
+`SOURCE_REF` = the source ref of `range.md`, so it
 reviews the fp integration tree, not the principal tree, for the forward-port pitfall (a forwarded
 test still coupled to the source API) on the pushed branch BEFORE the PR is created (lint-class gate:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail). OPTIONAL
@@ -213,22 +213,15 @@ about the others. A mandatory review:
    or compute engine: total, sub-total/group-by, expand/collapse, drill-down, export (xlsx/csv),
    print (PDF/QWeb)). It is not done until every enumerated path is accounted for (adapted, or
    explicitly N/A with a reason).
-2. **Attribute every finding to the FP diff before rating it.** Invoke the `git-toolkit:git-ops` skill
-   (via the Skill tool) for the diff of `<file>` that shows only what the FP added to it (the changes
-   on `fp/<slug>` since it left `origin/<target-branch>`). A finding on a line this port changed is
-   an FP-delta unless the source series carries the same defect: its fix goes into the merge commit
-   (C3). A finding on a line NOT in this diff is pre-existing - rate it separately and handle it
-   per C3 below. Rate findings only after this attribution.
+2. **Attribute every finding before rating it**, from the two patches the review wrote: a
+   finding on a line `diff.patch` shows as changed by the port and `source-diff.patch` shows as
+   differing from the source is an FP-delta; any other finding is pre-existing, the source
+   series' own defects included. Each is handled per C3 below.
 
 **Acceptance hand-off.** The `odoo-code-review` dispatch may carry a `next:` entry for a live pass
 in its own Continuation Contract. Do NOT act on it - P11 already ran acceptance for this batch.
 
-**Per pre-existing finding, apply C3** (`[[fp-merge-absorption]]` § C3): a proven defect in a
-module this port touches is fixed in this PR, in a commit of its own after the merge commit, with
-a guarding test. When
-the same defect exists at the source series, also open a source-series issue (git-ops when a
-source remote resolves from `repo_facts` `remotes`, else record it in `merge-log.md` and the
-Continuation Contract). Record `<sha> | C3 | fixed in <fix commit> | <evidence>`.
+**Per pre-existing finding, apply C3** (`[[fp-merge-absorption]]` § C3).
 
 **Field-existence question:** query that field directly instead of re-dumping the model:
 
@@ -257,8 +250,8 @@ waive each; this never gates PR creation.
 
 NEVER squash. B stays LOCKED - the PR adds only the merge commits and, after them, the commits
 of pre-existing fixes (C3); a fix for a finding raised on the open PR is placed by the same rule.
-Present the PR URL, the review findings, and the P11 acceptance verdict together, and wait for the
-human to merge.
+Present the PR URL, the review findings, the P11 acceptance verdict and the defects the source
+series carries (each with the fix it got here) together, and wait for the human to merge.
 
 ---
 

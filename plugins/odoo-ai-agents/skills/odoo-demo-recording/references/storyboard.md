@@ -12,9 +12,10 @@ reference). Every tunable lives here; nothing is hardcoded later.
 | `languages` | locales `xx_YY`, one recording each with the UI in that language; empty = a silent video, one recording in the instance's locale, no narration |
 | `lead_in_s`, `fade_s`, `max_silence_s`, `max_hold_s`, `shot_seconds` | 0.5, 0.3, 3.0, 3.0, `[lo, hi]` (marketing 2-4, tutorial 3-8) |
 | `publish_profile` | `youtube-1080p` |
+| `viewport`, `device_scale_factor` | `[width, height]` in CSS pixels (default `[1920, 1080]`) and the pixel density (default 1): the take is recorded at their product and the assembler fits it to the profile. A tablet or handheld application takes its own viewport; a scene with a `focus` takes a density above 1 so the punch-in keeps real pixels |
 | `pronunciation` | `{lang: [{written, spoken, kind}]}` - adds to the machine registry, never overrides it |
-| `voice` | `{locale: voice id}` - the audition's pick, else the voice the speech configuration names for the locale |
-| `speed` | one rate for the whole video: the video type's rate when the probe said the engine honours it, else 1.0 |
+| `voice` | `{locale: voice id}` - the audition's pick; absent, the speech configuration's voice for the video type, else for the locale |
+| `speed`, `speed_post` | one rate for the whole video, the video type's; `speed_post: true` when the probe said the engine ignores `speed`: the rate is then applied to each clip after synthesis |
 | `wait_squeeze_s` | seconds the assembler squeezes the rest of every wait into after its first second (1.0); raise it when a scene's narration outruns its footage, instead of re-recording |
 | `music` | `{on, file, license, gain_db}`; marketing on, tutorial off unless asked; file and licence from the author profile |
 | `wait_selectors` | selectors of wait indicators beside the web client's own |
@@ -29,13 +30,13 @@ reference). Every tunable lives here; nothing is hardcoded later.
 | Key | Value |
 |---|---|
 | `id`, `title` | unique id; `{lang: text}` |
-| `click_path` | action objects (below); a human string beside them is a note, a scene with no action is not recordable |
+| `click_path` | action objects (below); a human string beside them is a note, a scene with no action is not recordable. Every take starts on a new, blank page: the first action is a `goto` (`check` warns otherwise) |
 | `target_seconds` | the shot's length |
-| `narration` | `{lang: spoken text}` - 8-15 words per sentence, one sentence per line; absent on a silent storyboard |
+| `narration` | `{lang: spoken text}` - 8-15 words per sentence, one sentence per line; a word is what stands between two spaces once punctuation is removed, in every language (a language written syllable by syllable counts syllables); absent on a silent storyboard |
 | `voice_input` | `{lang: text}` the fake microphone speaks (a `voice_in` action needs it for every language) |
 | `prompts`, `prompt_chosen` | `{lang: [candidates]}`; the pick after the trials, one of the candidates |
-| `focus` | `[{box: [x, y, w, h], from_s, to_s}]` - the area the assembler punches in on |
-| `must_see` | `[[start_s, end_s]]` inside the target - never compressed |
+| `focus` | `[{box: [x, y, w, h], from_s, to_s}]` - the area the assembler punches in on; times of the first language's take |
+| `must_see` | `[[start_s, end_s]]` inside the target - never compressed; times of the first language's take |
 | `allow_key_fields` | `false`: a take that shows a key field is refused |
 
 ## Actions (`do`)
@@ -53,8 +54,9 @@ after 120 s) · `hold {seconds}` · `voice_in {}` · `expect_text {selector, nam
 
 The recorder writes `<clip>.webm.events.json` beside each take: `[{kind, start, end}]` with
 `typing | wait | load | travel | hold | voice_in | voice_out | key_visible`, seconds from the
-first frame; the assembler compresses typing (3x), waits (first second kept, the rest squeezed
-into `wait_squeeze_s`), travel and loads (2x), keeps `must_see`, and refuses a take with
+first frame; the assembler cuts the head to the first rendered frame, compresses typing (3x),
+waits (first second kept, the rest squeezed into `wait_squeeze_s`), travel and loads (2x),
+shortens holds so the scene ends with its narration, keeps `must_see`, and refuses a take with
 `key_visible`. The recorder
 reaches the instance as the handle's `ui_user` and runs `language_switch` before the first frame;
 the storyboard says nothing about accounts.

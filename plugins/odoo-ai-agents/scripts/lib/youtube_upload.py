@@ -59,6 +59,10 @@ CHANNELS_URL = _API + "/youtube/v3/channels"
 CHUNK = 8 * 1024 * 1024  # a multiple of 256 KiB, as the resumable protocol requires
 RETRY_STATUS = (429, 503)
 RETRY_BACKOFF_S = (2.0, 6.0, 18.0)
+# A caption insert right after an upload can meet a video YouTube has not registered yet (404
+# videoNotFound); that answer is retried on this longer schedule.
+VIDEO_NOT_FOUND_REASON = "videoNotFound"
+CAPTION_BACKOFF_S = (5.0, 10.0, 20.0, 40.0, 60.0)
 # the CLI's sources of the values (the MCP server passes them in instead)
 CLIENT_ID_ENV = "YOUTUBE_CLIENT_ID"
 CLIENT_SECRET_ENV = "YOUTUBE_CLIENT_SECRET"
@@ -102,8 +106,9 @@ def _cancelled(cancel):
     return cancel is not None and cancel.is_set()
 
 
-def _request(url, data=None, headers=None, method=None, timeout=120, cancel=None):
+def _request(url, data=None, headers=None, method=None, timeout=120, cancel=None, retry_video_not_found=False):
     attempt = 0
+    missing_attempt = 0
     while True:
         if _cancelled(cancel):
             raise UploadError("cancelled before %s" % url.split("?")[0], 1)
@@ -115,6 +120,11 @@ def _request(url, data=None, headers=None, method=None, timeout=120, cancel=None
             body = exc.read()[:400].decode("utf-8", errors="replace")
             if exc.code == 308:
                 return 308, dict(exc.headers), b""
+            if (retry_video_not_found and exc.code == 404 and VIDEO_NOT_FOUND_REASON in body
+                    and missing_attempt < len(CAPTION_BACKOFF_S)):
+                _wait(CAPTION_BACKOFF_S[missing_attempt], cancel)
+                missing_attempt += 1
+                continue
             if exc.code in RETRY_STATUS and attempt < len(RETRY_BACKOFF_S):
                 _wait(RETRY_BACKOFF_S[attempt], cancel)
                 attempt += 1
@@ -203,7 +213,7 @@ def resumable_upload(token, path, resource, cancel=None):
     raise UploadError("upload ended without a video resource", 1)
 
 
-def insert_caption(token, video_id, lang, path):
+def insert_caption(token, video_id, lang, path, cancel=None):
     name = lang.replace("_", "-")
     boundary = "odooai-caption"
     meta = json.dumps({"snippet": {"videoId": video_id, "language": name.split("-")[0], "name": name,
@@ -214,7 +224,35 @@ def insert_caption(token, video_id, lang, path):
             + b"\r\n--" + boundary.encode() + b"\r\nContent-Type: application/octet-stream\r\n\r\n" + data
             + b"\r\n--" + boundary.encode() + b"--\r\n")
     _request(CAPTIONS_URL + "?uploadType=multipart&part=snippet", body,
-             _auth(token, {"Content-Type": "multipart/related; boundary=" + boundary}), "POST")
+             _auth(token, {"Content-Type": "multipart/related; boundary=" + boundary}), "POST",
+             cancel=cancel, retry_video_not_found=True)
+
+
+def insert_captions(token, video_id, captions, cancel=None):
+    """Insert one caption file per language; {lang: "ok" | "failed (<reason>)"}. A failure of one
+    language never stops the next."""
+    outcome = {}
+    for lang, path in (captions or {}).items():
+        try:
+            insert_caption(token, video_id, lang, path, cancel=cancel)
+            outcome[lang] = "ok"
+        except UploadError as exc:
+            outcome[lang] = "failed (%s)" % exc.args[0]
+        except OSError as exc:
+            outcome[lang] = "failed (%s)" % exc
+    return outcome
+
+
+def attach_captions(creds, video_id, captions, cancel=None):
+    """Caption files for a video that already exists on the channel the credentials belong to.
+    Raises UploadError when the video is not found or belongs to another channel; otherwise
+    {video_id, ok, captions: {lang: "ok" | "failed (...)"}}."""
+    details, token = video_details(creds, video_id, cancel=cancel)
+    mine = my_channel(token, cancel=cancel)
+    if details["channel_id"] != mine["id"]:
+        raise UploadError("video %s belongs to another channel than the purpose's" % video_id, 1)
+    outcome = insert_captions(token, video_id, captions, cancel=cancel)
+    return {"video_id": video_id, "ok": all(v == "ok" for v in outcome.values()), "captions": outcome}
 
 
 def set_thumbnail(token, video_id, path):
@@ -271,12 +309,7 @@ def publish(table, creds, video, title, description, tags=(), language=None, pri
     result = {"video_id": video_id, "privacy": resource_out.get("status", {}).get("privacyStatus") or privacy,
               "captions": {}, "thumbnail": None, "playlist": None}
     result.update({k.lower(): v for k, v in urls(video_id).items()})
-    for lang, path in (captions or {}).items():
-        try:
-            insert_caption(token, video_id, lang, path)
-            result["captions"][lang] = "ok"
-        except UploadError as exc:
-            result["captions"][lang] = "failed (%s)" % exc.args[0]
+    result["captions"] = insert_captions(token, video_id, captions, cancel=cancel)
     if thumbnail:
         try:
             set_thumbnail(token, video_id, thumbnail)

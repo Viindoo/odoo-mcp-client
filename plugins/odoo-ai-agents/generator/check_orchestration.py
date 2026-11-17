@@ -44,6 +44,8 @@ token set, or a diff); none judges the meaning of prose.
                        agent_body_budget.json, and that figure only goes down.
  22. agent-effort   - an agent's frontmatter `effort`, when present, is one of low, medium, high,
                        xhigh; `max` and any unknown value are refused, an absent field is fine.
+ 23. skill-model    - a skills/*/SKILL.md frontmatter carries no `model:` key: a skill runs on
+                       the caller's model, and the model of a delegated step is chosen at launch.
 
 Run: python3 generator/check_orchestration.py [--strict]   (ORCH_STRICT=1 also enforces)
 Sync: python3 generator/check_orchestration.py --sync-budgets   (make sync-budgets) lowers every
@@ -631,6 +633,30 @@ def check_agent_effort(findings: list[str]) -> None:
     """22. [agent-effort] - see agent_effort_findings."""
     findings.extend(agent_effort_findings(
         sorted(REPO_ROOT.glob("plugins/*/agents/*.md")), REPO_ROOT))
+
+
+# --- [skill-model] (rule 23) ----------------------------------------------------------------------
+
+
+def skill_model_findings(skill_files: list[Path], base: Path) -> list[str]:
+    """A skill's frontmatter never declares `model:`."""
+    found: list[str] = []
+    for path in skill_files:
+        text = path.read_text(encoding="utf-8")
+        match = re.match(r"---\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.S)
+        if not match:
+            continue
+        if any(re.match(r"model[ \t]*:", line) for line in match.group(1).splitlines()):
+            rel = path.relative_to(base).as_posix()
+            found.append(f"[skill-model] '{rel}' declares `model:` in its frontmatter - "
+                         "a skill carries no model")
+    return found
+
+
+def check_skill_model(findings: list[str]) -> None:
+    """23. [skill-model] - see skill_model_findings."""
+    findings.extend(skill_model_findings(
+        sorted(REPO_ROOT.glob("plugins/*/skills/*/SKILL.md")), REPO_ROOT))
 
 
 def sync_budgets(
@@ -1619,6 +1645,7 @@ def main(argv: list[str]) -> int:
     check_card_budget(findings)
     check_agent_body(findings)
     check_agent_effort(findings)
+    check_skill_model(findings)
     check_no_provenance(findings)
 
 

@@ -9,8 +9,7 @@ A run with `CHANGE` as a feature list updates the existing documents instead of 
    read; refresh only the entries of the changed capabilities and keep every `feature_id`). Find the
    sections of `doc/index.rst` that describe those capabilities, and the images
    each embeds. Sections about unchanged capabilities and their images are out of the run.
-2. **Shot list** holds only the shots of the mapped sections, plus the shots a new capability needs;
-   the cover is recaptured only when a mapped capability appears on it.
+2. **Shot list** holds only the shots of the mapped sections, plus the shots a new capability needs.
 3. **Write** only the mapped sections, in every language file, the same section in each; a section
    of an unchanged capability stays byte-identical. A rewritten section describes the behaviour as
    it is, for a reader who never saw the previous text: no "previously", no account of the fix

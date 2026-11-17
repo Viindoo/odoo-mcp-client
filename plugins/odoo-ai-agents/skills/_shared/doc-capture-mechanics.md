@@ -239,10 +239,9 @@ with the reading viewport width you measured slots at (section 7).
 
 ## 13. Place finals where the target doc resolves them (module docs)
 
-A final is every image the module ships: each image a doc embeds and each manifest `images` entry.
-The cover goes to the root of the module's `static/description/` (§ Manifest images of
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`); every other final goes directly into
-`static/description/assets/`, named per that snippet's § Images. A screen that already has an
+A final is every image a doc of the module embeds. It goes directly into
+`static/description/assets/`, named per § Images of
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`. A screen that already has an
 image there under a convention name keeps that name: your capture replaces it, and every doc
 showing that screen references the one file. An existing off-convention name or location (e.g.
 `shot_form.png`, `ws1-step03.png`, a screenshot at the root of `static/description/`) is moved

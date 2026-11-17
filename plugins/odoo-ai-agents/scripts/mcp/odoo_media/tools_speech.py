@@ -13,6 +13,7 @@ All four are long-running (a shared low-end gateway queues a second caller; the 
 429/503 and watches the call's cancel event). The value the `bearer` mode sends is values.SPEECH.
 """
 
+import json
 import os
 
 from odoo_local import cli, protocol
@@ -35,6 +36,7 @@ SYNTHESIZE_IN = {
         "phonemes": {"type": "boolean", "default": False, "description": "True when the engine accepts the map's phoneme entries (inline IPA); else they are skipped."},
         "speed": {"type": "number", "minimum": 0.5, "maximum": 2.0, "description": "Speaking-rate factor (the OpenAI speed parameter): the video type's rate from speech.toml; an engine may ignore it - speech_probe with speed says."},
         "voice": {"type": "string", "minLength": 1, "description": "A voice id to audition instead of the recorded one (speech.toml tts.candidates)."},
+        "video_type": {"type": "string", "enum": [], "description": "The video type: its recorded voice for the language is used (speech.toml tts.type_voices), else the language's voice; an explicit voice wins over both."},
     },
     "additionalProperties": False,
 }
@@ -110,6 +112,13 @@ def _text(args):
         raise ToolError("INVALID_ARGUMENTS", "arguments.text_file: %s" % exc)
 
 
+def synthesize_schema():
+    """SYNTHESIZE_IN with the video types of speech_config.VIDEO_TYPES."""
+    schema = json.loads(json.dumps(SYNTHESIZE_IN))
+    schema["properties"]["video_type"]["enum"] = list(cli.load_lib("speech_config").VIDEO_TYPES)
+    return schema
+
+
 def register(registry, ctx):
     def synthesize(args, ctx):
         sc = _speech_client()
@@ -118,7 +127,8 @@ def register(registry, ctx):
         try:
             out, dur = sc.tts(text, args["lang"], args["out"], args.get("pronunciation"), cfg=cfg,
                               value=_value(cfg, sc), cancel=protocol.cancel_event(), phonemes=args.get("phonemes", False),
-                              speed=args.get("speed"), voice=args.get("voice"))
+                              speed=args.get("speed"), voice=args.get("voice"),
+                              video_type=args.get("video_type"))
         except sc.SpeechError as exc:
             raise _translate(exc)
         return {"out": out, "duration_s": round(dur, 3), "lang": args["lang"]}
@@ -162,7 +172,7 @@ def register(registry, ctx):
         "storyboard's pronunciation map so brands and acronyms are respelled for the engine only; set "
         "phonemes=true only when media_info / the configuration says the engine accepts inline IPA. "
         "Long-running; the endpoint is a shared low-end service, so call it one clip at a time.",
-        SYNTHESIZE_IN, SYNTHESIZE_OUT, synthesize, title="Synthesize narration", long_running=True, idempotent=True)
+        synthesize_schema(), SYNTHESIZE_OUT, synthesize, title="Synthesize narration", long_running=True, idempotent=True)
     registry.add(
         "speech_transcribe",
         "Transcribe a WAV in the given language through the configured speech-to-text endpoint; with "

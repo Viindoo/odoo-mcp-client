@@ -37,12 +37,13 @@ YouTube ones itself.
 | Tool | Does | Long-running |
 |---|---|---|
 | `media_info` | version, options present (true/false), `speech.toml` / `youtube.toml` state, languages, channels and slots, ffmpeg filters missing, the last upgrade pass (`upgrade`: version, moved, missing, connection) | no |
-| `speech_synthesize` | text (one sentence per line) + lang + out [+ pronunciation map, phonemes, `speed` (the video type's rate), `voice` (an audition candidate)] -> 48 kHz mono WAV, duration | yes |
+| `speech_synthesize` | text (one sentence per line) + lang + out [+ pronunciation map, phonemes, `speed` (the video type's rate), `video_type` (picks that type's voice for the locale), `voice` (an explicit voice, which wins)] -> 48 kHz mono WAV, duration | yes |
 | `speech_transcribe` | WAV + lang [+ words] -> transcript [+ word timestamps] | yes |
 | `speech_voices` | the recorded endpoint's voice listing as returned (`null` when the endpoint publishes none), plus its model ids and a TTS / STT model guess; an endpoint-only `speech.toml` (`70-speech.sh record --endpoint-only`) is enough, and the value only ever goes to that recorded endpoint | yes |
 | `speech_probe` | per language: one sentence synthesized, transcribed back, word error rate, `verdict` pass/fail; with `speed`, whether the engine honoured it (`speed_honoured`, measured by duration); clips under `<state root>/scratch/speech-probe` | yes |
 | `youtube_check` | channel of a purpose: slot, privacy, options present; `live` = one access refresh + `channels.list(mine)` -> channel id and title | yes |
-| `youtube_upload` | resumable upload + captions + thumbnail + playlist; `dry_run` plans; returns watch/embed/short URLs | yes |
+| `youtube_upload` | resumable upload + captions (retried while the new video is not visible yet; a result per language) + thumbnail + playlist; `dry_run` plans; returns watch/embed/short URLs | yes |
+| `youtube_captions` | caption files attached to an existing video of the channel, no upload; a result per language | yes |
 | `youtube_describe` | title, channel and privacy of a video (read before a change) | yes |
 | `youtube_set_privacy` | unlisted -> public when the docs go live; -> private to retire a video | yes |
 | `youtube_delete` | delete a superseded video; runs only when the given title matches; the human prompt always applies | yes |
@@ -68,7 +69,9 @@ refuses it), so a public upload is always the explicit argument the hook sees.
 
 - `speech.toml` (`scripts/lib/speech_config.py`): `[tts]` provider, base_url, model, `auth`
   (`bearer` | `none`), response_format, voices_url; `[tts.voices]` locale -> voice (one voice, one
-  language); `[stt]` base_url, model, auth.
+  language); `[tts.type_voices.<video type>]` locale -> voice, for a voice that differs by video
+  type (resolution: the voice the caller passes, the video type's, the locale's); `[stt]`
+  base_url, model, auth.
 - `youtube.toml` (`scripts/lib/youtube_config.py`): `[channels.<purpose>]` slot, channel, privacy,
   playlist_id, default_language; at least one channel; one channel per slot. A single `[youtube]`
   table from an older plugin is read as `channels.docs` and rewritten on the next `record`.

@@ -2,8 +2,11 @@
 
 Consult when assembling the translation memory and when hand-translating the residual.
 
-## Three glossary layers - in order, first canonical hit wins
+## Glossary layers - in order, first canonical hit wins
 
+0. **The module's own catalog on another series**, when the brief hands one (`SOURCE CATALOGS`):
+   an entry of the same module with the same `msgid` is reused as it stands, before any new
+   wording is written.
 1. **TM from core + deps.** The already-translated `<lang>.po` of core Odoo and of the module's
    dependency modules; reuse their `msgstr` for any recurring `msgid`. Largest and most
    authoritative term source, and it keeps a module reading like the product around it.

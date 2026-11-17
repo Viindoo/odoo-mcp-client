@@ -3,7 +3,6 @@ name: odoo-intake
 argument-hint: "[your goal in plain words]"
 description: >-
   Front door for vague or multi-step Odoo/ERP requests: clarifies intent, routes to one skill
-model: inherit
 ---
 
 # Odoo Intake - the front door

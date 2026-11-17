@@ -3,7 +3,6 @@ name: odoo-git-rebase
 argument-hint: "[branch] [onto base]"
 description: >-
   Rebases a branch onto an updated base of the same Odoo series
-model: sonnet
 ---
 
 ## Role
@@ -48,7 +47,7 @@ Fill every dispatch from `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § U
 
 **Small-scale fast-path.** Up to 5 commits, no patch-equivalent commit, no renamed or moved symbol in one cheap OSM batch: P2+P3 collapse into ONE sonnet `odoo-diff-comparator` pass; P8b still runs. A P8 conflict on the fast-path provisions the stopped commit's dump and one `odoo-intent-extractor` before `odoo-coding` (`rb-phase-detail-p8-p12.md` § P8).
 
-**Orphan sweep (every run, BEFORE P0):** `find <ISOLATE_DIR>/git-rebase/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (`snippets/visual-evidence-lifecycle-contract.md` Clause 3).
+**Orphan sweep (every run, BEFORE P0):** `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/git-rebase --older-than-minutes 43200` (`snippets/visual-evidence-lifecycle-contract.md` Clause 3).
 
 **P0 - Intake / resolve [haiku subagent; clarify gate if `open_questions` non-empty].** `/odoo-git-rebase <free text>` passes the whole prompt through: NO required parameters, NO inferring inline; dispatch this subagent first with the full text. It parses the NL request into feature ref (branch or PR) and new-base, verifies one Odoo major series, emits `open_questions[]` and `branches_to_materialize[]`. Ask only those questions, in one message, then re-dispatch; PR lookup and worktrees go to git-ops. Emit `intake.md`. § P0.
 

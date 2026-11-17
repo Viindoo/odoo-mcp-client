@@ -13,8 +13,7 @@ the run, before any path that embeds it:
 <intent-slug>-<YYYYMMDD>-<4 random chars>
 ```
 
-Take the four characters from a real command, never from your own reasoning - two agents reasoning
-about the same intent are not independent samples:
+Take the four characters from a real command, never from your own reasoning:
 
 ```bash
 printf '%02x%02x' $((RANDOM % 256)) $((RANDOM % 256))
@@ -31,8 +30,11 @@ Each owner sweeps its own directory at its Phase or Round 0, before it mints its
 never a sibling's:
 
 ```
-find <ISOLATE_DIR>/visual/<subdir>/ -mindepth 1 -maxdepth 1 -type d -mmin +<minutes> -exec rm -rf {} +
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/visual/<subdir> --older-than-minutes <minutes>
 ```
+
+The command prints one `REMOVED=` line per entry it deleted: name them in your return. An entry
+is as old as its newest file.
 
 | Directory | Owner | Kept |
 |---|---|---|
@@ -41,18 +43,19 @@ find <ISOLATE_DIR>/visual/<subdir>/ -mindepth 1 -maxdepth 1 -type d -mmin +<minu
 | `visual/debug/<slug>/` | `odoo-debug` | 30 days |
 | `visual/screenshots/<slug>/` | `odoo-ui-review` | 30 days |
 
-A live run keeps writing into its own directory, so the age test never matches it.
+A live run keeps writing into its own directory, so it is never swept.
 
 ## Clause 3 - every other run-scoped path
 
-The same rule: the owner sweeps its own path at its Phase 0, before creating this run's own.
+The same rule and command: the owner sweeps its own path at its Phase 0, before creating this
+run's own.
 
 | Path (under `<ISOLATE_DIR>`) | Owner | Kept |
 |---|---|---|
 | `worklog/<run-or-slug>/` | the first writer of a run (`worklog-contract.md`) | 30 days |
 | `git-rebase/<slug>/`, `forward-port/<slug>/`, `modules-upgrade/<slug>/` | the skill of that name | 30 days |
 | `coding/<slug>-<date>/`, `reviews/<slug>-<date>/`, `i18n/<slug>-<date>/` | `odoo-coding`, `odoo-code-review`, `odoo-i18n` | 30 days |
-| `pr-monitoring/<id>.md`, `followups/<slug>.md`, `visual/videos/*` (files: `-type f`) | `odoo-pr-monitoring`, the follow-up command, `odoo-demo-recording` | 30 days |
+| `pr-monitoring/<id>.md`, `followups/<slug>.md`, `visual/videos/*` (files: `--files`) | `odoo-pr-monitoring`, the follow-up command, `odoo-demo-recording` | 30 days |
 | a workflow's `output_dir` | `workflow-chaining`, once, for the active workflow | 30 days |
 | `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | deleted at the end of its run; 24h for a crashed run. Its sweep runs on `visual/` itself, so it excludes every named sibling (`baselines`, `doc`, `current`, `qa`, `debug`, `screenshots`, `videos`, `adhoc`) by name |
 | `integration/<slug>/` | the plan runner | § 3.6 |
@@ -71,7 +74,6 @@ Never swept by a skill:
 
 A run can wait at a human gate for any length of time, so age proves nothing here. A directory
 older than 24h is deleted only when the run file of the same id says the RUN itself is terminal
-(`DONE`, `BLOCKED` or `NEEDS_CONTEXT`), read as the JSON root's `status` with `jq` - the file
-also holds a `status` per node, which a text match cannot tell apart. No run file, unreadable
+(`DONE`, `BLOCKED` or `NEEDS_CONTEXT`), read as the JSON root's `status` with `jq`. No run file, unreadable
 JSON, an empty status, `NEEDS_NEXT`, or no `jq`: skip, never delete. The command is at
 `plan-mode-schema.md` § Running the plan, Run start.

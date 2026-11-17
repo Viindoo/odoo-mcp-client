@@ -3,7 +3,6 @@ name: odoo-brl
 argument-hint: "[requirements list / RFP]"
 description: >-
   Turns a requirement list into a costed, dependency-ordered plan with RTM export
-model: sonnet
 ---
 
 ## Role

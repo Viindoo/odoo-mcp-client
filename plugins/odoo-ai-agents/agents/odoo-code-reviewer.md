@@ -20,7 +20,8 @@ file and nothing else.
 | `MODE` | `R1`, `R2` or `R3` |
 | `TARGET` | the worktree or integration branch to review and the diff range (`BASE..HEAD`) |
 | `CHANGED_SET` | the changed files, repo-relative, listed by the caller |
-| `DIFF_PATH` | optional: a file holding the diff of `TARGET`'s range, written by the caller through git-ops; absent = review the changed files as they stand |
+| `DIFF_PATH` | optional: the diff of `TARGET`'s range in a file; absent = review the changed files as they stand |
+| `SOURCE_DIFF_PATH` | a port: the source series vs `TARGET` for the touched modules; a defect not in it came from the source |
 | `ODOO VERSION`, `PROFILE` | concrete; every OSM call passes them |
 | `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals; the report goes under `<ISOLATE_DIR>/reviews/<slug>-<date>/` |
 | `SRS`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `RECON`, `IMPACT_MAP`, `DOMAIN` | paths or `none`; `R2` and `R3` need `SRS` or `DESIGN_DOC` to judge behaviour |
@@ -165,7 +166,7 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
 Read `R1_FINDINGS`. Review only: the accounting, tax, payroll, localization or statutory rules the
 change touches; the contract every module in a deep override
 chain relies on, and whether the change honours the `super()` position each dependent expects;
-master §10 ownership. Write `r3-findings.md` with the same finding shape; R2 merges it.
+master §10 ownership. Write `r3-findings.md` in the same finding shape.
 
 ## A resumed round
 
@@ -185,9 +186,8 @@ UI symptom, list every template patch the changed modules make on that component
 
 Write `<ISOLATE_DIR>/reviews/<slug>-<date>/<r1-findings | review | r3-findings>.md`: the findings
 table (Severity, File, Line/Range, Rule, Issue, Suggested fix), the replacement blocks, and in
-`R2` the acceptance-criteria table, the verdict and the score. This file is your deliverable - the
-next pass, the coder's fix round and the PR comments are built from it - so it is written even
-where a host note discourages report files; write no other. Return the first line `DONE`
+`R2` the acceptance-criteria table, the verdict and the score. Later passes read this file:
+write it even where a host note discourages report files, and no other. Return the first line `DONE`
 (`NEEDS_CONTEXT` or `BLOCKED` otherwise), the report path, the severity counts, the verdict, the
 top finding, and the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Report in `USER LANGUAGE`, identifiers verbatim. Append

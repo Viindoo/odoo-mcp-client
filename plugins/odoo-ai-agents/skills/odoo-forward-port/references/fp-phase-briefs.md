@@ -36,15 +36,13 @@ successfully, is a pipeline defect; retry a failed or incomplete module pass by 
 instance by the id its launch returned.
 **Tier-C retry (no recorded id, or it no longer resolves -
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A):** confirm the failed
-instance's turn has fully ended, then launch exactly ONE replacement `general-purpose` worker
+instance's turn has fully ended, then launch exactly ONE replacement `odoo-intent-extractor`
 carrying the module's FULL, UNCHANGED `commit_dump_paths` plus `PRIOR ATTEMPT: <what the failed
 pass returned or omitted>`. The replacement is authoritative for the whole module bundle.
-Dispatch each module's single instance using CHP Tier-B `subagent_type: "fork"`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B), with the module's triaged
-`model` override (`references/fp-triage-table.md` Table 1, resolved per module bundle), up to the Mode B budget
+Launch each module's single `odoo-intent-extractor` at the module's triaged `model`
+(`references/fp-triage-table.md` Table 1, resolved per module bundle), up to the Mode B budget
 (rolling window beyond it; the budget counts MODULES in flight, not commits). Extraction is
-read-only, so no worktree children. Fallback (Tier C): if `subagent_type: "fork"` is unavailable,
-dispatch a fresh `general-purpose` spawn with an explicit brief; the worklog is always written.
+read-only, so no worktree children; the worklog is always written.
 
 Commit dumps, the per-module `SLUG` and the brief: `references/fp-phase-p0-p4.md` § P1.
 
@@ -95,7 +93,9 @@ worktree), `SELF_PROVISION: worktree-addons` so `odoo-i18n` builds its OWN expor
 addons path covers that worktree
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion: on a
 miss, BLOCK), and `TARGET LANGUAGES` (the codes inferred from the source-side `<lang>.po` filenames -
-deliverable languages only, never `en_US` - when any exist; otherwise OMIT the field). An
+deliverable languages only, never `en_US` - when any exist; otherwise OMIT the field), and
+`SOURCE CATALOGS` = the source ref's `i18n/<lang>.po` of each such module, written by one git-ops
+request to `<ISOLATE_DIR>/forward-port/<slug>/source-po/<module>/`. An
 `i18n_due: escape:<E-id>` module is skipped with its recorded reason. Present every result -
 reconciled or escaped - at P12 with the PR.
 
@@ -146,9 +146,8 @@ handle as-is. A resume that spans a session boundary reuses it only through
 
 Per-batch checks:
 
-- **Multi-repo env bootstrap.** When source and target live in different repos/clones, bring
-  the source ref into reach (invoke `git-toolkit:git-ops`: add source remote + fetch) BEFORE computing
-  the merge base or merging. Detail: `references/fp-phase-p0-p4.md` § P0.
+- **Target clone.** Every git step runs in the checkout the target series builds from, with the
+  source ref brought into reach first: `references/fp-phase-p0-p4.md` § P0.
 - **Manifest version & migration dir.** C1 sets the manifest version at the merge, C2 decides what
   becomes of the forwarded `migrations/` dirs at P9.6; they are distinct, apply both. SSOT: `[[fp-merge-absorption]]`.
 - **Field-label grounding.** When the port renames or re-labels a field, confirm the

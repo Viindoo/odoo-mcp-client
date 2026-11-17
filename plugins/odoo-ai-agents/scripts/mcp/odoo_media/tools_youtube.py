@@ -3,6 +3,7 @@
   youtube_check    the channel's configuration, and with live=true one token refresh plus
                    channels.list(mine=true) (1 quota unit) - run it BEFORE a recording run
   youtube_upload   resumable upload + captions + thumbnail + playlist; dry_run plans only
+  youtube_captions caption files for a video that already exists on the channel (no upload)
   youtube_status   processing and privacy status of an uploaded video
 The OAuth client values and the channel slot's refresh token are values.* (plugin options); an
 access token is minted in memory per call. A `privacy: public` upload is the one outward-facing
@@ -58,6 +59,17 @@ UPLOAD_OUT = {
                    "captions": {"type": "object", "additionalProperties": {"type": "string"}},
                    "thumbnail": {"type": ["string", "null"]}, "playlist": {"type": ["string", "null"]}},
 }
+CAPTIONS_IN = {
+    "type": "object", "required": ["channel", "video_id", "captions"],
+    "properties": {"channel": _PURPOSE, "video_id": {"type": "string", "minLength": 1},
+                   "captions": {"type": "object", "description": "{locale: absolute path of an .srt}; at least one",
+                                "additionalProperties": {"type": "string", "minLength": 1}}},
+    "additionalProperties": False}
+CAPTIONS_OUT = {
+    "type": "object", "required": ["channel", "video_id", "ok", "captions"],
+    "properties": {"channel": {"type": "string"}, "video_id": {"type": "string"}, "ok": {"type": "boolean"},
+                   "captions": {"type": "object", "additionalProperties": {"type": "string"},
+                                "description": "per locale: ok, or failed (<reason>)"}}}
 DETAILS_OUT = {"type": "object", "required": ["id", "title", "channel_id", "channel_title", "privacy"],
                "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "channel_id": {"type": "string"},
                               "channel_title": {"type": "string"}, "privacy": {"type": ["string", "null"]}}}
@@ -197,6 +209,22 @@ def register(registry, ctx):
             raise _translate(exc)
         return d
 
+    def captions(args, ctx):
+        yu = _lib()
+        table = _table(yu, args["channel"])
+        files = args["captions"]
+        if not files:
+            raise ToolError("INVALID_ARGUMENTS", "arguments.captions: at least one locale -> .srt path")
+        for lang, path in files.items():
+            if not os.path.isfile(path):
+                raise ToolError("INVALID_ARGUMENTS", "arguments.captions.%s: %s is not a file" % (lang, path))
+        try:
+            result = yu.attach_captions(_creds(table), args["video_id"], files, cancel=protocol.cancel_event())
+        except yu.UploadError as exc:
+            raise _translate(exc)
+        result["channel"] = args["channel"]
+        return result
+
     def privacy(args, ctx):
         yu = _lib()
         table = _table(yu, args["channel"])
@@ -235,6 +263,13 @@ def register(registry, ctx):
         "deleted or made private once every page that embedded it points at the new one). Irreversible: the user "
         "confirms the title first (youtube_describe), and the call deletes only when `title` matches. Long-running.",
         DELETE_IN, DETAILS_OUT, delete, title="Delete a YouTube video", long_running=True, destructive=True)
+    registry.add(
+        "youtube_captions",
+        "Attach caption files (one .srt per locale) to a video that already exists on the channel of a purpose, "
+        "for a video whose captions failed at upload or whose captions were re-timed; no upload. A caption call "
+        "that meets a video YouTube has not registered yet is retried with backoff. Returns per locale ok or "
+        "failed (<reason>) and an overall ok. A video of another channel is refused. Long-running.",
+        CAPTIONS_IN, CAPTIONS_OUT, captions, title="Attach captions to a YouTube video", long_running=True, destructive=False)
     registry.add(
         "youtube_status",
         "Processing and privacy status of a video uploaded to the channel of a purpose. Read-only.",

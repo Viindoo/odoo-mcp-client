@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,7 +26,7 @@ STORYBOARD = {
         {"id": "intro", "title": {"en_US": "Intro", "vi_VN": "Mo dau"}, "click_path": ["Open the app"],
          "target_seconds": 8, "narration": {"en_US": "Welcome.", "vi_VN": "Xin chao."}},
         {"id": "quote", "title": {"en_US": "Quote", "vi_VN": "Bao gia"},
-         "click_path": ["Open Sales",
+         "click_path": [{"do": "goto", "url": "/odoo/sales"},
                         {"do": "click", "selector": ".o_menu_sales"},
                         {"do": "fill", "selector": "input.name", "text": "Acme"}],
          "target_seconds": 20, "narration": {"en_US": "Create a quote.", "vi_VN": "Tao bao gia."},
@@ -65,7 +66,7 @@ def test_valid_two_language_storyboard_passes_and_reports_text_only_scenes(tmp_p
     assert proc.returncode == 0, proc.stdout
     kv = _kv(proc.stdout)
     assert kv["OK"] == "1" and kv["SCENES"] == "2" and kv["LANGUAGES"] == "en_US,vi_VN"
-    assert kv["ACTIONS"] == "2" and kv["TEXT_ONLY_SCENES"] == "intro"
+    assert kv["ACTIONS"] == "3" and kv["TEXT_ONLY_SCENES"] == "intro" and kv["WARNINGS"] == "0"
 
 
 def test_missing_narration_for_a_language_is_an_error_naming_the_path(tmp_path):
@@ -134,6 +135,7 @@ def test_scene_script_keeps_language_switch_out_of_actions_and_drops_human_strin
     script = json.loads(out.read_text(encoding="utf-8"))
     assert script["language_switch"] == [{"do": "goto", "url": "/web?lang=vi_VN"}]
     assert script["actions"] == [
+        {"do": "goto", "url": "/odoo/sales"},
         {"do": "click", "selector": ".o_menu_sales"},
         {"do": "fill", "selector": "input.name", "text": "Acme"}]
     assert script["clip_name"] == "scene-quote" and script["label"] == "create-a-quote"
@@ -305,7 +307,7 @@ def test_fill_text_and_select_value_may_be_a_map_resolved_per_language(tmp_path)
                      "--base-url", "http://x", "--out", str(out))
         assert proc.returncode == 0, proc.stdout
         actions = json.loads(out.read_text(encoding="utf-8"))["actions"]
-        assert actions[1]["text"] == name and actions[2]["value"] == value
+        assert actions[2]["text"] == name and actions[3]["value"] == value
 
 
 def test_a_text_map_missing_a_listed_language_is_an_error(tmp_path):
@@ -365,3 +367,138 @@ def test_wait_squeeze_s_is_shown_by_render_and_carried_into_the_scene_script(tmp
 def test_an_absent_wait_squeeze_s_is_one_second_in_the_scene_script(tmp_path):
     assert "wait_squeeze_s" not in STORYBOARD
     assert _scene_script(tmp_path, copy.deepcopy(STORYBOARD))["wait_squeeze_s"] == 1.0
+
+
+def _warnings(tmp_path, mutate):
+    proc, _ = _check(tmp_path, mutate)
+    lines = proc.stdout.splitlines()
+    return proc, [ln for ln in lines if ln.startswith("WARNING=")], _kv(proc.stdout)
+
+
+def test_a_scene_whose_first_action_is_not_a_goto_is_a_warning_that_keeps_the_exit_code(tmp_path):
+    def starts_with_click(sb):
+        sb["scenes"][1]["click_path"] = ["Open Sales", {"do": "click", "selector": ".o_menu_sales"},
+                                         {"do": "goto", "url": "/odoo/sales"}]
+
+    proc, warnings, kv = _warnings(tmp_path, starts_with_click)
+    assert proc.returncode == 0, proc.stdout
+    assert kv["OK"] == "1" and kv["WARNINGS"] == "1" and len(warnings) == 1
+    assert warnings[0].startswith("WARNING=scenes[1].click_path:")
+
+
+def test_every_scene_without_a_leading_goto_gets_its_own_warning(tmp_path):
+    def two_bad(sb):
+        sb["scenes"][0]["click_path"] = [{"do": "hold", "seconds": 1}]
+        sb["scenes"][1]["click_path"][0] = {"do": "click", "selector": ".x"}
+
+    proc, warnings, kv = _warnings(tmp_path, two_bad)
+    assert proc.returncode == 0, proc.stdout
+    assert kv["WARNINGS"] == "2"
+    assert [w.split(":")[0] for w in warnings] == ["WARNING=scenes[0].click_path", "WARNING=scenes[1].click_path"]
+
+
+def test_a_text_only_scene_and_a_scene_that_starts_with_goto_raise_no_warning(tmp_path):
+    proc, warnings, kv = _warnings(tmp_path, lambda sb: None)
+    assert proc.returncode == 0 and warnings == [] and kv["WARNINGS"] == "0"
+
+
+def test_a_warning_does_not_hide_an_error_and_both_are_reported(tmp_path):
+    def broken(sb):
+        sb["scenes"][1]["click_path"][0] = {"do": "click", "selector": ".x"}
+        sb["scenes"][1]["narration"].pop("vi_VN")
+
+    proc, warnings, kv = _warnings(tmp_path, broken)
+    assert proc.returncode == 1
+    assert kv["ERRORS"] == "1" and kv["WARNINGS"] == "1" and len(warnings) == 1
+
+
+def test_viewport_and_device_scale_factor_default_to_full_hd_at_one_to_one(tmp_path):
+    script = _scene_script(tmp_path, copy.deepcopy(STORYBOARD))
+    assert script["viewport"] == [1920, 1080] and script["device_scale_factor"] == 1
+
+
+def test_viewport_and_device_scale_factor_are_carried_into_the_scene_and_demo_data_scripts(tmp_path):
+    sb = copy.deepcopy(STORYBOARD)
+    sb["viewport"] = [1280, 800]
+    sb["device_scale_factor"] = 1.5
+    sb["demo_data"] = [{"do": "goto", "url": "/web"}]
+    assert _check_ok(tmp_path, sb)
+    script = _scene_script(tmp_path, sb)
+    assert script["viewport"] == [1280, 800] and script["device_scale_factor"] == 1.5
+    out = tmp_path / "demo.json"
+    assert _tool("demo-data-script", "--storyboard", _write(tmp_path, sb), "--base-url", "http://x",
+                 "--out", str(out)).returncode == 0
+    seed = json.loads(out.read_text(encoding="utf-8"))
+    assert seed["viewport"] == [1280, 800] and seed["device_scale_factor"] == 1.5
+    plan = tmp_path / "plan.md"
+    assert _tool("render", "--storyboard", _write(tmp_path, sb), "--out", str(plan)).returncode == 0
+    text = plan.read_text(encoding="utf-8")
+    assert "1280x800" in text and "device_scale_factor: 1.5" in text
+
+
+def _check_ok(tmp_path, sb):
+    return _tool("check", "--storyboard", _write(tmp_path, sb)).returncode == 0
+
+
+def test_a_viewport_or_device_scale_factor_that_cannot_be_a_video_size_is_an_error(tmp_path):
+    bad = [  # (key, value, the path the error names)
+        ("viewport", [1920], "viewport"), ("viewport", [1920, 1080, 1], "viewport"),
+        ("viewport", "1920x1080", "viewport"), ("viewport", [1920.5, 1080], "viewport"),
+        ("viewport", [100, 1080], "viewport"), ("viewport", [1920, 9000], "viewport"),
+        ("viewport", [True, 1080], "viewport"), ("viewport", [1921, 1080], "viewport"),
+        ("device_scale_factor", "2", "device_scale_factor"), ("device_scale_factor", 0.5, "device_scale_factor"),
+        ("device_scale_factor", 5, "device_scale_factor"), ("device_scale_factor", None, "device_scale_factor"),
+        ("device_scale_factor", 1.33, "viewport"),
+    ]
+    for key, value, path in bad:
+        proc, errors = _check(tmp_path, lambda sb, k=key, v=value: sb.__setitem__(k, v))
+        assert proc.returncode == 1, (key, value)
+        assert any(e.startswith("ERROR=%s:" % path) for e in errors), (key, value, errors)
+    for viewport, scale in (([1280, 720], 1), ([768, 1024], 2), ([800, 600], 1.5), ([640, 360], 3)):
+        proc, _ = _check(tmp_path, lambda sb, v=viewport, f=scale: sb.update(viewport=v, device_scale_factor=f))
+        assert proc.returncode == 0, (viewport, scale, proc.stdout)
+
+
+def test_speed_post_must_be_a_boolean_and_is_shown_by_render_only_when_true(tmp_path):
+    for bad in ("true", 1, None, [True]):
+        proc, errors = _check(tmp_path, lambda sb, v=bad: sb.__setitem__("speed_post", v))
+        assert proc.returncode == 1, bad
+        assert any(e.startswith("ERROR=speed_post:") for e in errors), (bad, errors)
+    for good in (True, False):
+        proc, _ = _check(tmp_path, lambda sb, v=good: sb.__setitem__("speed_post", v))
+        assert proc.returncode == 0, good
+
+    def render(**extra):
+        sb = copy.deepcopy(STORYBOARD)
+        sb.update(extra)
+        out = tmp_path / "plan.md"
+        assert _tool("render", "--storyboard", _write(tmp_path, sb), "--out", str(out)).returncode == 0
+        return [ln for ln in out.read_text(encoding="utf-8").splitlines() if ln.startswith("- speed")]
+
+    assert render() == []
+    assert render(speed_post=False, speed=1.1) == ["- speed: 1.1"]
+    lines = render(speed_post=True, speed=1.1)
+    assert lines[0] == "- speed: 1.1" and lines[1].startswith("- speed_post: true")
+
+
+def test_speed_post_is_not_carried_into_the_scene_script(tmp_path):
+    sb = copy.deepcopy(STORYBOARD)
+    sb["speed_post"] = True
+    assert "speed_post" not in _scene_script(tmp_path, sb)
+
+
+def _label_of(tmp_path, title):
+    sb = copy.deepcopy(STORYBOARD)
+    sb["title"] = title
+    return _scene_script(tmp_path, sb)["label"]
+
+
+def test_the_label_derived_from_a_long_title_is_bounded_readable_and_unique(tmp_path):
+    long_a = "Create a quote for a customer and send it by email after checking the price list " * 2
+    long_b = long_a + "again"
+    label_a, label_b = _label_of(tmp_path, long_a), _label_of(tmp_path, long_b)
+    assert len(label_a) <= 32 and len(label_b) <= 32
+    assert label_a != label_b
+    assert label_a.startswith("create-a-quote-for-a") and re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", label_a)
+    assert _label_of(tmp_path, "Create a Quote") == "create-a-quote"
+    assert _label_of(tmp_path, "x" * 32) == "x" * 32 and len(_label_of(tmp_path, "x" * 33)) <= 32

@@ -168,6 +168,14 @@
 #     exists so tests can place a throwaway root outside the real temp directories.
 #   - ODOO_AI_NO_AUTO_PERMS=1 disables all of it (nothing is written or pruned).
 #
+# LEASE GIVE-BACK RULES - besides the 4 rules above, `apply` writes the exact allow rules
+# `mcp__plugin_<plugin>_odoo-local__lease_release` and `..._lease_park` (listed by
+# `scripts/lib/plugin_mcp_servers.py give-back`, the SSOT), so an agent can give back a lease
+# its own session acquired without the auto-mode permission classifier deciding. No other
+# odoo-local or odoo-media tool is granted. They are written and checked for every state root,
+# an ephemeral one included, are skipped when an existing allow entry already grants them
+# (the exact name, or the `odoo-local` server rule), and the pruning above never removes them.
+#
 # Subcommands:
 #   describe   One-line description.
 #   check      Exit 0 if every rule is either already present OR already
@@ -182,7 +190,7 @@
 #   apply      Ask [Y/n] (honors ODOO_AI_NO_AUTO_PERMS=1 opt-out); for the two
 #              version-pinned Bash rules, unconditionally prunes stale same-
 #              plugin entries first (config_merge.py json-prune-allow); then
-#              for all 4 rules, skips any rule config_merge.py json-rule-
+#              for every rule (the 4 above and the lease give-back rules), skips any rule config_merge.py json-rule-
 #              covered reports as already granted, and idempotently appends
 #              the rest via config_merge.py json-ensure-allow; prints what
 #              was added/skipped, instructs one restart, and self-verifies by
@@ -202,6 +210,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
 ROOT_LIB="$SCRIPT_DIR/../lib/state_root_permissions.py"
+SERVERS_LIB="$SCRIPT_DIR/../lib/plugin_mcp_servers.py"
 
 CLAUDE_SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
 
@@ -280,8 +289,32 @@ _root_is_ephemeral() {
     python3 "$ROOT_LIB" ephemeral "$ODOO_AI_HOME" >/dev/null 2>&1
 }
 
-# Index of the first Read/Edit state-root rule in RULES (0,1 are the Bash rules).
+# The lease give-back rules: the full tool-call names of `lease_release` and `lease_park` of
+# the `odoo-local` server, written as exact allow rules so that returning a lease the agent's
+# own session acquired never depends on the auto-mode permission classifier (the plugin's
+# PermissionRequest hook does not run in auto mode). Lease ownership stays enforced by the
+# PreToolUse hook block-unowned-lease-mutation.sh and by the allocator. The names come from
+# scripts/lib/plugin_mcp_servers.py (SSOT). They are a group of their own: written and checked
+# whatever the state root is (an ephemeral root included), never pruned, and skipped when an
+# existing allow entry already grants them (the exact name or the whole `odoo-local` server).
+GIVE_BACK_RULES=()
+if [[ -f "$SERVERS_LIB" ]]; then
+    while IFS= read -r _gb_rule; do
+        [[ -n "$_gb_rule" ]] && GIVE_BACK_RULES+=("$_gb_rule")
+    done < <(python3 "$SERVERS_LIB" give-back 2>/dev/null || true)
+fi
+
+# Every rule this step manages: the 4 state-root rules, then the give-back group.
+ALL_RULES=("${RULES[@]}" ${GIVE_BACK_RULES[@]+"${GIVE_BACK_RULES[@]}"})
+
+# Index range of the Read/Edit state-root rules in ALL_RULES (0,1 are the Bash rules; the
+# give-back group follows). Only this range is withheld for an ephemeral state root.
 STATE_RULES_FROM=2
+STATE_RULES_TO=${#RULES[@]}
+
+_is_state_rule_index() {
+    [[ "$1" -ge "$STATE_RULES_FROM" && "$1" -lt "$STATE_RULES_TO" ]]
+}
 
 # Stale-detection suffixes, index-aligned with RULES[0] and RULES[1] (the two
 # Bash rules only - Read/Edit above key off $ODOO_AI_HOME, not $PLUGIN_ROOT,
@@ -322,8 +355,19 @@ _rule_satisfied() {
     # Replaces a bare exact-membership check so `check` stays consistent
     # with what `apply` would actually do: a rule `apply` legitimately
     # skips as covered must not make `check` report incompleteness.
-    [[ -f "$LIB" ]] || return 1
-    python3 "$LIB" json-rule-covered "$CLAUDE_SETTINGS" "$1" >/dev/null 2>&1
+    _rule_covered "$1"
+}
+
+# Exit 0 if the settings file already grants rule $1 (an MCP give-back rule is judged by
+# plugin_mcp_servers.py, every other rule by config_merge.py json-rule-covered).
+_rule_covered() {
+    if [[ "$1" == mcp__* ]]; then
+        [[ -f "$SERVERS_LIB" ]] || return 1
+        python3 "$SERVERS_LIB" give-back-covered "$CLAUDE_SETTINGS" "$1" >/dev/null 2>&1
+    else
+        [[ -f "$LIB" ]] || return 1
+        python3 "$LIB" json-rule-covered "$CLAUDE_SETTINGS" "$1" >/dev/null 2>&1
+    fi
 }
 
 _odoo_semantic_present() {
@@ -382,12 +426,12 @@ _stale_roots_present() {
 cmd_check() {
     local missing=0 i ephemeral=0
     _root_is_ephemeral && ephemeral=1
-    for i in "${!RULES[@]}"; do
+    for i in "${!ALL_RULES[@]}"; do
         # An ephemeral state root is never granted Read/Edit rules, so it cannot lack them.
-        if [[ "$ephemeral" -eq 1 && "$i" -ge "$STATE_RULES_FROM" ]]; then
+        if [[ "$ephemeral" -eq 1 ]] && _is_state_rule_index "$i"; then
             continue
         fi
-        _rule_satisfied "${RULES[$i]}" || missing=1
+        _rule_satisfied "${ALL_RULES[$i]}" || missing=1
     done
     # Debris of an earlier ephemeral or vanished root also counts as "not converged".
     if _stale_roots_present; then
@@ -459,10 +503,10 @@ cmd_apply() {
         fi
     fi
 
-    for i in "${!RULES[@]}"; do
-        r="${RULES[$i]}"
+    for i in "${!ALL_RULES[@]}"; do
+        r="${ALL_RULES[$i]}"
 
-        if [[ "$ephemeral" -eq 1 && "$i" -ge "$STATE_RULES_FROM" ]]; then
+        if [[ "$ephemeral" -eq 1 ]] && _is_state_rule_index "$i"; then
             echo "i  $ODOO_AI_HOME is an ephemeral state root - not adding $r."
             continue
         fi
@@ -498,7 +542,7 @@ cmd_apply() {
         # SUBSUMPTION section above for the exact enumerated forms and why
         # the bias only ever runs toward "add", never toward "skip", on
         # anything not in that small list).
-        if python3 "$LIB" json-rule-covered "$CLAUDE_SETTINGS" "$r" >/dev/null 2>&1; then
+        if _rule_covered "$r"; then
             echo "i  $r already covered by an existing permission - not adding."
             continue
         fi
@@ -529,7 +573,7 @@ cmd_apply() {
     # ephemeral-root run changes nothing this session depends on.
     if [[ "$added" -eq 1 ]]; then
         echo "ok state-root planning permissions allow-listed in $CLAUDE_SETTINGS:"
-        for r in "${RULES[@]}"; do
+        for r in "${ALL_RULES[@]}"; do
             echo "   $r"
         done
         echo "i  because permissions are finalized BEFORE SessionStart hooks run, RESTART Claude Code once (or start a new session) for them to take effect this session."

@@ -71,28 +71,13 @@ screenshot, and before the orphan sweep below. Resolve each once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write a placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
 
-**Orphan sweep (crash backstop, do this every run, BEFORE minting your own slug below).** No hook
-tracks a filesystem directory the way the allocator ledger tracks an instance lease (T4's ledger-gc
-backstop does not cover `visual/current/`), so a run that crashed, was `-9`'d, or was abandoned
-mid-round leaks its `<slug>/` dir forever unless a later run reaps it. Sweep it opportunistically:
-`find <ISOLATE_DIR>/visual/current/ -mindepth 1 -maxdepth 1 -type d -mmin +1440 -exec rm -rf {} +`
-(any sibling `<slug>/` dir untouched for over 24h is presumed abandoned - a healthy run finishes in
-minutes). Run this BEFORE minting your own slug below so it never touches the dir THIS run is about
-to create. Enforcer: whoever executes `odoo-visual-regression` next, unconditionally, every run -
-not a separate cleanup agent or cron.
+**Orphan sweep, every run, BEFORE minting your own slug below:** a run that crashed or was
+abandoned leaves its `<slug>/` directory behind, so remove the ones untouched for 24 hours:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/visual/current --older-than-minutes 1440`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 2).
 
-Now mint this run's `<slug>`: use the `SLUG:` value from your dispatch brief when present; on a
-standalone invocation derive `<intent-slug>-<YYYYMMDD>-<4 random chars>` from the comparison intent
-(the suffix mechanism of `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md:43`),
-minting the 4 random chars ONCE at Round 0 and reusing that SAME value for every path this run: never
-a fresh one per screen, never the literal `<slug>` token in a path. The random suffix keeps two
-concurrent runs with the same intent from colliding on `<ISOLATE_DIR>/visual/current/<slug>/`
-(`<ISOLATE_DIR>` is worktree-keyed, not run-keyed).
-
-This mint-then-sweep pattern is the shared home the other `visual/*/<slug>/` evidence consumers
-reuse: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` cites this section and
-is cited BY `odoo-acceptance` (`visual/qa/<slug>/`), `odoo-debug` (`visual/debug/<slug>/`), and
-`odoo-ui-review` (`visual/screenshots/<slug>/`).
+Now mint this run's `<slug>` once (Clause 1 of that contract: the brief's `SLUG:`, else
+`<intent-slug>-<YYYYMMDD>-<4 random chars>`) and use that same value in every path of this run.
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
 and pass that concrete version on every Round 1 OSM call - the pin is session-scoped and racy
@@ -127,7 +112,7 @@ For each in-scope screen at each agreed breakpoint:
 Switch to state B's instance URL - `instance_base_url_b` when this is a two-instance comparison,
 otherwise re-navigate the SAME `instance_base_url` after applying the change under test (module
 install/uninstall, theme toggle, in-place upgrade) - then for each screen:
-1. `resize_page` to same breakpoint; `take_screenshot` → `<ISOLATE_DIR>/visual/current/<slug>/<screen>-<breakpoint>.png` (`filePath`, never `path`). This run's comparison set is ISOLATE, per-run, and deleted before this run's own terminal status - DONE, BLOCKED, or NEEDS_CONTEXT/NEEDS_NEXT alike (see Notes § Retention) - baselines stay SHARE.
+1. `resize_page` to same breakpoint; `take_screenshot` → `<ISOLATE_DIR>/visual/current/<slug>/<screen>-<breakpoint>.png` (`filePath`, never `path`).
 2. Compare pairs. Where pixel diff is ambiguous, use `evaluate_script` to compare DOM structure/text of the region.
 
 ### Round 4 - Report drift + scope
@@ -136,10 +121,8 @@ List each screen as UNCHANGED / DRIFTED, attach both screenshots for drifted scr
 back to the Round 1 blast radius. Flag any drifted screen NOT predicted by the impact analysis as a
 higher-priority surprise.
 
-**Close before reporting (unconditional, every run).** Before emitting the report, `close_page`
-each page you DROVE this run, including the reused one; when it is the last open page,
-`navigate_page` it to `about:blank` instead. Run this even when Round 2/3 stayed on one page. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
-T2 - Browser: close what you drove.
+**Close before reporting, every run:** the pages you drove, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
 
 ## Standalone-first fallback
 
@@ -182,23 +165,10 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 ## Notes / Integration
 
 - Determinism matters: same user, data, breakpoint, scroll position for both captures or the diff is noise.
-- Baselines are written under `<SHARE_DIR>/visual/baselines/`, unconditionally.
 - This skill detects drift only; hand fixes to `odoo-coding`.
-- **Tier split (do not merge them).** Baselines are SHARE (reusable across runs); this run's
-  comparison set is ISOLATE and per-slug. Classification SSOT:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
-- **Retention (do this, every run - ALL terminal paths, not just the happy one).** Before emitting
-  ANY terminal status - `DONE` after the Round-4 verdict, or `BLOCKED` / `NEEDS_CONTEXT` /
-  `NEEDS_NEXT` from an earlier round (OSM/browser/instance unreachable, session interrupted) -
-  delete THIS run's comparison set: `rm -rf <ISOLATE_DIR>/visual/current/<slug>/`. Scope it to
-  `<slug>` ONLY - never a bare `<ISOLATE_DIR>/visual/current/`. Nothing reads a prior run's
-  comparison set; the baselines it was compared against survive in SHARE. Enforcer: the agent
-  executing this skill, at its own terminal-status emission - same posture as
-  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4 ("BLOCKED / NEEDS_CONTEXT do not
-  waive teardown") (see that file's Verb glossary).
-- **TTL backstop** for a run that never reaches its terminal status (crash, `-9`, an unresumed
-  compaction): Round 0's Orphan sweep reaps any sibling `<slug>/` dir older than 24h before the next
-  run mints its slug.
+- **Retention.** Before ANY terminal status (`DONE`, `BLOCKED`, `NEEDS_CONTEXT`, `NEEDS_NEXT`)
+  delete this run's comparison set, `<ISOLATE_DIR>/visual/current/<slug>/` and nothing above it;
+  the baselines stay in SHARE.
 
 ## Continuation Contract
 

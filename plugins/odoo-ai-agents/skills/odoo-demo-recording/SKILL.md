@@ -17,7 +17,7 @@ the events log by hand.
 ## Events log
 
 Beside every clip, `<clip>.events.json`: `[{"kind": "typing" | "wait" | "travel" | "load",
-"start": <s>, "end": <s>}]` from the recording's start - each typed input, each wait for an
+"start": <s>, "end": <s>}]` from the first frame - each typed input, each wait for an
 indicator or a page load, each cursor travel or scroll. The assembler (`video_publish.py
 speedup`) plays typing at 3x, keeps the first second of a wait and squeezes the rest, plays
 travel and loads at 2x; a clip without the log plays as recorded. A click is a cut point: the
@@ -107,7 +107,7 @@ page you drove, on every take including a retake
 Mint the slug ONCE: `<feature>-<YYYYMMDD>-<4 random chars>`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1), reused by
 every artifact of the run. Orphan sweep before saving:
-`find <ISOLATE_DIR>/visual/videos/ -maxdepth 1 -type f -mmin +43200 -exec rm -rf {} +` (Clause 3).
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/visual/videos --older-than-minutes 43200 --files` (Clause 3).
 pagecast `convert_to_mp4` / `convert_to_gif` convert ONE `.webm` each (`webmPath` absolute; a
 GIF's `width` is the size it is shown at); trim the setup lead-in with `convert_to_gif`
 `startTime` or `ffmpeg`; join clips or a frame sequence with `ffmpeg` (`command -v ffmpeg` first;

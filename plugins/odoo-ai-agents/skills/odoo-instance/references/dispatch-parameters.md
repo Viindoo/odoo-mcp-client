@@ -98,7 +98,8 @@ SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent re-roots its lease's addons list onto it
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
-ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; the agent appends the run worklog and must not key it on WORKTREE_PATH's own toplevel>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
+WORKLOG: <the run id or feature slug that names the caller's worklog directory under ISOLATE_DIR; the agent appends there>
 ```
 
 `INSTANCE_RESOLUTION`, `ALLOCATOR`, and `OSM_GROUNDING` are NOT brief fields: the dispatched agent's

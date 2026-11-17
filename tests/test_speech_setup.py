@@ -301,3 +301,54 @@ def test_an_endpoint_that_publishes_no_voice_listing_still_answers_with_its_mode
     finally:
         for srv in servers:
             srv.shutdown()
+
+
+def test_a_voice_per_video_type_and_locale_is_recorded_validated_and_resolved_in_order(home):
+    cfg = json.loads(json.dumps(GOOD))
+    cfg["tts"]["type_voices"] = {"marketing": {"vi_VN": "voice-vi-mkt"}, "tutorial": {"en_US": "voice-en-tut"}}
+    assert _record(home, cfg).returncode == 0
+    text = (home / "speech.toml").read_text(encoding="utf-8")
+    assert "[tts.type_voices.marketing]" in text and 'vi_VN = "voice-vi-mkt"' in text
+    shown = json.loads(_step(home, "show").stdout)
+    assert shown["tts"]["type_voices"] == cfg["tts"]["type_voices"]
+    assert _step(home, "check").returncode == 0
+    sys.path.insert(0, str(PLUGIN / "scripts" / "lib"))
+    import speech_config as scfg
+    assert scfg.voice_for(shown, "vi_VN", "marketing") == "voice-vi-mkt"       # the type's voice
+    assert scfg.voice_for(shown, "vi_VN", "tutorial") == "voice-vi"            # no entry: the locale's voice
+    assert scfg.voice_for(shown, "vi_VN") == "voice-vi"                        # no type: the locale's voice
+    assert scfg.voice_for(shown, "vi_VN", "marketing", voice="audition") == "audition"   # the caller wins
+    assert scfg.voice_for(shown, "fr_FR", "marketing") is None
+
+
+@pytest.mark.parametrize("type_voices, word", [
+    ({"documentary": {"vi_VN": "v1"}}, "type_voices"),
+    ({"marketing": {"vietnamese": "v1"}}, "locale"),
+    ({"marketing": {"vi_VN": ""}}, "voice id"),
+    ({"marketing": "voice"}, "type_voices"),
+    ({"marketing": {"vi_VN": "voice-en"}}, "native to one language"),                    # the base voice of en_US
+    ({"marketing": {"vi_VN": "v1"}, "tutorial": {"en_US": "v1"}}, "native to one language"),
+])
+def test_record_refuses_an_invalid_voice_per_video_type(home, type_voices, word):
+    cfg = json.loads(json.dumps(GOOD))
+    cfg["tts"]["type_voices"] = type_voices
+    proc = _record(home, cfg)
+    assert proc.returncode == 1 and word in proc.stderr and not (home / "speech.toml").exists()
+
+
+def test_the_client_synthesises_with_the_voice_of_the_video_type(tmp_path, monkeypatch):
+    sys.path.insert(0, str(PLUGIN / "scripts" / "lib"))
+    import speech_client as sc
+    cfg = json.loads(json.dumps(GOOD))
+    cfg["tts"]["type_voices"] = {"marketing": {"vi_VN": "voice-vi-mkt"}}
+    sent = []
+
+    def fake_urlopen(req, timeout=0):
+        sent.append(json.loads(req.data.decode("utf-8")))
+        raise sc.SpeechError("stop here", 1)
+    monkeypatch.setattr(sc.urllib.request, "urlopen", fake_urlopen)
+    for kwargs, expected in (({"video_type": "marketing"}, "voice-vi-mkt"), ({"video_type": "tutorial"}, "voice-vi"),
+                             ({}, "voice-vi"), ({"video_type": "marketing", "voice": "audition"}, "audition")):
+        with pytest.raises(sc.SpeechError):
+            sc.tts("Xin chao.", "vi_VN", str(tmp_path / "o.wav"), cfg=cfg, value="v", **kwargs)
+        assert sent[-1]["voice"] == expected

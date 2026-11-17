@@ -68,7 +68,7 @@ Added to the skeleton for the agent you launch.
 | Doc writer (`odoo-doc-writer`, `odoo-doc-site-writer`) | `MODE` or the page-plan group; the audience source (`DOMAIN` or `SRS`); the languages; the grounding files already written |
 | Marketer (`odoo-marketer`) | `MODE`; for `copy`, the channel, topic and language; `BUYER PROFILE` or `TARGET MARKET`; the grounding files |
 | Translator (`odoo-translator`) | one language, the module or cluster, the series; `GLOSSARY_PATH`; the `.po` and `.pot` paths; the `INSTANCE_HANDLE` and `BUILD_SHAPE` of the build they came from |
-| Icon designer (`odoo-icon-designer`) | `MODULE_PATH`, absolute; `odoo_version`; palette values when the brand differs from the default; `INSTANCE_HANDLE` when the module is installed |
+| Icon designer (`odoo-icon-designer`) | `MODE` (`icon`, `cover`); `MODULE_PATH`, absolute; `odoo_version`; the vendor's colours; `INSTANCE_HANDLE` when the module is installed |
 | Instance ops (`odoo-instance-ops`) | the operation, series, modules, demo and languages, `addons_path`; `GATE_ROLE` on every test run; `INSTANCE_HANDLE` when one exists |
 | Video producer (`odoo-video-producer`) | `MODE`, `STORYBOARD`, `LANGUAGES`, `AUTHOR PROFILE` or `none`, `BUDGET_MARGIN`; `INSTANCE_HANDLE` for `record` |
 | Survey, analyst (`odoo-backend-debugger`, `odoo-ui-debugger`, `odoo-impact-recon`, `odoo-intent-extractor`, `odoo-installable-prober`, `odoo-gap-analyzer`) | the ask as an open question; findings as a file or inline; that uncertainty is reported, never guessed |

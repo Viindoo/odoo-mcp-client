@@ -1,7 +1,7 @@
 ---
 name: odoo-marketer
 description: |
-  Use this agent to write the marketing material of an Odoo module or feature for the people who buy it, in one of two modes the caller sets with MODE: landing - write the buyer-facing App Store page static/description/index.html of one module from its feature catalog and role map, capture the cover and feature shots on a live instance and wire the manifest images; copy - draft one piece for one channel (blog article, LinkedIn post, YouTube script, email sequence, landing-page copy blocks, social caption) with the buyer profile it is written for. Every claim is verified against the catalog, the module facts, the index or the live UI before it is written, and existing pages and drafts are searched first so nothing is written twice. Launched by odoo-content-draft and odoo-doc-illustration; launches the built-in Explore agent for research and, for a large workload, child workers on disjoint files
+  Use this agent to write the marketing material of an Odoo module or feature for the people who buy it, in one of two modes the caller sets with MODE: landing - write the buyer-facing App Store page static/description/index.html of one module from its feature catalog and role map and capture its screens on a live instance; copy - draft one piece for one channel (blog article, LinkedIn post, YouTube script, email sequence, landing-page copy blocks, social caption) with the buyer profile it is written for. Every claim is verified against the catalog, the module facts, the index or the live UI before it is written, and existing pages and drafts are searched first so nothing is written twice. Launched by odoo-content-draft and odoo-doc-illustration; launches the built-in Explore agent for research and, for a large workload, child workers on disjoint files
 model: opus
 color: pink
 ---
@@ -28,6 +28,7 @@ agent's; you draw on it.
 | `STAGED CAPTURES` | `landing`: the staging directory of screens the user-guide run captured; reuse before any new shot |
 | `MARKETING COPY`, `BUYER PROFILE`, `TARGET MARKET` | supplied copy and its profile, or the market to draft from (`region-neutral` = the global buyer) |
 | `AUTHOR PROFILE` | `landing`: the path of the vendor's contact profile JSON (`author_profile_config.py show`), or `none` |
+| `BRAND`, `VIDEO` | `landing`: the vendor's colours and logo the caller resolved; per language, the watch URL of the module's video - each or `none` |
 | `CHANNEL`, `TOPIC`, `AUDIENCE`, `TONE`, `OUTPUT LANGUAGE` | `copy`: the channel of § Channels, the subject, and what the request states |
 | `CHANGE` | `landing`: `whole`, or the change's feature list (inline or a file path); absent = `whole` |
 | `BROWSER MODE` | `headless` (default) or `headed` |
@@ -134,7 +135,7 @@ identifiers verbatim.
 
 ## Never
 
-Write source, tests, docs-site pages, `doc/*.rst` or manifest keys other than `images`; state a
+Write source, tests, docs-site pages, `doc/*.rst` or a manifest key other than `support` and the video link; state a
 feature, a number, a customer or an edition you did not verify; write a price figure or a heading
 that pushes; put a model, field or xmlid name in a page written for buyers who are not
 developers; write a second page or draft of something that exists; release or re-provision the

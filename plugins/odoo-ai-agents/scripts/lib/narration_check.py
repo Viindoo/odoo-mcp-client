@@ -14,13 +14,20 @@ broken halves. A non-empty line that ends without sentence-final punctuation whi
 is reported as a broken line and fails the check; the author rewrites the script as one sentence
 (or more) per line. A sentence longer than --max-words (15 by default: spoken text carries one
 idea per 8-15 words) is reported as SENTENCES_LONG and fails the check too - a long descriptive
-sentence is what makes a narration sound like storytelling.
+sentence is what makes a narration sound like storytelling. A sentence shorter than --min-words
+(8 by default, the lower bound of the spoken range) is reported as SENTENCES_SHORT and a SHORT=
+line; it is a warning only - it changes neither the verdict nor the exit code.
+
+A word is a whitespace-separated token left after punctuation is removed: every character that is
+not a letter, a digit, an underscore or whitespace becomes a space, then the text is split on
+whitespace. The same rule counts every language - a Vietnamese syllable is one word, a hyphenated
+compound ("e-mail") is two, and a bare hyphen is none.
 
 Usage:
     python3 narration_check.py --script S.txt [--transcript T.txt] [--slots "Viindoo,AI"]
                                [--map MAP.json --lang vi_VN] [--max-wer 0.15]
-Prints LINES_BROKEN=<csv of line numbers|none> and, with a transcript, WER=<float>
-SLOTS_MISSING=<csv|none>; VERDICT=<pass|fail|listen>; exit 0 pass, 1 fail, 3 listen (WER inside
+Prints LINES_BROKEN=<csv of line numbers|none>, SENTENCES_LONG and SENTENCES_SHORT (<csv of
+line:<n>w|none>) and, with a transcript, WER=<float> SLOTS_MISSING=<csv|none>; VERDICT=<pass|fail|listen>; exit 0 pass, 1 fail, 3 listen (WER inside
 the bound but a slot is ambiguous - a human listens to the clip).
 """
 from __future__ import annotations
@@ -61,6 +68,18 @@ def long_sentences(text, max_words=15):
         for sentence in _SENTENCE_SPLIT.split(line.strip()):
             n = len(tokens(sentence))
             if n > max_words:
+                out.append((no, n, sentence.strip()))
+    return out
+
+
+def short_sentences(text, min_words=8):
+    """[(line no, word count, sentence)] of sentences shorter than min_words, counted as `tokens`
+    counts; a sentence with no word at all is skipped."""
+    out = []
+    for no, line in enumerate(text.splitlines(), 1):
+        for sentence in _SENTENCE_SPLIT.split(line.strip()):
+            n = len(tokens(sentence))
+            if 0 < n < min_words:
                 out.append((no, n, sentence.strip()))
     return out
 
@@ -118,6 +137,8 @@ def main(argv=None):
     parser.add_argument("--max-wer", type=float, default=0.15)
     parser.add_argument("--max-words", type=int, default=15,
                         help="longest spoken sentence; 0 disables the check")
+    parser.add_argument("--min-words", type=int, default=8,
+                        help="shortest spoken sentence before a warning; 0 disables the warning")
     args = parser.parse_args(argv)
     with open(args.script, encoding="utf-8") as fh:
         script = fh.read()
@@ -127,6 +148,10 @@ def main(argv=None):
     print("SENTENCES_LONG=%s" % (",".join("%d:%dw" % (no, n) for no, n, _s in longs) or "none"))
     for no, n, s in longs:
         print("LONG=%d %d words: %s" % (no, n, s[:80]))
+    shorts = short_sentences(script, args.min_words) if args.min_words else []
+    print("SENTENCES_SHORT=%s" % (",".join("%d:%dw" % (no, n) for no, n, _s in shorts) or "none"))
+    for no, n, s in shorts:
+        print("SHORT=%d %d words: %s" % (no, n, s[:80]))
     if args.transcript is None:
         bad = bool(broken or longs)
         print("VERDICT=%s" % ("fail" if bad else "pass"))

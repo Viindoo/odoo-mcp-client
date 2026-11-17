@@ -138,12 +138,14 @@ def wav_duration(path):
         return wf.getnframes() / float(wf.getframerate() or 1)
 
 
-def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phonemes=False, speed=None, voice=None):
+def tts(text, lang, out, pron_map=None, cfg=None, value=None, cancel=None, phonemes=False, speed=None, voice=None,
+        video_type=None):
     """`speed` is the OpenAI speaking-rate factor (sent only when it differs from 1.0; an engine may
-    ignore it - probe() measures that); `voice` overrides the recorded voice (an audition)."""
+    ignore it - probe() measures that); `voice` overrides the recorded voice (an audition); without
+    it the voice of `video_type` for the language is used, else the language's recorded voice."""
     cfg = cfg or _load()
     table = cfg["tts"]
-    voice = voice or table["voices"].get(lang)
+    voice = speech_config.voice_for(cfg, lang, video_type, voice)
     if not voice:
         raise SpeechError("no voice recorded for %s - run /odoo-ai-agents:odoo-setup voice" % lang, 1)
     # the registry always applies (brands, vendors, acronyms confirmed once); the map adds terms
@@ -347,6 +349,7 @@ def main(argv=None):
     p.add_argument("--map")
     p.add_argument("--speed", type=float)
     p.add_argument("--voice")
+    p.add_argument("--video-type", dest="video_type", choices=speech_config.VIDEO_TYPES)
     p = sub.add_parser("stt")
     p.add_argument("--audio", required=True)
     p.add_argument("--lang", required=True)
@@ -366,7 +369,8 @@ def main(argv=None):
             if args.map:
                 with open(args.map, encoding="utf-8") as fh:
                     pron = json.load(fh)
-            out, dur = tts(text, args.lang, args.out, pron, value=value, speed=args.speed, voice=args.voice)
+            out, dur = tts(text, args.lang, args.out, pron, value=value, speed=args.speed, voice=args.voice,
+                           video_type=args.video_type)
             print("OUT=%s" % out)
             print("DURATION_S=%.2f" % dur)
             return 0

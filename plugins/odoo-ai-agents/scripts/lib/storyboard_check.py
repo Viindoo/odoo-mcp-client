@@ -9,6 +9,10 @@ Subcommands (stdlib only; every result is KEY=VALUE on stdout, exit 1 on a refus
               click paths) and TEXT_ONLY_SCENES (csv of scene ids whose click path holds no
               action object). `languages: []` is a silent video: no narration, title or publish
               text is required and `language_switch` is optional.
+              Every take opens a new page, so a scene whose first action object is not a `goto`
+              starts on a blank page: `check` prints `WARNING=scenes[<n>].click_path: <message>`
+              for each such scene and `WARNINGS=<n>` (always printed, 0 when none); the exit code
+              is not changed by a warning.
   render      --storyboard SB.json --out plan.md
               Markdown of the plan for the human gate: scenes, click paths, the language switch
               (labels and actions, `{lang}`/`{lang_label}` left as placeholders; `Language switch:
@@ -44,6 +48,17 @@ the 30 s default wait of a selector; ai_wait keeps 120 s); hold {seconds}; voice
 take from `language_switch`. How the recorder reaches the instance is not part of the plan;
 scene-script and demo-data-script take an optional --ui-user NAME, written as `ui_user`.
 A scene sets `allow_key_fields: true` to let a take show a key field.
+Optional top-level recording keys: `viewport` [width, height] in CSS pixels (integers from 200
+to 7680, default [1920, 1080]) and `device_scale_factor` (a number from 1 to 4, default 1). The
+recorded video has width x device_scale_factor by height x device_scale_factor pixels, so both
+products must be even whole numbers (`check` refuses any other pair); a tablet-sized application is
+recorded at its natural size, and a factor above 1 keeps real pixels for a later zoom. `scene-script`
+carries both into every scene script (and the demo-data script) as `viewport` and
+`device_scale_factor`.
+Optional top-level `speed_post` (boolean, default false): the speaking rate is applied after
+synthesis, because the speech engine ignores the speed parameter. `check` refuses a non-boolean and
+`render` prints it under the speed line when true; the scene scripts do not carry it (the recorder
+does not use it).
 Optional top-level pacing key `wait_squeeze_s` (number >= 0, default 1.0 when absent): the seconds
 the assembler squeezes the rest of every wait into. `render` lists it with the other tunables and
 `scene-script` carries it into the scene script as `wait_squeeze_s`.
@@ -51,6 +66,7 @@ the assembler squeezes the rest of every wait into. `render` lists it with the o
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -60,6 +76,10 @@ WAIT_STATES = ("visible", "hidden", "ai_wait")
 KEY_SCOPES = ("dedicated", "shared")
 LOCALE_RE = re.compile(r"^[a-z]{2,3}_[A-Z]{2}$")
 VIEWPORT = [1920, 1080]
+DEVICE_SCALE_FACTOR = 1
+VIEWPORT_RANGE = (200, 7680)
+SCALE_RANGE = (1, 4)
+LABEL_MAX = 32
 FPS = 25
 
 ACTION_KEYS = {
@@ -79,10 +99,33 @@ class Checker:
     def __init__(self, sb):
         self.sb = sb
         self.errors = []
+        self.warnings = []
         self.actions = 0
 
     def err(self, path, msg):
         self.errors.append("%s: %s" % (path, msg))
+
+    def warn(self, path, msg):
+        self.warnings.append("%s: %s" % (path, msg))
+
+    def _recording(self, sb):
+        """`viewport` and `device_scale_factor`: the recorded video is their product, whole and even."""
+        lo, hi = VIEWPORT_RANGE
+        vp = sb.get("viewport", VIEWPORT)
+        vp_ok = (isinstance(vp, list) and len(vp) == 2
+                 and all(isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi for v in vp))
+        if not vp_ok:
+            self.err("viewport", "must be [width, height], two integers from %d to %d" % (lo, hi))
+        scale = sb.get("device_scale_factor", DEVICE_SCALE_FACTOR)
+        scale_ok = _is_num(scale) and SCALE_RANGE[0] <= scale <= SCALE_RANGE[1]
+        if not scale_ok:
+            self.err("device_scale_factor", "must be a number from %s to %s" % SCALE_RANGE)
+        if vp_ok and scale_ok:
+            for name, value in zip(("width", "height"), vp):
+                pixels = value * scale
+                if abs(pixels - round(pixels)) > 1e-6 or round(pixels) % 2:
+                    self.err("viewport", "%s x device_scale_factor must be an even whole number of video "
+                                         "pixels (got %s)" % (name, pixels))
 
     def _locale_map(self, value, path, langs, required):
         if value is None:
@@ -183,10 +226,13 @@ class Checker:
         for key in ("lead_in_s", "fade_s", "max_silence_s", "max_hold_s", "wait_squeeze_s", "speed"):
             if key in sb and not (_is_num(sb[key]) and sb[key] >= 0):
                 self.err(key, "must be a number >= 0")
+        if "speed_post" in sb and not isinstance(sb["speed_post"], bool):
+            self.err("speed_post", "must be true or false")
         if "shot_seconds" in sb:
             s = sb["shot_seconds"]
             if not (isinstance(s, list) and len(s) == 2 and all(_is_num(x) for x in s) and 0 < s[0] <= s[1]):
                 self.err("shot_seconds", "must be [lo, hi] with 0 < lo <= hi")
+        self._recording(sb)
         self._misc(sb, langs)
         self._labels(sb, langs)
         if len(langs) > 1 and not sb.get("language_switch"):
@@ -285,6 +331,10 @@ class Checker:
                 self.actions += 1
                 self.action(item, "%s.click_path[%d]" % (p, j), sc)
             self._scene_extras(sc, p, langs, ts)
+            first = next((i for i in cp if isinstance(i, dict)), None)
+            if first is not None and first.get("do") != "goto":
+                self.warn(p + ".click_path", "scene `%s` starts with `%s`, not `goto`: every take opens a new "
+                                             "page, so it begins on a blank page" % (sid, first.get("do")))
 
     def _scene_extras(self, sc, p, langs, ts):
         self._locale_map(sc.get("voice_input"), p + ".voice_input", langs, False)
@@ -369,8 +419,11 @@ def cmd_check(args):
     errors = chk.run()
     for e in errors:
         print("ERROR=" + e)
+    for w in chk.warnings:
+        print("WARNING=" + w)
     if errors:
         print("ERRORS=%d" % len(errors))
+        print("WARNINGS=%d" % len(chk.warnings))
         return 1
     scenes = sb["scenes"]
     text_only = [s["id"] for s in scenes if not any(isinstance(i, dict) for i in s["click_path"])]
@@ -381,6 +434,7 @@ def cmd_check(args):
         print("SILENT=1")
     print("ACTIONS=%d" % chk.actions)
     print("TEXT_ONLY_SCENES=%s" % ",".join(text_only))
+    print("WARNINGS=%d" % len(chk.warnings))
     return 0
 
 
@@ -420,8 +474,14 @@ def cmd_render(args):
            "- Type: %s" % sb.get("video_type", ""),
            "- Languages: %s" % (", ".join(langs) if langs else "Silent video (no narration)"),
            "- wait_squeeze_s: %s" % _squeeze(sb),
-           "", "## Scenes", "",
-           "| Scene | Target (s) | Click path |", "|---|---|---|"]
+           "- viewport: %s" % "x".join(str(v) for v in _viewport(sb)),
+           "- device_scale_factor: %s" % _scale(sb)]
+    if "speed" in sb:
+        out.append("- speed: %s" % sb["speed"])
+    if sb.get("speed_post") is True:
+        out.append("- speed_post: true (the speaking rate is applied after synthesis)")
+    out += ["", "## Scenes", "",
+            "| Scene | Target (s) | Click path |", "|---|---|---|"]
     scenes = [s for s in sb.get("scenes") or [] if isinstance(s, dict)]
     for sc in scenes:
         steps = [i if isinstance(i, str) else _action_line(i) for i in sc.get("click_path") or []]
@@ -486,6 +546,17 @@ def _label(sb, lang):
     return (sb.get("language_labels") or {}).get(lang, "")
 
 
+def _viewport(sb):
+    """The recording viewport [width, height] in CSS pixels (default 1920x1080)."""
+    vp = sb.get("viewport")
+    return list(vp) if isinstance(vp, list) else list(VIEWPORT)
+
+
+def _scale(sb):
+    """The device scale factor of the take (default 1)."""
+    return sb["device_scale_factor"] if "device_scale_factor" in sb else DEVICE_SCALE_FACTOR
+
+
 def _resolve(value, lang):
     """An action with a {locale: string} `text`/`value` becomes the string for `lang`."""
     out = dict(value)
@@ -496,7 +567,16 @@ def _resolve(value, lang):
 
 
 def _slug(text):
-    return re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-") or "video"
+    """Lowercase hyphenated words of the title, at most LABEL_MAX characters. A longer title is cut
+    at a word boundary and ends in six hexadecimal digits of the whole slug, so two long titles with
+    the same beginning keep different labels."""
+    slug = re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-") or "video"
+    if len(slug) <= LABEL_MAX:
+        return slug
+    head = slug[:LABEL_MAX - 7]
+    if slug[len(head)] != "-" and "-" in head:
+        head = head.rsplit("-", 1)[0]
+    return "%s-%s" % (head.strip("-"), hashlib.sha1(slug.encode("utf-8")).hexdigest()[:6])
 
 
 def _base_script(sb, lang, base_url, ui_user):
@@ -504,7 +584,8 @@ def _base_script(sb, lang, base_url, ui_user):
         "label": _slug(sb.get("title", "")),
         "lang": lang,
         "base_url": base_url,
-        "viewport": list(VIEWPORT),
+        "viewport": _viewport(sb),
+        "device_scale_factor": _scale(sb),
         "fps": FPS,
         "ui_user": ui_user or None,
         "language_switch": _subst(sb.get("language_switch") or [], lang, _label(sb, lang)),

@@ -50,6 +50,8 @@ FEATURE CATALOG: <path>   ROLE MAP: <path>   FACTS: <path | none>
 STAGED CAPTURES: <the writer's staging directory | none>
 MARKETING COPY: <path | none>   BUYER PROFILE: <path | none>   TARGET MARKET: <value | none>
 AUTHOR PROFILE: <path of author-profile.json | none>
+BRAND: <the vendor's palette by role and its logo, in the form of vendor-facts.md | none>
+VIDEO: <locale>=<watch URL>, ... | none
 CHANGE: <feature list | path of the file holding it | whole | none>
 BROWSER MODE: headless | headed
 extends_in_scope: [<base module>, ...]

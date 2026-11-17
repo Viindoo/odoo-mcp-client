@@ -75,7 +75,7 @@ Tier-2 ISOLATE dir, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-reso
 
 **Orphan sweep (every run, BEFORE P0).** Run:
 
-`find <ISOLATE_DIR>/i18n/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/i18n --older-than-minutes 43200`
 
 Rule: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 
@@ -91,7 +91,8 @@ missing from a mandated dispatch, RETURN `status: BLOCKED` (`i18n: blocked (miss
 E5/E6 shape). Return the scope summary (or the E3/BLOCKED record) to the caller with the final result.
 
 **P1 - Glossary build [haiku or sonnet].** Assemble the translation memory the later phases reuse:
-read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
+read the module's own `<lang>.po` of another series when the caller passes `SOURCE CATALOGS`, the
+already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
 project `glossary.yml` (domain/regulatory terms + their source citation) from
 `<SHARE_DIR>/glossary.yml` (Tier-2 SHARE, resolved via the same `state-root-resolution.md` protocol),
 and for any field-mapped term confirm the canonical label via OSM (glossary layer in the recipe).

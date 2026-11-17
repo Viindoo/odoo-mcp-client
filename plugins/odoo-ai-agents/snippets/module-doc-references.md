@@ -6,8 +6,7 @@
   cover (§ Manifest images). Every other image the module ships lives directly in
   `static/description/assets/` - no deeper folder, none under `doc/`.
 - Reference it as `.. image:: assets/<file>` in `doc/*.rst`, `src="./assets/<file>"` in
-  `index*.html`, `static/description/assets/<file>` in `README.rst`; the cover the same way
-  without `assets/`. The file must exist.
+  `index*.html`, `static/description/assets/<file>` in `README.rst`. The file must exist.
 - Name it `<slug>[.<locale>].<ext>` (the cover: § Manifest images): `<slug>` is kebab-case,
   describes the screen, unique in the module; English has no locale suffix; `<ext>` png, gif or
   jpeg/jpg; only `A-Za-z0-9._-`. A screen the guide and the landing both show is one file. Never a
@@ -35,9 +34,9 @@
 
 ## Manifest images
 
-`images[0]` is the cover `static/description/main_screenshot.<ext>`; a further entry is
-`static/description/assets/<file>` or a locale cover; each an existing png, gif or jpeg. The
-English `index.html` shows the cover (in its HERO); a localized page, its cover per § Images.
+`images` holds exactly one entry, the store cover `static/description/main_screenshot.<ext>` (an
+existing png, gif or jpeg): a product cover at 2:1 designed by `odoo-icon-design`, the same for
+every language. A doc embeds its own captures, never the cover.
 
 ## Links to another module
 

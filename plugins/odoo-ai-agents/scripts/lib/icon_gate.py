@@ -26,9 +26,11 @@ by `observe`.
       No Pillow: only size and mode from the PNG headers, NATIVE_STYLE=unknown, exit 2.
       Exit: 0 measured, 2 CANNOT-VERIFY, 3 usage, 4 no icon found.
 
-  render <icon.svg> <out.png> [--size N | --facts FACTS.txt] [--rasterizer auto|<name>]
+  render <icon.svg> <out.png> [--size N|WxH | --facts FACTS.txt] [--rasterizer auto|<name>]
       RASTERIZER=<label>  PNG_PATH=<out.png>                           exit 0
-      The size is --size, else the width of NATIVE_SIZE in the facts file, else 256.
+      The size is --size (N is a square, WxH an exact width and height; every rasterizer
+      produces exactly that pixel size), else the width of NATIVE_SIZE in the facts file
+      (square), else 256.
       no rasterizer, or the chosen one failed                          exit 2
       Probe order: rsvg-convert, inkscape, chrome (headless), cairosvg, magick, convert.
 
@@ -55,6 +57,24 @@ by `observe`.
       --out-dir defaults to <ISOLATE dir>/icon-gate (scripts/lib/paths.py).
       Exit: 0 PASS, 1 FAIL, 2 CANNOT-VERIFY, 3 usage.
 
+  cover <image> [--svg COVER.svg] [--out-dir DIR] [--preview-width N]
+      COVER_GATE=PASS|FAIL|CANNOT-VERIFY  FAIL_REASON=<one per line>  SIZE=<W>x<H>
+      PREVIEW=<path> (the image scaled to --preview-width, default 300 - the width a store grid
+      shows a cover at - as PNG; written under --out-dir, else beside the image)
+      FAIL (exit 1): the file is not a PNG or JPEG; its width / height is not 2 within 1%; it
+      is narrower than 1200 px; it is one flat colour. No Pillow is CANNOT-VERIFY (exit 2),
+      never a pass. Exit: 0 PASS, 1 FAIL, 2 CANNOT-VERIFY, 3 usage.
+      --svg reads the cover's SVG source as XML text (never rendered) and adds:
+      NAME_SIZE=<largest font size on a text element, viewBox units; a font-size attribute or
+      style property, inherited from an ancestor when the element has none>
+      NAME_MIN=<one tenth of the viewBox height>
+      IMAGES=<count of <image> elements>
+      FAIL_REASON=name-too-small  (NAME_SIZE below NAME_MIN, or no sized text at all)
+      FAIL_REASON=raster-image  (an <image> covers more than a quarter of the viewBox area;
+      one with no usable width / height counts as the whole cover; a small icon is allowed)
+      An SVG that cannot be parsed or has no usable viewBox: COVER_GATE=CANNOT-VERIFY with a
+      FAIL_REASON line, exit 2.
+
   sample <icon.png> [<icon.png> ...]
       For each sibling icon: STYLE=tile|flat, PLATE=#rrggbb (tile only: dominant opaque colour
       of the border band), GLYPH=#rrggbb (dominant opaque colour off the plate),
@@ -78,11 +98,13 @@ import collections
 import glob
 import importlib.util
 import os
+import re
 import shutil
 import statistics
 import struct
 import subprocess
 import sys
+from xml.etree import ElementTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CHROME_NAMES = ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser")
@@ -138,36 +160,53 @@ def probe_rasterizers():
     return found
 
 
+def _dims(size):
+    """(width, height) of a size given as N (square) or (width, height)."""
+    return (size, size) if isinstance(size, int) else tuple(size)
+
+
+def parse_size(text):
+    """argparse type: `N` is a square, `WxH` is an exact width and height."""
+    try:
+        parts = [int(x) for x in text.lower().split("x")]
+    except ValueError:
+        parts = []
+    if len(parts) not in (1, 2) or any(n <= 0 for n in parts):
+        raise argparse.ArgumentTypeError(f"{text!r} is not N or WxH")
+    return (parts[0], parts[-1])
+
+
 def _chrome_page(svg_path, size):
+    width, height = _dims(size)
     with open(svg_path, "rb") as fh:
         svg_b64 = base64.b64encode(fh.read()).decode("ascii")
     html = (
         '<html><body style="margin:0"><img src="data:image/svg+xml;base64,'
-        f'{svg_b64}" width={size} height={size}></body></html>'
+        f'{svg_b64}" width={width} height={height}></body></html>'
     )
     return "data:text/html;base64," + base64.b64encode(html.encode("utf-8")).decode("ascii")
 
 
 def _run_rasterizer(name, path, svg, png, size):
-    n = str(size)
+    width, height = _dims(size)
     if name == "rsvg-convert":
-        cmd = [path, "-w", n, "-h", n, svg, "-o", png]
+        cmd = [path, "-w", str(width), "-h", str(height), svg, "-o", png]
     elif name == "inkscape":
-        cmd = [path, "--export-type=png", f"--export-width={n}", f"--export-height={n}",
+        cmd = [path, "--export-type=png", f"--export-width={width}", f"--export-height={height}",
                f"--export-filename={png}", svg]
     elif name == "chrome":
         cmd = [path, "--headless=new", "--disable-gpu", "--hide-scrollbars",
                "--force-device-scale-factor=1", "--default-background-color=00000000",
-               f"--window-size={n},{n}", f"--screenshot={png}", _chrome_page(svg, size)]
+               f"--window-size={width},{height}", f"--screenshot={png}", _chrome_page(svg, size)]
     elif name == "cairosvg":
         try:
             import cairosvg
-            cairosvg.svg2png(url=svg, write_to=png, output_width=size, output_height=size)
+            cairosvg.svg2png(url=svg, write_to=png, output_width=width, output_height=height)
             return True
         except Exception:
             return False
     else:  # magick / convert
-        cmd = [path, "-background", "none", svg, "-resize", f"{n}x{n}", png]
+        cmd = [path, "-background", "none", svg, "-resize", f"{width}x{height}!", png]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
     except (OSError, subprocess.SubprocessError):
@@ -596,6 +635,135 @@ def cmd_check(args):
 
 
 # ---------------------------------------------------------------------------
+# cover
+# ---------------------------------------------------------------------------
+COVER_RATIO = 2.0
+COVER_RATIO_TOLERANCE = 0.01
+COVER_MIN_WIDTH = 1200
+COVER_PREVIEW_WIDTH = 300
+COVER_NAME_MIN_FRACTION = 0.1
+COVER_IMAGE_MAX_FRACTION = 0.25
+
+
+def _local(tag):
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _length(text, whole):
+    """A width / height as viewBox units: a number, `px`, or a percentage of `whole`."""
+    m = re.fullmatch(r"\s*(-?[0-9]*\.?[0-9]+)\s*(px|%)?\s*", text or "")
+    if not m:
+        return None
+    n = float(m.group(1))
+    return n * whole / 100 if m.group(2) == "%" else n
+
+
+def _font_size(el):
+    """The font size set on this element itself (attribute, else style property), or None."""
+    raw = el.get("font-size")
+    for decl in (el.get("style") or "").split(";"):
+        name, _, value = decl.partition(":")
+        if name.strip().lower() == "font-size":
+            raw = value
+    m = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*(px)?\s*", raw or "")
+    return float(m.group(1)) if m else None
+
+
+def svg_cover_facts(path):
+    """(name_size, name_min, images, reasons) read from the SVG text; ValueError when unusable."""
+    try:
+        root = ElementTree.parse(path).getroot()
+    except (ElementTree.ParseError, OSError) as exc:
+        raise ValueError(f"the SVG cannot be read ({type(exc).__name__})")
+    parts = re.split(r"[\s,]+", (root.get("viewBox") or "").strip())
+    try:
+        _x, _y, vw, vh = (float(v) for v in parts)
+    except ValueError:
+        raise ValueError("the SVG has no usable viewBox")
+    if vw <= 0 or vh <= 0:
+        raise ValueError("the SVG has no usable viewBox")
+    parent = {c: p for p in root.iter() for c in p}
+    name_size = 0.0
+    images = 0
+    large_image = False
+    for el in root.iter():
+        kind = _local(el.tag)
+        if kind in ("text", "tspan") and "".join(el.itertext()).strip():
+            node = el
+            while node is not None and _font_size(node) is None:
+                node = parent.get(node)
+            if node is not None:
+                name_size = max(name_size, _font_size(node))
+        elif kind == "image":
+            images += 1
+            w, h = _length(el.get("width"), vw), _length(el.get("height"), vh)
+            if w is None or h is None or w * h > COVER_IMAGE_MAX_FRACTION * vw * vh:
+                large_image = True
+    reasons = []
+    name_min = vh * COVER_NAME_MIN_FRACTION
+    if name_size < name_min:
+        reasons.append("name-too-small")
+    if large_image:
+        reasons.append("raster-image")
+    return name_size, name_min, images, reasons
+
+
+def cmd_cover(args):
+    if not _pillow():
+        out("COVER_GATE", "CANNOT-VERIFY")
+        out("FAIL_REASON", NO_PILLOW)
+        return 2
+    from PIL import Image
+    if args.preview_width <= 0:
+        print("icon_gate: --preview-width must be positive", file=sys.stderr)
+        return 3
+    reasons = []
+    svg_facts = None
+    if args.svg:
+        try:
+            svg_facts = svg_cover_facts(args.svg)
+        except ValueError as exc:
+            out("COVER_GATE", "CANNOT-VERIFY")
+            out("FAIL_REASON", str(exc))
+            return 2
+        reasons.extend(svg_facts[3])
+    try:
+        img = Image.open(args.image)
+        img.load()
+    except Exception as exc:
+        out("COVER_GATE", "FAIL")
+        out("FAIL_REASON", f"not a readable image ({type(exc).__name__})")
+        return 1
+    if img.format not in ("PNG", "JPEG"):
+        reasons.append(f"file is {img.format}, not PNG or JPEG")
+    width, height = img.size
+    if abs(width / height - COVER_RATIO) > COVER_RATIO * COVER_RATIO_TOLERANCE:
+        reasons.append(f"size is {width}x{height}, the ratio {width / height:.3f} is not 2:1")
+    if width < COVER_MIN_WIDTH:
+        reasons.append(f"width is {width} px, the cover needs at least {COVER_MIN_WIDTH}")
+    rgba = img.convert("RGBA")
+    if all(lo == hi for lo, hi in rgba.getextrema()):
+        reasons.append("the image is blank (a single colour)")
+    out_dir = args.out_dir or os.path.dirname(os.path.abspath(args.image))
+    os.makedirs(out_dir, exist_ok=True)
+    stem = os.path.splitext(os.path.basename(args.image))[0]
+    preview = os.path.join(out_dir, f"{stem}-preview.png")
+    scaled = rgba.resize((args.preview_width, max(1, round(height * args.preview_width / width))),
+                         Image.LANCZOS)
+    scaled.save(preview)
+    out("COVER_GATE", "FAIL" if reasons else "PASS")
+    for r in reasons:
+        out("FAIL_REASON", r)
+    out("SIZE", f"{width}x{height}")
+    out("PREVIEW", preview)
+    if svg_facts:
+        out("NAME_SIZE", f"{svg_facts[0]:g}")
+        out("NAME_MIN", f"{svg_facts[1]:g}")
+        out("IMAGES", svg_facts[2])
+    return 1 if reasons else 0
+
+
+# ---------------------------------------------------------------------------
 # sample
 # ---------------------------------------------------------------------------
 def cmd_sample(args):
@@ -669,7 +837,7 @@ def main(argv=None):
     p = sub.add_parser("render")
     p.add_argument("svg")
     p.add_argument("png")
-    p.add_argument("--size", type=int)
+    p.add_argument("--size", type=parse_size)
     p.add_argument("--facts")
     p.add_argument("--rasterizer", default="auto")
     p.set_defaults(fn=cmd_render)
@@ -680,6 +848,13 @@ def main(argv=None):
     p.add_argument("--out-dir")
     p.add_argument("--rasterizer", default="auto")
     p.set_defaults(fn=cmd_check)
+
+    p = sub.add_parser("cover")
+    p.add_argument("image")
+    p.add_argument("--out-dir")
+    p.add_argument("--preview-width", type=int, default=COVER_PREVIEW_WIDTH)
+    p.add_argument("--svg")
+    p.set_defaults(fn=cmd_cover)
 
     p = sub.add_parser("sample")
     p.add_argument("icons", nargs="+")
