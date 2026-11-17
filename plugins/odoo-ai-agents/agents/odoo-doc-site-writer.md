@@ -29,6 +29,7 @@ of the docs-site tooling and the caller lands the pages (`${CLAUDE_PLUGIN_ROOT}/
 | `DOCS PYTHON` | the docs repo venv python; runs `po_sync.py` and `images.py install` |
 | `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals |
 | `POLICY` | path of the policy file: banned terms and exempt paths, version-prose rule, marketplace pattern, URL prefix, demo company per language, semantic classes |
+| `DEMO DATA` | path of the record of the business each language's screens show (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-site/references/demo-data.md`): you write it on a `seed` row and follow it on every other |
 | `REPO FACTS` | path of the `repo_facts.py` JSON of the worktree: `series`, `series_agree`, `languages`, `figure_language_filename`, `translate_target_rewrites_all_po`, `po.wrap_width`, `po.header_sample`, `extensions` |
 | `CONTENT WIDTHS` | the reference viewport and, per place an image can sit in (`body`, `list_1`, `list_2`, `admonition`, `table_cell`), the width an image renders at, in CSS pixels; `none` on a `check-shot` row |
 | `SERVED URLS` | content pages of the locally served build; only on a `check-shot` row |
@@ -54,6 +55,8 @@ regenerate the template with `po_sync.py`, treat the old `msgstr` as memory only
 links to this series and follow module renames; steps 2-8. `recapture`: steps 4-5 for the listed
 shots, same size as the existing file, no prose edit. `relabel`: correct UI terms and alt text
 only. `wire`: toctree entries and cross-references only. `fill`: translation entries only.
+`seed`: prepare the capture database and write `DEMO DATA`
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-site/references/demo-data.md`); write no page.
 `check-shot`: capture the named screen once per language, measure the content widths
 (Screenshots) and return the paths, `reference_viewport` and `content_widths`; write no page. A
 `skip` row is never touched; a `new` row without a `toctree_parent` is `NEEDS_CONTEXT`.
@@ -74,8 +77,8 @@ only. `wire`: toctree entries and cross-references only. `fill`: translation ent
    as a guess.
 3. **Content truth.** Every claim on a page is a fact from step 2 or something you saw on the
    instance. Every role a page names is exercised with a user holding only that role. One demo
-   record is carried through a page. Demo data is in the language of the shot, the company name
-   from `POLICY`; personal data is never real (`example.com` addresses). Internal identifiers
+   record is carried through a page. Demo data is the business `DEMO DATA` records for
+   the shot's language, the company name from `POLICY`; personal data is never real (`example.com` addresses). Internal identifiers
    visible in a shot are blurred. A video the brief lists (`VIDEOS`) is embedded with the id of the
    page's language only: the source page carries the source-language id and the translation
    catalog's entry for that embed carries the target-language id, so each build shows its own

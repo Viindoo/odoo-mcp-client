@@ -205,24 +205,15 @@ FACTS_FROM_LEASES = "leases"
 _UNREAD = object()
 
 
-def read_database(row, cwd=None, modules=None, installed=False):
-    """{demo, languages} read from the database `row` names ITSELF - `odoo_db.py db-facts` under
-    the lease's venv python (ir_module_module.demo of the installed modules, the active res_lang
-    codes; a database that does not exist holds nothing) - or None when it cannot be read (no
-    venv on the row, e.g. a shared lease; the venv cannot import Odoo; the cluster refused or did
-    not answer; the bound elapsed). One connection. With `modules`, also "modules":
-    {name: {"state", "demo"}} for each of them the database knows (its OWN demo flag - the
-    database-wide `demo` says nothing about one module); a module it does not know is absent.
-    With `installed`, also "installed": [every module the database holds loaded] - absent when the
-    reader did not state it."""
+def odoo_db_argv(row, verb, *args):
+    """The command line of `odoo_db.py <verb> <db> <args> <connection flags>` for the database a
+    registry row names, run under the row's own venv python (which supplies psycopg2 and Odoo's
+    dependencies) with the row's Postgres coordinates and Odoo checkout; None when the row names
+    no interpreter or no database (a shared lease)."""
     python, db = row.get("python"), row.get("db_name")
     if not python or not db:
         return None
-    argv = [python, str(cli.LIB_DIR / "odoo_db.py"), "db-facts", db]
-    if modules:
-        argv += ["--modules", ",".join(modules)]
-    if installed:
-        argv += ["--installed", "1"]
+    argv = [python, str(cli.LIB_DIR / "odoo_db.py"), verb, db] + [str(a) for a in args]
     host, port = _pg_coordinates(row)
     user = (row.get("_pg") or {}).get("user") or row.get("db_user") or ""
     for flag, value in (("--db-host", host), ("--db-user", user), ("--db-port", port)):
@@ -233,6 +224,26 @@ def read_database(row, cwd=None, modules=None, installed=False):
         if facts is not None else None
     if root:
         argv += ["--odoo-root", root]
+    return argv
+
+
+def read_database(row, cwd=None, modules=None, installed=False):
+    """{demo, languages} read from the database `row` names ITSELF - `odoo_db.py db-facts` under
+    the lease's venv python (ir_module_module.demo of the installed modules, the active res_lang
+    codes; a database that does not exist holds nothing) - or None when it cannot be read (no
+    venv on the row, e.g. a shared lease; the venv cannot import Odoo; the cluster refused or did
+    not answer; the bound elapsed). One connection. With `modules`, also "modules":
+    {name: {"state", "demo"}} for each of them the database knows (its OWN demo flag - the
+    database-wide `demo` says nothing about one module); a module it does not know is absent.
+    With `installed`, also "installed": [every module the database holds loaded] - absent when the
+    reader did not state it."""
+    argv = odoo_db_argv(row, "db-facts")
+    if argv is None:
+        return None
+    if modules:
+        argv += ["--modules", ",".join(modules)]
+    if installed:
+        argv += ["--installed", "1"]
     try:
         rc, out, _err = cli.run(argv, cwd or cli.default_cwd(), DB_FACTS_TIMEOUT_S)
     except (cli.SubprocessTimeout, OSError):
@@ -307,7 +318,7 @@ def serve_url(port):
 
 
 def _unserved(lease):
-    lease.update({"served": False, "http_port": None, "url": None})
+    lease.update({"served": False, "http_port": None, "url": None, "public_url": None})
     return lease
 
 
@@ -342,6 +353,23 @@ def _served_pid(row):
     if expected and sa.fp_verdict(expected, pid) == sa.VERDICT_MISMATCH:
         return None
     return pid
+
+
+def state_home():
+    """The machine-global state root ($ODOO_AI_HOME, default ~/.odoo-ai)."""
+    return cli.load_lib("paths")._home()
+
+
+def public_url_of(token):
+    """The public https address of the lease's live tunnel (instance_expose), else None."""
+    tunnels = cli.try_load_lib("tunnel")
+    if tunnels is None or not token:
+        return None
+    try:
+        return tunnels.public_url(state_home(), token)
+    except Exception as exc:  # a lease read never fails because of a tunnel record
+        log.info("tunnel record unreadable for %s: %s", _redact(token), exc)
+        return None
 
 
 def lease_from_envelope(fields):
@@ -382,6 +410,7 @@ def lease_from_row(row):
     if _served_pid(row) is not None and lease["ports"]:
         port = lease["ports"][0]
         lease.update({"served": True, "http_port": port, "url": serve_url(port)})
+    lease["public_url"] = public_url_of(row.get("token"))
     return lease
 
 
@@ -390,7 +419,7 @@ def lease_from_row(row):
 # --------------------------------------------------------------------------- #
 HANDLE_FIELDS = ("db_name", "http_port", "gevent_port", "db_port", "addons_path", "venv_python",
                  "demo", "languages_loaded", "facts_source", "log_path", "lease_token", "run_id",
-                 "server_pid", "ui_user")
+                 "server_pid", "ui_user", "public_url")
 DEMO_UI_USER = "admin"   # the administrator account Odoo's demo data creates on every series
 
 
@@ -419,6 +448,8 @@ def instance_handle(lease, log_path=None, server_pid=None, http_port=None):
         "server_pid": server_pid,
         # the account a browser-driven consumer acts as: known for a demo build, else the caller's
         "ui_user": DEMO_UI_USER if built.get("demo") is True else None,
+        # the temporary https address instance_expose opened for this server; null when none
+        "public_url": lease.get("public_url"),
     }
 
 
@@ -434,7 +465,7 @@ LEASE_SCHEMA = {
     "type": "object",
     "required": ["token", "mode", "db_name", "ports", "series", "profile", "addons_path",
                  "venv_python", "db_host", "db_user", "db_port", "run_id", "server_wide_modules",
-                 "built", "session_alive", "served", "http_port", "url"],
+                 "built", "session_alive", "served", "http_port", "url", "public_url"],
     "properties": {
         "token": dict(_NULLABLE_STR, description="Full lease token, or null when this caller may not "
                                                  "hold it (see token_prefix)."),
@@ -485,6 +516,10 @@ LEASE_SCHEMA = {
                                                      "served."),
         "url": dict(_NULLABLE_STR, description="Base URL of the bound server (http://localhost:<port>); "
                                                "null unless served."),
+        "public_url": dict(_NULLABLE_STR, description="Temporary https address a third party (an OAuth "
+                                                      "redirect, a webhook, a browser on another device) "
+                                                      "can reach this server at, while instance_expose "
+                                                      "keeps its tunnel open; null when not exposed."),
     },
 }
 
@@ -519,6 +554,9 @@ HANDLE_SCHEMA = {
                                                    "capture, a demo recording) acts as: the demo build's "
                                                    "administrator; null for a build without demo data, "
                                                    "whose caller names the account."),
+        "public_url": dict(_NULLABLE_STR, description="Temporary https address of the server while "
+                                                      "instance_expose keeps its tunnel open; null when "
+                                                      "not exposed."),
     },
 }
 
@@ -545,6 +583,19 @@ TREE_ADDONS_PROP = {"type": ["string", "array"], "items": {"type": "string"},
                                    "a list or one comma-joined string): a parked lease matches only "
                                    "when its addons_path is exactly this list. Omit for your cwd's "
                                    "worktree."}
+SKIPPED_LEASE_SCHEMA = {
+    "type": "object",
+    "required": ["token_prefix", "db_name", "reason", "yours"],
+    "properties": {
+        "token_prefix": {"type": "string"},
+        "db_name": {"type": "string"},
+        "reason": {"type": "string",
+                   "description": "database-gone (its database does not exist) | other-tree (built "
+                                  "from another tree, see addons_mismatch) | condemned (its park "
+                                  "budget lapsed; gc reclaims it) | reclaim-in-progress | other-host."},
+        "yours": {"type": "boolean", "description": "true when the lease belongs to your run_id."},
+    },
+}
 TREE_MISMATCH_SCHEMA = {
     "type": "object",
     "required": ["token_prefix", "db_name", "addons_path", "wanted", "reason"],
@@ -817,6 +868,7 @@ def _release_locked(token, run_id, cwd):
     for job_id in _running_jobs_for(token):
         ok, detail = jobs.stop(job_id)
         stopped.append({"job_id": job_id, "stopped": ok, "detail": detail})
+    _close_public_address(token, row, cwd)
     env = cli.run_allocator("release", [token, "--run-id", run_id], cwd, RELEASE_TIMEOUT_S)
     fields = env["fields"]
     if fields.get(_ABSENT_KEY) and not fields.get(_RELEASED_KEY):
@@ -831,9 +883,25 @@ def _release_locked(token, run_id, cwd):
             "details": details}
 
 
+def _close_public_address(token, row, cwd):
+    """Close the lease's public address (instance_expose) and restore its base URL before the
+    server stops. Never fails the call it is part of: the tunnel also ends with the server."""
+    try:
+        from . import tools_expose
+        tools_expose.unexpose_lease(token, row, cwd)
+    except Exception as exc:
+        log.warning("closing the public address of lease %s failed: %s: %s", _redact(token),
+                    type(exc).__name__, exc)
+
+
 def _park(args, ctx):
     token, run_id = args["lease_token"], args["run_id"]
     cwd = cli.default_cwd()
+    row = read_row(token, cwd)
+    if row is not None and _owner_run(row) in ("", run_id):
+        # Only the owner's park may close the address; a refused park (NOT_OWNER, decided by the
+        # allocator below) must not touch someone else's tunnel.
+        _close_public_address(token, row, cwd)
     # Ownership (NOT_OWNER) and an unknown token (LEASE_NOT_FOUND) are decided by the allocator
     # itself, under its registry lock and before any signal - the ONE implementation release shares.
     # A pre-check here would only be a second copy with a race window between it and the stop.
@@ -848,7 +916,14 @@ def _park(args, ctx):
         "parked_at": f.get("ALLOC_PARKED_AT"),
         "park_ttl_s": int(f.get("ALLOC_PARK_TTL_S") or 0),
         "drop_on_release": str(f.get("ALLOC_DROP_ON_RELEASE")).lower() == "true",
+        "database_exists": _tri_state(f.get("ALLOC_DB_PRESENT")),
     }
+
+
+def _tri_state(value):
+    """true / false / None (the allocator could not look, or an older one did not say)."""
+    text = str(value).strip().lower()
+    return True if text == "true" else False if text == "false" else None
 
 
 def _list_entry(row, mine):
@@ -922,10 +997,21 @@ def _find(args, ctx):
             fields = exc.diagnostics.get("fields") or {}
             return {"found": False, "state": state, "lease": None,
                     "addons_mismatch": [_tree_mismatch(m) for m in fields.get("addons_mismatch") or []
-                                        if isinstance(m, dict)]}
+                                        if isinstance(m, dict)],
+                    "skipped_leases": _skipped_leases(fields, args.get("run_id") or "")}
         raise
     return {"found": True, "state": state, "lease": found_lease(f, args.get("run_id") or "", cwd),
-            "addons_mismatch": []}
+            "addons_mismatch": [], "skipped_leases": _skipped_leases(f, args.get("run_id") or "")}
+
+
+def _skipped_leases(fields, caller_run):
+    """The parked leases `query` passed over, token redacted, each marked `yours` when the caller's
+    run owns it (the owner run of another's lease is never named)."""
+    return [{"token_prefix": _redact(item.get("token")),
+             "db_name": _text(item.get("db_name")),
+             "reason": _text(item.get("reason")),
+             "yours": bool(caller_run) and _text(item.get("run_id")) == caller_run}
+            for item in fields.get("skipped_leases") or [] if isinstance(item, dict)]
 
 
 def _tree_mismatch(item):
@@ -1224,7 +1310,8 @@ def register(registry, ctx):
         "(NOT_OWNER otherwise); a lease already parked is refused (NOT_RUNNING) and a shared lease "
         "cannot be parked. "
         "drop_on_release=true in the result means the final lease_release still drops the database: "
-        "parking defers the drop, it never makes the database permanent.",
+        "parking defers the drop, it never makes the database permanent. database_exists=false "
+        "means there is no database to resume into (lease_find will pass the lease over).",
         _obj({"lease_token": LEASE_TOKEN_PROP, "run_id": RUN_ID_PROP,
               "park_ttl_s": {"type": "integer", "minimum": 60,
                              "description": "How long the parked lease is kept before gc may reclaim it, "
@@ -1237,7 +1324,12 @@ def register(registry, ctx):
             "parked_at": {"type": ["number", "null"]},
             "park_ttl_s": {"type": "integer"},
             "drop_on_release": {"type": "boolean"},
-        }, ["token", "db_name", "ports", "parked_at", "park_ttl_s", "drop_on_release"]),
+            "database_exists": {"type": ["boolean", "null"],
+                                "description": "false = the lease's database does not exist, so there "
+                                               "is nothing to resume into and lease_find will pass "
+                                               "this lease over; null = it could not be checked."},
+        }, ["token", "db_name", "ports", "parked_at", "park_ttl_s", "drop_on_release",
+            "database_exists"]),
         _park, title="Park an Odoo instance lease", long_running=True, destructive=True,
     )
     registry.add(
@@ -1276,7 +1368,8 @@ def register(registry, ctx):
         "another LIVE session, shows token=null and run_id=null (only its 8-char token_prefix): "
         "serve or read it, never release or park it. A parked lease built from another tree is "
         "never returned (addons_mismatch names it and its addons_path; pass that addons_path to "
-        "lease_find to resume it deliberately). found=false is a normal answer: acquire your "
+        "lease_find to resume it deliberately). skipped_leases lists every parked lease passed over "
+        "and why, yours=true for your run's. found=false is a normal answer: acquire your "
         "own. Read-only.",
         _obj({"series": SERIES_PROP,
               "state": {"type": "string", "enum": ["shared", "parked"], "default": "shared",
@@ -1293,8 +1386,14 @@ def register(registry, ctx):
               "addons_mismatch": {"type": "array", "items": TREE_MISMATCH_SCHEMA,
                                   "description": "Parked leases of this series skipped because "
                                                  "they were built from another tree (empty when "
-                                                 "a lease was found)."}},
-             ["found", "state", "lease", "addons_mismatch"]),
+                                                 "a lease was found)."},
+              "skipped_leases": {"type": "array", "items": SKIPPED_LEASE_SCHEMA,
+                                 "description": "Every parked lease of this series the lookup "
+                                                "passed over, with the reason, whether or not "
+                                                "another lease was then found. Look here for your "
+                                                "own run's lease (yours=true) when it is not the "
+                                                "one returned."}},
+             ["found", "state", "lease", "addons_mismatch", "skipped_leases"]),
         _find, title="Find a reusable Odoo instance", read_only=True, long_running=True,
     )
     registry.add(

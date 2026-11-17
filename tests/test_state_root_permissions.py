@@ -44,6 +44,14 @@ GIVE_BACK_RULES = (
     f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_park",
 )
 
+# The public-address group: instance_expose / instance_unexpose, the other tools of a local server
+# granted as exact allow rules (an auto-mode classifier may refuse "expose a local server").
+EXPOSE_RULES = (
+    f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__instance_expose",
+    f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__instance_unexpose",
+)
+LOCAL_TOOL_RULES = GIVE_BACK_RULES + EXPOSE_RULES
+
 EXCLUDED_SUBPATHS = ("bin/", "venvs/", "node_tools/", "setup-scripts/", "runtime/", "instances.toml")
 
 
@@ -109,10 +117,19 @@ def _is_osm_rule(a):
 
 
 def _bash_rules(root):
+    """The two rules of one plugin directory: the command, then a trailing ` *` (documented to
+    match the bare command too; the spelling earlier releases do not recognise and so never prune)."""
     return [
-        f"Bash(bash {root}/scripts/lib/resolve_project_dir.sh share)",
-        f"Bash(bash {root}/scripts/lib/resolve_project_dir.sh isolate)",
+        f"Bash(bash {root}/scripts/lib/resolve_project_dir.sh share *)",
+        f"Bash(bash {root}/scripts/lib/resolve_project_dir.sh isolate *)",
     ]
+
+
+def _install_script(root):
+    """Make `root` a plugin directory that holds the script the Bash rules run."""
+    script = Path(root) / "scripts" / "lib" / "resolve_project_dir.sh"
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
 
 
 def _file_rules(allow):
@@ -171,13 +188,12 @@ def test_apply_is_idempotent(applied):
 
 
 def test_exact_rules_written_to_the_file_named_by_claude_settings(applied):
-    """Exactly the 4 state-root rules that cover a REAL write path plus the 2 lease give-back
-    rules, no more, no fewer - written to the path named by $CLAUDE_SETTINGS and nowhere else
+    """Exactly the 2 Bash rules of this plugin directory and the 2 state-root rules that cover a REAL
+    write path plus the 2 lease give-back rules and the 2 public-address rules, no more, no fewer - written to the path named by $CLAUDE_SETTINGS and nowhere else
     (not a sibling settings file, not ~/.claude.json)."""
     expected = {
-        *GIVE_BACK_RULES,
-        f"Bash(bash {STEP.parent.parent.parent}/scripts/lib/resolve_project_dir.sh share)",
-        f"Bash(bash {STEP.parent.parent.parent}/scripts/lib/resolve_project_dir.sh isolate)",
+        *LOCAL_TOOL_RULES,
+        *_bash_rules(STEP.parent.parent.parent),
         # `//<abs-path>` = one extra leading slash over the already-absolute $ODOO_AI_HOME, the
         # Claude Code path-permission marker for an ABSOLUTE (not project-relative) match.
         f"Read(/{applied.home}/**)",
@@ -243,11 +259,15 @@ def test_rules_scoped_to_projects_only(applied):
         )
 
 
-def test_bash_rules_are_exact_no_wildcard(applied):
+def test_bash_rules_name_one_script_with_only_a_trailing_wildcard(applied):
+    """A Bash rule runs exactly this plugin's resolve script with `share` or `isolate`; the only
+    wildcard is the single trailing ` *` (a `*` anywhere else would widen the rule to other
+    directories or commands, and a wildcard before the subcommand makes Claude Code warn)."""
     bash_rules = [a for a in applied.allow if a.startswith("Bash(")]
     assert bash_rules, "apply must write at least one Bash() rule"
     for rule in bash_rules:
-        assert ":*" not in rule and rule.endswith(")"), f"Bash rule must be exact, wildcard-free: {rule!r}"
+        assert rule.endswith(" *)") and rule.count("*") == 1, f"only a trailing ' *' is allowed: {rule!r}"
+        assert ":*" not in rule
         assert "resolve_project_dir.sh" in rule, f"Bash rule must invoke resolve_project_dir.sh: {rule!r}"
 
 
@@ -282,11 +302,11 @@ def test_refuses_invalid_json(settings, odoo_ai_home):
     )
 
 
-def test_give_back_rules_are_exactly_the_two_lease_give_back_tools_and_nothing_else_of_a_local_server(applied):
-    """Only lease_release and lease_park are granted; no other odoo-local / odoo-media tool and no
-    blanket server rule is ever written."""
+def test_the_only_tools_of_a_local_server_granted_are_the_give_back_and_the_public_address_tools(applied):
+    """lease_release, lease_park, instance_expose and instance_unexpose are granted; no other
+    odoo-local / odoo-media tool and no blanket server rule is ever written."""
     mcp = [a for a in applied.allow if a.startswith("mcp__")]
-    assert sorted(mcp) == sorted(GIVE_BACK_RULES), f"unexpected MCP rules: {mcp}"
+    assert sorted(mcp) == sorted(LOCAL_TOOL_RULES), f"unexpected MCP rules: {mcp}"
 
 
 def test_give_back_rules_are_skipped_when_the_odoo_local_server_rule_already_grants_them(
@@ -295,7 +315,7 @@ def test_give_back_rules_are_skipped_when_the_odoo_local_server_rule_already_gra
     settings.write_text(json.dumps({"permissions": {"allow": [server_rule]}}), encoding="utf-8")
 
     allow, r_check = _apply_and_check(settings, odoo_ai_home, plugin_root)
-    assert not any(a in GIVE_BACK_RULES for a in allow), f"a broader rule covers them; got {allow}"
+    assert not any(a in LOCAL_TOOL_RULES for a in allow), f"a broader rule covers them; got {allow}"
     assert server_rule in allow
     assert r_check.returncode == 0, f"check must agree they are covered; stderr={r_check.stderr}"
 
@@ -306,7 +326,7 @@ def test_give_back_rules_are_still_added_when_only_another_servers_rule_exists(
     settings.write_text(json.dumps({"permissions": {"allow": [other]}}), encoding="utf-8")
 
     allow, _ = _apply_and_check(settings, odoo_ai_home, plugin_root)
-    for rule in GIVE_BACK_RULES:
+    for rule in LOCAL_TOOL_RULES:
         assert rule in allow, f"{rule} must be added; got {allow}"
 
 
@@ -316,14 +336,16 @@ def test_another_plugins_rules_survive_apply(settings, odoo_ai_home, plugin_root
 
     allow, _ = _apply_and_check(settings, odoo_ai_home, plugin_root)
     assert all(o in allow for o in others), f"another plugin's rules must stay; got {allow}"
-    assert all(g in allow for g in GIVE_BACK_RULES)
+    assert all(g in allow for g in LOCAL_TOOL_RULES)
 
 
-def test_check_fails_while_a_give_back_rule_is_missing(settings, odoo_ai_home, plugin_root):
-    """Everything but one give-back rule is present: check reports the step incomplete."""
+@pytest.mark.parametrize("missing", LOCAL_TOOL_RULES)
+def test_check_fails_while_a_local_tool_rule_is_missing(settings, odoo_ai_home, plugin_root, missing):
+    """Everything but one give-back or public-address rule is present: check reports the step
+    incomplete."""
     _apply_and_check(settings, odoo_ai_home, plugin_root)
     data = json.loads(settings.read_text(encoding="utf-8"))
-    data["permissions"]["allow"].remove(GIVE_BACK_RULES[0])
+    data["permissions"]["allow"].remove(missing)
     settings.write_text(json.dumps(data), encoding="utf-8")
 
     r = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
@@ -338,149 +360,166 @@ def test_opt_out_writes_nothing(settings, odoo_ai_home):
 
 
 # ---------------------------------------------------------------------------
-# Version-pinned rules converge: `${PLUGIN_ROOT}` in the two Bash rules is the INSTALLED version's
-# directory, so a naive re-apply on every upgrade would add a pair per version and never remove
-# the previous one.
+# Rules keyed to a plugin version directory: the Bash rules embed the directory of the session that
+# runs the command, so a rule covers that directory's sessions and no others. Sessions of several
+# versions share one settings file, so each version writes the rules of EVERY installed version
+# directory and removes only the rules of a directory that no longer holds the script - a version
+# never replaces what another version wrote.
 # ---------------------------------------------------------------------------
-def test_apply_across_versions_keeps_only_the_current_versions_two_bash_rules(
-        settings, odoo_ai_home, tmp_path):
-    roots = [tmp_path / "plugins" / v for v in ("4.18.0", "4.18.1", "4.20.0")]
-    for root in roots:
-        root.mkdir(parents=True)
-
-    def apply(root):
-        r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(root)})
-        assert r.returncode == 0, f"apply for {root} must exit 0; stderr={r.stderr}"
-        return [a for a in _allow(settings) if a.startswith("Bash(")]
-
-    assert apply(roots[0]) == _bash_rules(roots[0])
-    assert apply(roots[1]) == _bash_rules(roots[1]), (
-        "installing a newer version's rules must PRUNE the previous version's rules for the "
-        "same script, not accumulate alongside them"
-    )
-    after_c = apply(roots[2])
-    assert set(after_c) == set(_bash_rules(roots[2])) and len(after_c) == 2, (
-        f"after 3 successive plugin versions exactly the CURRENT version's 2 Bash rules must "
-        f"remain, not one pair per version ever installed; got {after_c}"
-    )
-    settled = _allow(settings)
-    apply(roots[2])
-    assert _allow(settings) == settled, (
-        "re-applying the SAME version after a prune must not change the allow-list"
-    )
+def _versions(tmp_path, *names):
+    """Version directories of one plugin (each holds the script), under a shared parent."""
+    parent = tmp_path / "plugins" / "cache" / "viindoo-plugins" / "odoo-ai-agents"
+    roots = []
+    for name in names:
+        _install_script(parent / name)
+        roots.append(parent / name)
+    return roots
 
 
-def test_check_detects_stale_prior_version_bash_rule(settings, odoo_ai_home, tmp_path):
-    """`check` must fail while a stale prior-version Bash rule for the same
-    script remains in permissions.allow[], even when the CURRENT version's
-    rules are already present too - the SessionStart hook only calls `apply`
-    when `check` fails, so a machine in the accumulated state would never be pruned."""
-    version_a = tmp_path / "plugins" / "4.18.0"
-    version_b = tmp_path / "plugins" / "4.20.0"
-    version_a.mkdir(parents=True)
-    version_b.mkdir(parents=True)
-    data = {
-        "permissions": {
-            "allow": [
-                *_bash_rules(version_a),
-                *_bash_rules(version_b),
-                f"Read(/{odoo_ai_home}/**)",
-                f"Edit(/{odoo_ai_home}/projects/**)",
-            ]
-        }
-    }
+def _apply_from(root, settings, odoo_ai_home):
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(root)})
+    assert r.returncode == 0, f"apply for {root} must exit 0; stderr={r.stderr}"
+
+
+def _bash(settings):
+    return [a for a in _allow(settings) if a.startswith("Bash(")]
+
+
+def test_every_installed_version_directory_gets_its_two_bash_rules(settings, odoo_ai_home, tmp_path):
+    """A session of any installed version runs the script from its own directory, so one start
+    grants the rules of every installed version, not only the starting version's."""
+    old, mid, new = _versions(tmp_path, "4.18.0", "4.18.1", "4.20.0")
+    _apply_from(new, settings, odoo_ai_home)
+    assert sorted(_bash(settings)) == sorted(_bash_rules(old) + _bash_rules(mid) + _bash_rules(new))
+
+
+def test_an_older_versions_start_changes_nothing_a_newer_version_wrote(settings, odoo_ai_home, tmp_path):
+    """No flip-flop between two versions: after the newer version converged the file, the older
+    version's start finds every rule it needs present, so it writes nothing and makes no backup."""
+    old, _, new = _versions(tmp_path, "4.18.0", "4.18.1", "4.20.0")
+    _apply_from(new, settings, odoo_ai_home)
+    settled = settings.read_text(encoding="utf-8")
+    backups = sorted(settings.parent.glob(f"{settings.name}.bak.*"))
+    for root in (old, new):
+        r = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(root)})
+        assert r.returncode == 0, f"check from {root} must pass; stderr={r.stderr}"
+        _apply_from(root, settings, odoo_ai_home)
+    assert settings.read_text(encoding="utf-8") == settled
+    assert sorted(settings.parent.glob(f"{settings.name}.bak.*")) == backups, "a no-op start must not write"
+
+
+def test_a_newer_versions_start_restores_the_rules_of_an_older_directory(settings, odoo_ai_home, tmp_path):
+    """What an earlier release's pruning removed (the rules of another version directory) is
+    missing: `check` says so and the newer version's start writes them back."""
+    old, mid, new = _versions(tmp_path, "4.18.0", "4.18.1", "4.20.0")
+    _apply_from(new, settings, odoo_ai_home)
+    data = json.loads(settings.read_text(encoding="utf-8"))
+    data["permissions"]["allow"] = [a for a in data["permissions"]["allow"]
+                                    if not a.startswith(f"Bash(bash {mid}/")]
     settings.write_text(json.dumps(data), encoding="utf-8")
+    env = {"CLAUDE_PLUGIN_ROOT": str(new)}
+    assert _run("check", settings, odoo_ai_home, env_extra=env).returncode == 1
+    _apply_from(new, settings, odoo_ai_home)
+    assert set(_bash_rules(mid)) <= set(_bash(settings))
+    assert _run("check", settings, odoo_ai_home, env_extra=env).returncode == 0
 
-    r = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(version_b)})
-    assert r.returncode == 1, (
-        f"check must fail while a stale prior-version Bash rule remains, even "
-        f"though the current version's own rules are already present; "
-        f"stdout={r.stdout} stderr={r.stderr}"
-    )
 
-    # And after apply prunes it, check must now pass.
-    r_apply = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(version_b)})
-    assert r_apply.returncode == 0, f"apply must exit 0; stderr={r_apply.stderr}"
-    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(version_b)})
-    assert r_check.returncode == 0, (
-        f"check must pass once apply has pruned the stale rule; "
-        f"stdout={r_check.stdout} stderr={r_check.stderr}"
-    )
+def test_rules_of_a_removed_version_directory_go_and_check_reports_them(settings, odoo_ai_home, tmp_path):
+    """A directory that no longer holds the script (the version was cleaned from the plugin cache)
+    leaves rules that match nothing: `check` fails while they remain, `apply` removes them - the
+    rules of the exact earlier shape included - and the rules of every other directory stay."""
+    (kept, current) = _versions(tmp_path, "4.18.0", "4.20.0")
+    gone = kept.parent / "4.17.0"
+    gone.mkdir()  # the directory exists, the script does not
+    legacy = f"Bash(bash {gone}/scripts/lib/resolve_project_dir.sh share)"
+    stale = [*_bash_rules(gone), legacy]
+    settings.write_text(json.dumps({"permissions": {"allow": [*stale, "Bash(sudo *)"]}}), encoding="utf-8")
+    env = {"CLAUDE_PLUGIN_ROOT": str(current)}
+    assert _run("check", settings, odoo_ai_home, env_extra=env).returncode == 1
+    _apply_from(current, settings, odoo_ai_home)
+    allow = _allow(settings)
+    assert not set(stale) & set(allow), f"rules of a removed version must go; got {allow}"
+    assert set(_bash_rules(kept) + _bash_rules(current)) <= set(allow)
+    assert "Bash(sudo *)" in allow
+    assert _run("check", settings, odoo_ai_home, env_extra=env).returncode == 0
+
+
+def test_a_rule_in_the_earlier_exact_shape_of_an_installed_version_is_left_alone(
+        settings, odoo_ai_home, tmp_path):
+    """Another release writes `Bash(... share)` for its own directory; while that directory exists
+    the rule is correct and not this version's to remove."""
+    old, new = _versions(tmp_path, "4.18.0", "4.20.0")
+    legacy = f"Bash(bash {old}/scripts/lib/resolve_project_dir.sh share)"
+    settings.write_text(json.dumps({"permissions": {"allow": [legacy]}}), encoding="utf-8")
+    _apply_from(new, settings, odoo_ai_home)
+    assert legacy in _allow(settings)
 
 
 def test_prune_never_prunes_different_plugin_same_script(settings, odoo_ai_home, tmp_path):
-    """Anchoring regression guard - covers all 5 required cases in one pass.
+    """Anchoring regression guard. Only rules of THIS plugin's removed version directories go:
 
-    A suffix-only prune matcher deleted another plugin's rule for an identically-named script.
-    The matcher is anchored on THIS plugin's own path:
-
-      1. same plugin, different version  -> PRUNED
-      2. different plugin, same script   -> UNTOUCHED (the case that slipped through)
+      1. same plugin, removed version    -> PRUNED
+      2. different plugin, same script   -> UNTOUCHED
       3. same plugin, different script   -> UNTOUCHED
       4. user's own hand-written rules   -> UNTOUCHED
-      (case 5, a --plugin-dir dev checkout with no version segment, is
-      covered separately by test_dev_checkout_without_version_segment_skips_pruning_safely)
     """
     cache_root = tmp_path / "plugins" / "cache" / "viindoo-plugins"
-    version_a = cache_root / "odoo-ai-agents" / "4.18.0"  # THIS plugin, prior version
-    version_b = cache_root / "odoo-ai-agents" / "4.20.2"  # THIS plugin, current version
-    other_plugin = cache_root / "other-plugin" / "1.0"  # a DIFFERENT plugin
-    for d in (version_a, version_b, other_plugin):
-        d.mkdir(parents=True)
+    removed = cache_root / "odoo-ai-agents" / "4.18.0"  # THIS plugin, directory without the script
+    removed.mkdir(parents=True)
+    (version_b,) = _versions(tmp_path, "4.20.2")
+    other_plugin = cache_root / "other-plugin" / "1.0"  # a DIFFERENT plugin (script absent too)
+    other_plugin.mkdir(parents=True)
 
-    same_plugin_prior_version = f"Bash(bash {version_a}/scripts/lib/resolve_project_dir.sh share)"
-    different_plugin_same_script = f"Bash(bash {other_plugin}/scripts/lib/resolve_project_dir.sh share)"
-    same_plugin_different_script = f"Bash(bash {version_a}/scripts/lib/some_other_script.sh share)"
+    same_plugin_removed_version = _bash_rules(removed)[0]
+    different_plugin_same_script = f"Bash(bash {other_plugin}/scripts/lib/resolve_project_dir.sh share *)"
+    same_plugin_different_script = f"Bash(bash {removed}/scripts/lib/some_other_script.sh share *)"
     hand_written = ["Bash(sudo *)", "Read(**)", "Bash(git commit:*)", "mcp__some-other-server__tool"]
 
-    seed = [same_plugin_prior_version, different_plugin_same_script, same_plugin_different_script, *hand_written]
-    data = {"permissions": {"allow": list(seed)}}
-    settings.write_text(json.dumps(data), encoding="utf-8")
+    seed = [same_plugin_removed_version, different_plugin_same_script, same_plugin_different_script,
+            *hand_written]
+    settings.write_text(json.dumps({"permissions": {"allow": list(seed)}}), encoding="utf-8")
 
-    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(version_b)})
-    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    _apply_from(version_b, settings, odoo_ai_home)
     allow = _allow(settings)
 
-    assert same_plugin_prior_version not in allow, (
-        f"stale same-plugin prior-version rule must be pruned; still present in {allow}"
+    assert same_plugin_removed_version not in allow, (
+        f"a rule of this plugin's removed version directory must be pruned; still in {allow}"
     )
     assert different_plugin_same_script in allow, (
-        f"a DIFFERENT plugin's rule for an identically-suffixed script must NEVER be pruned "
-        f"just because it shares the script suffix; missing from {allow}"
+        f"a DIFFERENT plugin's rule for an identically-named script must NEVER be pruned; "
+        f"missing from {allow}"
     )
     assert same_plugin_different_script in allow, (
         f"a different script under the SAME plugin must not be pruned; missing from {allow}"
     )
     for u in hand_written:
         assert u in allow, f"apply must never remove a user's hand-written rule: {u!r} missing from {allow}"
-    assert f"Bash(bash {version_b}/scripts/lib/resolve_project_dir.sh share)" in allow
+    assert set(_bash_rules(version_b)) <= set(allow)
 
 
-def test_dev_checkout_without_version_segment_skips_pruning_safely(settings, odoo_ai_home, tmp_path):
-    """A --plugin-dir dev checkout has no version segment in $PLUGIN_ROOT, so there is no reliable
-    way to tell which path segment IS the version: pruning is skipped entirely rather than guessed
-    (it could otherwise strip the wrong segment and widen the anchor). The marketplace-cache rule
-    of the SAME plugin survives, the dev checkout's own rule is added, and nothing crashes."""
-    marketplace_version = tmp_path / "plugins" / "cache" / "viindoo-plugins" / "odoo-ai-agents" / "4.18.0"
+def test_dev_checkout_without_version_segment_writes_its_own_rules_and_prunes_nothing(
+        settings, odoo_ai_home, tmp_path):
+    """A --plugin-dir dev checkout has no version segment in its path, so there is no way to tell
+    which directories are versions of the same plugin: it grants its own two rules, grants no
+    sibling's, and removes nothing. A marketplace rule of the same plugin stays."""
+    (marketplace_version,) = _versions(tmp_path, "4.18.0")
     dev_checkout = tmp_path / "worktrees" / "some-feature-branch" / "plugins" / "odoo-ai-agents"
-    marketplace_version.mkdir(parents=True)
     dev_checkout.mkdir(parents=True)
+    gone = marketplace_version.parent / "4.17.0"
+    gone.mkdir()
+    marketplace_rules = _bash_rules(marketplace_version)
+    removed_rule = _bash_rules(gone)[0]
+    settings.write_text(json.dumps({"permissions": {"allow": [*marketplace_rules, removed_rule]}}),
+                        encoding="utf-8")
 
-    marketplace_rule = f"Bash(bash {marketplace_version}/scripts/lib/resolve_project_dir.sh share)"
-    data = {"permissions": {"allow": [marketplace_rule]}}
-    settings.write_text(json.dumps(data), encoding="utf-8")
-
-    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(dev_checkout)})
-    assert r.returncode == 0, f"apply from a dev checkout must not crash; stderr={r.stderr}"
+    _apply_from(dev_checkout, settings, odoo_ai_home)
 
     allow = _allow(settings)
-    assert marketplace_rule in allow, (
-        f"a dev checkout (no version segment) must NEVER prune a marketplace-cache rule for "
-        f"the same plugin; missing from {allow}"
-    )
-    assert f"Bash(bash {dev_checkout}/scripts/lib/resolve_project_dir.sh share)" in allow, (
-        "the dev checkout's own rule must still be added (plain add, no pruning)"
-    )
+    assert set(marketplace_rules) <= set(allow) and removed_rule in allow, (
+        f"a dev checkout must never prune a marketplace-cache rule; got {allow}")
+    assert set(_bash_rules(dev_checkout)) <= set(allow), "the dev checkout's own rules must be added"
+    assert len(_bash(settings)) == len(marketplace_rules) + 1 + 2, "no sibling directory is granted"
+
 
 
 # ---------------------------------------------------------------------------
@@ -521,7 +560,7 @@ def test_apply_skips_what_an_exact_duplicate_or_a_blanket_already_covers_and_wri
     exact duplicate and the give-back rules are exact duplicates: all covered, so apply performs
     zero writes - no backup at all."""
     edit_rule = f"Edit(/{odoo_ai_home}/projects/**)"
-    seed = ["Bash(*)", "Read", edit_rule, *GIVE_BACK_RULES]
+    seed = ["Bash(*)", "Read", edit_rule, *LOCAL_TOOL_RULES]
     settings.write_text(json.dumps({"permissions": {"allow": seed}}), encoding="utf-8")
 
     allow, r_check = _apply_and_check(settings, odoo_ai_home, plugin_root)

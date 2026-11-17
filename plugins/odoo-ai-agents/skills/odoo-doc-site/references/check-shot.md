@@ -2,7 +2,7 @@
 
 One screen per site language, captured before any page work and judged by this skill, no question
 asked. It must show the right language, the demo company of that language (`policy.demo_company`),
-the site's theme, a content width inside the theme's column and no error banner.
+the business its readers run (`demo-data.md`), the site's theme, a content width inside the theme's column and no error banner.
 
 ## Instance
 
@@ -16,7 +16,7 @@ recorded `reference_viewport` and `content_widths`.
 
 ## Capture
 
-Launch `odoo-doc-site-writer` with a PAGE PLAN holding the single row `work: check-shot` and the
+Launch `odoo-doc-site-writer` with a PAGE PLAN holding the rows `work: seed` and `work: check-shot`, and the
 screen to capture (the first app menu of the area), and the content page it measures: a published
 page of the SAME KIND as the planned pages (a task page for task pages, an index for an index -
 the nearest sibling of the first planned page; an index page and a page that hides its local
@@ -28,7 +28,7 @@ table of contents are wider than a task page with one), never a page of another 
 
 Open every returned image and rule it against the list in the intro. A shot that fails is a defect
 of the instance, never a shot to keep: fix it (a language not loaded, a missing module: through
-`odoo-instance`; a wrong company name or an error banner: the cause on the instance), recapture the
+`odoo-instance`; a wrong company name or an error banner: the cause on the instance; data of another country: the seed), recapture the
 failed languages and judge again. After 3 failed rounds return `BLOCKED` with the images and what
 differs from the list.
 

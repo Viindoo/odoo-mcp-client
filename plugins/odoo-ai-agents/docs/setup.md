@@ -315,8 +315,9 @@ drop-in. What it does:
    (`30-permissions`; the allow-list covers all six families, so a re-registration needs no
    permission change), plus the narrow set of state-root Bash/Read/Edit
    rules the planning pipeline needs to resolve and write under `$ODOO_AI_HOME`
-   without a per-call prompt, and the two odoo-local tools that give a lease back
-   (`lease_release`, `lease_park`), so an agent returns its own instance without waiting on the
+   without a per-call prompt, and four odoo-local tools - the two that give a lease back
+   (`lease_release`, `lease_park`) and the two that open and close an instance's public address
+   (`instance_expose`, `instance_unexpose`) - so none of them waits on the
    auto-mode classifier (`32-permissions-state-root`). The state-root
    write rules cover ONLY `$ODOO_AI_HOME/projects/**` - both the plan (SHARE)
    and the per-worktree worklog (ISOLATE) resolve nested under it, so there is
@@ -389,7 +390,8 @@ can be blocked and, after repeated blocks, auto mode pauses to ask you.
   organization = owner of each repository's `origin` remote; fork owner = owner of each other
   remote the user pushes to (a fetch-only upstream is not one); protected branches = the remote's default branch plus every `<major>.0` branch. Git is
   only read. `propose` prints all of it; `apply` asks `[Y/n]` per group.
-- **What is written** (user settings, each entry tagged `odoo-ai-agents: `): `autoMode.allow`
+- **What is written** (user settings, each entry tagged `odoo-ai-agents@<version>: `; a session
+  of an older plugin version leaves a newer version's entries alone): `autoMode.allow`
   (routine development inside the trusted roots, routine git, local instances), `autoMode.soft_deny`
   (push or delete on a protected branch of the organization, merging a pull request without your
   confirmation), `autoMode.environment` (the facts above), and `permissions.ask` push rules naming

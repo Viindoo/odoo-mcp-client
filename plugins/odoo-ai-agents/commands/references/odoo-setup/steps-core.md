@@ -70,9 +70,10 @@ session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Th
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
 - **32-permissions-state-root** - appends to `permissions.allow[]` in the same `$CLAUDE_SETTINGS`
   the narrow state-root Bash/Read/Edit rules the planning pipeline needs (resolving and writing
-  under `$ODOO_AI_HOME`), and the two odoo-local tools that give a lease back (`lease_release`,
-  `lease_park`), so an agent's cleanup of its own instance never waits on the auto-mode
-  classifier; the give-back rules are written for every state root.
+  under `$ODOO_AI_HOME`), and four odoo-local tools: the two that give a lease back (`lease_release`,
+  `lease_park`) and the two that open and close an instance's public address (`instance_expose`,
+  `instance_unexpose`), so none of them waits on the auto-mode classifier; these tool rules are
+  written for every state root.
   Writes `permissions.allow[]` ONLY (never `deny[]`/`ask[]`/
   `additionalDirectories`), and its Write/Edit rules cover ONLY
   `$ODOO_AI_HOME/projects/**` (see `snippets/state-root-resolution.md`), EXCLUDING `bin/`,
@@ -82,17 +83,20 @@ session holds (`lease_list` scope `all`, `age_s`) with the `lease_gc` remedy. Th
   only reports its absence and points there. Honours `ODOO_AI_NO_AUTO_PERMS=1`.
   Grants no Read/Edit rule to an ephemeral state root (under a system temp
   directory or the default root's `scratch/`) and removes its own earlier
-  pairs whose root is gone or under a system temp directory.
+  pairs whose root is gone or under a system temp directory. Its Bash rules are written for
+  every installed version directory of the plugin and removed only for a directory that is
+  gone, so sessions of different versions never undo each other's rules.
   Asks [Y/n] itself; after `apply` it prints the exact rules written and
   instructs ONE restart.
 - **34-auto-mode** - `propose` derives, from this machine only, the trusted roots (parent of every
   catalog `addons_path` plus the state root's `projects`), the organization (owner of `origin`), the
   fork owner (owner of each other remote the user pushes to, never a fetch-only upstream; one `FORK_QUESTION` only when no clone has a pushed fork - see **Fork resolution**) and the protected branches (the remote's default branch plus
-  every `<major>.0` branch); show the proposal, then `apply` on consent. It writes tagged
-  `odoo-ai-agents: ` entries into `autoMode.allow`, `autoMode.soft_deny`, `autoMode.environment`
+  every `<major>.0` branch); show the proposal, then `apply` on consent. It writes entries tagged
+  `odoo-ai-agents@<version>: ` into `autoMode.allow`, `autoMode.soft_deny`, `autoMode.environment`
   (each array keeps `"$defaults"` first) and `permissions.ask` push rules for the protected
-  branches, in `$CLAUDE_SETTINGS`; never `hard_deny`, never `permissions.allow`. A later `apply`
-  prunes this plugin's own tagged entries before writing the current set and never touches yours.
+  branches, in `$CLAUDE_SETTINGS`; never `hard_deny`, never `permissions.allow`. The newest
+  version that wrote an array owns it: an `apply` replaces this plugin's entries of an older
+  version, leaves an array a newer version wrote as it is, and never touches yours.
   Honours `ODOO_AI_NO_AUTO_PERMS=1`.
 - **35-skill-listing-budget** - measures the session's skill listing (installed plugins enabled
   in the settings files, the user's and the project's skills, `skillOverrides`; Claude Code's

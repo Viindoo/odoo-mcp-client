@@ -192,7 +192,9 @@ def test_session_root_that_does_not_exist_yet_is_not_pruned(world):
 
 _PLUGIN_NAME = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["name"]
 GIVE_BACK = [f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_release",
-             f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_park"]
+             f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__lease_park",
+             f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__instance_expose",
+             f"mcp__plugin_{_PLUGIN_NAME}_odoo-local__instance_unexpose"]
 
 
 def test_ephemeral_root_still_gets_the_lease_give_back_rules(world):

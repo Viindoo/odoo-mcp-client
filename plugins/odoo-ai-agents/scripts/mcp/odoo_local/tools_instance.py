@@ -1144,6 +1144,15 @@ def _serve(args, ctx):
         lease_token = None
         if lease is not None:
             lease = dict(lease, token=None, run_id="")
+    if token and row is not None:
+        # A tunnel that died with this lease's earlier server left its database frozen on the old
+        # public address: put the local base URL back before anyone reads the instance.
+        try:
+            from . import tools_expose
+            tools_expose.heal_stale(token, row, cwd)
+        except Exception as exc:
+            cli.log.warning("restoring the base URL of lease %s failed: %s: %s", token[:8],
+                            type(exc).__name__, exc)
     served_load = _module_list(facts.get("SERVED_SERVER_WIDE_MODULES"))
     running_unknown = False
     if facts.get("SERVE_STATE") == "attached":

@@ -153,7 +153,7 @@ def test_acquire_list_release_round_trip(client, world):
     # INSTANCE_HANDLE carries the contract's field names, filled from the lease.
     assert set(handle) == {"db_name", "http_port", "gevent_port", "db_port", "addons_path", "venv_python",
                            "demo", "languages_loaded", "facts_source", "log_path", "lease_token", "run_id",
-                           "server_pid", "ui_user"}
+                           "server_pid", "ui_user", "public_url"}
     assert handle["lease_token"] == lease["token"] and handle["run_id"] == RUN
     assert handle["db_name"] == lease["db_name"] and handle["addons_path"] == str(world["addons"])
 
@@ -528,7 +528,8 @@ def test_a_run_finds_and_adopts_the_lease_gc_parked_for_it_from_a_new_session(wo
 def test_find_returns_the_shared_render_lease(client, world):
     for state in ("shared", "parked"):  # nothing to reuse is a normal answer
         out = _ok(client.call("lease_find", {"series": SERIES, "state": state}))
-        assert out == {"found": False, "state": state, "lease": None, "addons_mismatch": []}
+        assert out == {"found": False, "state": state, "lease": None, "addons_mismatch": [],
+                       "skipped_leases": []}
     token = _ok(_acquire(client, world, mode="shared"))["lease"]["token"]
     out = _ok(client.call("lease_find", {"series": SERIES, "run_id": RUN}))
     assert out["found"] is True and out["lease"]["token"] == token and out["lease"]["mode"] == "shared"

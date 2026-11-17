@@ -18,6 +18,16 @@
 #     import target file still EXISTS byte-identical; write/heal to the dev path
 #     only when there is no block or the current target file is missing.
 #
+# Several plugin versions can run on one machine, each starting its own session, and all of them
+# edit this one block. A newer version's import is never replaced by an older version's start:
+#   - running from a marketplace root of version V: an existing import that names a sibling
+#     version directory of the same plugin, newer than V and still holding its ETHOS file, is
+#     kept (no flip-flop between two versions from this one on); an older or missing target is
+#     healed to V.
+#   - releases that already shipped heal ANY differing path to their own and cannot be changed;
+#     such a session leaves its own path in the block until the next start of a newer version
+#     puts the newer path back.
+#
 # Contract: idempotent, never blocks the session, always exits 0.
 #   - Escape hatch: export ODOO_AI_NO_ETHOS_IMPORT=1 to disable (dedicated var;
 #     separate from ODOO_AI_NO_AUTO_PERMS so opting out of browser permissions
@@ -51,14 +61,38 @@ case "${_plugin_root}/" in
   "${_cfg_real}/plugins/"*) _is_marketplace=1 ;;
 esac
 
-# Dev root only: path of an existing ETHOS import whose target file still exists
-# (first match). Empty = nothing to preserve. Marketplace roots never preserve.
+# _ver_gt A B: exit 0 when MAJOR.MINOR.PATCH version A is newer than B (both numeric).
+_ver_gt() {
+  local IFS=. _a _b _i
+  read -r -a _a <<< "$1"
+  read -r -a _b <<< "$2"
+  for _i in 0 1 2; do
+    if [ "${_a[$_i]:-0}" -gt "${_b[$_i]:-0}" ]; then return 0; fi
+    if [ "${_a[$_i]:-0}" -lt "${_b[$_i]:-0}" ]; then return 1; fi
+  done
+  return 1
+}
+
+# Path of an existing ETHOS import that this run must not replace (first match). Empty = nothing
+# to preserve.
+#   - Marketplace root: an import of a NEWER sibling version of this plugin whose file still exists.
+#   - Dev root: an import whose target file still exists, whatever its version.
 _keep_import=""
-if [ "${_is_marketplace}" -eq 0 ]; then
-  while IFS= read -r _cand; do
-    if [ -f "${_cand#@}" ]; then _keep_import="${_cand}"; break; fi
-  done < <(grep -E '^@/.*/ODOO-AI-ETHOS\.md$' "${_md}" 2>/dev/null || true)
-fi
+_my_ver="$(basename "${_plugin_root}")"
+_my_parent="$(dirname "${_plugin_root}")"
+_semver_re='^[0-9]+\.[0-9]+\.[0-9]+$'
+while IFS= read -r _cand; do
+  [ -f "${_cand#@}" ] || continue
+  if [ "${_is_marketplace}" -eq 0 ]; then
+    _keep_import="${_cand}"; break
+  fi
+  _cand_dir="$(dirname "${_cand#@}")"
+  _cand_ver="$(basename "${_cand_dir}")"
+  if [[ "${_my_ver}" =~ ${_semver_re} && "${_cand_ver}" =~ ${_semver_re} ]] \
+     && [ "$(dirname "${_cand_dir}")" = "${_my_parent}" ] && _ver_gt "${_cand_ver}" "${_my_ver}"; then
+    _keep_import="${_cand}"; break
+  fi
+done < <(grep -E '^@/.*/ODOO-AI-ETHOS\.md$' "${_md}" 2>/dev/null || true)
 
 # Sentinel marker strings (fixed; used with grep -F for literal matching).
 _BEGIN='<!-- BEGIN odoo-ai-agents ETHOS import (managed by ensure-ethos-import.sh - do not edit inside) -->'
@@ -128,8 +162,9 @@ elif [ "${_begin_count}" -eq 1 ] && [ "${_end_count}" -eq 1 ]; then
     if [ "${_current_import}" = "${_import_line}" ]; then
       # Already exactly right -> no-op (file stays byte-identical).
       :
-    elif [ "${_is_marketplace}" -eq 0 ] && [ "${_current_import}" = "${_keep_import}" ]; then
-      # Dev root, existing import target still on disk -> do not hijack it.
+    elif [ -n "${_keep_import}" ] && [ "${_current_import}" = "${_keep_import}" ]; then
+      # Dev root: the existing import target is still on disk. Marketplace root: the import names
+      # a newer version of this plugin. Either way, do not take it over.
       :
     else
       # Stale/relocated path -> range-delete block, re-append correct one.
@@ -153,7 +188,7 @@ fi
 if [ "${_begin_count}" -ne 0 ] && \
    { [ "${_begin_count}" -ne 1 ] || [ "${_end_count}" -ne 1 ] || \
      [ "${_begin_count}" -eq 99 ]; }; then
-  # Dev root: keep pointing at a still-existing import instead of the dev path.
+  # Keep pointing at the import this run must not replace (see _keep_import) instead of ours.
   [ -n "${_keep_import}" ] && _import_line="${_keep_import}"
   _tmp=$(mktemp "${_md}.ethos.XXXXXX")
   grep -vxF "${_BEGIN}" "${_md}" | \

@@ -18,6 +18,7 @@ ADDONS_PATH: <the addons_path returned with it>
 DOCS PYTHON: <abs path of the docs venv python recorded in step 0>
 SHARE_DIR: <abs>   ISOLATE_DIR: <abs>   RUN_ID: <id>
 POLICY: <abs path of <RUN_DIR>policy.json>
+DEMO DATA: <abs path of <SHARE_DIR>/docs-site/<site>/<series>/demo-data.json>
 REPO FACTS: <abs path of <RUN_DIR>repo-facts.json>
 CONTENT WIDTHS: <the record's reference_viewport>; <its content_widths, place=px, ...> | none   SERVED URLS: <language: base URL | none>
 FROM CHANGE: <abs path of the change file | none>
@@ -26,7 +27,7 @@ USER LANGUAGE: <lang | omit>
 ```
 
 Required: `SITE WORKTREE`, `SERIES`, `LANGUAGES`, `PAGE PLAN`, `FACTS`, `INSTANCE HANDLE`,
-`DOCS PYTHON`, `SHARE_DIR`, `ISOLATE_DIR`, `POLICY`, `REPO FACTS`. `FACTS` is one file per group,
+`DOCS PYTHON`, `SHARE_DIR`, `ISOLATE_DIR`, `POLICY`, `DEMO DATA`, `REPO FACTS`. `FACTS` is one file per group,
 `<SHARE_DIR>/docs-site/<site>/<series>/facts/<area>.<group>.md`; no two writers share a file. `CONTENT WIDTHS` is `none` only for the
 `check-shot` launch, which gets `SERVED URLS` to measure it; every other launch gets the recorded
 value and `none` for `SERVED URLS`.

@@ -575,15 +575,33 @@ def test_cli_option_facts_prints_every_fact_and_exits_3_when_unreadable(tmp_path
     assert r.returncode == 0, r.stderr
     assert _kv(r.stdout) == {"CORE_PACKAGE": "odoo", "DEMO_OPT_IN": "1", "WITHOUT_DEMO": "1",
                              "HTTP_PORT_KEY": "http_port", "SECOND_PORT_KEY": "gevent_port",
-                             "DEV_SHAPE": "value", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
+                             "DEV_SHAPE": "value", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": "",
+                             "NO_DATABASE_LIST_KEY": ""}
     old = _config(tmp_path / "old", "openerp", OPTS_LEGACY)
     assert _kv(_cli("cli-facts", str(old)).stdout) == {
         "CORE_PACKAGE": "openerp", "DEMO_OPT_IN": "0", "WITHOUT_DEMO": "1",
         "HTTP_PORT_KEY": "xmlrpc_port", "SECOND_PORT_KEY": "longpolling_port",
-        "DEV_SHAPE": "none", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": ""}
+        "DEV_SHAPE": "none", "HTTP_INTERFACE_KEY": "", "HTTP_INTERFACE_PIN": "",
+        "NO_DATABASE_LIST_KEY": ""}
     r = _cli("cli-facts", str(tmp_path / "absent"))
     assert r.returncode == 3 and r.stdout == "" and "tools/config.py" in r.stderr
     assert _cli("cli-facts").returncode == 2
+
+
+@pytest.mark.parametrize("line, key", [
+    # the option Odoo documents for turning the database manager off: a switch that stores False
+    ('group.add_option("--no-database-list", action="store_false", dest="list_db", my_default=True)', "list_db"),
+    ('group.add_option("--no-database-list", action="store_false", dest="dbmgr_off")', "dbmgr_off"),
+    # a declaration that is not that switch is not the option
+    ('group.add_option("--no-database-list", dest="list_db")', None),
+    ('group.add_option("--no-database-list", action="store_true", dest="list_db")', None),
+    ('group.add_option("--database-list", action="store_false", dest="list_db")', None),
+])
+def test_the_option_that_turns_the_database_manager_off_is_read_from_the_checkout(tmp_path, line, key):
+    root = _config(tmp_path, "odoo", "class C:\n    def __init__(self):\n        %s\n" % line)
+    assert facts.no_database_list_key(root) == key
+    assert _kv(_cli("cli-facts", str(root)).stdout)["NO_DATABASE_LIST_KEY"] == (key or "")
+    assert facts.no_database_list_key(tmp_path / "absent") is None
 
 
 def _iface(tmp_path, line, pkg="odoo"):

@@ -120,9 +120,24 @@ def give_back_tools(plugin_root: Path = PLUGIN_ROOT):
     return [f"{prefix}__{t}" for t in GIVE_BACK_TOOLS]
 
 
+# The public-address tools: a leased test instance gets a temporary https address through a
+# Cloudflare Quick Tunnel and loses it again. Exact allow rules, for the same reason as the
+# give-back tools: an auto-mode permission classifier may refuse "expose a local server to the
+# internet", and exposing a leased throwaway instance is routine here. Ownership stays enforced by
+# hooks/block-unowned-lease-mutation.sh.
+EXPOSE_SERVER = "odoo-local"
+EXPOSE_TOOLS = ("instance_expose", "instance_unexpose")
+
+
+def expose_tools(plugin_root: Path = PLUGIN_ROOT):
+    """Full tool-call names of the public-address tools, in declaration order."""
+    prefix = local_tool_prefix(EXPOSE_SERVER, plugin_root)
+    return [f"{prefix}__{t}" for t in EXPOSE_TOOLS]
+
+
 def give_back_covered(allow, tool_name: str, plugin_root: Path = PLUGIN_ROOT) -> bool:
-    """True if an `allow` list already grants `tool_name`: the exact name, or the
-    `odoo-local` server rule (bare or with `__*`) that covers every tool of it."""
+    """True if an `allow` list already grants `tool_name` (a tool of the `odoo-local` server): the
+    exact name, or the server rule (bare or with `__*`) that covers every tool of it."""
     server_rule = local_tool_prefix(GIVE_BACK_SERVER, plugin_root)
     covering = {tool_name, server_rule, server_rule + "__*"}
     return any(a in covering for a in allow)
@@ -159,6 +174,10 @@ def main(argv) -> int:
         return 0
     if len(argv) >= 3 and argv[1] == "match":
         return 0 if is_local_tool(argv[2]) else 1
+    if len(argv) >= 2 and argv[1] == "expose":
+        for t in expose_tools():
+            print(t)
+        return 0
     if len(argv) >= 2 and argv[1] == "give-back":
         for t in give_back_tools():
             print(t)

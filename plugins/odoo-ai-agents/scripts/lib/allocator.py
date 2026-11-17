@@ -186,6 +186,10 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # the tree). A same-host row whose database is PROVABLY gone is
                  # SKIPPED, not offered, and `release <token>` is named. "Could
                  # not look" is not "absent" and is still offered.
+                 # JSON `skipped_leases` [{token, db_name, run_id, reason}] lists
+                 # EVERY parked lease of the series passed over, found or not
+                 # (reason: database-gone | other-tree | condemned |
+                 # reclaim-in-progress | other-host).
     allocator.py can-createdb --series <X.Y> [--profile <P>] [--instances <path>]
                  # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
                  # when undeterminable) and exit 0|6|7 - the SAME ladder and codes
@@ -253,7 +257,11 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # ports and drop_on_release are left untouched. EMITS that
                  # drop_on_release (ALLOC_DROP_ON_RELEASE) and, when true, says on
                  # STDERR that the final `release` still drops that database: park
-                 # DEFERS a throwaway, it never makes one durable. Refuses a
+                 # DEFERS a throwaway, it never makes one durable. It also EMITS
+                 # ALLOC_DB_PRESENT=true|false|unknown (does the database exist
+                 # now; `false` = nothing to resume into, `query --state parked`
+                 # will pass the lease over); the park itself is never refused
+                 # for it. Refuses a
                  # `shared` lease (exit 3) and an already-parked lease, or an
                  # orphaned one with no server (exit 4 NOT_RUNNING).
     allocator.py resume <token> --pid <server_pid>
@@ -3303,6 +3311,13 @@ TREE_ADDONS_PATH_DIFFERS = "addons-path-differs"
 TREE_ADDONS_PATH_UNRECORDED = "addons-path-unrecorded"
 TREE_WORKTREE_DIFFERS = "worktree-differs"
 
+# Why `query --state parked` passed over a parked lease of the series (JSON `skipped_leases`).
+PARKED_SKIP_DATABASE_GONE = "database-gone"
+PARKED_SKIP_OTHER_TREE = "other-tree"
+PARKED_SKIP_CONDEMNED = "condemned"
+PARKED_SKIP_RECLAIMING = "reclaim-in-progress"
+PARKED_SKIP_OTHER_HOST = "other-host"
+
 
 def _parked_tree_mismatch(lease, override_parts):
     """None when parked `lease` was built from the caller's tree, else
@@ -4267,6 +4282,18 @@ def cmd_park(opts):
     # caller forms a belief about it (see the docstring).
     parked_drops = bool(target.get("drop_on_release"))
     _emit("ALLOC_DROP_ON_RELEASE", "true" if parked_drops else "false")
+    # Whether there is a database to resume into, at the moment it is parked: a lease
+    # acquired with no_create never had one, and one dropped outside the allocator is
+    # gone. `query --state parked` skips such a lease (`database-gone`), so a caller
+    # that is not told here looks for it later in vain. Reported only; park still parks.
+    present = _db_present(target, opts.get("instances"))
+    _emit("ALLOC_DB_PRESENT", "unknown" if present is None else ("true" if present else "false"))
+    if present is False:
+        sys.stderr.write(
+            "allocator: PARKED, but database {db!r} does not exist on its cluster, so there is "
+            "nothing to resume into: `query --state parked` will pass this lease over "
+            "(database-gone). Build the database before relying on this park, or `release {token}`."
+            "\n".format(db=target.get("db_name", ""), token=token))
     if parked_drops:
         sys.stderr.write(
             "allocator: PARKED, and this lease still carries drop_on_release=true - so "
@@ -5051,6 +5078,13 @@ def cmd_can_createdb(opts):
     return _fail("CREATEDB_UNDETERMINABLE", 7)
 
 
+def _skip(skipped, lease, reason):
+    """Record that `query --state parked` passed over `lease` (first reason wins)."""
+    skipped.setdefault(lease.get("token", ""), {
+        "token": lease.get("token", ""), "db_name": lease.get("db_name", ""),
+        "run_id": (lease.get("owner") or {}).get("run_id", "") or "", "reason": reason})
+
+
 def _emit_parked(lease, attached_from=""):
     _emit("ALLOC_TOKEN", lease.get("token", ""))
     _emit("ALLOC_MODE", lease.get("mode", ""))
@@ -5062,6 +5096,15 @@ def _emit_parked(lease, attached_from=""):
 
 
 def _query_parked(reg, series, run_id, force_attach, instances_path=None, override_parts=None):
+    """`query --state parked`: the rungs of `_parked_rungs`, plus the JSON `skipped_leases`
+    payload - every parked lease of the series the lookup passed over, found or not."""
+    skipped = {}
+    rc = _parked_rungs(reg, series, run_id, force_attach, instances_path, override_parts, skipped)
+    _payload("skipped_leases", list(skipped.values()))
+    return rc
+
+
+def _parked_rungs(reg, series, run_id, force_attach, instances_path, override_parts, skipped):
     """Rung order for `query --state parked`, and the reasoning behind it.
 
     A parked lease has NO live owner BY CONSTRUCTION - park stopped the process
@@ -5103,14 +5146,23 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None, overri
     `resume`'s own probe is the second net under it. Rung 3 (--force-attach,
     off-host) is offered UNPROBED on purpose: that database lives on another
     host's cluster, so a probe run here would answer about the wrong cluster.
+
+    NOTHING PASSED OVER IS SILENT. Stderr is not a channel a tool caller reads, so
+    every parked lease of the series that is not offered is recorded in `skipped`
+    (token, db_name, owner run_id, reason: one of the PARKED_SKIP_* codes), whether
+    or not another lease is then found - a run whose own parked lease was passed
+    over learns it from the same result that names another run's lease.
     """
-    parked = [
-        lz for lz in reg.get("leases", [])
-        if lz.get("parked_at") is not None
-        and lz.get("series") == series
-        and not _reclaim_in_progress(lz)
-        and _condemn_reason(lz) is None
-    ]
+    parked = []
+    for lz in reg.get("leases", []):
+        if lz.get("parked_at") is None or lz.get("series") != series:
+            continue
+        if _reclaim_in_progress(lz):
+            _skip(skipped, lz, PARKED_SKIP_RECLAIMING)
+        elif _condemn_reason(lz) is not None:
+            _skip(skipped, lz, PARKED_SKIP_CONDEMNED)
+        else:
+            parked.append(lz)
     here = _host()
     # SAME HOST gates rungs 1 and 2 alike - `run_id` only decides SILENT vs
     # REPORTED, it never overrides the host check. A row recorded on another host
@@ -5130,6 +5182,7 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None, overri
         if found is None:
             return True
         mismatched[token] = found
+        _skip(skipped, lease, PARKED_SKIP_OTHER_TREE)
         sys.stderr.write(
             "allocator: SKIPPING parked lease {t} on {db}: its addons_path {row} is not your "
             "tree {wanted}\n".format(
@@ -5149,6 +5202,7 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None, overri
             return False
         if _db_present(lease, instances_path) is False:
             gone.add(token)
+            _skip(skipped, lease, PARKED_SKIP_DATABASE_GONE)
             sys.stderr.write(
                 "allocator: SKIPPING the parked lease on database {db!r} - that database is "
                 "provably GONE from its cluster (dropped outside the allocator while the lease "
@@ -5167,6 +5221,10 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None, overri
     for lease in local:
         if _offer(lease, attached_from=(lease.get("owner") or {}).get("run_id", "")):
             return 0
+    if not force_attach:
+        for lease in parked:
+            if lease not in local:
+                _skip(skipped, lease, PARKED_SKIP_OTHER_HOST)
     if force_attach:
         for lease in parked:
             # A local row already PROVEN gone stays skipped: --force-attach widens

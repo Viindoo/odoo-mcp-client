@@ -134,6 +134,20 @@ CLI contract
       Exit 0 when answered; 8 / 9 / 10 / 1 like the other read-only queries,
       with NOTHING on stdout.
 
+  python3 odoo_db.py set-params <db> [--set key=value]... [--unset key]... [conn flags]
+                                     [--odoo-root R]
+      Write system parameters (ir_config_parameter) of the NAMED database on ONE connection,
+      then bump the database's cache-signalling sequences (``base_cache_signaling`` on the
+      series that have one, ``base_cache_signaling_default`` on the later ones) so a server that
+      is RUNNING on that database drops its cached parameters on its next request - a value
+      written by plain SQL would otherwise stay invisible to it. --set upserts the key (an
+      existing row keeps its other columns); --unset deletes the row, which reads as "not set".
+      stdout: ``PARAMS_SET=<n>``, ``PARAMS_UNSET=<n>``, ``CACHE_SIGNALLED=<sequence,...>`` (empty
+      when the database has no such sequence: a running server then keeps its cached values until
+      it restarts). No user of the database is involved and no credential is read or changed.
+      Exit 0 when written; 2 on usage (no --set/--unset, an item without ``=``); 8 / 9 / 10 /
+      1 like the other queries, with nothing written.
+
 Credentials
 -----------
   The connection is resolved exactly as the builds resolve it (mirrors
@@ -268,7 +282,11 @@ _FLAG_KEYS = {
     "--languages": "languages",
     "--modules": "modules",
     "--installed": "installed",
+    "--set": "set",
+    "--unset": "unset",
 }
+# Flags that may repeat: every occurrence is kept, in order.
+_LIST_FLAGS = frozenset(("set", "unset"))
 
 
 def _parse(argv):
@@ -284,7 +302,11 @@ def _parse(argv):
     while i < len(argv):
         a = argv[i]
         if a in _FLAG_KEYS:
-            opts[_FLAG_KEYS[a]] = argv[i + 1] if i + 1 < len(argv) else ""
+            value = argv[i + 1] if i + 1 < len(argv) else ""
+            if _FLAG_KEYS[a] in _LIST_FLAGS:
+                opts.setdefault(_FLAG_KEYS[a], []).append(value)
+            else:
+                opts[_FLAG_KEYS[a]] = value
             i += 2
         elif a.startswith("--"):
             unknown.append(a)
@@ -1143,6 +1165,68 @@ def cmd_i18n_state(db_name, opts):
     return EXIT_OK
 
 
+# The sequences Odoo bumps to tell its other processes that the default cache (where
+# ir.config_parameter keeps its values) changed: one name before the per-cache split, another after.
+_CACHE_SIGNALLING_SEQUENCES = ("base_cache_signaling", "base_cache_signaling_default")
+
+
+def cmd_set_params(db_name, opts):
+    """Write the system parameters of ``db_name`` (see the CLI block) and signal the change."""
+    sets = []
+    for item in opts.get("set") or []:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            sys.stderr.write("odoo_db: --set takes key=value, got {item!r}\n".format(item=item))
+            return EXIT_USAGE
+        sets.append((key, value))
+    unsets = [k for k in (opts.get("unset") or []) if k]
+    if not sets and not unsets:
+        sys.stderr.write("Usage: odoo_db.py set-params <db> [--set key=value]... [--unset key]... "
+                         "(at least one) [--db-host H] [--db-user U] [--db-port P] "
+                         "[--db-password P] [--odoo-root R]\n")
+        return EXIT_USAGE
+    try:
+        odoo = _import_odoo(opts)
+    except _OdooUnavailable as exc:
+        _report_unavailable(exc)
+        return EXIT_NO_VENV
+    _bootstrap_config(odoo, opts)
+    _pin_c_messages()
+    cr = None
+    try:
+        cr = _sql_connect_postgres(odoo, db_name).cursor()
+        for key, value in sets:
+            cr.execute("UPDATE ir_config_parameter SET value = %s WHERE key = %s", (value, key))
+            if not cr.rowcount:
+                cr.execute("INSERT INTO ir_config_parameter (key, value) VALUES (%s, %s)", (key, value))
+        for key in unsets:
+            cr.execute("DELETE FROM ir_config_parameter WHERE key = %s", (key,))
+        cr.execute("SELECT sequencename FROM pg_sequences WHERE sequencename = ANY(%s) "
+                   "ORDER BY sequencename", (list(_CACHE_SIGNALLING_SEQUENCES),))
+        signalled = [row[0] for row in cr.fetchall()]
+        for name in signalled:  # names come from the fixed tuple above, never from the caller
+            cr.execute("SELECT nextval(%s)", (name,))
+        cr.commit()
+    except Exception as exc:
+        state, _detail = _classify_conn_error(exc, opts)
+        sys.stderr.write(
+            "odoo_db: set-params failed on {host}:{port} - {etype}: {exc}\n".format(
+                host=opts.get("db_host") or "libpq-default",
+                port=opts.get("db_port") or "libpq-default",
+                etype=type(exc).__name__, exc=exc))
+        return _STATE_EXITS[state]
+    finally:
+        if cr is not None:
+            try:
+                cr.close()
+            except Exception:
+                pass
+    print("PARAMS_SET={n}".format(n=len(sets)))
+    print("PARAMS_UNSET={n}".format(n=len(unsets)))
+    print("CACHE_SIGNALLED={s}".format(s=",".join(signalled)))
+    return EXIT_OK
+
+
 def _drop_failed(fn_name, db_name, exc, opts):
     """Report a drop call that raised and return its exit code."""
     sys.stderr.write(
@@ -1339,9 +1423,17 @@ def main(argv):
             return EXIT_USAGE
         return cmd_i18n_state(pos[0], opts)
 
+    if cmd == "set-params":
+        if not pos:
+            sys.stderr.write("Usage: odoo_db.py set-params <db> [--set key=value]... "
+                             "[--unset key]... [--db-host H] [--db-user U] [--db-port P] "
+                             "[--db-password P] [--odoo-root R]\n")
+            return EXIT_USAGE
+        return cmd_set_params(pos[0], opts)
+
     sys.stderr.write(
         "odoo_db: unknown subcommand {cmd!r}. Use preflight|drop|exists|can-createdb|"
-        "list-databases|db-age-s|db-size-bytes|db-facts|i18n-state.\n".format(cmd=cmd)
+        "list-databases|db-age-s|db-size-bytes|db-facts|i18n-state|set-params.\n".format(cmd=cmd)
     )
     return EXIT_USAGE
 
