@@ -3,7 +3,7 @@
   "_comment_declared": "Every entry equals the real size of its file: [card-budget] fails a file over its entry and a file under it. After a trim, run make sync-budgets to lower the entries; it never raises one.",
   "default_cap_bytes": 4096,
   "budgets": {
-    "snippets/module-doc-references.md": 4962,
+    "snippets/module-doc-references.md": 5252,
     "skills/_shared/debug-method.md": 6688,
     "skills/_shared/doc-cluster-plan.md": 11935,
     "skills/_shared/integration-loop.md": 6722,

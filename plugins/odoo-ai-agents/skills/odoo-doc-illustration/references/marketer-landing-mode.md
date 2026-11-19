@@ -51,9 +51,10 @@ know is one sentence of outcome with a link to the guide.
    drops the cards - reported as a store-readiness gap, never filled from memory. No address
    appears anywhere on the page; under `address_policy: image` an address the vendor insists on
    is a PNG from `${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py` with the alt text it prints.
-   The manifest takes two edits at most, each a targeted Edit, per app-store-template § 5:
-   `support` and the video link. You never write `images`, `price`, `currency` or
-   `live_test_url`; the gaps of § 5 go in the report.
+   The manifest takes three edits at most, each a targeted Edit, per app-store-template § 5:
+   `support`, the video link, and the entries of `images` after the first (the main screens of
+   this page, once their finals are in `assets/`). You never write the first entry of `images`,
+   `price`, `currency` or `live_test_url`; the gaps of § 5 go in the report.
 5. **Finals and gates.** `mv` each final into `static/description/assets/` under its convention
    name and optimise it (doc-capture-mechanics § 13), bring every off-convention reference into the convention,
    then run the gate of `module-doc-references.md` § Reference gate (`--series` = the resolved
@@ -62,6 +63,9 @@ know is one sentence of outcome with a link to the guide.
    is `NEEDS_CONTEXT` with the printed remedy. Its page findings measure the targets: under
    `CHANGE: whole` cut until the page passes - a page over the targets is not DONE; under a
    feature-list `CHANGE`, where the other sections stay as they are, report them in `concerns`
-   with the recommendation `CHANGE: whole`. A finding about the manifest `images` list or the
-   cover is the cover designer's, reported and not fixed here. Close every page you
+   with the recommendation `CHANGE: whole`. The cover embedded in a section you did not write
+   (`PAGE_EMBEDS_COVER`) also stays: `concerns` carries it as a proposal naming the capture that
+   would take its place, and you make that edit only on a later message saying the human
+   approved it. A finding about the first entry of the manifest
+   `images` list or the cover file is the cover designer's, reported and not fixed here. Close every page you
    drove (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).

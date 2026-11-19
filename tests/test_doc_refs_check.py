@@ -6,7 +6,7 @@ pointing at the author's machine or a running instance, a link into a sibling ch
 and Odoo's own Apps view rewrite a relative image path in a guide or a store page against the
 module's static/description/, subfolders included, and leave `../static/description/<file>`
 unrewritten. So the root of static/description/ holds only the icon, the pages and the cover
-(`main_screenshot`, the file the English page shows), and every other shipped image lives
+(`main_screenshot`, which a store shows above the page), and every other shipped image lives
 directly in static/description/assets/. An image that is not a module file (a vendor logo) is a
 public https:// URL the stores keep as is.
 An image in an RST also has to fit the page: both stores load Bootstrap 5 and size an RST image by
@@ -157,7 +157,7 @@ def _only(proc, rule):
 ])
 def test_an_image_neither_a_module_path_nor_a_public_https_url_is_flagged(module, ref):
     _flags(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_RELATIVE")
-    _flags(_html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n'),
+    _flags(_html(module, f'<img src="./assets/form.png"/><img src="{ref}"/>\n'),
            "IMG_NOT_RELATIVE")
 
 
@@ -176,7 +176,7 @@ def test_an_image_on_a_reserved_host_or_an_instance_route_is_not_public(module, 
     """A reserved name never resolves for a store reader, and an instance route points at a
     running Odoo that the reader cannot reach."""
     _flags(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_RELATIVE")
-    _flags(_html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n'),
+    _flags(_html(module, f'<img src="./assets/form.png"/><img src="{ref}"/>\n'),
            "IMG_NOT_RELATIVE")
 
 
@@ -199,7 +199,7 @@ def test_a_public_https_image_passes_pinned_or_not(module, ref):
     name or orphan check applies, and the gate does not check pinning (the second URL is not
     pinned to a revision)."""
     _clean(_rst(module, _img(ref)))
-    _clean(_html(module, f'<img src="{ref}"/><img src="./main_screenshot.png"/>\n'))
+    _clean(_html(module, f'<img src="{ref}"/><img src="./assets/form.png"/>\n'))
     _clean(_readme(module, ref))
 
 
@@ -207,7 +207,7 @@ def test_a_public_https_image_passes_pinned_or_not(module, ref):
 def test_a_module_image_name_outside_the_safe_set_is_flagged(module, name):
     (module / "static" / "description" / "assets" / name).write_bytes(PNG)
     _only(_rst(module, _img(f"assets/{name}")), "IMG_NAME")
-    _only(_html(module, f'<img src="./main_screenshot.png"/><img src="./assets/{name}"/>\n'),
+    _only(_html(module, f'<img src="./assets/form.png"/><img src="./assets/{name}"/>\n'),
           "IMG_NAME")
     _manifest(module, "static/description/assets/" + name)
     assert _rules(_run(module, "__manifest__.py")) == ["IMG_NAME", "MANIFEST_COVER"]
@@ -215,7 +215,7 @@ def test_a_module_image_name_outside_the_safe_set_is_flagged(module, name):
 
 def test_an_html_image_whose_decoded_name_has_a_space_is_flagged(module):
     (module / "static" / "description" / "assets" / "old one.png").write_bytes(PNG)
-    _only(_html(module, '<img src="./main_screenshot.png"/><img src="./assets/old%20one.png"/>'),
+    _only(_html(module, '<img src="./assets/form.png"/><img src="./assets/old%20one.png"/>'),
           "IMG_NAME")
 
 
@@ -267,7 +267,7 @@ def test_a_guide_image_in_its_form_but_absent_from_static_description_is_missing
 def test_an_html_image_not_written_as_assets_or_the_cover_is_flagged(module, ref):
     """Odoo rewrites only a src with no `//` and no `static/`, and the stores rewrite the same
     relative form; a path reaching the file another way breaks on one of them."""
-    _only(_html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n'),
+    _only(_html(module, f'<img src="./assets/form.png"/><img src="{ref}"/>\n'),
           "IMG_NOT_IN_ASSETS")
 
 
@@ -291,13 +291,12 @@ def test_a_readme_image_not_in_assets_is_flagged(module, ref):
     _only(_readme(module, ref), "IMG_NOT_IN_ASSETS")
 
 
-def test_html_images_in_assets_or_the_cover_pass(module):
+def test_html_images_in_assets_pass(module):
     _clean(_html(module, """\
         <section>
-          <img src="./main_screenshot.png" class="img-fluid"/>
-          <img src="main_screenshot.png"/>
+          <img src="./assets/form.png" class="img-fluid"/>
           <img src="assets/form.png"/>
-          <img srcset="./assets/form.png 1x, ./main_screenshot.png 2x"/>
+          <img srcset="./assets/form.png 1x, assets/form.png 2x"/>
           <div style="background-image: url('./assets/form.png')"></div>
         </section>
         """))
@@ -460,7 +459,7 @@ def test_a_link_to_a_reserved_or_private_use_name_is_local(module, ref):
     """A reserved name never resolves for a store reader, exactly as for an image."""
     _flags(_rst(module, f"See `the page <{ref}>`_.\n"), "LINK_LOCAL")
     _flags(_rst(module, f"Open {ref} in a browser.\n"), "LINK_LOCAL")
-    _flags(_html(module, f'<img src="./main_screenshot.png"/><a href="{ref}">x</a>'), "LINK_LOCAL")
+    _flags(_html(module, f'<img src="./assets/form.png"/><a href="{ref}">x</a>'), "LINK_LOCAL")
 
 
 @pytest.mark.parametrize("ref", [
@@ -516,7 +515,7 @@ def test_the_store_module_scheme_for_this_series_passes(module):
 
         Call `us <tel:+000000000>`_ or jump to `top <#top>`_.
         """))
-    _clean(_html(module, '<img src="./main_screenshot.png"/>'
+    _clean(_html(module, '<img src="./assets/form.png"/>'
                          '<a href="/apps/modules/17.0/sale">Sales</a> <a href="#features">x</a>'))
 
 
@@ -527,7 +526,7 @@ def test_the_root_relative_vendor_listing_passes(module):
 
         .. __: /apps/modules/browse?author=Acme
         """))
-    _clean(_html(module, '<img src="./main_screenshot.png"/>'
+    _clean(_html(module, '<img src="./assets/form.png"/>'
                          '<a href="/apps/modules/browse?author=Acme&amp;series=17.0">Acme</a>'))
 
 
@@ -542,7 +541,7 @@ def test_the_root_relative_vendor_listing_passes(module):
     ("/apps/modules/browse/?author=Acme", "LINK_STORE_SCHEME"),
 ])
 def test_a_vendor_listing_not_in_the_root_relative_form_is_flagged(module, ref, rule):
-    _flags(_html(module, f'<img src="./main_screenshot.png"/><a href="{ref}">Acme</a>'), rule)
+    _flags(_html(module, f'<img src="./assets/form.png"/><a href="{ref}">Acme</a>'), rule)
 
 
 def test_anonymous_rst_links_and_targets_are_checked(module):
@@ -590,8 +589,7 @@ def test_a_manifest_image_not_an_existing_assets_image_or_the_cover_is_flagged(m
         "# comment\n{\n    'name': 'X',\n    'images': [\n"
         "        'static/description/main_screenshot.png',\n        %r,\n    ],\n}\n" % entry)
     proc = _run(module, "__manifest__.py")
-    assert proc.stdout == ("__manifest__.py:4: MANIFEST_IMAGES_COUNT: 2 images\n"
-                           "__manifest__.py:6: MANIFEST_IMAGE: %s\n" % entry)
+    assert proc.stdout == "__manifest__.py:6: MANIFEST_IMAGE: %s\n" % entry
     assert proc.returncode == 1
 
 
@@ -604,16 +602,24 @@ def test_the_main_screenshot_cover_alone_passes(module, cover):
     _clean(_run(module, "__manifest__.py"))
 
 
-@pytest.mark.parametrize("extra", [
-    "static/description/assets/form.png", "static/description/main_screenshot.vi_VN.png",
+def test_the_cover_followed_by_screen_captures_from_assets_passes(module):
+    (module / "static" / "description" / "assets" / "report.png").write_bytes(PNG)
+    _manifest(module, "static/description/main_screenshot.png", "static/description/assets/form.png",
+              "static/description/assets/report.png")
+    _clean(_run(module, "__manifest__.py"))
+
+
+@pytest.mark.parametrize("second", [
+    "static/description/main_screenshot.png",          # the cover again
+    "static/description/main_screenshot.vi_VN.png",    # a locale variant of the cover
 ])
-def test_a_manifest_with_more_than_one_image_has_one_count_finding_at_the_list(module, extra):
+def test_an_image_after_the_first_that_is_a_cover_is_flagged(module, second):
     (module / "static" / "description" / "main_screenshot.vi_VN.png").write_bytes(PNG)
     (module / "__manifest__.py").write_text(
         "{\n    'name': 'X',\n    'images': [\n        'static/description/main_screenshot.png',\n"
-        "        %r,\n        'static/description/assets/form.png',\n    ],\n}\n" % extra)
+        "        %r,\n        'static/description/assets/form.png',\n    ],\n}\n" % second)
     proc = _run(module, "__manifest__.py")
-    assert proc.stdout == "__manifest__.py:3: MANIFEST_IMAGES_COUNT: 3 images\n"
+    assert proc.stdout == "__manifest__.py:5: MANIFEST_IMAGE: %s\n" % second
     assert proc.returncode == 1
 
 
@@ -671,16 +677,29 @@ def test_another_screenshot_named_image_at_the_root_is_neither_the_cover_nor_in_
 
 
 # --------------------------------------------------------------------------- #
-# the page may show the cover or not
+# the store shows the cover above the page, so the page never embeds it
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("markup", [
     '<p>x</p>\n<img src="./assets/form.png"/>\n',
     '<section><h1>Title</h1></section>',
-    '<img src="./main_screenshot.png"/>',
-    '<img src="main_screenshot.png"/>',
 ])
-def test_a_page_is_valid_whether_or_not_it_embeds_the_cover(module, markup):
+def test_a_page_that_does_not_embed_the_cover_is_valid(module, markup):
     _clean(_html(module, markup))
+
+
+@pytest.mark.parametrize("markup", [
+    '<img src="./main_screenshot.png" class="img-fluid"/>',
+    '<img src="main_screenshot.png"/>',
+    '<img srcset="./assets/form.png 1x, ./main_screenshot.png 2x"/>',
+    '<div style="background-image: url(\'./main_screenshot.png\')"></div>',
+])
+def test_a_store_page_that_embeds_the_cover_is_flagged(module, markup):
+    _only(_html(module, markup), "PAGE_EMBEDS_COVER")
+
+
+def test_a_guide_and_a_readme_may_still_show_the_cover(module):
+    _clean(_rst(module, _img("main_screenshot.png")))
+    _clean(_readme(module, "static/description/main_screenshot.png"))
 
 
 def test_a_cover_reference_resolving_elsewhere_keeps_failing_the_path_rules(module):
@@ -739,7 +758,7 @@ def shipped(module):
         (module / rel).unlink()
     (module / "doc" / "index.rst").write_text(_img("assets/form.png"))
     (module / "static" / "description" / "index.html").write_text(
-        '<img src="./main_screenshot.png"/>\n')
+        '<img src="./assets/form.png"/>\n')
     _clean(_run(module))
     return module
 
@@ -917,7 +936,7 @@ def test_the_gate_parses_on_python_3_8_grammar():
 # published contact details: no address, no mailto, a link that shows its URL
 # --------------------------------------------------------------------------- #
 def test_a_mailto_link_is_flagged_in_a_page_and_in_a_guide(module):
-    _only(_html(module, '<section><img src="./main_screenshot.png"><a href="mailto:sales@acme-erp.com">Contact</a></section>'),
+    _only(_html(module, '<section><img src="./assets/form.png"><a href="mailto:sales@acme-erp.com">Contact</a></section>'),
           "LINK_MAILTO")
     proc = _rst(module, """
         Contact
@@ -936,11 +955,11 @@ def test_a_mailto_link_is_flagged_in_a_page_and_in_a_guide(module):
 ])
 def test_an_email_address_in_prose_is_flagged_plain_or_obfuscated(module, text):
     _only(_rst(module, "Title\n=====\n\n%s\n" % text), "EMAIL_ADDRESS")
-    _only(_html(module, '<section><img src="./main_screenshot.png"><p>%s</p></section>' % text), "EMAIL_ADDRESS")
+    _only(_html(module, '<section><img src="./assets/form.png"><p>%s</p></section>' % text), "EMAIL_ADDRESS")
 
 
 def test_an_email_in_an_attribute_is_flagged(module):
-    _only(_html(module, '<section><img src="./main_screenshot.png"><img src="assets/form.png" '
+    _only(_html(module, '<section><img src="./assets/form.png"><img src="assets/form.png" '
                         'alt="write to sales@acme-erp.com"></section>'), "EMAIL_ADDRESS")
 
 
@@ -954,7 +973,7 @@ def test_an_example_address_or_a_bare_at_sign_passes(module, text):
 
 
 def test_a_store_page_link_whose_text_hides_its_url_is_flagged(module):
-    _only(_html(module, '<section><img src="./main_screenshot.png">'
+    _only(_html(module, '<section><img src="./assets/form.png">'
                         '<a href="https://support.acme-erp.com/tickets">Open a ticket</a></section>'), "LINK_TEXT_HIDES_URL")
 
 
@@ -966,7 +985,7 @@ def test_a_store_page_link_whose_text_hides_its_url_is_flagged(module):
     '<a href="https://www.youtube.com/watch?v=abc123">youtube.com/watch?v=abc123</a>',
 ])
 def test_a_store_page_link_that_shows_its_host_or_stays_in_the_store_passes(module, markup):
-    _clean(_html(module, '<section><img src="./main_screenshot.png">%s</section>' % markup))
+    _clean(_html(module, '<section><img src="./assets/form.png">%s</section>' % markup))
 
 
 def test_a_guide_link_is_not_held_to_the_store_text_rule(module):
@@ -1001,7 +1020,7 @@ def _words(count):
 
 
 def _page(words=0, images=1, extra=""):
-    shots = '<img src="./main_screenshot.png">' + '<img src="./assets/form.png">' * (images - 1)
+    shots = '<img src="./assets/form.png">' + '<img src="./assets/form.png">' * (images - 1)
     return '<section>%s<p>%s</p>%s</section>' % (shots, _words(words), extra)
 
 
@@ -1125,10 +1144,10 @@ def test_a_youtube_link_needs_no_visible_text(module, markup):
     shot = module / "static" / "description" / "assets" / "x.png"
     shot.write_bytes(_png(FILE_PX))
     (module / "static" / "description" / "assets" / "form.png").write_bytes(_png(FILE_PX))
-    _clean(_html(module, '<section><img src="./main_screenshot.png"><img src="./assets/form.png">%s</section>'
+    _clean(_html(module, '<section><img src="./assets/form.png"><img src="./assets/form.png">%s</section>'
                  % markup))
 
 
 def test_a_non_youtube_link_with_no_visible_text_is_still_flagged(module):
-    _only(_html(module, '<section><img src="./main_screenshot.png">'
+    _only(_html(module, '<section><img src="./assets/form.png">'
                         '<a href="https://vendor.example.com/x"></a></section>'), "LINK_TEXT_HIDES_URL")

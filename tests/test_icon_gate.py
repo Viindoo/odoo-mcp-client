@@ -696,6 +696,12 @@ def test_a_cover_of_exactly_1200_px_passes(pil, tmp_path):
     assert res.returncode == 0 and kv["COVER_GATE"] == "PASS"
 
 
+@pytest.mark.parametrize("size", [(1920, 960), (2360, 1180)])
+def test_a_cover_wider_than_1280_px_fails(pil, tmp_path, size):
+    res, kv = _run("cover", _cover(pil, tmp_path / "c.png", size=size))
+    assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL" and len(kv["_reasons"]) == 1
+
+
 def test_a_cover_in_another_format_fails(pil, tmp_path):
     res, kv = _run("cover", _cover(pil, tmp_path / "c.gif", fmt="GIF"))
     assert res.returncode == 1 and kv["COVER_GATE"] == "FAIL" and len(kv["_reasons"]) == 1

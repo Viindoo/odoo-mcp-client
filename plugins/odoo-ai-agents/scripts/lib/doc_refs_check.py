@@ -61,12 +61,12 @@ Rules
                        /apps/modules/browse, a non-empty author parameter, no language prefix)
   LINK_MODULE_UNKNOWN  (only with --addons-path) store link /apps/modules/<series>/<name> whose
                        <name> is a directory with a manifest in none of the addons directories
-  MANIFEST_IMAGE       manifest `images` entry that is not an existing png / gif / jpg / jpeg at
-                       static/description/assets/<file> or static/description/<cover>
+  MANIFEST_IMAGE       manifest `images` entry that is not an existing png / gif / jpg / jpeg: the
+                       first at static/description/<cover> or static/description/assets/<file>,
+                       every later one at static/description/assets/<file> (a screen capture,
+                       never a second cover)
   MANIFEST_COVER       manifest images[0] that is not static/description/main_screenshot.<ext>
                        (a locale variant is never the cover)
-  MANIFEST_IMAGES_COUNT manifest `images` list with more than one entry (the store shows only the
-                       first); one finding, at the list
   MANIFEST_COVER_RATIO manifest cover file, existing with a readable pixel size, that is not 2:1
                        (width / height within 1% of 2); the finding names the size
   IMG_NOT_FLUID        RST image (image, figure or substitution; module file or https URL) whose
@@ -90,6 +90,9 @@ Rules
                        reader keeps the URL only when the text shows it (`support.acme.com/tickets`,
                        never `Open a ticket`); an anchor to a YouTube host is exempt, the store
                        keeps those as links
+  PAGE_EMBEDS_COVER    store page image that is the cover (main_screenshot.<ext> at the root of
+                       static/description/): a store shows the cover above the page, so the page
+                       would show it twice
   PAGE_TOO_LONG        store page (index.html, index_<locale>.html) whose visible text exceeds
                        900 words (tags, comments, script and style bodies not counted)
   PAGE_NAMES_SERIES    store page whose visible text holds the --series value (`19.0`) as a token
@@ -175,6 +178,10 @@ _IN_DESCRIPTION = re.compile(r"^(?:assets/[^/\\]+|" + _COVER + r")$")
 _MANIFEST_IMAGE = re.compile(
     r"^static/description/(?:assets/[^/\\]+" + _IMAGE_EXT + r"|" + _COVER + r")$")
 _MANIFEST_COVER = re.compile(r"^static/description/main_screenshot" + _IMAGE_EXT + r"$")
+# The cover as a store page writes it, relative to static/description/.
+_PAGE_COVER = re.compile(r"^main_screenshot" + _IMAGE_EXT + r"$")
+# An `images` entry after the first: a capture, directly in assets/.
+_MANIFEST_CAPTURE = re.compile(r"^static/description/assets/[^/\\]+" + _IMAGE_EXT + r"$")
 _IMAGE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 _EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}(?![\w-])")
 _EMAIL_OBFUSCATED = re.compile(
@@ -642,6 +649,10 @@ class Checker(object):
         for line, ref in images:
             self.image(doc_file, line, ref, "page")
         if _STORE_PAGE.match(self._rel(doc_file)):
+            for line, ref in images:
+                if (_image_kind(ref.strip()) == "local"
+                        and _PAGE_COVER.match(_strip_dot_slash(unquote(urlsplit(ref.strip()).path)))):
+                    self._add(doc_file, line, "PAGE_EMBEDS_COVER", ref)
             if words[0] > PAGE_MAX_WORDS:
                 self._add(doc_file, 0, "PAGE_TOO_LONG", "%d words (limit %d)" % (words[0], PAGE_MAX_WORDS))
             for line, series in series_hits:
@@ -678,13 +689,12 @@ class Checker(object):
 
     # -------------------------------------------------------------- manifest
     def manifest(self, manifest_file):
-        list_line, entries = _manifest_image_list(manifest_file)
-        if len(entries) > 1:
-            self._add(manifest_file, list_line, "MANIFEST_IMAGES_COUNT", "%d images" % len(entries))
+        entries = _manifest_image_list(manifest_file)[1]
         for index, (line, ref) in enumerate(entries):
             if not _IMAGE_NAME.match(_file_name(ref)):
                 self._add(manifest_file, line, "IMG_NAME", ref)
-            if not (_MANIFEST_IMAGE.match(ref) and os.path.isfile(os.path.join(self.root, ref))):
+            accepted = _MANIFEST_IMAGE if index == 0 else _MANIFEST_CAPTURE
+            if not (accepted.match(ref) and os.path.isfile(os.path.join(self.root, ref))):
                 self._add(manifest_file, line, "MANIFEST_IMAGE", ref)
             if index == 0 and not _MANIFEST_COVER.match(ref):
                 self._add(manifest_file, line, "MANIFEST_COVER", ref)

@@ -115,7 +115,7 @@ per build shape).
       passing the writer's catalog, role map, `facts.md` and staging directory so no screen is
       captured twice; `model` per the same section (a page composed for buyers is opus; a `change`
       of relabels and recaptures is haiku). When the marketer returns and `CHANGE` is `whole`, or
-      the manifest `images` list is not the one store cover of
+      the manifest `images` list does not open with the store cover of
       `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images, invoke
       `Skill(odoo-icon-design)` inline with `MODE: cover` and `BRAND`.
    4. **Verify.** Every reported file exists. `DOC SCOPE: full-guide`: run
@@ -126,7 +126,9 @@ per build shape).
       baseline (same file, rule and reference): `IMG_ORPHAN` -> delete the file yourself and
       include it in the commit; a finding not in the baseline, or a baseline finding in a file of
       this run's layer -> send it to the agent that wrote the file as `FINDINGS` and re-run the gate; a baseline
-      finding in a file left untouched -> `concerns`, not a block. Then commit `M`'s docs in
+      finding in a file left untouched -> `concerns`, not a block; a baseline `PAGE_EMBEDS_COVER`
+      (a store page that embedded the cover before this run) -> a proposal for the human
+      (step 7), never sent back. Then commit `M`'s docs in
       `doc_root` through `git-toolkit:git-ops`, one commit per module.
    5. Advance: `Skill(odoo-instance)` inline with the held `lease_token` for the next delta
       (init-delta on the same database), then ensure-up; a convergence fill reuses the branch
@@ -139,7 +141,11 @@ per build shape).
    `visual/`).
 7. **Return.** The plan of step 3; `doc-run-<run_id>/index.jsonl` listing every output path; the worktree and branch
    when step 3 created them (this skill never merges or pushes); the `INSTANCE_HANDLE` each path
-   used when it was forwarded or kept under `HAND_ON`; the `concerns` collected.
+   used when it was forwarded or kept under `HAND_ON`; the `concerns` collected; and the
+   proposals for the human - each existing store page that embeds the cover, with the capture
+   proposed in its place. A proposal is applied only when the human approves it (resume the
+   marketer with it as `FINDINGS`); the run never waits for the answer, and with none the page
+   stays as it is.
 
 ## Language resolution
 

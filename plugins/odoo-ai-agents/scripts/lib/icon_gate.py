@@ -62,7 +62,8 @@ by `observe`.
       PREVIEW=<path> (the image scaled to --preview-width, default 300 - the width a store grid
       shows a cover at - as PNG; written under --out-dir, else beside the image)
       FAIL (exit 1): the file is not a PNG or JPEG; its width / height is not 2 within 1%; it
-      is narrower than 1200 px; it is one flat colour. No Pillow is CANNOT-VERIFY (exit 2),
+      is narrower than 1200 px or wider than 1280 px (a store shows a cover about 630 px wide;
+      more pixels only weigh on the page); it is one flat colour. No Pillow is CANNOT-VERIFY (exit 2),
       never a pass. Exit: 0 PASS, 1 FAIL, 2 CANNOT-VERIFY, 3 usage.
       --svg reads the cover's SVG source as XML text (never rendered) and adds:
       NAME_SIZE=<largest font size on a text element, viewBox units; a font-size attribute or
@@ -640,6 +641,7 @@ def cmd_check(args):
 COVER_RATIO = 2.0
 COVER_RATIO_TOLERANCE = 0.01
 COVER_MIN_WIDTH = 1200
+COVER_MAX_WIDTH = 1280
 COVER_PREVIEW_WIDTH = 300
 COVER_NAME_MIN_FRACTION = 0.1
 COVER_IMAGE_MAX_FRACTION = 0.25
@@ -741,6 +743,8 @@ def cmd_cover(args):
         reasons.append(f"size is {width}x{height}, the ratio {width / height:.3f} is not 2:1")
     if width < COVER_MIN_WIDTH:
         reasons.append(f"width is {width} px, the cover needs at least {COVER_MIN_WIDTH}")
+    if width > COVER_MAX_WIDTH:
+        reasons.append(f"width is {width} px, the cover is at most {COVER_MAX_WIDTH}")
     rgba = img.convert("RGBA")
     if all(lo == hi for lo, hi in rgba.getextrema()):
         reasons.append("the image is blank (a single colour)")

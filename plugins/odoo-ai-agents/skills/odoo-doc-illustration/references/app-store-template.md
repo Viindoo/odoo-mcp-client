@@ -334,7 +334,7 @@ screenshot size follows from the measured width of the slot it fills
 | Asset | Made by | Notes |
 |---|---|---|
 | Module icon (`static/description/icon.png`, PNG only) | `odoo-icon-design` | Implicit path, no manifest key. Missing = ranking penalty. Language-neutral. |
-| Store cover (`static/description/main_screenshot.png`) | `odoo-icon-design`, cover mode | The only `images` entry: a designed product cover at 2:1, shown by the store above the page and in its lists (the Odoo Apps Store shows one image and crops it to 2:1). Not embedded in the page. |
+| Store cover (`static/description/main_screenshot.png`) | `odoo-icon-design`, cover mode | The first `images` entry: a designed product cover at 2:1, shown by a store in its lists and above the page (the Odoo Apps Store shows this one image and crops it to 2:1). Not embedded in the page. |
 | Main screen, proof shots, report shots | the page's own captures | Inline in `index.html`, under `assets/`. A report is captured as the manager opens it - grouped, filtered and measured to answer its question - on demo data that gives it a shape; an empty report is not captured. |
 
 ---
@@ -346,7 +346,7 @@ Never fabricate a commercial value (`price`, `currency`, `live_test_url`): repor
 | Key | Rule |
 |---|---|
 | `summary` | The hero tagline matches it: one or two sentences, outcome-first. |
-| `images` | Exactly one entry, the store cover (§ 4). The page work never writes it. |
+| `images` | The first entry is the store cover (§ 4): the page work never writes it. The entries after it are the page's English captures of the module's main screens, per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images: the page work writes them, and replaces them when it recaptures those screens. |
 | `support` | An email address the store shows to purchasers only - the one place an address may live. From the author profile (`support_email`) when the manifest has none; never copied into the page. |
 | `live_test_url` | Named in TRY-AND-SUPPORT when present; never written. |
 | The video link | The watch URL of the page's video goes into the manifest key the vendor's other modules use for a video link (a key whose value is a video URL; per-locale variants spelled as those manifests spell them). No module of the vendor has one: leave the manifest as it is and return the question. |
