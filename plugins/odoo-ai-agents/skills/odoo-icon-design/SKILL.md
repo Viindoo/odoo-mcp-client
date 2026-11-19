@@ -12,9 +12,9 @@ Designer of a module's image assets for Odoo, through `odoo-icon-designer`:
 - **The app icon**: measured against the target series' own core app icons (size, mode, tile or
   flat style), composed as a brand-aware SVG with a purpose-drawn glyph, rasterized to
   `static/description/icon.png` and gated against that family.
-- **The store cover**: the one image a store shows for the module, a product cover in the
-  vendor's brand at 2:1, written to `static/description/main_screenshot.png` as the only entry of
-  the manifest `images` list.
+- **The store cover**: the image a store shows for the module on its cards, a product cover in
+  the vendor's brand at 2:1, written to `static/description/main_screenshot.png` as the first
+  entry of the manifest `images` list.
 
 Works from static source; a live instance is used only when the caller hands one, to see the icon
 among the installed apps. OSM is the primary source for the module's category, the version

@@ -34,9 +34,16 @@
 
 ## Manifest images
 
-`images` holds exactly one entry, the store cover `static/description/main_screenshot.<ext>` (an
+The first entry of `images` is the store cover `static/description/main_screenshot.<ext>` (an
 existing png, gif or jpeg): a product cover at 2:1 designed by `odoo-icon-design`, the same for
-every language. A doc embeds its own captures, never the cover.
+every language - the one image a single-image store shows, and every store's listing card. A doc
+embeds its own captures, never the cover.
+
+The entries after it are the module's main screens, for a store that shows the whole list as a
+gallery: English captures already under `static/description/assets/` (never a locale variant or
+a second cover), main screens first and reports after, landscape (about 16:10) and legible at
+630 px wide. A module with no screen of its own and no change to another module's screen lists
+the cover alone.
 
 ## Links to another module
 
@@ -49,13 +56,12 @@ every language. A doc embeds its own captures, never the cover.
   `_` link fails the RST render gate). HTML: `<a href="/apps/modules/<odoo_version>/<module>">`.
 - Never an absolute URL whose path is `/apps/modules/...` on any host (it sends readers to a
   different store), and never a filesystem path to a sibling module (`../../<module>/...`). With
-  `--addons-path`, a link to a module in none of those directories is `LINK_MODULE_UNKNOWN`.
-- Never a `mailto:` link or an email address, plain or obfuscated, in a doc file, an alt or a title:
-  the gate's `LINK_MAILTO` / `EMAIL_ADDRESS`. Contact is a web page from the author profile; an
-  address the author insists on ships only as an image (`${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`).
+  `--addons-path`, a link to a module in none of those directories is a finding.
+- Never a `mailto:` link or an email address, plain or obfuscated, in a doc file, an alt or a
+  title. Contact is a web page from the author profile; an address the author insists on ships
+  only as an image (`${CLAUDE_PLUGIN_ROOT}/scripts/lib/email_image.py`).
 - On the store page every external link's visible text shows its host and path (the store
-  renders external anchors as plain text; `LINK_TEXT_HIDES_URL`); author-site and video links are
-  fine written that way.
+  renders external anchors as plain text); author-site and video links are fine written that way.
 
 ## Reference gate
 
@@ -69,9 +75,7 @@ exempt); delete an orphan.
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_refs_check.py" --module-root <abs module path> --series <resolved series> [--addons-path <dirs>] [files...]
 ```
 
-It also enforces the image fit above: `IMG_NOT_FLUID`, `IMG_STRETCHED`, `IMG_NO_WIDTH`,
-`IMG_UPSCALED` (pixel width read from the file header).
+It also enforces the image fit above and the manifest list.
 
-- Exit 0: clean.
-- Exit 1: each finding prints `file:line: RULE: ref`. Fix every one and re-run until exit 0.
-- Exit 2: environment or usage error. Return `NEEDS_CONTEXT` with the remedy it printed.
+Exit 1 prints one `file:line: RULE: ref` per finding: fix each and re-run until it exits 0. Exit 2
+is an environment or usage error: return `NEEDS_CONTEXT` with the remedy it printed.

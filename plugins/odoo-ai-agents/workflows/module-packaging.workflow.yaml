@@ -192,8 +192,8 @@ phases:
     # in doc_root:
     #   REQUIRED (blocking if missing): name, summary, description, license, category
     #   IMAGES (blocking): run the reference gate of snippets/module-doc-references.md on the
-    #     module (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER, MANIFEST_IMAGES_COUNT or
-    #     MANIFEST_COVER_RATIO finding is a blocking gap in the store cover - the gate owns the rules
+    #     module (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER or MANIFEST_COVER_RATIO
+    #     finding is a blocking gap in the store images - the gate owns the rules
     #   RECOMMENDED (warning if missing): support, website, maintainer, application
     #   OPTIONAL (info): live_test_url, price, currency, version
     # Suggest values for missing non-commercial fields. NEVER fabricate commercial keys

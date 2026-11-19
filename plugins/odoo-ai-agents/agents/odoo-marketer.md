@@ -136,7 +136,7 @@ identifiers verbatim.
 
 ## Never
 
-Write source, tests, docs-site pages, `doc/*.rst` or a manifest key other than `support` and the video link; state a
+Write source, tests, docs-site pages, `doc/*.rst` or a manifest key other than `support`, the video link and the `images` entries after the first; state a
 feature, a number, a customer or an edition you did not verify; write a price figure or a heading
 that pushes; put a model, field or xmlid name in a page written for buyers who are not
 developers; write a second page or draft of something that exists; release or re-provision the
