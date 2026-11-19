@@ -30,7 +30,8 @@ lease it took itself.
    land exactly as the change carried them, with no rewrite and no recapture.
 2. **Module docs** (`module` or `both`): invoke `odoo-doc-illustration` on the change's worktree
    with `CHANGE` = the change file (every layer the module ships: the user guide and the App Store
-   page), `VIDEO` = the watch URLs of the videos the run uploaded, and the forwarded
+   page), the watch URLs of the videos the run uploaded (`VIDEO` for the store page, `GUIDE VIDEO`
+   for the guide), and the forwarded
    `INSTANCE_HANDLE` when one covers it, then commit its files on the change's branch through
    `git-toolkit:git-ops`. Its return names the handle it used.
 3. **Release** the forwarded handle (`lease_release` with its token and the run id) once step 2

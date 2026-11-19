@@ -194,7 +194,7 @@ place; the rest keep their order.
   depends_on: [i18n]
   when: the plan's Video: line is not none
 - id: docs-module
-  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file and VIDEO = the watch URLs of produced.videos (Loop step 3); never the bare odoo-doc-writer
+  approach: odoo-doc-illustration   # invoked inline with CHANGE = the change file and the watch URLs of produced.videos by purpose - VIDEO = marketing (the store page), GUIDE VIDEO = docs (the guide) - (Loop step 3); never the bare odoo-doc-writer
   approach_kind: skill
   depends_on: [i18n, video]   # video only where the plan has it
   when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs

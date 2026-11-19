@@ -22,6 +22,7 @@ LANGUAGES: <resolved list, en_US first>
 DOMAIN: <Domain line | none>   SRS: <path | none>
 FEATURE CATALOG: <path | none>   ROLE MAP: <path | none>   WALKTHROUGH: <path | none>
 CHANGE: <feature list | path of the file holding it | whole | none>
+GUIDE VIDEO: <locale>=<watch URL>, ... | none
 DOC SCOPE: screenshot-doc | full-guide   (full-guide = every catalog row stamped guide | setup | excluded: <reason>)
 CAPTURE MODE: screens | scenarios
 BROWSER MODE: headless | headed
