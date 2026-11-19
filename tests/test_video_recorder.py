@@ -75,6 +75,15 @@ FLIP_PAGE = ('<!doctype html><title>flip</title><body style="margin:0;background
              '<button id=flip style="margin:200px;padding:30px">Flip</button><div id=done style="display:none">done</div>'
              '<script>document.getElementById("flip").onclick = () => {'
              ' document.body.style.background = "#f00"; document.getElementById("done").style.display = "block"; };</script>')
+# LATE_S after a click on #go: an empty box gets its size, and the first of two `.item` matches
+# shows (the second shows from the start).
+LATE_S = 1.2
+LATE_PAGE = ('<!doctype html><title>late</title><body style="margin:0;background:#fff">'
+             '<button id=go>Go</button><div id=box></div>'
+             '<p class=item style="display:none">first</p><p class=item>second</p>'
+             '<script>document.getElementById("go").onclick = () => setTimeout(() => {'
+             ' document.getElementById("box").style.cssText = "width:40px;height:40px;background:#000";'
+             ' document.querySelector(".item").style.display = "block"; }, %d);</script>' % int(LATE_S * 1000))
 # A bar half a CSS pixel wide, 20 CSS pixels from the left edge: one device pixel at density 2.
 DETAIL_PAGE = ('<!doctype html><title>detail</title><body style="margin:0;background:#fff">'
                '<div style="width:0.5px;height:40px;background:#000;margin-left:20px"></div>')
@@ -122,6 +131,7 @@ def site(tmp_path_factory):
         encoding="utf-8")
     (root / "bus.html").write_text(BUS_PAGE, encoding="utf-8")
     (root / "flip.html").write_text(FLIP_PAGE, encoding="utf-8")
+    (root / "late.html").write_text(LATE_PAGE, encoding="utf-8")
     (root / "detail.html").write_text(DETAIL_PAGE, encoding="utf-8")
     _tone(root / "tone.wav")
     handler = functools.partial(_Handler, directory=str(root))
@@ -337,10 +347,24 @@ def _first_change_s(webm):
     return next(t for t, c in frames if sum(abs(a - b) for a, b in zip(c, base)) > 100)
 
 
-# A wait for the change a click causes ends when the recorder sees that change; the frame that shows it
-# follows by the capture latency (under three frames) and never precedes it by more than one frame.
+@pytest.mark.parametrize("selector", ["#box", ".item"], ids=["an element with no size yet", "a hidden first match"])
+def test_a_selector_wait_lasts_until_the_element_the_driver_waits_for_shows(tmp_path, site, selector):
+    scene = _scene(tmp_path, site, [{"do": "goto", "url": "/late.html"}, {"do": "click", "selector": "#go"},
+                                    {"do": "wait_for", "selector": selector, "state": "visible"}])
+    proc = _run("trial", "--script", str(scene), "--out-dir", str(tmp_path / "out"))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    # the wait starts right after the click that starts the LATE_S countdown
+    assert float(_kv(proc.stdout)["WAIT_S"]) >= LATE_S * 2 / 3, proc.stdout
+
+
+# A wait for the change a click causes ends at the moment the page saw that change; the frame that
+# shows it follows by the capture latency (under three frames) and never precedes it by more than
+# one frame. Video time counts whole frames and both clocks tick in milliseconds, so the earliest
+# bound is one frame plus that resolution.
+FRAME_S = 1 / 25
+CLOCK_RESOLUTION_S = 0.005
 CLOCK_TOLERANCE_S = 0.1
-CLOCK_EARLIEST_S = -0.04
+CLOCK_EARLIEST_S = -(FRAME_S + CLOCK_RESOLUTION_S)
 
 
 @needs_ffmpeg

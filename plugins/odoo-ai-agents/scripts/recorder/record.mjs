@@ -13,7 +13,9 @@
  * One clock: the recorder starts the clip, waits for its first frame and starts the events timeline
  * at that frame's time, then runs the first action. An event time is therefore the video time of
  * the same moment, to within one frame. A take always opens a new page (its first action is a
- * `goto`); the same screencast call that starts the clip reports the first frame.
+ * `goto`); the same screencast call that starts the clip reports the first frame. A selector wait
+ * ends at the moment the page itself saw the element show, where the page can tell; this process
+ * hears of it later, by more than a frame on a busy machine.
  *
  * Size: the script's `viewport` [width, height] (CSS pixels, default [1920, 1080]) and
  * `device_scale_factor` (default 1) set the page; the clip is width x factor by height x factor
@@ -38,6 +40,7 @@ const SELECTOR_TIMEOUT_MS = 30000;
 const FIRST_FRAME_TIMEOUT_MS = 15000;
 const IDLE_QUIET_MS = 500;
 const IDLE_TIMEOUT_MS = 15000;
+const PAGE_ASK_MS = 1000;
 const LONG_LIVED_TYPES = new Set(['websocket', 'eventsource']);
 const LONG_LIVED_URL = /\/(websocket|longpolling|bus)\b/;
 // Assembled from parts so the field vocabulary stays out of this file's plain text.
@@ -126,6 +129,28 @@ function pageBundle(cfg) {
   const watched = cfg.selectors.join(',');
   const state = new Map(cfg.selectors.map((s) => [s, false]));
   rec.active = () => anyVisible(watched);
+  // The selectors a step is waiting for, each with the page's own time of the moment it showed
+  // (null while it does not). "Shows" is never looser than the driver's own wait: the first
+  // match only, with a box that has a size.
+  const awaited = new Map();
+  const shows = (sel) => {
+    const el = document.querySelector(sel);
+    return visible(el) && [...el.getClientRects()].some((r) => r.width > 0 && r.height > 0);
+  };
+  rec.watch = (sel) => {
+    try {
+      awaited.set(sel, shows(sel) ? Date.now() : null);
+      return true;
+    } catch {
+      awaited.delete(sel);
+      return false; // not a CSS selector: the page cannot watch it
+    }
+  };
+  rec.seenAt = (sel) => {
+    const at = awaited.get(sel) ?? null;
+    awaited.delete(sel);
+    return at;
+  };
   const check = () => {
     for (const s of cfg.selectors) {
       const now = anyVisible(s);
@@ -133,6 +158,11 @@ function pageBundle(cfg) {
         state.set(s, now);
         rec.waits.push({ sel: s, shown: now, at: Date.now() });
       }
+    }
+    for (const [s, at] of awaited) {
+      const now = shows(s);
+      if (now && at === null) awaited.set(s, Date.now());
+      else if (!now && at !== null) awaited.set(s, null);
     }
   };
   whenBody(() => {
@@ -258,6 +288,24 @@ class Driver {
   async span(kind, fn) {
     const start = this.now();
     try { return await fn(); } finally { this.events.push({ kind, start, end: this.now() }); }
+  }
+
+  /**
+   * Calls `window.__rec[fn](selector)` on the page; null when the page does not answer within
+   * PAGE_ASK_MS (a navigation in progress, no recorder), so a step never waits on this call.
+   */
+  async onPage(fn, selector) {
+    const asked = this.page.evaluate(
+      ([f, s]) => (window.__rec && typeof window.__rec[f] === 'function' ? window.__rec[f](s) : null),
+      [fn, selector],
+    ).catch(() => null);
+    let timer;
+    const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), PAGE_ASK_MS); });
+    try {
+      return await Promise.race([asked, late]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** @param {string} why `not found` (nothing matches) or `not visible` (an element matches but has no size or is hidden) */
@@ -402,15 +450,23 @@ class Driver {
           await this.span('wait', () => this.idle());
         } else {
           const timeout = act.timeout_s ? Number(act.timeout_s) * 1000 : SELECTOR_TIMEOUT_MS;
-          await this.span('wait', async () => {
-            const loc = p.locator(act.selector).first();
-            const state = act.state || 'visible';
-            try {
-              await loc.waitFor({ state, timeout });
-            } catch {
-              this.fail(act, act.selector, await this.whyMissing(loc, state));
-            }
-          });
+          const loc = p.locator(act.selector).first();
+          const state = act.state || 'visible';
+          const start = this.now();
+          const watched = state === 'visible' && (await this.onPage('watch', act.selector)) === true;
+          let end;
+          try {
+            await loc.waitFor({ state, timeout });
+            end = this.now();
+          } catch {
+            this.events.push({ kind: 'wait', start, end: this.now() });
+            this.fail(act, act.selector, await this.whyMissing(loc, state));
+          }
+          // The wait ends when the element showed, not when this process heard of it: the page's
+          // own time of that moment wins when it is the earlier one.
+          const seen = watched ? await this.onPage('seenAt', act.selector) : null;
+          if (typeof seen === 'number') end = Math.max(start, Math.min(end, seen - this.t0));
+          this.events.push({ kind: 'wait', start, end });
         }
         break;
       case 'hold':
