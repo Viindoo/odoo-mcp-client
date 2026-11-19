@@ -73,7 +73,8 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
 
 The caller sends the fix diff to the SAME reviewers with `SendMessage` (`PRIOR_FINDINGS` = their
 earlier reports), never to a new launch; R1 verifies its own findings, R2 verifies its own and
-re-issues the verdict. Acceptance failures go to R2 as `ACCEPTANCE_EVIDENCE` for classification.
+re-issues the verdict. Acceptance failures go to R2 as `ACCEPTANCE_EVIDENCE` for classification
+(the reviewer's side: `references/resumed-round.md`).
 Three rounds per change; a fourth stops with the remaining findings for the human.
 
 ## Artifacts
