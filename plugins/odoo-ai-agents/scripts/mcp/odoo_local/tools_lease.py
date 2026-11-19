@@ -64,6 +64,9 @@ from .errors import ToolError, remedy_for
 log = logging.getLogger("odoo-local")
 
 ACQUIRE_TIMEOUT_S = 120
+# Allocator acquire field: 1 when an exclusive lease holds a database named by the caller that does
+# not exist yet (the build will create it and nothing drops it).
+_DB_ABSENT_KEY = "ALLOC_DB_ABSENT"
 RELEASE_TIMEOUT_S = 300
 GC_TIMEOUT_S = 540
 READ_TIMEOUT_S = 60
@@ -773,6 +776,12 @@ def _acquire(args, ctx):
             "this lease and lease_acquire again." % (
                 lease["series"] or args["series"],
                 (" profile %s" % lease["profile"]) if lease["profile"] else ""))
+    if env["fields"].get(_DB_ABSENT_KEY):
+        warnings.append(
+            "database_will_be_created: database %s does not exist yet; the build will create it and no "
+            "tool will drop it, not even lease_release. A throwaway database with a name of your own "
+            "is mode ephemeral with db_name: lease_release this lease and acquire that instead." % (
+                lease["db_name"] or args.get("db_name")))
     handle = database_handle(row, lease, rows, cwd=cwd) if row is not None else instance_handle(lease)
     return {"lease": lease, "instance_handle": handle,
             "attached": bool(env["fields"].get("ALLOC_ATTACHED")),
@@ -1221,8 +1230,10 @@ def register(registry, ctx):
         "lease_acquire",
         "Reserve a local Odoo database (+ ports) for your work and get the INSTANCE_HANDLE to forward. "
         "Call it ONCE per run before any build/test/serve; never build a db_name or port yourself. "
-        "Modes: ephemeral (default) = your own throwaway database, dropped when you release it; "
-        "exclusive = the declared database held exclusively (no isolation - say so in your report); "
+        "Modes: ephemeral (default) = your own throwaway database, dropped when you release it, "
+        "named by db_name when you pass one (it must not exist yet) and minted otherwise; "
+        "exclusive = an existing database held exclusively - the declared one, or the one db_name "
+        "names (no isolation - say so in your report); "
         "shared = the long-lived render server many readers attach to (never dropped); readonly = "
         "coordinates of the declared instance, no lease, no token. run_id is required for every mode "
         "except readonly: pass the run id you were given; if nobody gave you one, omit it and the "
@@ -1235,7 +1246,9 @@ def register(registry, ctx):
         "lease.run_id) and instance_handle (forward it verbatim to downstream agents). "
         "venv_missing=true (explained in warnings) means the catalog declares no python for that "
         "series/profile: builds and serves on this lease will be refused until the venv is built - "
-        "release it, build the venv, acquire again. What you acquire you must lease_release (or "
+        "release it, build the venv, acquire again. A database_will_be_created warning means the "
+        "exclusive db_name you passed does not exist yet: the build creates it and no tool drops it. "
+        "What you acquire you must lease_release (or "
         "lease_park) before you finish - except a shared lease: it is multi-reader, needs no "
         "teardown, and lease_gc reclaims it once its server is gone.",
         _obj({
@@ -1263,8 +1276,10 @@ def register(registry, ctx):
                                            "replaced by your worktree path - a path that drops the "
                                            "Odoo checkout's core addons is refused."},
             "db_name": {"type": "string", "minLength": 1,
-                        "description": "exclusive/shared only: the database to hold; omit for the "
-                                       "declared one. Ignored by ephemeral (a unique name is minted)."},
+                        "description": "ephemeral: the name of your throwaway database - it must not "
+                                       "exist yet (refused otherwise), and omit it for a minted "
+                                       "name. exclusive/shared: the existing database to hold; omit "
+                                       "for the declared one."},
             "profile": PROFILE_PROP,
             "no_create": {"type": "boolean", "default": False,
                           "description": "true when you will create NO database (skips the CREATEDB and "

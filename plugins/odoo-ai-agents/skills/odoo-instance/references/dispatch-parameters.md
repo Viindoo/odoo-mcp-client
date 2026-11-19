@@ -13,6 +13,7 @@ Each section is the full wording of the same-named rule that `SKILL.md` summaris
 | `lease_token` | required for `park` - the `lease_token` field of the `INSTANCE_HANDLE` being finished with. Not used by any other operation. `park` and `drop` of a lease the CALLER holds run inline (exception (d)), never via `odoo-instance-ops` |
 | `park_ttl_s` | optional for `park` - how long the suspended database is kept before a gc may reclaim it. Omitted keeps the tool's default; state the default in the relay when the caller named none |
 | `persist` | What a CALLER may request: `ephemeral` (default) / `exclusive-running` / `shared-running`. Meanings, and the `exclusive-parked` state a suspended instance sits in: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5. An `exclusive-running` instance never converges on `8069` (its port comes from the allocator pool); a `shared-running` one is shared by every reader on that series |
+| `db_name` | optional for `create` - a name of the caller's own for the throwaway database. It must not exist yet and is dropped at release like any `ephemeral` database; omitted, the allocator mints a name |
 | `run_id` | the caller's run id - threaded into every brief and passed to every lease tool as the lease owner. A lease tool called with no `run_id` is refused (`RUN_ID_REQUIRED`). Never invent one: a caller that gave none gets `NEEDS_CONTEXT(RUN_ID)` |
 | `PROFILE` | Tenant profile name (the exact name a profile listing returns). Resolve it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim) and thread it through, unless the caller passes it (`odoo-doc-site` does: the profile part of the site row's `instance` key). A profile reaches `lease_acquire` as its `profile` ONLY when `catalog_read` (that `series`, that profile) returns a row; the acquire refuses a name no row declares (`NO_INSTANCE`), and an omitted profile takes the series' first row. An EMPTY `INST_PROFILE` from rung 2 means rung 2 did not answer this fact: fall through to the rungs below, and if none names one, OMIT the field rather than send `PROFILE: ''`; an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for `odoo-instance-ops` § Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE) - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here. For the stand-alone proof and for acceptance the install set is the node's modules ONLY; a dependent or a sibling is added only in the second, explicitly requested build (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md`) |
@@ -34,11 +35,16 @@ question covering all missing required parameters before dispatching.
 
 ## Park vs drop
 
-**`park` vs `drop` - decide on a fact about the DATABASE.** `park` KEEPS the database, filestore and
-ports so a later `resume` picks the instance up where it was; `drop` destroys the database. A caller
-finished with the instance FOR NOW but still wanting its data gets `park` - never a `drop` dispatch
-in the hope it will be declined. `resume` brings a parked instance back on its own coordinates and
-never rebuilds or installs modules.
+Decide on a fact about the database. `park` keeps the database, filestore and ports so a later
+`resume` picks the instance up where it was; `resume` brings it back on its own coordinates and
+never rebuilds or installs modules. `drop` is the release of a lease this run holds: the database
+of an `ephemeral` lease is destroyed, the database of an `exclusive` or `shared` lease stays. A
+caller finished with the instance for now but still wanting its data gets `park`.
+
+A database that no lease of this run created - a declared one, one a human made, one an earlier
+`exclusive` lease left behind - is never dropped through these tools. Say so and leave its removal
+to the human: the guarded script route is in
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-GUARDS.md` § 6.3.
 
 ## GATE_ROLE resolution
 
@@ -59,9 +65,8 @@ in the brief's extra flags, which is placed after the default and wins. Ground `
 
 ## Confirmation
 
-**Confirmation.** `create`, `init`, `update` and `run-tests` run without asking. Ask the human in
-text (`approve / skip / cancel`) only before a `drop` of a database this run did not create; a
-`drop` of a database created in this run proceeds. `park` and `resume` never ask.
+No operation asks the human: every build, `park` and `resume` runs, and a `drop` reaches only the
+database this run's own lease created (§ Park vs drop).
 
 ## Brief shape
 
@@ -87,6 +92,7 @@ MODE: <fresh|reuse>           # run-tests only; reuse whenever the target DB alr
 LOG_MODE: <info|debug|sql or 'default'>   # run-tests only; 'default' keeps the build default
 FRESH_VENV: <true|false>
 PERSIST: <ephemeral|exclusive-running|shared-running>   # create only; default ephemeral - `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5
+DB_NAME: <the caller's name for the throwaway database>   # create only; omit to have one minted
 HAND_ON: <yes|no>             # run-tests fresh only; yes = keep the lease and forward its INSTANCE_HANDLE; default no = release it
 LEASE_TOKEN: <token of the lease to suspend>            # park only - REQUIRED there, omitted everywhere else
 PARK_TTL_S: <seconds or 'default'>                      # park only; 'default' keeps the tool's own budget

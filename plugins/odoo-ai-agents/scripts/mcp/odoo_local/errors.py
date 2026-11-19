@@ -123,6 +123,18 @@ TOOL_REMEDIES = {
     "DB_AUTH_DENIED": "Odoo cannot authenticate to Postgres: run /odoo-ai-agents:odoo-setup.",
     "DB_UNREACHABLE": "The Postgres cluster did not answer: start it (or ask the user to), then call again.",
     "RUN_ID_REQUIRED": "Pass run_id: the run id you were given (INSTANCE_HANDLE.run_id, or the run_id of your own earlier lease). Never invent one; if you were given none, report NEEDS_CONTEXT(RUN_ID).",
+    "DB_NAME_REFUSED": {
+        "default": "The db_name you chose for your throwaway database cannot be granted: pass another db_name, or omit it for a minted one.",
+        # allocator.py NAME_REASON_*: ephemeral + db_name only; no lease was written in any case.
+        "reasons": {
+            "no-create": "no_create true creates no database, so there is no throwaway to name: omit db_name (or omit no_create).",
+            "name-invalid": "That db_name is not an accepted database name: start with a letter or digit, use at least two characters, and only letters, digits, underscore, hyphen and dot; then call again.",
+            "catalog-database": "That db_name is a database the instance catalog declares (catalog_read shows them), so it is never a throwaway: pass a different name, or use mode exclusive to work on the declared database.",
+            "name-held": "Another lease already holds that db_name (diagnostics.fields.holders names it): pass a different name, or retry once that lease is released. Never release a lease you did not acquire.",
+            "database-exists": "A database with that name already exists on the cluster, and a throwaway is never adopted: pass a name that does not exist yet, or use mode exclusive to hold the existing database.",
+            "existence-undeterminable": "Whether that database exists could not be determined: run /odoo-ai-agents:odoo-setup for this series (declares python/odoo_root/db_run_mode) or start the cluster, then call again; or omit db_name for a minted name.",
+        },
+    },
     "RECLAIM_IN_PROGRESS": "The lease is being released or reclaimed right now by another call (lease_list shows state reclaiming): do not retry the mutation; call lease_list again in a minute - once the lease is gone it is done, and if it is still listed unchanged, report it to the user.",
     "LEASE_NOT_FOUND": "No lease has that token: call lease_list (scope mine) for the tokens this session holds.",
     "NOT_OWNER": "You did not acquire this lease (its run_id is another run's): leave it alone. Release, park or adopt only leases whose run_id is yours; a forwarded INSTANCE_HANDLE is consumed, never released.",

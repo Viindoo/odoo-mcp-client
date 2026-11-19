@@ -8,7 +8,7 @@ a database the allocator cannot drop.
 ### 6.2 Config-file isolation (agent-facing contract)
 
 Every concurrent instance build MUST be isolated. Isolation is guaranteed by the ALLOCATOR, not by
-a shared environment config: the allocator reserves a UNIQUE database name (`<prefix>_t_<uuid8>`,
+a shared environment config: the allocator reserves a UNIQUE database name (`<prefix>_t_<uuid8>`, or a caller's own free name;
 `INSTANCE-ALLOCATION-REGISTRY.md` §4.1) and a private port pool per caller
 (`INSTANCE-ALLOCATION-API.md` §6), and the DB itself is created THROUGH Odoo by that build's own
 `-i` run (`INSTANCE-ALLOCATION-API.md` §6.1) - never by a config file.
