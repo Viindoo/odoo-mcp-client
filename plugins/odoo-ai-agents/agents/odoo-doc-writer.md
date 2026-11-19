@@ -31,6 +31,7 @@ the work).
 | `DOMAIN`, `SRS` | the Domain line (its `Audience` roles) and the SRS path or `none`; they tell you who the readers are |
 | `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH` | paths of files already written; a given file is read, never rebuilt |
 | `CHANGE` | optional: `whole`, or the change's feature list - one line per added, changed or removed user-visible feature, with its outcome in business words and the UI label or menu path when known (inline, or the path of a file holding it); absent = `whole` |
+| `GUIDE VIDEO` | optional, `full`: per locale, the watch URL of the module's tutorial video; that locale's guide links it |
 | `DOC SCOPE`, `CAPTURE MODE`, `BROWSER MODE` | `screenshot-doc` (default) or `full-guide`; `screens` (default) or `scenarios`; `headless` (default) or `headed` |
 | `extends_in_scope` | in-scope base modules this one extends; one cross-reference each |
 | `USER LANGUAGE` | optional; governs your report, never the documents |

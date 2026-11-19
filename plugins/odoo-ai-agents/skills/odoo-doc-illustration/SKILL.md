@@ -38,8 +38,9 @@ module's feature list is the lines of that file that name the module. `CHANGE` i
 the writer rewrites only the affected sections and recaptures only the affected screens; `whole`
 documents the module again from scratch; absent, a module that already ships docs is left alone
 (`doc:false`, step 3). A caller may supply per-module `FEATURE CATALOG`, `ROLE MAP`, `WALKTHROUGH`,
-`MARKETING COPY`, `BUYER PROFILE`, and `VIDEO` (per language, the watch URL of the module's
-video); each is forwarded and never rebuilt. `INSTANCE_HANDLE`
+`MARKETING COPY`, `BUYER PROFILE`, `VIDEO` (per language, the watch URL of the module's store
+page video) and `GUIDE VIDEO` (the same for its tutorial video, linked from the guide); each is
+forwarded and never rebuilt. `INSTANCE_HANDLE`
 (optional): a demo build the caller already holds; when its `addons_path` covers `doc_root`,
 `demo` is true and `languages_loaded` holds every resolved language, the run captures on it and
 provisions nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance

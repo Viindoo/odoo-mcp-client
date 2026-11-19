@@ -53,6 +53,10 @@ A run with `CHANGE` as a feature list updates the existing documents instead of 
    to another module. Images: `.. image:: assets/<file>` with the class and `:width:` of that
    snippet § Images; `:alt:` is the task in words. Every rule of
    `${CLAUDE_PLUGIN_ROOT}/snippets/rst-validity-contract.md` applies.
+   A `GUIDE VIDEO` entry for a file's locale is linked once, at the end of that file's
+   *Overview*: one sentence in that locale saying what the video shows, the watch URL as an
+   anonymous external link (`__`). A locale with no entry gets no link and no mention of another
+   language's video. In an update the link is the one line written outside the mapped sections.
 6. **RST gate.** Render every `doc/*.rst` you wrote:
 
    ```
