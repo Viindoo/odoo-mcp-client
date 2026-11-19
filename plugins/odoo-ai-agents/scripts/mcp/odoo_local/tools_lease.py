@@ -893,8 +893,9 @@ def _release_locked(token, run_id, cwd):
 
 
 def _close_public_address(token, row, cwd):
-    """Close the lease's public address (instance_expose) and restore its base URL before the
-    server stops. Never fails the call it is part of: the tunnel also ends with the server."""
+    """Close the lease's public address (instance_expose) and restore its base URL before the lease
+    is released. Never fails the call it is part of: the tunnel also ends by itself once the lease
+    is gone from the registry."""
     try:
         from . import tools_expose
         tools_expose.unexpose_lease(token, row, cwd)
@@ -906,11 +907,9 @@ def _close_public_address(token, row, cwd):
 def _park(args, ctx):
     token, run_id = args["lease_token"], args["run_id"]
     cwd = cli.default_cwd()
-    row = read_row(token, cwd)
-    if row is not None and _owner_run(row) in ("", run_id):
-        # Only the owner's park may close the address; a refused park (NOT_OWNER, decided by the
-        # allocator below) must not touch someone else's tunnel.
-        _close_public_address(token, row, cwd)
+    # A public address (instance_expose) is the lease's, not the server's: a park leaves the tunnel
+    # and the database's public base URL alone, so the next instance_serve comes up on the same
+    # address.
     # Ownership (NOT_OWNER) and an unknown token (LEASE_NOT_FOUND) are decided by the allocator
     # itself, under its registry lock and before any signal - the ONE implementation release shares.
     # A pre-check here would only be a second copy with a race window between it and the stop.
@@ -1326,7 +1325,10 @@ def register(registry, ctx):
         "cannot be parked. "
         "drop_on_release=true in the result means the final lease_release still drops the database: "
         "parking defers the drop, it never makes the database permanent. database_exists=false "
-        "means there is no database to resume into (lease_find will pass the lease over).",
+        "means there is no database to resume into (lease_find will pass the lease over). A public "
+        "address (instance_expose) survives the park: its tunnel keeps running and the database "
+        "keeps the public base URL, so the next instance_serve comes up on the same address; call "
+        "instance_unexpose first when the third party no longer needs it.",
         _obj({"lease_token": LEASE_TOKEN_PROP, "run_id": RUN_ID_PROP,
               "park_ttl_s": {"type": "integer", "minimum": 60,
                              "description": "How long the parked lease is kept before gc may reclaim it, "

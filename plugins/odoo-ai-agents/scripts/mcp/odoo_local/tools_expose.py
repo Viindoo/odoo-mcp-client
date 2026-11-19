@@ -15,10 +15,15 @@ sequences, so the RUNNING server drops its cached parameters): no user of the da
 no credential is read or changed. Unexposing puts `web.base.url` back to the lease's local URL and
 removes the freeze.
 
-The tunnel never outlives the server: a supervisor stops it when the server is gone, whoever stopped
-the server (tunnel.py). lease_release and lease_park also unexpose first, so a kept database does not
-keep a dead address; a lease whose tunnel died with its server (a gc, an older plugin version) has
-its base URL restored by the next instance_serve of that lease (`heal_stale`).
+The address belongs to the LEASE, not to its server: the tunnel lives as long as the lease keeps the
+port it fronts (tunnel.py). A lease_park, an update build or a crash stops the server and leaves the
+tunnel, the database's public base URL and its freeze alone, so the instance_serve that follows comes
+up on the same address; while the server is down the address answers with an error. The tunnel ends
+at lease_release and at instance_unexpose (both put the local base URL back first), and by itself
+when the lease is gone from the registry or no longer reserves the port (a gc, a capacity reclaim, a
+release by any plugin version). A tunnel that died while its lease lives (a reboot, a cloudflared
+crash) has its base URL restored by the next instance_serve of that lease (`heal_stale`). A NEW
+tunnel always gets a NEW address.
 
 The database manager of an exposed server: every server 50-instance-spinup.sh launches has Odoo's
 database manager turned off (the checkout's own `--no-database-list` option), because anyone who
@@ -118,9 +123,9 @@ def _expose_locked(token, cwd):
                         {"token_prefix": token[:8], "series": lease.get("series") or ""})
     port = lease["ports"][0]
     record = tunnels.live_record(home, token)
-    already = bool(record and record.get("server_pid") == pid and record.get("http_port") == port)
+    already = bool(record and record.get("http_port") == port)  # the server's pid may have changed
     if not already:
-        if record:  # a tunnel of an earlier server of this lease
+        if record:  # a tunnel in front of a port this lease no longer serves
             tunnels.stop(home, token)
         try:
             cloudflared = tunnels.obtain_cloudflared(home)
@@ -191,9 +196,9 @@ def unexpose_lease(token, row, cwd):
 
 
 def heal_stale(token, row, cwd):
-    """A tunnel record whose supervisor is gone (the server stopped by a gc, an older plugin
-    version, the owner's session ending) leaves the database frozen on an address that no longer
-    answers: put its base URL back and drop the record. True when it restored one."""
+    """A tunnel record whose supervisor is gone while the lease lives (the machine rebooted,
+    cloudflared crashed) leaves the database frozen on an address that no longer answers: put its
+    base URL back and drop the record. True when it restored one."""
     tunnels = _tunnels()
     home = tools_lease.state_home()
     record = tunnels.read_record(home, token)
@@ -229,15 +234,19 @@ def register(registry, ctx):
         "LEASE_NOT_SERVED). While exposed, the database's web.base.url is the public address and is "
         "frozen, so every link, redirect URI and webhook URL a module builds carries it, and the "
         "running server already uses it; no Odoo user or password is involved. Calling it again while "
-        "exposed returns the same address (already_exposed true) without a second tunnel. The "
-        "address changes every time a tunnel is created, so register it with the third party after "
-        "this call, and keep the tunnel open for the whole scenario. reachable false = the name did "
+        "the lease is exposed returns the same address (already_exposed true) without a second tunnel. "
+        "The address belongs to the lease, not to its server: it stays the same across lease_park, an "
+        "update build and the instance_serve that follows, so register it with the third party once; "
+        "while the server is down the address answers with an error. It ends at lease_release, at "
+        "instance_unexpose, or when the lease is reclaimed (a gc, a capacity reclaim); a tunnel opened "
+        "afterwards gets a new address. A parked lease that is still exposed keeps a cloudflared process "
+        "running: call instance_unexpose once the third party no longer needs the address. "
+        "reachable false = the name did "
         "not answer yet (a new tunnel can take a moment): retry the URL before relying on it. "
         "warnings non-empty = read it. The address is shown wherever the lease is read "
         "(instance_handle.public_url, lease.public_url of instance_status and lease_list). Quick "
         "Tunnel limits: no uptime guarantee, 200 requests in flight at most, no Server-Sent Events. "
-        "The tunnel ends with the server: lease_release, lease_park and a gc all stop it; "
-        "instance_unexpose stops it alone. The first call on a machine without cloudflared fetches "
+        "The first call on a machine without cloudflared fetches "
         "the official release (a few seconds); CLOUDFLARED_UNAVAILABLE means it cannot be had. "
         "TUNNEL_FAILED = cloudflared did not come up (read diagnostics.log_tail; Quick Tunnels are "
         "rate limited, wait a minute).",
@@ -248,7 +257,7 @@ def register(registry, ctx):
         _obj({
             "public_url": {"type": "string", "description": "https://<words>.trycloudflare.com"},
             "already_exposed": {"type": "boolean",
-                                "description": "true = a tunnel was already open for this server; nothing "
+                                "description": "true = a tunnel was already open for this lease; nothing "
                                                "new was started."},
             "reachable": {"type": "boolean",
                           "description": "The public address answered an HTTP request from this machine "
@@ -271,8 +280,9 @@ def register(registry, ctx):
         "Close the public address instance_expose opened for your lease: stops the tunnel and puts "
         "the database's web.base.url back to the lease's local URL (http://localhost:<port>) and "
         "removes the freeze. Nothing to do (was_exposed false) when the lease is not exposed - "
-        "calling it again is safe. You do not need it before lease_release or lease_park: both "
-        "close the tunnel themselves; call it to end the exposure while the server keeps running. "
+        "calling it again is safe. lease_release closes the tunnel itself; lease_park does not - the "
+        "address stays for the life of the lease, so call this when the third party no longer needs "
+        "it, whether the server keeps running or the lease is parked. "
         "base_url_restored false with a warning = the tunnel is stopped but the database could not be "
         "reached to put the base URL back.",
         _obj({"lease_token": LEASE_TOKEN_PROP,

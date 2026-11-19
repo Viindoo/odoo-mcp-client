@@ -187,8 +187,9 @@ explicit `--ttl` carries `ttl_s` of at least 24h, and `heartbeat` keeps refreshi
 only stamp that reader's TTL arm reads. Guard: `tests/test_allocator_cross_version.py`.
 
 A public address (`instance_expose`) adds nothing to a row: its record is a file of its own under
-`$ODOO_AI_HOME/runtime/tunnels/`, and its supervisor ends the tunnel once the lease's server is
-gone, whichever version stopped it (`tests/test_instance_expose.py`).
+`$ODOO_AI_HOME/runtime/tunnels/`, and its supervisor ends the tunnel once the registry holds no
+row of that lease reserving the port it fronts, whichever version deleted or emptied the row
+(`tests/test_instance_expose.py`). The supervisor only reads the registry, without the lock.
 
 Residual gaps while a pre-anchor plugin version (7.0.2 or older) still runs anywhere on the host:
 

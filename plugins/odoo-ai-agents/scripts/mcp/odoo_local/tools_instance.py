@@ -1145,8 +1145,9 @@ def _serve(args, ctx):
         if lease is not None:
             lease = dict(lease, token=None, run_id="")
     if token and row is not None:
-        # A tunnel that died with this lease's earlier server left its database frozen on the old
-        # public address: put the local base URL back before anyone reads the instance.
+        # A tunnel that died while this lease lives (a reboot, a cloudflared crash) left its
+        # database frozen on the old public address: put the local base URL back before anyone
+        # reads the instance. A live tunnel keeps its address across the serve.
         try:
             from . import tools_expose
             tools_expose.heal_stale(token, row, cwd)
