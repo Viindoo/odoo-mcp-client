@@ -6,6 +6,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.15.0] - 2026-11-19
+
+### Added
+
+- A throwaway database can carry a name of the caller's own: `lease_acquire` in mode `ephemeral`
+  honours `db_name` when the name is valid, exists nowhere on the cluster, is declared by no
+  catalog row and is held by no lease (`DB_NAME_REFUSED` with its reason otherwise). The lease is
+  an ordinary ephemeral one: a release drops the database, a park keeps it. An `exclusive`
+  acquire that names a database which does not exist yet is granted with a
+  `database_will_be_created` warning, because no tool drops the database it creates.
+
+### Changed
+
+- The manifest `images` list of a module opens with the designed store cover and goes on with
+  captures of the module's main screens, for the stores that show the whole list as a gallery;
+  a store that shows one image shows the cover. The captures are the English ones already under
+  `static/description/assets/`, written by the store-page work; a module with no screen keeps the
+  cover alone. The reference gate no longer flags a list with more than one entry, and flags an
+  entry after the first that is not a file of `assets/` (#345).
+- The store cover is rendered at 1280x640 and the cover gate refuses one wider than 1280 px: a
+  store shows a cover about 630 px wide, and more pixels only weigh on the page.
+- The reference gate flags a store page that embeds the cover (`PAGE_EMBEDS_COVER`): a store
+  shows the cover above the page, so the page showed it twice. A page a run writes never embeds
+  it; on a page that embedded it before the run, the docs work proposes the capture to put in
+  its place and makes the edit only when the human approves.
+- The public address of `instance_expose` belongs to the lease, not to its server: it stays the
+  same through `lease_park`, an update build and the next `instance_serve`, so an OAuth redirect
+  or a webhook is registered at the third party once. `lease_release`, `instance_unexpose` or a
+  reclaim of the lease closes it; `lease_park` no longer does. While the server is down the
+  address answers with an error.
+- Module docs and the videos they embed are produced before the change's push in an upgrade and
+  a forward-port too, as in a planned change: one push carries code, docs and video links. A
+  product defect seen on a screen while documenting or recording is reported as a finding and
+  goes through the fix loop before the push.
+- The pre-PR lint gate also installs and tags every `test_` module the catalog row loads
+  server-wide, so a deployment's own CI validations run before the push.
+- The system prompts of `odoo-coder` and `odoo-code-reviewer` fit the agent body limit; the
+  reviewer reads its resumed-round procedure from a reference file.
+
+### Fixed
+
+- `odoo-coder` writes, and `odoo-code-reviewer` checks, a group record rule whose `perm_*` flags
+  stay within the access rights of the rule's own group: an omitted flag is set, and the rules
+  of a user's groups are OR-ed, so a rule on a read-only group that keeps `perm_write` widens
+  what a user who also holds a writing group may write (#340).
+- The `odoo-instance` skill no longer promises to drop a database the run did not create: a
+  `drop` is the release of the run's own lease, and any other database is the human's to remove
+  (#341).
+- An unlisted or private upload to a configured channel, the push of the run's own branch and
+  its pull request are covered by the approved plan and wait for no confirmation; the planning
+  gate contract names the actions that do (#343).
+- A database name with a letter outside ASCII is refused at spin-up on every host. Under most
+  UTF-8 locales the shell read the accepted ranges through the locale and let an accented or a
+  full-width letter through, while the same name was refused under the C locale.
+- A tutorial video reaches the module guide: `odoo-doc-illustration` takes `GUIDE VIDEO` beside
+  `VIDEO`, and `odoo-doc-writer` links the video of a guide's language at the end of its
+  overview.
+- A selector wait in a recorded scene ends at the moment the page itself saw the element show.
+  The recorder used to stamp it when its own process heard of it, later than the frame by more
+  than one frame on a busy machine.
+
 ## [8.14.0] - 2026-11-17
 
 ### Added
