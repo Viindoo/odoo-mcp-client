@@ -1,7 +1,8 @@
 # Access Groups Conventions - CORE (all distributions)
 
-CORE Odoo rules for declaring `res.groups` records. Which model a group hangs on depends on the
-series; the `ir.module.category` id derivation and the `implied_ids` mechanism do not.
+Core Odoo rules for declaring `res.groups` records and the record rules of a group. Which model a
+group hangs on depends on the series; the `ir.module.category` id derivation, the `implied_ids`
+mechanism and the record-rule flags do not.
 
 ## Which group model the target series uses
 
@@ -34,7 +35,7 @@ category model, the `res.groups.privilege` record in the privilege model.
 <field name="category_id" ref="base.module_category_<slug>"/>
 ```
 
-Do NOT invent an id. In the category model do NOT omit `category_id` for an application's groups.
+Never invent an id. In the category model an application's groups always carry `category_id`.
 
 - Only `&` and space are transformed - other characters (`.`, `-`, digits) pass through unchanged,
   and repeated underscores are NOT collapsed.
@@ -45,16 +46,6 @@ Do NOT invent an id. In the category model do NOT omit `category_id` for an appl
       <field name="sequence">N</field>
   </record>
   ```
-- Algorithm is ALGORITHMICALLY IDENTICAL v8-v19 (`odoo/modules/db.py::create_categories`,
-  `openerp/modules/db.py` pre-rename - v8-v10 use `'_'.join(map(lambda x: x.lower(), category))`,
-  v11+ use an equivalent genexpr; same output, different source literal). Applies v8-v19.
-
-**Worked examples:**
-
-| Manifest `category` | Derived `category_id` | Source |
-|---|---|---|
-| `Human Resources/Employees` | `base.module_category_human_resources_employees` | core `hr` manifest |
-| `Sales/Sales` | `base.module_category_sales_sales` | core `sale` manifest |
 
 ---
 
@@ -86,9 +77,6 @@ single-select dropdown rendering.
 - Never wire an `implied_ids` cycle. The group's users field is `users`; the group link on
   `res.users`, `ir.ui.view`, `ir.ui.menu` and the actions (`ir.actions.act_window`,
   `ir.actions.server`, `ir.actions.report`) is `groups_id`.
-- Canonical reference (core `hr/security/hr_security.xml`, v17): `group_hr_user` implies
-  `base.group_user`; `group_hr_manager` implies `group_hr_user`; both share
-  `category_id = base.module_category_human_resources_employees`.
 
 ---
 
@@ -98,9 +86,7 @@ A `res.groups` record has NO `category_id`; `privilege_id` points at a `res.grou
 which carries the `category_id` (optional: without one the privilege lands under "Other"). The
 users field is `user_ids`, the transitive implied set `all_implied_ids`, and the group link on
 `res.users`, `ir.ui.view`, `ir.ui.menu` and the actions (`ir.actions.act_window`,
-`ir.actions.server`, `ir.actions.report`) is `group_ids` (not `groups_id`). Source: core `base`
-`models/res_groups.py`, `models/res_groups_privilege.py`, and the user-form widget
-`web/static/src/webclient/res_user_group_ids_field/res_user_group_ids_field.js`.
+`ir.actions.server`, `ir.actions.report`) is `group_ids` (not `groups_id`).
 
 | The groups are | Declare | User form shows |
 |---|---|---|
@@ -134,9 +120,29 @@ users field is `user_ids`, the transitive implied set `all_implied_ids`, and the
 - Chain levels with `implied_ids` from least to most privileged; the select orders a privilege's
   groups by how many of its own groups each implies, then `sequence`. Never wire a cycle.
 - A group name is unique within its privilege (`UNIQUE (privilege_id, name)`).
-- Canonical reference (core `hr/security/hr_security.xml`): `group_hr_user` and `group_hr_manager`
-  share `res_groups_privilege_employees` (category `base.module_category_human_resources`), the
-  manager implying the officer.
+
+## Record rules of a group
+
+A rule with `groups` applies to an operation only where its `perm_*` flag is set, an omitted flag
+is set, and for one operation the rules of all the user's groups are OR-ed. So such a rule grants
+as well as restricts: on a read-only group, a rule that leaves `perm_write` set lets a user who
+also holds a writing group write every record that rule matches.
+
+- Set a flag only for an operation that an access row of the rule's group, or of a group it
+  implies, grants on that model; write every other flag as `False`.
+- Narrow an operation on the rule of the group whose access row grants it, never by a rule on
+  another group.
+
+```xml
+<record id="x_document_rule_reader" model="ir.rule">
+    <field name="model_id" ref="model_x_document"/>
+    <field name="groups" eval="[(4, ref('group_x_reader'))]"/>
+    <field name="domain_force">[('team_id.member_ids', 'in', user.id)]</field>
+    <field name="perm_write" eval="False"/>
+    <field name="perm_create" eval="False"/>
+    <field name="perm_unlink" eval="False"/>
+</record>
+```
 
 ## Two sensitive domains
 

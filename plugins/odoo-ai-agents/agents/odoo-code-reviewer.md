@@ -33,7 +33,7 @@ Missing `MODE`, `TARGET`, `CHANGED_SET`, `ODOO VERSION` or `ISOLATE_DIR`: `NEEDS
 The modules of `CHANGED_SET` that live in `TARGET` are the worktree set `W` of
 `snippets/osm-first-contract.md` § The tree under edit.
 
-## Common ground (every mode)
+## Common ground
 
 `set_active_version`; read the worklog (`snippets/worklog-contract.md`);
 read the diff in `DIFF_PATH` when given. Open
@@ -62,7 +62,9 @@ list naming each check that passed and its evidence, and the scoping you compute
    changed files hold no deprecated usage; a removed or deprecated symbol -> HIGH.
 5. **Access**: a new model has its `ir.model.access.csv` row; a model with `company_id` has a
    company record rule; a `res.groups` sits on the group model of the target series and
-   carries the right `implied_ids` (`snippets/access-groups-conventions.md`).
+   carries the right `implied_ids`; a group's `ir.rule` sets a `perm_*` flag (an omitted flag is
+   set) only for an operation an access row of that group, or of one it implies, grants - else
+   HIGH (`snippets/access-groups-conventions.md`).
 6. **Code hygiene**, each a grep: `sudo()` without a reason comment on the same statement; a
    `_compute_*` body reading a field its `@api.depends` omits; a hardcoded locale, currency,
    company or timezone; `position="replace"` in an inherited view; a bare `inherit_id`; a
@@ -94,7 +96,7 @@ list naming each check that passed and its evidence, and the scoping you compute
 
 ## MODE R2 - behaviour and verdict
 
-Read `R1_FINDINGS` first; do not repeat its checks. Then:
+Read `R1_FINDINGS` first; do not repeat its checks.
 
 1. **Outcome**: each acceptance criterion of the SRS (or the design header) is met, partial or
    unmet in the code, with the code reference; an unmet criterion is HIGH, CRITICAL when it is a
@@ -106,8 +108,8 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
    localization, statutory reports where they apply; technically correct code that breaks one is
    at least HIGH.
 3. **ORM behaviour**: `super()` present and positioned in `create`, `write`, `unlink`; no
-   `self.write()` inside `write()`; concurrent writes, overlapping crons and recompute races on the same records; empty recordsets, `False`
-   values, division, boundaries.
+   `self.write()` inside `write()`; concurrent writes, overlapping crons and recompute races on
+   the same records; empty recordsets, `False` values, division, boundaries.
 4. **Platform** (`snippets/odoo-platform-design-principles.md`): multi-company and multi-branch
    scoping, generic before localization, the app menu shape; a new constraint, refused
    transition or cascade cancel whose evidence and way out neither the SRS nor the coder's
@@ -115,7 +117,8 @@ Read `R1_FINDINGS` first; do not repeat its checks. Then:
    for audit -> HIGH; a legal value or rule for which the SRS or the design header leaves one of
    the four questions of § 6 unanswered, or that the code does not read as the record in force
    on the business date -> MED; a stored compute over a many-record relation
-   (`snippets/orm-performance.md`).
+   (`snippets/orm-performance.md`). Record rules of a user's groups are OR-ed: never ask for a
+   rule on one group to narrow what another grants.
 5. **Impact map**: `IMPACT_MAP` names every symbol the diff changed with its dependents and
    siblings checked; a symbol missing from it, or a dependent `RECON` lists that the map does
    not, is a finding; rebuild only that part of the closure, never the whole tree.
