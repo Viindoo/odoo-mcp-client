@@ -199,7 +199,7 @@ place; the rest keep their order.
   depends_on: [i18n, video]   # video only where the plan has it
   when: the change is user-visible and a changed module ships doc/ or static/description/, or the user asked for module docs
 - id: docs-site   # tagged with the docs repo; lands its own PR; only monitor-site and merge-site follow it
-  approach: odoo-doc-site   # invoked inline with FROM CHANGE = the change file and INSTANCE_HANDLE = the handle docs-module returned (Loop step 3)
+  approach: odoo-doc-site   # invoked inline with FROM CHANGE = the change file; it builds its own capture instance (Loop step 3)
   approach_kind: skill
   depends_on: [docs-module]
   when: a docs site is declared for the product and the change is user-visible, or the user asked for site docs
@@ -297,7 +297,9 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    (`docs-module`) or `FROM CHANGE` (`docs-site`). The two docs nodes capture on different builds
    (`${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md` § One capture instance per build shape):
    `docs-module` takes the `odoo-i18n` export instance when one was handed on, `docs-site` builds
-   its own.
+   its own. A product defect a docs or `video` node reports is a `fix-round` finding: send it to
+   the node's coder before `integrate`, then have only the shots and scenes that show what the
+   fix changed taken again.
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
    file; cherry-pick a source node's range onto `run-integration` through `git-ops`
    (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; a node that lands its own PR is

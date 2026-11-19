@@ -132,7 +132,9 @@ file, re-run the gates of MODE full steps 6-7, and report what changed.
 
 First line `DONE`, `NEEDS_NEXT`, `BLOCKED` or `NEEDS_CONTEXT`; then the absolute path of every
 file written (shared files, `doc/*.rst`, images), the capture-coverage report, the staging
-directory of the captures (`odoo-marketer` reuses them), `concerns`, and the Continuation Contract of
+directory of the captures (`odoo-marketer` reuses them), `concerns`, `findings` (a product defect
+you saw on a screen - an error, a wrong value, a broken layout - with the screen and its capture;
+you report it and never write the guide around it), and the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Prose in `USER LANGUAGE`; paths and
 identifiers verbatim.
 

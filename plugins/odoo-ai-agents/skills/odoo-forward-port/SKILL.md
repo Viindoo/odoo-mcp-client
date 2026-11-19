@@ -93,11 +93,11 @@ Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan
   `references/fp-phase-briefs.md` § P9.5. Never release the verify lease between batches; after the last batch's P10, before P11, call `lease_release` with the `lease_token` and
   `run_id` cached at P9 (`lease_park` only if a named later step needs the database).
 - **P10 Conclude** the merge: ONE commit, full file list. `references/fp-phase-p9-p12.md` § P10.
-- **P11 Acceptance** [MANDATORY]: `odoo-acceptance` once per batch. `references/fp-phase-briefs.md` § P11.
-- **P12 PR + review**: never squash; wait for the human. Code review is MANDATORY when the batch grafts a
-  new engine or mechanism; attribute findings by the FP diff before rating. `references/fp-phase-p9-p12.md` § P12. Then
+- **P11 Acceptance** [MANDATORY]: `odoo-acceptance` once per batch. `references/fp-phase-briefs.md` § P11. Then
   document the ported features per `${CLAUDE_PLUGIN_ROOT}/snippets/docs-after-change.md`
-  (`HAND_ON: odoo-doc-illustration` at P9.5 unless `Docs: none`).
+  (`HAND_ON: odoo-doc-illustration` at P9.5 unless `Docs: none`), committed before the P12 push.
+- **P12 PR + review**: never squash; wait for the human. Code review is MANDATORY when the batch grafts a
+  new engine or mechanism; attribute findings by the FP diff before rating. `references/fp-phase-p9-p12.md` § P12.
 
 ## Model triage
 

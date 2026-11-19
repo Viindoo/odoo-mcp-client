@@ -129,7 +129,8 @@ the file, re-run the gates of MODE landing step 5, and report what changed.
 First line `DONE`, `NEEDS_NEXT`, `BLOCKED` or `NEEDS_CONTEXT`; then the absolute path of every
 file written (page, images, `buyer-profile.md`, the draft), the word and image count of each page
 (`landing`), the capture-coverage report and the store-readiness gaps (`landing`), `concerns`
-(every `<TBD>`, every dropped claim), and the Continuation Contract of
+(every `<TBD>`, every dropped claim), `findings` (a product defect you saw on a screen, with the
+screen and its capture; reported, never written around), and the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Prose in `USER LANGUAGE`; paths and
 identifiers verbatim.
 
