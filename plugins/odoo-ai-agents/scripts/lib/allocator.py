@@ -45,7 +45,11 @@ TTL arm once shed. Guard: tests/test_allocator_cross_version.py.
 
 Modes:
     readonly   - attach a running instance; NO lease (shared, lease-free)
-    ephemeral  - unique throwaway DB (<prefix>_t_<uuid8>); reserves a unique DB name
+    ephemeral  - unique throwaway DB (<prefix>_t_<uuid8>, or the caller's own
+                 `--db-name` when that name is free: not an existing database, not
+                 declared by any catalog row, not held by any lease, a valid name,
+                 and no --no-create - else exit 12 DB_NAME_REFUSED, no lease);
+                 reserves a unique DB name
                  + ports - the DB is created through Odoo by the caller's `-i` run
                  (create-on-init) and dropped through Odoo on release. A raw client
                  drop is the FALLBACK, and it is reached only on the three exits
@@ -58,7 +62,9 @@ Modes:
                  degrading: an ephemeral request either gets an isolated
                  throwaway DB or fails, never an `exclusive` lease on the
                  declared database the caller did not ask for.
-    exclusive  - the declared (or named) DB held under an exclusive lease.
+    exclusive  - the declared (or named) DB held under an exclusive lease. A
+                 named DB that does not exist yet is granted, and ALLOC_DB_ABSENT=1
+                 says so: the build will create it and nothing drops it.
     shared     - a long-lived, NON-exclusive lease for the visual stack's live
                  render server: many readers attach to ONE lease (never blocked),
                  drop_on_release is ALWAYS False (a reclaim removes a dead-server
@@ -374,6 +380,7 @@ acquire exit codes:
     8 REFUSED: Odoo cannot AUTHENTICATE to the cluster                DB_AUTH_DENIED
     9 REFUSED: the cluster did not answer at all                      DB_UNREACHABLE
    10 REFUSED: no --run-id and no --allow-unowned                     RUN_ID_REQUIRED
+   12 REFUSED: `ephemeral --db-name` names a database it cannot grant   DB_NAME_REFUSED
 Every non-zero exit writes NO lease (a capacity reclaim that ran before an exit
 3/4 is persisted and reported - it never drops anything).
 `--mode` accepts ONLY the four values in "Modes" above. `exclusive-running` is a
@@ -411,6 +418,7 @@ import contextlib
 import fcntl
 import json
 import os
+import re
 import shlex
 import signal
 import socket
@@ -1945,6 +1953,46 @@ def _db_present(lease, instances_path=None):
     return None
 
 
+# The accepted database-name class: the SAME rule the spin-up applies through
+# `validate_db_name` (`_DB_NAME_RE` in lib/state_reclaim.sh), spelled once here
+# because this module cannot source a shell file. It is a mirror, not a second
+# rule: tests/test_allocator_chosen_db_name.py compares the two spellings and
+# runs the shell gate and this one over the same names.
+DB_NAME_RE = r"[a-zA-Z0-9][a-zA-Z0-9_.-]+"
+
+# DB_NAME_REFUSED reasons (the keys of its `reasons` table in ERROR_CODES).
+NAME_REASON_NO_CREATE = "no-create"
+NAME_REASON_INVALID = "name-invalid"
+NAME_REASON_CATALOG = "catalog-database"
+NAME_REASON_HELD = "name-held"
+NAME_REASON_EXISTS = "database-exists"
+NAME_REASON_UNDETERMINABLE = "existence-undeterminable"
+
+
+def _is_valid_db_name(name):
+    """True when `name` is an acceptable database name (the whole string, so a
+    trailing newline is refused as the shell gate refuses it)."""
+    return bool(re.fullmatch(DB_NAME_RE, name or ""))
+
+
+def _catalog_declares_db(catalog_items, name):
+    """True when any catalog row declares `name` as its database (a row that
+    declares none uses the default `odoo`, exactly as `acquire` resolves it)."""
+    return any((it.get("db_name") or "odoo") == name for it in catalog_items)
+
+
+def _chosen_name_refusal(name, catalog_items, opts):
+    """The DB_NAME_REFUSED reason that bars a caller-chosen throwaway name before
+    any probe, or None. Pure: it reads only the arguments."""
+    if opts.get("no_create"):
+        return NAME_REASON_NO_CREATE
+    if not _is_valid_db_name(name):
+        return NAME_REASON_INVALID
+    if _catalog_declares_db(catalog_items, name):
+        return NAME_REASON_CATALOG
+    return None
+
+
 def _client_drop_allowed(lease, instances_path=None):
     """(allowed, reason): may this lease's database be dropped over the CLIENT
     surface instead of through Odoo?
@@ -3017,6 +3065,36 @@ ERROR_CODES = {
                        "remedy": "start the cluster"},
     "RUN_ID_REQUIRED": {"rc": 10, "summary": "no --run-id (ownership not established)",
                         "remedy": "pass the run id you were given; never invent one"},
+    "DB_NAME_REFUSED": {"rc": 12, "summary": "the database name chosen for a throwaway cannot "
+                                             "be granted",
+                        "remedy": "choose another --db-name, or omit it for a minted one",
+                        "reasons": {
+                            NAME_REASON_NO_CREATE: {
+                                "summary": "--no-create creates no database, so there is no "
+                                           "throwaway to name",
+                                "remedy": "drop --db-name (or drop --no-create)"},
+                            NAME_REASON_INVALID: {
+                                "summary": "the name is not an accepted database name",
+                                "remedy": "start with a letter or digit, be at least two "
+                                          "characters, and use only letters, digits, "
+                                          "underscore, hyphen and dot"},
+                            NAME_REASON_CATALOG: {
+                                "summary": "the name is a database the instance catalog declares",
+                                "remedy": "choose a name no catalog row declares; to work on the "
+                                          "declared database use --mode exclusive"},
+                            NAME_REASON_HELD: {
+                                "summary": "another lease already holds that database name",
+                                "remedy": "choose another name, or wait for that lease to be "
+                                          "released (see `holders`)"},
+                            NAME_REASON_EXISTS: {
+                                "summary": "a database with that name already exists on the "
+                                           "cluster; a throwaway is never adopted",
+                                "remedy": "choose a name that does not exist yet, or use --mode "
+                                          "exclusive to hold the existing database"},
+                            NAME_REASON_UNDETERMINABLE: {
+                                "summary": "whether the database exists could not be determined",
+                                "remedy": "45-venv.sh record-env, declare db_run_mode, or start "
+                                          "the cluster; or omit --db-name for a minted name"}}},
     "RECLAIM_IN_PROGRESS": {"rc": 11, "summary": "another process is reclaiming this lease",
                             "remedy": "wait for that gc/release to finish, then re-check"},
     "LEASE_NOT_FOUND": {"rc": 1, "summary": "no lease with that token",
@@ -3568,6 +3646,16 @@ def cmd_acquire(opts):
     if mode not in ("ephemeral", "exclusive"):
         sys.stderr.write(f"allocator: unknown --mode {mode!r}\n")
         return _fail("USAGE", 2)
+    # A caller-chosen throwaway name (`ephemeral --db-name X`). The name-only
+    # refusals are decided here, before any probe; the ones that need the cluster
+    # (it exists, or that cannot be told) follow the authentication and CREATEDB
+    # gates, and the one that needs the registry (another lease holds it) is
+    # decided under the lock where the row is written.
+    chosen_name = (opts.get("db_name") or "") if mode == "ephemeral" else ""
+    if chosen_name:
+        name_reason = _chosen_name_refusal(chosen_name, catalog_items, opts)
+        if name_reason:
+            return _fail("DB_NAME_REFUSED", 12, reason=name_reason)
     # P5 port-uniqueness gate: the declared HTTP port is reserved for the
     # shared/declared render target (readonly/shared modes above) and must
     # NEVER be handed out as a pooled ephemeral/exclusive port - not even when
@@ -3670,9 +3758,36 @@ def cmd_acquire(opts):
             return _fail("CREATEDB_UNDETERMINABLE", 7)
 
     if mode == "ephemeral":
-        db_name = f"{prefix}_t_{uuid.uuid4().hex[:8]}"
+        db_name = chosen_name or f"{prefix}_t_{uuid.uuid4().hex[:8]}"
     else:
         db_name = opts.get("db_name") or inst.get("db_name", "odoo")
+
+    # What the name needs from the cluster. An ephemeral lease DROPS its database,
+    # so a chosen name must provably not exist yet - the lease never adopts and
+    # then drops a database it did not create, and "could not look" is never read
+    # as "absent". An exclusive lease on a named database that is provably absent
+    # is granted and flagged: the build will create it and nothing drops it.
+    # Exclusive without --db-name holds the declared database and a catalog-declared
+    # name is the instance's own durable one, so neither is flagged; --no-create
+    # runs no probe at all.
+    db_will_be_created = False
+    probe_name = chosen_name
+    if (mode == "exclusive" and opts.get("db_name") and not opts.get("no_create")
+            and not _catalog_declares_db(catalog_items, opts["db_name"])):
+        probe_name = opts["db_name"]
+    if probe_name:
+        present = _db_present({
+            "db_name": probe_name, "series": instances_io.series_of(inst),
+            "db_host": host, "db_user": user, "db_port": db_port,
+            "python": inst.get("python", ""), "odoo_root": inst.get("odoo_root", ""),
+            "db_run_mode": inst.get("db_run_mode", ""),
+            "db_container": inst.get("db_container", ""),
+            "_pg": {"host": host, "user": user, "port": db_port},
+        }, opts.get("instances"))
+        if chosen_name and present is not False:
+            return _fail("DB_NAME_REFUSED", 12, reason=(
+                NAME_REASON_EXISTS if present else NAME_REASON_UNDETERMINABLE))
+        db_will_be_created = present is False
 
     # NO sweep here (see the GC section header). The only thing an acquire may
     # reclaim is CAPACITY it cannot otherwise get, and only from leases whose
@@ -3701,6 +3816,12 @@ def cmd_acquire(opts):
                 # Persisted at once: the servers are already stopped, whatever the
                 # retry below decides.
                 _write_registry(reg)
+            if chosen_name:
+                # ANY mode: the name is the caller's to drop, so no lease may hold it.
+                held = [lz for lz in reg["leases"] if lz.get("db_name") == chosen_name]
+                if held:
+                    _report_holders(held)
+                    return _fail("DB_NAME_REFUSED", 12, reason=NAME_REASON_HELD)
             if mode == "exclusive":
                 holders = [lz for lz in reg["leases"]
                            if lz.get("mode") == "exclusive" and lz.get("db_name") == db_name]
@@ -3829,6 +3950,8 @@ def cmd_acquire(opts):
     _emit("ALLOC_DB_NAME", db_name)
     _emit("ALLOC_PORTS", ports)
     _emit("ALLOC_RUN_ID", run_id)
+    if mode == "exclusive" and db_will_be_created:
+        _emit("ALLOC_DB_ABSENT", 1)
     _emit_instance_common(inst, addons_csv)
     _announce_lease("acquired", token, run_id)
     return 0

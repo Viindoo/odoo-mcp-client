@@ -12,7 +12,7 @@ operation here. "Active-wait" below means that section; "Step A-D" means the com
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (`on`/`off`; absent means DERIVE per "Demo, languages and server-wide modules"), languages (csv; `en_US` added by the tool), server_wide (optional), addons_path override (optional), `persist` (default `ephemeral`; values: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5), `run_id` (passed on every lease call; NEVER omitted).
+**Inputs:** series, modules (list), demo (`on`/`off`; absent means DERIVE per "Demo, languages and server-wide modules"), languages (csv; `en_US` added by the tool), server_wide (optional), addons_path override (optional), `persist` (default `ephemeral`; values: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5), `db_name` (optional: the brief's own name for the throwaway database, passed to `lease_acquire` as it stands; absent, a name is minted), `run_id` (passed on every lease call).
 
 **Resume before you build (listening `persist:` values only - FIRST).** `lease_find(series, state parked, run_id)`. `found=true` with `yours: true` -> operation 9, resume-instance, on that lease; do NOT acquire. `found=false` is an ordinary answer - build below. A run whose earlier session died finds here the built leases gc parked for it: resume the one this request needs and `lease_release` those it does not - a parked lease holds its ports until its budget lapses. Full ladder: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
 
@@ -26,7 +26,7 @@ Create a new Odoo database with a given module set for a target series.
   3. **Leg 2 - listen.** `instance_serve(lease_token)`, no `profile`. It serves the lease's own database on its own port; `url` is the base URL. A lease with no port is refused (`LEASE_HAS_NO_PORT`) - BLOCK rather than fall back to the declared/`8069` port or a serve by `series`. Check that `served_addons_path` covers the modules you built.
 
   **HARD RULE - three invariants across the leg-1/leg-2 handoff** (a green HTTP probe proves none):
-  1. **The lease mode is `ephemeral`** - never `exclusive` (holds the DECLARED database with no isolation). The lease carries `drop_on_release: true`: `lease_release` DROPS this database. Report the instance as a throwaway; across a gap you intend to return from, use operation 8 (park) then 9 (resume), never release.
+  1. **The lease mode is `ephemeral`** - never `exclusive`, which holds an existing database with no isolation and whose database no tool drops. `lease_release` drops this database. Report the instance as a throwaway; across a gap you intend to return from, use operation 8 (park) then 9 (resume), never release.
   2. **One lease, both legs.** Build and serve on the byte-identical `lease_token` - never a second lease, never a serve by `series`.
   3. **The lease survives between the legs.** Do NOT release, park or gc it between leg 1 and leg 2.
 
@@ -36,11 +36,11 @@ Every build above is driven to a terminal `result` per "Active-wait on long buil
 
 ### 2. drop-instance
 
-Drop an existing Odoo database through Odoo (never raw dropdb).
+Release a lease and drop the database it created, through Odoo.
 
-**Inputs:** the token of a lease THIS dispatch obtained, series. A token that only arrived in your brief is not yours: report that instead of calling. **Check first that a DROP is what the caller wants**: when the instance is finished with for now but its data still wanted, run operation 8, park-instance.
+**Inputs:** the token of a lease this dispatch obtained, series. A token that only arrived in your brief is not yours: report that instead of calling. Check first that a drop is what the caller wants: when the instance is finished with for now but its data still wanted, run operation 8, park-instance.
 
-**Mechanism.** `lease_release(lease_token, run_id)`. It stops the server's whole process group and any build job still running on the lease, then drops the database of an ephemeral lease. `released` = clean teardown; `absent` = already released. `NOT_OWNER`: hand it back to the run that owns it, never work around it. `DROP_FAILED_KEPT`: follow its remedy and release again - never report it as a teardown; if it still fails, report it to the user. A database no lease tracks cannot be dropped through these tools: use the allocator CLI named in the agent's § The odoo-local tools (how every operation runs), never raw `dropdb`.
+**Mechanism.** `lease_release(lease_token, run_id)`. It stops the server's whole process group and any build job still running on the lease, then drops the database of an ephemeral lease; the database of an `exclusive` or `shared` lease stays. `released` = clean teardown; `absent` = already released. `NOT_OWNER`: hand it back to the run that owns it, never work around it. `DROP_FAILED_KEPT`: follow its remedy and release again - never report it as a teardown; if it still fails, report it to the user. A database no lease of yours created is not dropped by any tool, and never with a raw `dropdb`: report it as the human's to remove.
 
 **If the HARNESS refuses the release before it runs:** the agent's § Teardown refused by the harness (operations 2 and 8).
 
@@ -118,7 +118,7 @@ Applies only when `GATE_ROLE: pre-pr-lint-gate`. Resolve and PIN the profile BEF
 1. **Resolve.** Take the brief's `PROFILE:` (already resolved by the dispatching `odoo-instance` skill per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2). Absent: resolve the series' VANILLA profile - `list_available_profiles()`, filter to profiles reporting `<series>`, `profile_inspect(method='summary', name='<candidate>', odoo_version='<series>')` on each to find the one with an empty/root ancestor chain. Exactly one root candidate: pin it. Zero or several: STOP with `status: NEEDS_CONTEXT`, `blocked_reason: which profile to build against is unresolved for <series>`.
 2. **Pin.** `set_active_profile(profile_name='<resolved profile>')` once, AND pass `profile_name='<resolved profile>'` explicitly on every `check_module_exists` call.
 
-Then resolve WHICH modules the gate is made of and probe them exactly as `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` specifies (it owns the candidate set read from the resolved addons path, the scoping and server-wide companion rules, and the stale-index rule that makes a bare probe insufficient). For every module it resolves as present:
+Then resolve WHICH modules the gate is made of and probe them exactly as `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` specifies (it owns the candidate set, the scoping and server-wide companion rules, and the stale-index rule that makes a bare probe insufficient). For every module it resolves as present:
 
 1. UNION it into the build's `modules` list.
 2. Append its tag to `test_tags` (one `/<module>` per resolved module).

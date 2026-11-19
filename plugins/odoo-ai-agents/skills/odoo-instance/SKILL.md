@@ -7,7 +7,7 @@ description: >-
 
 ## Role
 
-Odoo instance lifecycle front door for ALL instance lifecycle operations (create, drop, park, resume, init, update, run-tests, ensure-up, status, load-language) for every Odoo series the index carries - resolve that set with `list_available_versions()`, never from a remembered floor. Use it when the caller already knows the operation parameters; it hands them over and relays a structured `instance-ops` block. The interactive human wizard that writes `instances.toml` is `/odoo-setup`.
+Front door for every instance lifecycle operation, for every Odoo series the index carries - resolve that set with `list_available_versions()`, never from a remembered floor. It hands the caller's parameters over and relays a structured `instance-ops` block.
 
 **Single owner of instance provisioning.** Route every live-instance need here via the Skill tool; never drive the lifecycle yourself. The instance-allocation rules and the HARD RULES (demo by build purpose, the GATE_ROLE-conditioned lint-module install, per-version `cli_help` grounding) apply on every path. A provided `INSTANCE_HANDLE` ALWAYS wins over self-provisioning (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). A bare `lease_acquire` + `instance_build` is never how a caller PROVISIONS an instance. Tearing your OWN lease down at your terminal status - `lease_release` or `lease_park` - is not provisioning and is run directly (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
 
@@ -28,7 +28,7 @@ Gather the parameters from the caller's request; anything strictly required that
 - `operation`: `create` / `drop` / `park` / `resume` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language`. `series`: required for create/init/update/run-tests/resume.
 - `lease_token` (park only, the `INSTANCE_HANDLE`'s field), `park_ttl_s` (park, optional). `park` and `drop` of a lease the CALLER holds run inline (exception (d)), never via `odoo-instance-ops`.
 - A public address for a served instance (`${CLAUDE_PLUGIN_ROOT}/snippets/public-address.md`) is not an `operation`: whoever holds the lease calls `instance_expose` / `instance_unexpose` inline.
-- `persist`: `ephemeral` (default) / `exclusive-running` / `shared-running` (`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5).
+- `persist`: `ephemeral` (default) / `exclusive-running` / `shared-running` (`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5). `db_name` (`create`, optional): a name of the caller's own for the throwaway database, one that does not exist yet; omitted, a name is minted.
 - `run_id`: the caller's run id, passed into every brief and every lease tool as lease owner (`RUN_ID_REQUIRED` otherwise). Never invent one: none given -> `NEEDS_CONTEXT(RUN_ID)`.
 - `PROFILE`: resolve per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2, verbatim) unless the caller passes it. EMPTY: fall through the rungs, else OMIT the field, never `PROFILE: ''`.
 - `modules`: required for `init` / `update` / `run-tests`; a plan node's `modules` list; stand-alone proof and acceptance install the node's modules ONLY (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md`).
@@ -38,7 +38,7 @@ Gather the parameters from the caller's request; anything strictly required that
 - `mode` (`run-tests`): `reuse` whenever the target DB already has the modules (`-u`), `fresh` only for the first install on a new DB (`-i`). `hand_on` (`run-tests` fresh; default `no`): `yes` keeps the lease and forwards its `INSTANCE_HANDLE`. `log_mode`: `info` / `debug` / `sql` (`warn` REFUSED).
 - `fresh_venv` (default `false`; never `true` with a forwarded `INSTANCE_HANDLE`), `languages` (csv; required for `load-language`; the tool adds `en_US`), `skip_auto_install` (default `true` under `context=doc`; an explicit value wins), `context` (`doc` sets `demo=on` + `skip_auto_install=true`), `mode_hint` (`path-incremental` ALWAYS runs INLINE, never via `odoo-instance-ops`), `WORKTREE_PATH` (re-roots the addons list, see below).
 
-**`park` vs `drop`.** `park` KEEPS database, filestore and ports for a later `resume`; `drop` destroys the database. A caller finished FOR NOW but wanting its data gets `park`.
+**`park` vs `drop`.** `park` keeps the database, filestore and ports for a later `resume`. `drop` is the release of a lease this run holds: it destroys the database an `ephemeral` lease created. A caller finished for now but wanting its data gets `park`. A database no lease of this run created is never dropped through these tools: tell the human it is theirs to remove.
 
 **`GATE_ROLE` resolution (by THIS skill before dispatch).** The caller's explicit value wins, forwarded verbatim; none stated: `node-verify`, assumption stated. `pre-pr-lint-gate` only when the caller explicitly identifies itself as that ONE run-level gate, never inferred.
 
@@ -48,13 +48,13 @@ Gather the parameters from the caller's request; anything strictly required that
 
 **Build facts and the agent-side union.** Pass `languages` and (init/create only) `demo` as fields, a different server-wide set as `SERVER_WIDE`, never as extra flags. The agent installs and tags the lint-class modules ONLY under `GATE_ROLE: pre-pr-lint-gate`. `references/dispatch-detail.md` § Build facts the tools apply and the agent-side union.
 
-**Confirmation.** `create`, `init`, `update` and `run-tests` run without asking. Ask in text (`approve / skip / cancel`) only before a `drop` of a database this run did not create; `park` and `resume` never ask.
+**Confirmation.** No operation asks: what a run may drop is only what its own lease created.
 
 **Brief shape.** Launch `odoo-instance-ops` with a worker brief per `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`, filled from `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton plus the agent's family delta (never inline that file into a hard-leaf brief). The full block: `references/dispatch-parameters.md` § Brief shape. Fields:
 
 ```
 OPERATION: SERIES: PROFILE: (omit when empty) MODULES: DEMO: (init/create) TEST_TAGS: MODE: LOG_MODE:
-FRESH_VENV: PERSIST: HAND_ON: LEASE_TOKEN: PARK_TTL_S: (park) LANGUAGES: SERVER_WIDE: (only when named)
+FRESH_VENV: PERSIST: DB_NAME: (create, only when named) HAND_ON: LEASE_TOKEN: PARK_TTL_S: (park) LANGUAGES: SERVER_WIDE: (only when named)
 SKIP_AUTO_INSTALL: CONTEXT: WORKTREE_PATH:
 GATE_ROLE: <pre-pr-lint-gate|node-verify>   # REQUIRED for run-tests / test-enable init/update
 INSTANCE_HANDLE: <the caller's handle, verbatim; omit when none>

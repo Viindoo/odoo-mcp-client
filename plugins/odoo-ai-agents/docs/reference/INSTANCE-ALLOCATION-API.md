@@ -174,6 +174,7 @@ Every non-zero exit names one code with one exit code. Remedies are the CLI's; t
 | `RUN_ID_REQUIRED` | 10 | no `--run-id` (ownership not established) | pass the run id you were given; never invent one |
 | `RECLAIM_IN_PROGRESS` | 11 | another process is reclaiming this lease | wait for that gc/release to finish, then re-check |
 | `LEASE_ADDONS_MISMATCH` | 12 | the parked lease's addons_path is not the caller's tree (`adopt`) | `lease_find` with `addons_path` set to that row's addons_path resumes it deliberately; otherwise acquire your own lease for this tree |
+| `DB_NAME_REFUSED` | 12 | the `--db-name` of an `ephemeral` acquire cannot name its throwaway; `fields.reason` is `name-invalid`, `catalog-database`, `name-held` (see `holders`), `database-exists`, `existence-undeterminable` or `no-create` | pass a valid name that is free and that no catalog row declares; to work on an existing database acquire `exclusive` |
 
 Every non-zero `acquire` exit writes NO lease (a capacity reclaim before an exit 3/4 persists and
 drops nothing). `--mode exclusive-running` exits 2: that `persist:` value maps onto `ephemeral`
@@ -183,18 +184,24 @@ acquired `exclusive` or `shared`.
 ### 6.1 DB lifecycle ownership (caller-side create, through-Odoo drop)
 
 An `ephemeral` acquire reserves a unique database name + ports but does NOT create the database.
-The caller's first `-i <modules>` run creates it (`instance_build` op `init`, or op `test` with mode
-`fresh`), under the memory cap owned by
+The name is minted (`<prefix>_t_<hex8>`), or it is the caller's `--db-name` when that name is
+valid, exists nowhere on the cluster, is declared by no catalog row and is held by no lease
+(`DB_NAME_REFUSED` otherwise). The caller's first `-i <modules>` run creates it (`instance_build`
+op `init`, or op `test` with mode `fresh`), under the memory cap owned by
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 On `release` / `gc` the allocator drops it through Odoo (`scripts/lib/odoo_db.py`, the lease's
 venv). The `db_run_mode` client surface is the logged last resort, ONLY when the Odoo route never
 reached the database (`odoo_db.py` exit 8, 9, 10) AND the name is a throwaway `<prefix>_t_<hex8>`; an
 attempted, failed drop keeps database and lease. The drop surface is re-resolved on every attempt
-(GUARDS §6.7).
+(GUARDS §6.7). A caller-named throwaway does not carry that shape: it is dropped through Odoo
+only, and `reap-orphans` never lists it.
 
 **Consumer contract.** Ephemeral: acquire -> `-i <modules>` -> use -> release. A populated
-database (a `-u` reload, a server on existing data) is leased `exclusive`.
+database (a `-u` reload, a server on existing data) is leased `exclusive`, and no release drops
+it. An `exclusive` acquire that names a database which does not exist yet is granted with
+`ALLOC_DB_ABSENT=1` (the tool's `database_will_be_created` warning): the build creates a database
+that stays until a human removes it.
 
 ### 6.6 Acquire refusals - exits 6, 7, 8 and 9, never a degrade
 

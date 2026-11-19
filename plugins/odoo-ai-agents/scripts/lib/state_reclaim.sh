@@ -104,7 +104,10 @@ odoo_ai_scratch_dir() {
 #   createdb-through-Odoo there accepts whatever a quoted Postgres identifier
 #   accepts - so v8 is, if anything, MORE permissive than this class, never
 #   less.) This is the SSOT both validate_db_name and
-#   prune_stale_run_artifacts read; do not re-spell the class anywhere else.
+#   prune_stale_run_artifacts read; do not re-spell the class anywhere else. The one
+#   exception is `DB_NAME_RE` in allocator.py, which cannot source this file and
+#   gates the name of `acquire --mode ephemeral --db-name`; a change here is made
+#   there too (tests/test_allocator_chosen_db_name.py fails on any difference).
 #
 #   Why exactly this class: db_name comes from a CLI arg, instances.toml, or
 #   the literal default "odoo" (50-instance-spinup.sh, where it is resolved)
