@@ -175,6 +175,9 @@ validate_db_name() {
         echo "  set db_name (--db-name, or db_name in instances.toml)." >&2
         return 1
     fi
+    # Byte-wise match: a bracket range such as a-z follows the locale's collation, and under most
+    # UTF-8 locales it also takes accented and full-width letters.
+    local LC_ALL=C
     if [[ ! "$name" =~ $_DB_NAME_RE ]]; then
         echo "" >&2
         echo "x BLOCKED: db_name '$name' is not an accepted database name: it" >&2
