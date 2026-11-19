@@ -80,11 +80,28 @@ ACCEPTED_CLASS_TEXT = "[A-Za-z0-9_.-]"
 # ---------------------------------------------------------------------------
 
 
-def _validate_db_name(name: str) -> subprocess.CompletedProcess:
+def wide_range_locale() -> str | None:
+    """A locale of this host in which bash reads the range `a-z` through the collation order, so
+    that it takes an accented letter too - the locale a host must run under for a gate that
+    trusted its ranges to let a non-ASCII name through. None when the host has no such locale."""
+    listed = subprocess.run(["locale", "-a"], capture_output=True, text=True, timeout=10).stdout.split()
+    for loc in listed:
+        if "utf" not in loc.lower():
+            continue
+        probe = subprocess.run(["bash", "-c", '[[ "é" =~ ^[a-z]$ ]]'], capture_output=True,
+                               env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LC_ALL": loc}, timeout=10)
+        if probe.returncode == 0 and not probe.stderr:
+            return loc
+    return None
+
+
+def _validate_db_name(name: str, locale: str | None = None) -> subprocess.CompletedProcess:
     """Invoke `validate_db_name "$name"` in isolation, passing `name` through an env var so no
     shell ever re-parses it - a newline/space/glob probe must reach the function byte-for-byte,
-    not get mangled by quoting."""
+    not get mangled by quoting. `locale` runs the shell under that locale."""
     env = dict(os.environ)
+    if locale:
+        env["LC_ALL"] = locale
     env["DB_NAME_UNDER_TEST"] = name
     script = f'source "{STATE_RECLAIM}"; validate_db_name "$DB_NAME_UNDER_TEST"'
     return subprocess.run(
@@ -176,6 +193,36 @@ def test_validate_db_name_accepts_every_must_not_catch_shape(shape, name):
         f"existing instance. stderr:\n{res.stderr}"
     )
     assert res.stderr == "", f"an accepted name must print nothing to stderr:\n{res.stderr}"
+
+
+# The accepted class is ASCII, as Odoo's own pattern is. A shell reads a bracket range through the
+# locale, so the same names are judged under a locale whose ranges reach past ASCII.
+_NOT_ASCII = [
+    ("accented first letter", "é1"),
+    ("accented later letter", "aéb"),
+    ("letter outside Latin-1", "đb1"),
+    ("full-width letter", "ａb"),
+    ("superscript digit", "a²b"),
+]
+
+
+@requires_bash
+@pytest.mark.parametrize("shape,name", _NOT_ASCII, ids=[s for s, _ in _NOT_ASCII])
+def test_a_name_outside_ascii_is_refused_whatever_locale_the_host_runs_under(shape, name):
+    locale = wide_range_locale()
+    if locale is None:
+        pytest.skip("this host has no locale whose ranges reach past ASCII")
+    res = _validate_db_name(name, locale)
+    assert res.returncode != 0, f"a {shape} ({name!r}) was accepted under {locale}"
+
+
+@requires_bash
+@pytest.mark.parametrize("shape,name", _MUST_NOT_CATCH, ids=[s for s, _ in _MUST_NOT_CATCH])
+def test_an_ascii_name_is_accepted_whatever_locale_the_host_runs_under(shape, name):
+    locale = wide_range_locale()
+    if locale is None:
+        pytest.skip("this host has no locale whose ranges reach past ASCII")
+    assert _validate_db_name(name, locale).returncode == 0, f"a {shape} ({name!r}) was refused under {locale}"
 
 
 # ---------------------------------------------------------------------------

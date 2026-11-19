@@ -20,6 +20,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
+from test_db_name_validation import wide_range_locale  # noqa: E402
 from test_allocator import (  # noqa: E402
     INSTANCES_TOML, _env_with_fake_venv, _import_allocator, _leases, _parse_alloc, _run,
 )
@@ -165,16 +166,17 @@ def test_the_allocator_accepts_exactly_the_database_names_the_spinup_gate_accept
         if line.startswith("_DB_NAME_RE="):
             shell_re = line.split("=", 1)[1].strip().strip("'")
     assert shell_re == "^" + alloc.DB_NAME_RE + "$", "the two spellings of the rule differ"
-    # Bash reads a bracket range through the locale's collation, so the comparison is made in the
-    # C locale, where [a-zA-Z] is the ASCII range the rule means.
+    # The two must agree under every locale: the C locale, and one whose bracket ranges reach past
+    # ASCII when the host has one.
     names = ["ab", "a", "", "-x", ".x", "_x", "x y", "x/y", "x;y", "ok_1.2-3", "A9", "9A",
              "x\n", "é1", "a*", "ab\nc"]
-    for name in names:
-        gate = subprocess.run(["bash", "-c", 'source "$1"; validate_db_name "$2"', "_",
-                               str(LIB / "state_reclaim.sh"), name],
-                              capture_output=True, text=True,
-                              env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}).returncode == 0
-        assert alloc._is_valid_db_name(name) is gate, "disagreement on %r" % name
+    for locale in filter(None, ("C", wide_range_locale())):
+        for name in names:
+            gate = subprocess.run(["bash", "-c", 'source "$1"; validate_db_name "$2"', "_",
+                                   str(LIB / "state_reclaim.sh"), name],
+                                  capture_output=True, text=True,
+                                  env={"PATH": "/usr/bin:/bin", "LC_ALL": locale}).returncode == 0
+            assert alloc._is_valid_db_name(name) is gate, "disagreement on %r under %s" % (name, locale)
 
 
 def test_an_exclusive_acquire_on_a_named_database_that_does_not_exist_yet_is_granted_and_flagged(
