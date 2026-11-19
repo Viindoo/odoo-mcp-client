@@ -1,16 +1,17 @@
 # Backend lint-class gate - module selection
 
-This snippet decides WHICH modules make up the backend code-quality gate and how a run of them is
-read. WHETHER the gate runs on a dispatch is owned by `GATE_ROLE` (`odoo-instance-ops` § Lint modules).
+Which modules make up the backend code-quality gate and how a run of them is read. Whether the
+gate runs on a dispatch is owned by `GATE_ROLE` (`odoo-instance-ops` § Lint modules).
 
 ## Candidate set
 
 Odoo core `test_lint` (its series presence: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-build-facts.md`
-§ Backend lint-class gate), plus every lint-class module the resolved addons path SHIPS: a module
-whose technical name starts with `test_` and whose tests run flake8 or pylint. Find them by reading
-the resolved addons path, never from memory.
+§ Backend lint-class gate); every lint-class module the resolved addons path ships (its technical
+name starts with `test_` and its tests run flake8 or pylint); and every `test_` module the catalog
+row loads server-wide: the deployment's CI support, whose own tests run on each CI build. Find
+them by reading the addons path and the lease's `server_wide_modules`, never from memory.
 
-## Selection - run every step, in order
+## Selection, in order
 
 1. List the candidates for the target series and addons path.
 2. Confirm each with `check_module_exists(name='<module>', odoo_version='<series>',
@@ -30,9 +31,9 @@ A finding is this PR's only when it points into one of the PR's modules; anywher
 state, listed in `notes`, never in the verdict.
 
 - A finding in a PR module -> `tests-failed`.
-- An unscoped candidate that failed ONLY on repo-state findings, while at least one SCOPED candidate
-  installed, loaded its tests and passed: informational, recorded in `notes`. The scoped candidate's
-  verdict covers the PR's modules, so the gate is not held by debt the PR did not add.
+- An unscoped candidate that failed only on repo-state findings, while at least one scoped
+  candidate installed, loaded its tests and passed: informational, recorded in `notes` - the
+  scoped verdict covers the PR's modules.
 - Any other lint test that failed only on repo-state findings (no scoped candidate passed, or none
   exists): `tests-inconclusive`, never green and never this PR's `tests-failed`.
 
@@ -45,12 +46,11 @@ deployment fact: the catalog row's `server_wide_modules` (set through `/odoo-ai-
 step `46-server-wide`), or the dispatch's `SERVER_WIDE` `include` for one run. A companion that is
 not loaded makes the gate `tests-inconclusive`.
 
-## A probe is not proof - the index can be stale (HARD RULE)
+## A probe is not proof - the index can be stale
 
 `check_module_exists` answers from the revision it indexed, so it can confirm a module the addons
-path no longer ships: that name installs nothing, its tag matches nothing, and the run reports a
-FALSE GREEN. The addons path decides the module; after the run, § Coverage evidence decides whether
-each tagged module really ran.
+path no longer ships: that name installs nothing, its tag matches nothing, and the run is falsely
+green. The addons path decides the module; § Coverage evidence decides whether each one ran.
 
 ## Coverage evidence
 
