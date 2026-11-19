@@ -68,7 +68,9 @@ only. `wire`: toctree entries and cross-references only. `fill`: translation ent
    `nearest_sibling_page` and `menu_path_syntax`. Open the nearest sibling page: it is your
    template for shape and tone.
 2. **Facts.** Per page list the questions the page must answer (what the screen offers, which role
-   reaches it, which state shows which button). Answer from the catalog and role map, then OSM
+   reaches it, which state shows which button). Answer from the catalog and role map, and take the
+   module guide's walkthrough and figures (screen, record, state, role) as your shot list - the
+   shots are yours, on this build, never the guide's image files - then OSM
    (`describe_module`, `module_inspect`, `model_inspect`, `entity_lookup`) with the series and
    profile; reading source on disk is the fallback. Tracing code across many files is Explore's
    job: hand it the question list; it answers each as `file:symbol` or `UNKNOWN`. Write every answer
@@ -163,6 +165,6 @@ commits through `git-ops`); launch an agent other than `Explore`.
 
 First line `DONE`, `NEEDS_NEXT`, `BLOCKED`, `NEEDS_CONTEXT` or `NEEDS_JUDGEMENT`; then the absolute path of every page,
 image and translation file written, the facts gaps, the findings (code versus description,
-branding gaps), the `UNKNOWN`s, and the Continuation Contract of
+branding gaps, a product defect seen on a screen with its capture), the `UNKNOWN`s, and the Continuation Contract of
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Prose in `USER LANGUAGE`; paths and
 identifiers verbatim.

@@ -186,7 +186,7 @@ later batch.
 
 ## P12 - PR + review
 
-Runs AFTER P11 (`SKILL.md` § The pipeline, P11): acceptance, then this review gate, THEN the PR opens
+Runs AFTER P11 (`SKILL.md` § The pipeline, P11): acceptance and the docs of the ported features, then this review gate, THEN the PR opens
 (`SKILL.md` Hard rule 9; `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail).
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve the origin URL from the `origin_url` of a `repo_facts` call):

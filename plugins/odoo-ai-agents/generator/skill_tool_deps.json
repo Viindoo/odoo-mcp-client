@@ -1804,7 +1804,7 @@
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
         "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
         "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; SELF_PROVISIONS its own demo-loaded export instance - the P9 verify instance is built without demo and cannot serve an export - its result is presented at the P12 PR gate)",
-        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per snippets/docs-after-change.md, for the modules installable at the target; module docs commit onto the same PR's branch)",
+        "odoo-doc-illustration / odoo-doc-site (Skill tool; before the push that opens the PR, per snippets/docs-after-change.md, for the modules installable at the target; module docs are committed on the change's branch)",
         "odoo-doc-site (Skill tool; the docs-site lane - references/fp-docs-site-lane.md - with WORKTREE = the integration worktree and LAND: caller: it re-verifies the ported pages, runs the build gates and the browser acceptance and returns its files for the one merge commit)"
       ],
       "stack": "fullstack",
@@ -1858,7 +1858,7 @@
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)",
         "odoo-acceptance (P5.8 acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole cluster, gates alongside the P6 sign-off)",
         "odoo-i18n (P5.7 catalog reconcile via the Skill tool; MANDATORY for every surviving module, narrow-escape only; reuses the P5 instance, folds its result into the P6 sign-off)",
-        "odoo-doc-illustration / odoo-doc-site (Skill tool; after the PR is presented, per snippets/docs-after-change.md, for the modules installable at the target; module docs commit onto the same PR's branch)"
+        "odoo-doc-illustration / odoo-doc-site (Skill tool; before the push that opens the PR, per snippets/docs-after-change.md, for the modules installable at the target; module docs are committed on the change's branch)"
       ],
       "stack": "fullstack",
       "instance_touching": true,

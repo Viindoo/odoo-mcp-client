@@ -50,22 +50,22 @@ with `return_to` is under its caller's gate.
 
 1. Before the plan exists, every human question - intent, scope, approach, the SRS and design
    reviews - is a text question with the reply words above; `odoo-intake` never enters Plan Mode.
-   Before any gate the owner reads the artifact and its review in full, settles every question a
-   rule already answers, and asks only those with two materially different readings, each with a
-   recommendation and a default. A gate presents
-   the current state with its evidence (file and symbol), each option's consequence per role (who
-   does, sees and pays what) and a reasoned recommendation.
+   A gate presents the current state with its evidence (file and symbol), each option's
+   consequence per role (who does, sees and pays what) and a recommendation.
 2. The owner authors its plan first (a plan written only under the state root needs no open Plan
    Mode, and no agent that writes there is launched while Plan Mode is open), then calls
    `EnterPlanMode`, presents it, and calls `ExitPlanMode` on approval - before any branch,
    worktree, git-tracked write or deletion. A rejected `ExitPlanMode` leaves Plan Mode open: fold
-   the `refine` into the harness plan file and present again. The plan names the documentation target
-   when the run documents, and every outward or irreversible action it will take.
+   the `refine` into the harness plan file and present again. The plan names the documentation
+   target when the run documents, and every action of rule 4 it will take.
 3. Under an approved plan nothing enters Plan Mode again and no node or phase stops for approval;
    a skill that owns a gate when standalone writes its plan into its report instead.
-4. A confirmation before an outward or irreversible action - send, publish, merge, push, delete -
-   is a text question with the reply words above. Removing what the run itself created is
-   cleanup, not such an action.
+4. An outward or irreversible action waits for a text question with the reply words above:
+   merging a pull request, a push to or a deletion of a protected branch, making something
+   public, a message to a person outside the run, deleting what the run did not create. The
+   approved plan covers the rest without a question: the push of the run's own branch and its
+   pull request, an unlisted or private upload to a configured channel
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md`), removing what the run itself created.
 5. `EnterPlanMode` and `ExitPlanMode` are main-context tools; a subagent never calls them.
 6. No approved plan and the work needs several steps: stop and invoke `odoo-planning`; its gate
    is the request's one approval.
@@ -82,5 +82,4 @@ after `odoo-solution-design` and consumes its approved output.
 An executor handed an approved plan follows its `depends_on` order, its module set and its
 per-node skill exactly. A drift from it - a dependency the plan's DAG did not declare, a module
 the plan lacks, a node whose real work needs another skill - stops the executor and goes back to
-`odoo-planning` (rule 7), which re-renders the DAG. The executor never improvises an edge, a
-module or a skill assignment.
+`odoo-planning` (rule 7), which re-renders the DAG.
