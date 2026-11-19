@@ -168,9 +168,10 @@ Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
 - **A lease may carry a temporary public address.** `instance_expose` / `instance_unexpose`
   (`scripts/mcp/odoo_local/tools_expose.py`, `scripts/lib/tunnel.py`) open and close a Cloudflare
   Quick Tunnel to the lease's HTTP port and point the database's `web.base.url` at it. The record
-  is a file of its own under the state root, never a field of the registry row, and a supervisor
-  ends the tunnel when the server is gone, so a server stopped by an older plugin version leaves
-  nothing behind. Every server the spin-up launches runs with Odoo's database manager off (the
+  is a file of its own under the state root, never a field of the registry row. The address
+  belongs to the lease, so it is the same across park, update and serve: a supervisor reads the
+  registry (no lock, no write) and ends the tunnel once no row of that lease reserves the port it
+  fronts, so a lease released or reclaimed by an older plugin version leaves nothing behind. Every server the spin-up launches runs with Odoo's database manager off (the
   option's spelling is read from the checkout). Nothing gates an exposure: an agent opens one
   when the human is remote or it is asked for (`snippets/public-address.md`).
 - **One image command.** `scripts/lib/image_sheet.py` builds a contact sheet and reads image

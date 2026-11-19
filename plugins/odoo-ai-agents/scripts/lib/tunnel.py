@@ -11,26 +11,35 @@ What lives where
   <state root>/tools/cloudflared/cloudflared    the binary this module fetched (a copy on PATH wins)
   <state root>/runtime/tunnels/<sha256(token)[:32]>.json
                                                 one record per exposed lease: the address, the
-                                                supervisor's pid + fingerprint, the server's pid +
-                                                fingerprint, the log path. The lease registry is
-                                                never touched, so a plugin version that predates
-                                                tunnels reads and writes its rows exactly as before.
+                                                supervisor's pid + fingerprint, the port it fronts,
+                                                the pid + fingerprint of the server it was opened for
+                                                (informational: the tunnel does not follow it), the
+                                                log path. The lease registry is never written, so a
+                                                plugin version that predates tunnels reads and writes
+                                                its rows exactly as before.
   <state root>/logs/tunnel-<db>-<time>.log      cloudflared's own output (the address is read from it)
 
-The tunnel never outlives the server it fronts, whoever stops that server
-  cloudflared runs under a SUPERVISOR (`tunnel.py supervise`, its own session and process group)
-  that watches the server's pid and fingerprint and stops cloudflared the moment the server is gone.
-  A release, a park, a gc, an owner session that ended, or a plugin version that has never heard of
-  tunnels all stop the server by signalling its process group, and none of them needs to know the
-  supervisor exists. (Joining the server's own group is not possible: setpgid() refuses a group of
-  another session, and the server leads its own session.) The supervisor also stops when it is
-  signalled, so `stop()` is one group signal, and cloudflared itself is told to die with its parent.
+The tunnel lives as long as its LEASE keeps the port it fronts
+  cloudflared runs under a SUPERVISOR (`tunnel.py supervise`, its own session and process group).
+  The address stays the same while the server stops and starts again on the lease's reserved port (a
+  park, an update build, a crash): while the server is down the address answers with an error. The
+  supervisor reads the lease registry (<state root>/runtime/leases.json) without its lock - the file
+  is replaced by an atomic rename, so a read is never partial - and stops cloudflared when
+    - a successful read shows no row for the lease (a release or a gc, by ANY plugin version, deletes
+      the row; none of them needs to know the supervisor exists), or
+    - that row no longer reserves the port the tunnel fronts (a capacity reclaim empties the row's
+      ports and may hand the port to another lease), or
+    - cloudflared exits by itself, or the supervisor is signalled (`stop()` is one group signal).
+  A registry that cannot be read or parsed is "unknown": the supervisor keeps running and never
+  repairs or renames the file. It recognises its row by `sha256(token)[:32]`, so the lease token (a
+  capability) never appears on a command line. cloudflared itself is told to die with its parent.
 
-A record is trusted only while its supervisor is alive (pid + fingerprint): a tunnel that died, or a
-record an older plugin version's release left behind, reads as "not exposed".
+A record is trusted only while its supervisor is alive (pid + fingerprint): a tunnel that died (the
+machine rebooted, cloudflared crashed) reads as "not exposed", and the next instance_serve of its
+lease puts the local base URL back.
 
 CLI (the supervisor, started by `start()`):
-  tunnel.py supervise --server-pid N [--server-fp FP] --log PATH -- <cloudflared command line>
+  tunnel.py supervise --registry PATH --lease-hash H --port N --log PATH -- <cloudflared command line>
 """
 
 import contextlib
@@ -294,31 +303,67 @@ def _terminate(child, grace=2.0):
             child.wait(timeout=5)
 
 
+def registry_path(home):
+    """The lease registry the allocator keeps (<state root>/runtime/leases.json). Read-only here."""
+    return os.path.join(home, "runtime", "leases.json")
+
+
+def lease_holds_port(registry, lease_hash, port):
+    """Whether the lease whose token hashes to `lease_hash` still reserves `port`: True, False (no
+    row for it, or its row no longer reserves the port), or None when the registry cannot be read or
+    parsed. Read-only and lock-free: nothing here writes, repairs or renames the registry."""
+    try:
+        with open(registry, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    rows = data.get("leases") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return None
+    unknown = False
+    for row in rows:
+        token = row.get("token") if isinstance(row, dict) else None
+        if not isinstance(token, str) or token_hash(token) != lease_hash:
+            continue
+        ports = row.get("ports")
+        if not isinstance(ports, list):
+            unknown = True
+        elif any(isinstance(p, int) and not isinstance(p, bool) and p == port for p in ports):
+            return True
+    return None if unknown else False
+
+
+_SUPERVISE_USAGE = ("usage: tunnel.py supervise --registry PATH --lease-hash H --port N --log PATH "
+                    "-- CMD...\n")
+
+
 def supervise(argv):
-    """The supervisor: run the cloudflared command line after `--`, and stop it when the server
-    (pid + fingerprint) is gone, when it exits by itself, or when this process is signalled.
-    Exit code: cloudflared's own when it exited first, else 0."""
-    server_pid, server_fp, log_path, cmd = None, None, None, None
+    """The supervisor: run the cloudflared command line after `--`, and stop it when the lease is
+    gone from the registry or no longer reserves `port`, when it exits by itself, or when this
+    process is signalled. Exit code: cloudflared's own when it exited first, else 0."""
+    registry, lease_hash, port, log_path, cmd = None, None, None, None, None
     i = 0
     while i < len(argv):
         a = argv[i]
         if a == "--":
             cmd = argv[i + 1:]
             break
-        if a == "--server-pid" and i + 1 < len(argv):
-            server_pid = int(argv[i + 1])
-            i += 2
-        elif a == "--server-fp" and i + 1 < len(argv):
-            server_fp = argv[i + 1]
-            i += 2
-        elif a == "--log" and i + 1 < len(argv):
-            log_path = argv[i + 1]
+        if a in ("--registry", "--lease-hash", "--port", "--log") and i + 1 < len(argv):
+            value = argv[i + 1]
+            if a == "--registry":
+                registry = value
+            elif a == "--lease-hash":
+                lease_hash = value
+            elif a == "--port":
+                port = int(value)
+            else:
+                log_path = value
             i += 2
         else:
             sys.stderr.write("tunnel.py supervise: unknown argument %r\n" % a)
             return 2
-    if server_pid is None or not log_path or not cmd:
-        sys.stderr.write("usage: tunnel.py supervise --server-pid N [--server-fp FP] --log PATH -- CMD...\n")
+    if not registry or not lease_hash or port is None or not log_path or not cmd:
+        sys.stderr.write(_SUPERVISE_USAGE)
         return 2
     stopping = []
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
@@ -337,7 +382,7 @@ def supervise(argv):
             code = child.poll()
             if code is not None:
                 return code
-            if not process_alive(server_pid, server_fp):
+            if lease_holds_port(registry, lease_hash, port) is False:
                 break
             time.sleep(WATCH_POLL_S)
     finally:
@@ -390,8 +435,7 @@ def is_alive(record):
 
 def live_record(home, token):
     """The record of a lease's tunnel while its supervisor runs; None otherwise (never exposed, the
-    tunnel died, or a release by an older plugin version stopped the server and with it the
-    supervisor)."""
+    tunnel died, or the lease is gone and its supervisor with it)."""
     record = read_record(home, token)
     return record if is_alive(record) else None
 
@@ -485,10 +529,12 @@ _REAPERS = []
 
 
 def start(home, token, server_pid, http_port, db_name, cloudflared, env=None, timeout=None):
-    """Start the tunnel of the lease's server and return its record once the address is known.
+    """Start the tunnel in front of the lease's port `http_port` and return its record once the
+    address is known. `server_pid` is the server running now; it is recorded and not followed.
 
     The supervisor is a session of its own (a signal to the server's group never reaches it, and its
-    own group is one `kill_group` away). The record is written as soon as the address is printed.
+    own group is one `kill_group` away). It is told which row to watch by the hash of the token, never
+    the token. The record is written as soon as the address is printed.
     TunnelError TUNNEL_FAILED, with the end of cloudflared's output, when it exits first or prints
     no address within `timeout`; nothing is left running then."""
     if timeout is None:
@@ -502,10 +548,8 @@ def start(home, token, server_pid, http_port, db_name, cloudflared, env=None, ti
     log_path = os.path.join(logs, "tunnel-%s-%s.log" % (re.sub(r"[^A-Za-z0-9_.-]", "_", db_name or "db"), stamp))
     server_fp = session_anchor.fingerprint(server_pid)
     cmd = [cloudflared, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:%d" % int(http_port)]
-    argv = [sys.executable, os.path.abspath(__file__), "supervise", "--server-pid", str(server_pid)]
-    if server_fp:
-        argv += ["--server-fp", server_fp]
-    argv += ["--log", log_path, "--"] + cmd
+    argv = [sys.executable, os.path.abspath(__file__), "supervise", "--registry", registry_path(home),
+            "--lease-hash", token_hash(token), "--port", str(int(http_port)), "--log", log_path, "--"] + cmd
     proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             env=env, start_new_session=True)
     # The supervisor is this process's child: reap it when it exits, or it would stay a zombie.
@@ -568,7 +612,7 @@ def wait_reachable(url, timeout=None):
 def main(argv):
     if argv and argv[0] == "supervise":
         return supervise(argv[1:])
-    sys.stderr.write("usage: tunnel.py supervise --server-pid N [--server-fp FP] --log PATH -- CMD...\n")
+    sys.stderr.write(_SUPERVISE_USAGE)
     return 2
 
 

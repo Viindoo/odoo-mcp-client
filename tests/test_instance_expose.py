@@ -16,8 +16,10 @@ Contracts protected:
   - while exposed the address is visible in the tool result, the instance handle, instance_status
     and lease_list; the database holds web.base.url = the address and the freeze; unexpose puts the
     local URL back, removes the freeze and stops the tunnel;
-  - the tunnel never outlives the server: a release, a park, a server stopped by a plugin version
-    that knows nothing of tunnels, a killed server - no tunnel process is left;
+  - the address lives as long as its LEASE keeps the port it fronts: it survives a park, a killed
+    server and the instance_serve that follows (same address, no second tunnel); it ends at release,
+    at unexpose, and by itself when the lease row is deleted (by any plugin version) or loses the
+    port; an unreadable registry never ends it; the token is never on a command line;
   - cloudflared comes from PATH, else the tools directory, else the official release (fetched once);
     a machine that cannot get it receives CLOUDFLARED_UNAVAILABLE with a remedy;
   - a server launched for a lease has Odoo's database manager turned off, in the spelling the
@@ -87,6 +89,13 @@ def machine(world):
         """) % (params_log, fail), 1)
     assert "set-params" in text
     python.write_text(text, encoding="utf-8")
+    # The stand-in server keeps its command line (`-c <conf> -d <db>`), as a real odoo-bin does: a
+    # server that replaced it with `sleep` could never be proven the lease's own when a parked
+    # lease is served again, and the allocator refuses to resume one it cannot prove.
+    odoo_bin = world["odoo_bin"]
+    body = odoo_bin.read_text(encoding="utf-8")
+    assert "exec sleep 300" in body
+    odoo_bin.write_text(body.replace("exec sleep 300", "while true; do sleep 1; done"), encoding="utf-8")
     world["params_log"], world["params_fail"] = params_log, fail
     world["cf_pids"], world["cf_args"] = world["work"] / "cloudflared.pids", world["work"] / "cloudflared.args"
     yield world
@@ -246,7 +255,7 @@ def test_an_unknown_lease_is_refused_by_both_tools(xclient, machine):
 
 
 # --------------------------------------------------------------------------- #
-# the tunnel never outlives the server
+# the address lives as long as the lease keeps its port
 # --------------------------------------------------------------------------- #
 def _exposed_server(c, world):
     """(lease, server pid, the pids that make up its tunnel: cloudflared and its supervisor)."""
@@ -258,6 +267,40 @@ def _exposed_server(c, world):
     return lease, served["server_pid"], [cf_pid, supervisor]
 
 
+def _stays_alive(pids, seconds=2.5):
+    """True when every pid is still alive after a bounded window (the supervisor polls twice a
+    second, so a tunnel that was going to stop would have stopped by then)."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if not all(_alive(p) for p in pids):
+            return False
+        time.sleep(0.1)
+    return True
+
+
+def _registry_file(world):
+    return world["home"] / "runtime" / "leases.json"
+
+
+def _rewrite_registry(world, change):
+    """Apply `change(rows)` to the registry's rows and replace the file atomically, the way the
+    allocator writes it."""
+    path = _registry_file(world)
+    data = json.loads(path.read_text())
+    change(data["leases"])
+    tmp = path.with_name("leases.json.test-tmp")
+    tmp.write_text(json.dumps(data))
+    os.replace(tmp, path)
+
+
+def _old_release(old_alloc, monkeypatch, world, lease):
+    """A release done by the plugin version that has never heard of tunnels (the released 7.0.2
+    allocator, in this process): it stops the server's group and deletes the row."""
+    monkeypatch.setenv("ODOO_AI_HOME", str(world["home"]))
+    assert old_alloc.cmd_release({"token": lease["token"], "run_id": RUN}) == 0
+    assert all(r["token"] != lease["token"] for r in json.loads(_registry_file(world).read_text())["leases"])
+
+
 def test_the_tunnel_is_gone_after_lease_release(xclient, machine):
     lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
     _ok(xclient.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
@@ -266,54 +309,182 @@ def test_the_tunnel_is_gone_after_lease_release(xclient, machine):
     assert _params(machine)[-1]["unsets"] == ["web.base.url.freeze"], "the base URL was put back first"
 
 
-def test_the_tunnel_is_gone_after_lease_park_and_the_kept_database_points_at_its_local_url(xclient, machine):
+def test_a_parked_lease_keeps_its_tunnel_and_its_database_keeps_the_public_base_url(xclient, machine):
     lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+    written = _params(machine)
+    parked = _ok(xclient.call("lease_park", {"lease_token": lease["token"], "run_id": RUN}))
+    assert parked["ports"] == lease["ports"]
+    assert _stays_alive(tunnel_pids), "the tunnel outlives the server it fronted"
+    assert _params(machine) == written, "park wrote nothing to the database: the public base URL stays"
+    assert written[-1]["sets"] == {"web.base.url": FAKE_URL, "web.base.url.freeze": "True"}
+    assert _listed(xclient, lease)["public_url"] == FAKE_URL, "readers of the parked lease still show it"
+
+
+def test_the_address_is_the_same_after_park_serve_and_expose_and_no_second_tunnel_starts(xclient, machine):
+    lease, server_pid, tunnel_pids = _exposed_server(xclient, machine)
     _ok(xclient.call("lease_park", {"lease_token": lease["token"], "run_id": RUN}))
-    assert _wait_gone(tunnel_pids)
-    last = _params(machine)[-1]
-    assert last["sets"] == {"web.base.url": "http://localhost:%d" % lease["ports"][0]}
-    assert last["unsets"] == ["web.base.url.freeze"]
-
-
-def test_a_park_refused_for_a_foreign_run_leaves_the_tunnel_alone(xclient, machine):
-    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
-    err = _err(xclient.call("lease_park", {"lease_token": lease["token"], "run_id": "run-someone-else"}))
-    assert err["code"] == "NOT_OWNER"
-    assert all(_alive(p) for p in tunnel_pids) and _listed(xclient, lease)["public_url"] == FAKE_URL
-
-
-def test_the_tunnel_is_gone_when_an_older_plugin_version_stops_the_servers_process_group(
-        xclient, machine, old_alloc):
-    """A release by a plugin version that has never heard of tunnels stops the server by signalling
-    its process group - the released 7.0.2 allocator's own `_stop_group` here. The tunnel must end
-    with it, and a later reader of the lease must not report its address."""
-    lease, server_pid, tunnel_pids = _exposed_server(xclient, machine)
-    old_alloc._stop_group(server_pid)
-    assert _wait_gone([server_pid]) and _wait_gone(tunnel_pids), "no tunnel process outlives the server"
-    assert tunnel.public_url(str(machine["home"]), lease["token"]) is None
-
-
-def test_the_tunnel_is_gone_when_the_server_is_killed_without_a_chance_to_say_anything(xclient, machine):
-    lease, server_pid, tunnel_pids = _exposed_server(xclient, machine)
-    os.killpg(server_pid, signal.SIGKILL)
-    assert _wait_gone(tunnel_pids)
-    assert _listed(xclient, lease)["public_url"] is None
-
-
-def test_a_tunnel_that_died_with_its_server_leaves_no_stale_base_url_after_the_next_serve(xclient, machine):
-    """gc / an older version stopped the server: the database stayed frozen on the dead address.
-    Serving the lease again puts its local base URL back."""
-    lease, server_pid, tunnel_pids = _exposed_server(xclient, machine)
-    os.killpg(server_pid, signal.SIGKILL)
-    assert _wait_gone(tunnel_pids)
     machine["curl_mode"].write_text("boot", encoding="utf-8")
     (machine["work"] / "curl-count").unlink(missing_ok=True)
     again = _ok(xclient.call("instance_serve", {"lease_token": lease["token"], "cwd": str(machine["work"])},
                              timeout=120))
-    assert again["instance_handle"]["public_url"] is None
+    assert again["server_pid"] not in (None, server_pid), "a new server process serves the lease"
+    assert again["instance_handle"]["public_url"] == FAKE_URL
+    out = _ok(_expose(xclient, machine, lease))
+    assert out["public_url"] == FAKE_URL and out["already_exposed"] is True
+    assert _cloudflared_pids(machine) == tunnel_pids[:1], "no second cloudflared was started"
+    assert len(machine["cf_args"].read_text().splitlines()) == 1
+    assert tunnel.read_record(str(machine["home"]), lease["token"])["supervisor_pid"] == tunnel_pids[1]
+    assert len(_params(machine)) == 1, "the database was written once: by the first expose"
+
+
+def test_a_tunnel_survives_a_server_that_is_killed_without_a_chance_to_say_anything(xclient, machine):
+    lease, server_pid, tunnel_pids = _exposed_server(xclient, machine)
+    os.killpg(server_pid, signal.SIGKILL)
+    assert _wait_gone([server_pid])
+    assert _stays_alive(tunnel_pids)
+    assert _listed(xclient, lease)["public_url"] == FAKE_URL
+
+
+def test_a_park_refused_for_a_foreign_run_leaves_the_tunnel_alone(xclient, machine):
+    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+    written = _params(machine)
+    err = _err(xclient.call("lease_park", {"lease_token": lease["token"], "run_id": "run-someone-else"}))
+    assert err["code"] == "NOT_OWNER"
+    assert all(_alive(p) for p in tunnel_pids) and _listed(xclient, lease)["public_url"] == FAKE_URL
+    assert _params(machine) == written
+
+
+def test_a_parked_lease_is_not_exposed_anew_and_its_tunnel_stays_until_it_is_closed(xclient, machine):
+    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+    _ok(xclient.call("lease_park", {"lease_token": lease["token"], "run_id": RUN}))
+    assert _err(_expose(xclient, machine, lease))["code"] == "LEASE_NOT_SERVED"
+    assert _stays_alive(tunnel_pids)
+    out = _ok(xclient.call("instance_unexpose", {"lease_token": lease["token"], "cwd": str(machine["work"])}))
+    assert out["was_exposed"] is True and out["public_url"] == FAKE_URL
+    assert _wait_gone(tunnel_pids)
+
+
+def test_the_tunnel_stops_when_an_older_plugin_version_deletes_the_lease_row(
+        xclient, machine, old_alloc, monkeypatch):
+    """A release by a plugin version that has never heard of tunnels stops the server's group and
+    deletes the row - the released 7.0.2 allocator's own `cmd_release` here. It cannot stop the
+    tunnel; the tunnel stops itself because its lease is gone."""
+    lease, server_pid, tunnel_pids = _exposed_server(xclient, machine)
+    _lease(xclient, machine, ports=1)  # another lease keeps the registry non-empty
+    _old_release(old_alloc, monkeypatch, machine, lease)
+    assert _wait_gone([server_pid]) and _wait_gone(tunnel_pids), "no tunnel process outlives the lease"
+    assert tunnel.public_url(str(machine["home"]), lease["token"]) is None
+
+
+def test_the_tunnel_stops_when_its_row_no_longer_reserves_the_port_it_fronts(xclient, machine):
+    """A capacity reclaim empties a row's ports (the old ones move to `orphaned.ports`) while the row
+    stays; the port may be handed to another lease, which the tunnel must not expose."""
+    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+
+    def orphan(rows):
+        (row,) = [r for r in rows if r["token"] == lease["token"]]
+        row["orphaned"] = {"at": int(time.time()), "reason": "capacity", "ports": row["ports"]}
+        row["ports"] = []
+
+    _rewrite_registry(machine, orphan)
+    assert _wait_gone(tunnel_pids)
+
+
+def test_the_tunnel_is_not_affected_by_another_lease_in_the_registry_or_its_release(xclient, machine):
+    other = _lease(xclient, machine, ports=1)  # its row comes first in the registry
+    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+    assert _stays_alive(tunnel_pids)
+    _ok(xclient.call("lease_release", {"lease_token": other["token"], "run_id": RUN}))
+    assert _stays_alive(tunnel_pids)
+    assert _listed(xclient, lease)["public_url"] == FAKE_URL
+
+
+@pytest.mark.parametrize("state", ["garbled", "missing"])
+def test_a_registry_that_cannot_be_read_does_not_stop_the_tunnel_and_is_left_exactly_as_found(
+        xclient, machine, state):
+    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+    path = _registry_file(machine)
+    original = path.read_bytes()
+    away = path.with_name("leases.json.away")
+    try:
+        if state == "garbled":
+            path.write_bytes(b'{"leases": [ {"token": ')
+        else:
+            os.replace(path, away)
+        found = sorted((p.name, p.read_bytes()) for p in path.parent.glob("leases.json*"))
+        assert _stays_alive(tunnel_pids), "an unknown registry is never a reason to stop"
+        assert sorted((p.name, p.read_bytes()) for p in path.parent.glob("leases.json*")) == found, (
+            "nothing was renamed, repaired or written")
+    finally:
+        away.unlink(missing_ok=True)
+        path.write_bytes(original)
+    assert _stays_alive(tunnel_pids), "and it still runs once the registry reads again"
+    assert _listed(xclient, lease)["public_url"] == FAKE_URL
+
+
+def test_the_lease_token_is_never_on_the_command_line_of_the_supervisor_or_of_cloudflared(xclient, machine):
+    lease, _pid, (cf_pid, supervisor) = _exposed_server(xclient, machine)
+    for pid in (cf_pid, supervisor):
+        cmdline = Path("/proc/%d/cmdline" % pid).read_bytes().decode("utf-8", "replace")
+        assert lease["token"] not in cmdline and lease["token"][:8] not in cmdline
+    assert tunnel.token_hash(lease["token"]) in Path("/proc/%d/cmdline" % supervisor).read_text(), (
+        "the supervisor recognises its row by the hash that names the record file")
+
+
+def test_a_tunnel_that_died_while_its_lease_lives_is_healed_at_the_next_serve(xclient, machine):
+    """A reboot or a cloudflared crash leaves the database frozen on an address that no longer
+    answers. Serving the lease again puts its local base URL back and drops the dead record; a new
+    expose then opens a new tunnel."""
+    lease, _pid, tunnel_pids = _exposed_server(xclient, machine)
+    os.killpg(tunnel_pids[1], signal.SIGKILL)
+    assert _wait_gone(tunnel_pids)
+    again = _ok(xclient.call("instance_serve", {"lease_token": lease["token"], "cwd": str(machine["work"])},
+                             timeout=120))
+    assert again["state"] == "attached" and again["instance_handle"]["public_url"] is None
     last = _params(machine)[-1]
     assert last["sets"] == {"web.base.url": "http://localhost:%d" % lease["ports"][0]}
     assert last["unsets"] == ["web.base.url.freeze"]
+    assert tunnel.read_record(str(machine["home"]), lease["token"]) is None, "the dead record is dropped"
+    assert _ok(_expose(xclient, machine, lease))["already_exposed"] is False
+    assert len(_cloudflared_pids(machine)) == 2
+
+
+def _old_style_tunnel(world, lease, server_pid, url):
+    """The record an older plugin version wrote, and a live process standing for its supervisor (an
+    older supervisor watches the server's pid)."""
+    old = subprocess.Popen(["sleep", "300"], start_new_session=True)
+    record = {"public_url": url, "supervisor_pid": old.pid,
+              "supervisor_fp": tunnel.session_anchor.fingerprint(old.pid), "server_pid": server_pid,
+              "server_fp": tunnel.session_anchor.fingerprint(server_pid), "http_port": lease["ports"][0],
+              "db_name": lease["db_name"], "cloudflared": "cloudflared", "log_path": "/dev/null",
+              "started_at": time.time()}
+    directory = world["home"] / "runtime" / "tunnels"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / (tunnel.token_hash(lease["token"]) + ".json")).write_text(json.dumps(record))
+    return old
+
+
+def test_a_tunnel_an_older_plugin_version_opened_is_reused_while_its_supervisor_lives_then_replaced(
+        xclient, machine):
+    lease, served = _serve(xclient, machine)
+    old_url = "https://older-version-words.trycloudflare.com"
+    old = _old_style_tunnel(machine, lease, served["server_pid"], old_url)
+    try:
+        assert tunnel.public_url(str(machine["home"]), lease["token"]) == old_url
+        assert _listed(xclient, lease)["public_url"] == old_url
+        out = _ok(_expose(xclient, machine, lease))
+        assert out["public_url"] == old_url and out["already_exposed"] is True
+        assert _cloudflared_pids(machine) == [], "nothing new was started"
+        old.kill()
+        old.wait()
+        assert _listed(xclient, lease)["public_url"] is None, "a dead supervisor's address reads as closed"
+        out = _ok(_expose(xclient, machine, lease))
+        assert out["public_url"] == FAKE_URL and out["already_exposed"] is False
+        assert len(_cloudflared_pids(machine)) == 1
+    finally:
+        if old.poll() is None:
+            old.kill()
+            old.wait()
 
 
 # --------------------------------------------------------------------------- #
@@ -489,11 +660,25 @@ def test_an_address_is_read_from_cloudflared_output_and_the_address_service_neve
 # --------------------------------------------------------------------------- #
 # the supervisor
 # --------------------------------------------------------------------------- #
-def _supervise(tmp_path, server, *cmd):
-    log = tmp_path / "supervised.log"
-    return subprocess.Popen([sys.executable, str(LIB_DIR / "tunnel.py"), "supervise", "--server-pid",
-                             str(server.pid), "--server-fp", tunnel.session_anchor.fingerprint(server.pid),
-                             "--log", str(log), "--", *cmd], start_new_session=True)
+PORT = 38999
+
+
+def _row(token, ports):
+    return {"token": token, "ports": ports}
+
+
+def _write_registry(path, rows):
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps({"leases": rows, "schema_version": 3}))
+    os.replace(tmp, path)
+
+
+def _supervise(tmp_path, token, *cmd):
+    """A supervisor in front of `cmd`, watching the lease `token` in tmp_path/leases.json for PORT."""
+    return subprocess.Popen([sys.executable, str(LIB_DIR / "tunnel.py"), "supervise", "--registry",
+                             str(tmp_path / "leases.json"), "--lease-hash", tunnel.token_hash(token),
+                             "--port", str(PORT), "--log", str(tmp_path / "supervised.log"), "--", *cmd],
+                            start_new_session=True)
 
 
 def _child_pid(tmp_path, timeout=10):
@@ -513,66 +698,95 @@ def _sleeper(tmp_path):
     return str(script)
 
 
-def test_the_supervisor_stops_the_command_when_the_server_it_watches_is_gone(tmp_path):
-    server = subprocess.Popen(["sleep", "300"], start_new_session=True)
-    supervisor = _supervise(tmp_path, server, _sleeper(tmp_path))
+@pytest.fixture
+def supervised(tmp_path):
+    """A registry with one lease and a supervisor in front of a sleeping command; stops what is left."""
+    token = "t" * 32
+    _write_registry(tmp_path / "leases.json", [_row("o" * 32, [PORT + 1]), _row(token, [PORT, PORT + 2])])
+    supervisor = _supervise(tmp_path, token, _sleeper(tmp_path))
     try:
         child = _child_pid(tmp_path)
-        assert _alive(child) and supervisor.poll() is None
-        server.kill()
-        server.wait()
-        assert supervisor.wait(timeout=20) == 0 and _wait_gone([child])
+        yield {"dir": tmp_path, "token": token, "supervisor": supervisor, "child": child,
+               "registry": tmp_path / "leases.json"}
     finally:
-        for proc in (server, supervisor):
-            if proc.poll() is None:
-                proc.kill()
+        if supervisor.poll() is None:
+            supervisor.kill()
+            supervisor.wait()
+        try:
+            os.kill(_child_pid(tmp_path, timeout=0.1), signal.SIGKILL)
+        except (OSError, AssertionError):
+            pass
+
+
+def test_the_supervisor_stops_the_command_when_the_lease_row_is_gone_from_the_registry(supervised):
+    _write_registry(supervised["registry"], [_row("o" * 32, [PORT + 1])])
+    assert supervised["supervisor"].wait(timeout=20) == 0 and _wait_gone([supervised["child"]])
+
+
+def test_the_supervisor_stops_the_command_when_its_row_no_longer_reserves_the_port(supervised):
+    _write_registry(supervised["registry"], [_row("o" * 32, [PORT]), _row(supervised["token"], [PORT + 2])])
+    assert supervised["supervisor"].wait(timeout=20) == 0 and _wait_gone([supervised["child"]])
+
+
+def test_the_supervisor_keeps_the_command_while_the_row_still_reserves_the_port_among_others(supervised):
+    _write_registry(supervised["registry"], [_row(supervised["token"], [PORT + 5, PORT])])
+    assert _stays_alive([supervised["supervisor"].pid, supervised["child"]])
+
+
+@pytest.mark.parametrize("state", ["garbled", "wrong_shape", "missing"])
+def test_the_supervisor_keeps_the_command_while_the_registry_is_unreadable(supervised, state):
+    path = supervised["registry"]
+    original = path.read_bytes()
+    try:
+        if state == "garbled":
+            path.write_bytes(original[:20])
+        elif state == "wrong_shape":
+            path.write_text('["not", "a", "registry"]')
+        else:
+            path.unlink()
+        assert _stays_alive([supervised["supervisor"].pid, supervised["child"]])
+    finally:
+        path.write_bytes(original)
+    assert _stays_alive([supervised["supervisor"].pid, supervised["child"]])
 
 
 def test_the_supervisor_stops_the_command_when_it_is_signalled_and_when_it_is_killed(tmp_path):
-    server = subprocess.Popen(["sleep", "300"], start_new_session=True)
-    try:
-        supervisor = _supervise(tmp_path, server, _sleeper(tmp_path))
-        child = _child_pid(tmp_path)
-        supervisor.send_signal(signal.SIGTERM)
-        assert supervisor.wait(timeout=20) == 0 and _wait_gone([child])
-        (tmp_path / "child.pid").unlink()
-        supervisor = _supervise(tmp_path, server, _sleeper(tmp_path))
-        child = _child_pid(tmp_path)
-        supervisor.kill()
-        supervisor.wait()
-        if sys.platform.startswith("linux"):
-            assert _wait_gone([child]), "cloudflared dies with a supervisor that was killed outright"
-        else:
-            os.kill(child, signal.SIGKILL)
-    finally:
-        server.kill()
+    token = "t" * 32
+    _write_registry(tmp_path / "leases.json", [_row(token, [PORT])])
+    supervisor = _supervise(tmp_path, token, _sleeper(tmp_path))
+    child = _child_pid(tmp_path)
+    supervisor.send_signal(signal.SIGTERM)
+    assert supervisor.wait(timeout=20) == 0 and _wait_gone([child])
+    (tmp_path / "child.pid").unlink()
+    supervisor = _supervise(tmp_path, token, _sleeper(tmp_path))
+    child = _child_pid(tmp_path)
+    supervisor.kill()
+    supervisor.wait()
+    if sys.platform.startswith("linux"):
+        assert _wait_gone([child]), "cloudflared dies with a supervisor that was killed outright"
+    else:
+        os.kill(child, signal.SIGKILL)
 
 
 def test_the_supervisor_reports_the_command_that_exits_first(tmp_path):
-    server = subprocess.Popen(["sleep", "300"], start_new_session=True)
-    try:
-        assert _supervise(tmp_path, server, "bash", "-c", "exit 7").wait(timeout=20) == 7
-    finally:
-        server.kill()
+    token = "t" * 32
+    _write_registry(tmp_path / "leases.json", [_row(token, [PORT])])
+    assert _supervise(tmp_path, token, "bash", "-c", "exit 7").wait(timeout=20) == 7
 
 
-def test_a_recycled_server_pid_does_not_keep_a_tunnel_alive(tmp_path):
-    """The supervisor watches pid AND fingerprint: another process holding the server's number is not
-    the server."""
-    server = subprocess.Popen(["sleep", "300"], start_new_session=True)
-    time.sleep(0.3)  # a fingerprint is the start time in clock ticks: tell the two apart
-    other = subprocess.Popen(["sleep", "300"], start_new_session=True)
-    try:
-        supervisor = subprocess.Popen(
-            [sys.executable, str(LIB_DIR / "tunnel.py"), "supervise", "--server-pid", str(other.pid),
-             "--server-fp", tunnel.session_anchor.fingerprint(server.pid), "--log", str(tmp_path / "l"),
-             "--", _sleeper(tmp_path)], start_new_session=True)
-        assert supervisor.wait(timeout=20) == 0
-        marker = tmp_path / "child.pid"   # written only if the command got as far as starting
-        assert not marker.exists() or _wait_gone([int(marker.read_text())])
-    finally:
-        server.kill()
-        other.kill()
+@pytest.mark.parametrize("registry,expected", [
+    ([_row("a" * 32, [PORT])], True),
+    ([_row("a" * 32, [PORT + 1]), _row("a" * 32, [PORT])], True),
+    ([_row("a" * 32, [PORT + 1])], False),
+    ([_row("a" * 32, [])], False),
+    ([_row("b" * 32, [PORT])], False),
+    ([], False),
+    ([_row("a" * 32, "not a list")], None),
+    (["not a row", _row("b" * 32, [PORT])], False),
+])
+def test_a_lease_holds_the_port_only_while_a_row_of_its_token_lists_it(tmp_path, registry, expected):
+    _write_registry(tmp_path / "leases.json", registry)
+    assert tunnel.lease_holds_port(str(tmp_path / "leases.json"), tunnel.token_hash("a" * 32), PORT) is expected
 
 
 # --------------------------------------------------------------------------- #
