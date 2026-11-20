@@ -235,7 +235,9 @@ allows the call with an advisory to re-run setup. It never refuses a tool that o
 
 Files the servers write on their own (playwright's auto-named files, pagecast recordings, older than
 24 hours) and `visual/adhoc/<slug>/` captures no skill owns (older than 30 days) are pruned when the
-eager server starts and at session end.
+eager server starts and at session end. A project or worktree state folder under
+`<state root>/projects` that holds nothing but empty folders, and that nothing touched for a day,
+is removed at session end; resolving it again creates it.
 
 > **Upgrading from an earlier version.** The `odoo-media` server, when it first starts on a new
 > plugin version (at `/reload-plugins` or the next session), runs a one-time upgrade pass: the values
