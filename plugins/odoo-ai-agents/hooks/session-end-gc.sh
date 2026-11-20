@@ -29,6 +29,9 @@
 #   5. Session folders of Claude Code's own temp directory that nothing touched for 30 days
 #      (`claude_tmp.py sweep`; only the directory setup step 36-claude-tmpdir keeps in the state
 #      root, never the system temp directory or any other location).
+#   6. Per-project and per-worktree state folders under <state root>/projects that hold nothing
+#      but empty directories and that nothing touched for a day (`empty_state_dirs.py sweep`;
+#      rmdir only, so a folder with any file, link or new content is never removed).
 # Every other session's live lease is untouched: the registry is MACHINE-GLOBAL (every concurrent
 # session on this host writes the same leases.json), so a sweep that is not scoped by session
 # anchor is a sweep over other people's work in progress.
@@ -257,6 +260,12 @@ _run_worker() {
     # state root: session folders nothing touched for 30 days (scripts/lib/claude_tmp.py sweep).
     if [[ -f "$lib_dir/claude_tmp.py" ]]; then
         run_bounded "$PRUNE_TIMEOUT_S" python3 "$lib_dir/claude_tmp.py" sweep >/dev/null 2>&1 || true
+    fi
+
+    # Per-project and per-worktree state folders that hold nothing: scripts/lib/empty_state_dirs.py
+    # sweep (rmdir only, folders idle for a day, under <state root>/projects).
+    if [[ -f "$lib_dir/empty_state_dirs.py" ]]; then
+        run_bounded "$PRUNE_TIMEOUT_S" python3 "$lib_dir/empty_state_dirs.py" sweep >/dev/null 2>&1 || true
     fi
 
     # Discovery half: default (list-only) reap-orphans, persisted so a human can
