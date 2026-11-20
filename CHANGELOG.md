@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.15.1] - 2026-11-20
+
+### Fixed
+
+- A group's xml id has one form in every instruction file: `group_<mod>_<name>`, the form core
+  Odoo's own groups take. The per-series guideline carried the upstream text's
+  `<module_name>_group_<group_name>` while the access-groups snippet used the core form, so coders
+  wrote either and the reviewer reported the disagreement as a finding. An existing group keeps
+  its id.
+- Empty state folders no longer pile up under `<state root>/projects`: at session end a
+  per-worktree folder, then a project folder, that holds nothing but empty folders and that
+  nothing touched for a day is removed. A folder with any file or link is never touched, and
+  resolving a removed folder creates it again.
+
 ## [8.15.0] - 2026-11-19
 
 ### Added
