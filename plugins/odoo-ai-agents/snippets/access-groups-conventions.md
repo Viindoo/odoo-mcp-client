@@ -2,7 +2,8 @@
 
 Core Odoo rules for declaring `res.groups` records and the record rules of a group. Which model a
 group hangs on depends on the series; the `ir.module.category` id derivation, the `implied_ids`
-mechanism and the record-rule flags do not.
+mechanism and the record-rule flags do not. A new group's xml id is `group_<mod>_<name>`, the
+form core's own groups take; a group that exists keeps its id.
 
 ## Which group model the target series uses
 
@@ -52,9 +53,8 @@ Never invent an id. In the category model an application's groups always carry `
 ## Category model - group hierarchy (implied_ids ladder)
 
 To expose a role LADDER as a single-select dropdown in Settings > Users > Permissions (rather than
-independent checkboxes), give every group in the ladder the SAME `category_id` (the derived
-`base.module_category_<slug>` from the section above) AND chain them with `implied_ids` from least
-to most privileged, with the base rung implying `base.group_user`:
+independent checkboxes), give every group in the ladder the SAME `category_id` AND chain them with
+`implied_ids` from least to most privileged, with the base rung implying `base.group_user`:
 
 ```xml
 <record id="group_<mod>_user" model="res.groups">
@@ -67,9 +67,8 @@ to most privileged, with the base rung implying `base.group_user`:
 </record>
 ```
 
-Semantics: a user granted `group_<mod>_manager` automatically holds every group its `implied_ids`
-transitively reach (`trans_implied_ids` in this model) - that transitive closure is what drives the
-single-select dropdown rendering.
+A user granted `group_<mod>_manager` holds every group its `implied_ids` transitively reach
+(`trans_implied_ids` in this model); that closure is what renders the single select.
 
 - Groups that are INDEPENDENT feature toggles (not a privilege ladder) must NOT be chained with
   `implied_ids` - they render as checkboxes, not a dropdown; they take

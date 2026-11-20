@@ -44,8 +44,8 @@ Use the following pattern :
 - For a view: `<model_name>_view_<view_type>`, where *view_type* is `kanban`, `form`, `tree`, `search`, ...
 - For an action: the main action respects `<model_name>_action`. Others are suffixed with `_<detail>`, where *detail* is a lowercase string briefly explaining the action. This is used only if multiple actions are declared for the model.
 - For window actions: suffix the action name by the specific view information like `<model_name>_action_view_<view_type>`.
-- For a group: `<module_name>_group_<group_name>` where *group_name* is the name of the group, generally 'user', 'manager', ...
-- For a rule: `<model_name>_rule_<concerned_group>` where *concerned_group* is the short name of the concerned group ('user' for the 'model_name_group_user', 'public' for public user, 'company' for multi-company rules, ...).
+- For a group: `group_<mod>_<group_name>`, the form core's own groups take (`stock.group_stock_user`), where *mod* is the module's short name and *group_name* is the name of the group, generally 'user', 'manager', ... Plugin rule: the upstream text's `<module_name>_group_<group_name>` is not followed.
+- For a rule: `<model_name>_rule_<concerned_group>` where *concerned_group* is the short name of the concerned group ('user' for the 'group_<mod>_user', 'public' for public user, 'company' for multi-company rules, ...).
 
 Name should be identical to xml id with dots replacing underscores. Actions should have a real naming as it is used as display name.
 
@@ -86,7 +86,7 @@ Name should be identical to xml id with dots replacing underscores. Actions shou
 />
 
 <!-- security -->
-<record id="module_name_group_user" model="res.groups">
+<record id="group_module_name_user" model="res.groups">
     ...
 </record>
 

@@ -52,7 +52,7 @@ Odoo supports custom tags acting as syntactic sugar - these are preferred over t
 | Main action | `<model_name>_action` |
 | Other actions | `<model_name>_action_<detail>` where detail briefly explains the action |
 | Window action with specific view | `<model_name>_action_view_<view_type>` |
-| Group | `<module_name>_group_<group_name>` where group_name is 'user', 'manager', etc. |
+| Group | `group_<mod>_<group_name>`, the form core's own groups take (`stock.group_stock_user`), where mod is the module's short name and group_name is 'user', 'manager', etc. Plugin rule: the upstream text's `<module_name>_group_<group_name>` is not followed. |
 | Rule | `<model_name>_rule_<concerned_group>` where concerned_group is 'user', 'public', 'company', etc. |
 
 Name should be identical to xml id with dots replacing underscores. Actions should have a real
@@ -95,7 +95,7 @@ naming as it is used as display name.
 />
 
 <!-- security -->
-<record id="module_name_group_user" model="res.groups">
+<record id="group_module_name_user" model="res.groups">
     ...
 </record>
 
