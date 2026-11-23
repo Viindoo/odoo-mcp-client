@@ -58,7 +58,7 @@ installable modules whose `depends` names this one, listed by
 | 1 | HERO | `#overview_block` | Is this what I am looking for? | One outcome sentence for the buyer persona (the result, never the module name), a "For <segment>" line, the tagline = manifest `summary`, a capture of the module's main screen; then the compatibility line - every edition the manifest supports, the license, the languages shipped | copy + manifest + captures | Always |
 | 2 | WHAT-CHANGES | `#changes_block` | Does it fit my work? | Exactly three blocks "what changes for your team": the work as the team does it today, what it becomes, each tied to ONE verified catalog feature and ONE proof shot | copy + catalog + captures | Always |
 | 3 | INSIGHTS | `#insights_block` | What will I see, to decide? | The module's reports and dashboards, for the owner and the managers: per report one capture taken on demo data that gives the chart or table a shape, titled with the management question it answers, and one sentence saying where its figures come from. One report: the image alone. Two to five: the carousel of § 3, the weightiest question first. More: the five weightiest, the others stay FEATURES lines. An index under the carousel lists every question | catalog (`type: report`) + captures | When the catalog holds a report |
-| 4 | VIDEO | `#video_block` | Show me | One video narrated in the page's language, in the container of § 1 | brief | When such a video exists |
+| 4 | VIDEO | `#video_block` | Show me | The `VIDEO` entry of the page's language, in the container of § 1 | brief | When the brief carries one (`${CLAUDE_PLUGIN_ROOT}/snippets/video-destination.md`) |
 | 5 | FEATURES | `#features_block` | Does it cover my case? | The catalog as a list to scan: three to five groups named after an area of the user's work (never a menu or a model), one capability per line in the buyer's words, 14 words at most; then, last, one group of what the module guarantees beyond functions (access by role, multi-company, audit trail, behaviour on a weak connection, device) - facts verified like any other claim, the group omitted when there is none. No image | catalog | Always |
 | 6 | DAY-ONE | `#day_one_block` | What do I have on day one? | What ships ready to use (data, templates, packs, connections) and what the administrator configures first - from the module's data files and the catalog, never a count or a duration the module does not state | catalog + manifest | When the source has content |
 | 7 | EXTENSIONS | `#extensions_block` | What else can I add? | The vendor's optional extensions as cards - the display name linked in the root-relative store form of `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module, one or two sentences of the outcome from that module's manifest `summary` or catalog; only modules the `dependents` source lists, up to 6, the ones the buyer needs next first, the rest in the report; no price figure anywhere | dependents | When `dependents` lists a module |
@@ -189,7 +189,7 @@ the source its Section Map row names (§ 2).
   </div>
 </section>
 
-<!-- VIDEO - omit the section when no video narrated in the page's language exists -->
+<!-- VIDEO - omit the section when the brief carries no VIDEO entry for the page's language -->
 <section id="video_block" class="py-4">
   <div style="background-color:#f4f8ff;border-radius:20px;padding:40px 24px;">
     <div class="mx-auto text-center" style="max-width:960px;">

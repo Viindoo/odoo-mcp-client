@@ -368,8 +368,8 @@ drop-in. What it does:
    Code's own masked dialog), which only the `odoo-media` MCP server receives. The
    `video-produce` workflow narrates demo videos through that server's tools.
 10. **YouTube channels** (optional; `/odoo-ai-agents:odoo-setup youtube`, step `75-youtube`) - one
-    channel per purpose in `youtube.toml`: `docs` (user guides, the docs site, the App Store DEMO
-    tab) is the one every run names, `marketing` and a third are optional; each channel's
+    channel per purpose in `youtube.toml`: `docs` (user guides, the docs site) is the one every run names, `marketing` (the App Store
+    page, sales videos) and a third are optional; each channel's
     default privacy (`unlisted` until the docs are published), playlist and language. The OAuth
     client and each channel's refresh token are plugin options, filled by the one command the
     operator runs in their own terminal (`75-youtube.sh consent --channel <purpose> --client-json

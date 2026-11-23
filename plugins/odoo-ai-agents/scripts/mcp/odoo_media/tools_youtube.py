@@ -18,7 +18,7 @@ from odoo_local.errors import ToolError
 from . import values
 
 _PURPOSE = {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$",
-            "description": "The channel purpose as youtube.toml declares it: docs (user guides, docs-site, App Store DEMO) or marketing (sales and marketing videos), or another purpose the operator declared."}
+            "description": "The channel purpose as youtube.toml declares it: docs (user guides, docs-site) or marketing (the App Store page, sales and marketing videos), or another purpose the operator declared."}
 
 CHECK_IN = {"type": "object", "required": ["channel"],
             "properties": {"channel": _PURPOSE, "live": {"type": "boolean", "default": False,

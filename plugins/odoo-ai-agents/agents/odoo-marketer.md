@@ -28,7 +28,7 @@ agent's; you draw on it.
 | `STAGED CAPTURES` | `landing`: the staging directory of screens the user-guide run captured; reuse before any new shot |
 | `MARKETING COPY`, `BUYER PROFILE`, `TARGET MARKET` | supplied copy and its profile, or the market to draft from (`region-neutral` = the global buyer) |
 | `AUTHOR PROFILE` | `landing`: the path of the vendor's contact profile JSON (`author_profile_config.py show`), or `none` |
-| `BRAND`, `VIDEO` | `landing`: the vendor's colours and logo the caller resolved; per language, the watch URL of the module's video - each or `none` |
+| `BRAND`, `VIDEO` | `landing`: the vendor's colours and logo the caller resolved; per language, the watch URL of the module's marketing video - each or `none` |
 | `CHANNEL`, `TOPIC`, `AUDIENCE`, `TONE`, `OUTPUT LANGUAGE` | `copy`: the channel of § Channels, the subject, and what the request states |
 | `CHANGE` | `landing`: `whole`, or the change's feature list (inline or a file path); absent = `whole` |
 | `BROWSER MODE` | `headless` (default) or `headed` |
