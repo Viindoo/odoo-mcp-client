@@ -41,7 +41,8 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
    (git-safety-contract S9). Capture `SHARE_DIR` and `ISOLATE_DIR` once with `project_dir`
    against that tree.
 2. **Changed set.** Ask `git-toolkit:git-ops` for the files that differ between `BASE` (default the
-   series main branch, or the PR base) and the tree's HEAD, and for the diff of that range written
+   series main branch; for a PR, the merge base of its head and its base branch, so a merged PR
+   still shows its change) and the tree's HEAD, and for the diff of that range written
    to `<ISOLATE_DIR>/reviews/<slug>-<date>/diff.patch` (`DIFF_PATH`); the files give `CHANGED_SET`; the modules it touches and their manifests give
    the Domain line when the brief carries none (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`).
    A port names its `SOURCE_REF`: the same request also writes the diff between `SOURCE_REF` and
