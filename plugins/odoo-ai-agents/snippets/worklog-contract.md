@@ -6,14 +6,14 @@ next).
 
 ## Where it lives
 
-`<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-<agent>.md` - one file per writer, never a shared file.
+`<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-<agent>.md` - one file per writer.
 `ISOLATE_DIR` is the captured literal of
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 
 - `<run-or-slug>`: the run id when a `run-<id>.json` exists, else the feature slug the skill uses
   for its artifacts.
 - `<NNN>`: the dispatch order when the caller passed one, else a UTC time stamp or a short label;
-  it only has to make the filename unique.
+  it only makes the filename unique.
 - `<agent>`: the writer's short name (`architect`, `coder-<module>`, `reviewer-<module>`),
   qualified by stack when two workers share a module.
 - A master-child design: each child architect writes under `<run-or-slug>/<module>/`, the master
@@ -39,5 +39,6 @@ worker inherits only your files and this log. List the entry in `produced`.
 ## What you read, before you start
 
 Every file under `<ISOLATE_DIR>/worklog/<run-or-slug>/`, oldest first. No directory: you are the
-first writer - sweep sibling run directories untouched for more than 30 days
-(`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3), then create it.
+first writer - run
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/worklog --older-than-minutes 43200`
+(it removes only run directories untouched for 30 days), then create yours.
