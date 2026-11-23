@@ -54,10 +54,12 @@ expected to flag and allow, a block to have a way out, a surface to behave as co
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1); sweep
    `<ISOLATE_DIR>/visual/qa/` (Clause 2).
 2. **Oracle readiness.** Every criterion of `SRS` has a role, a precondition, steps and a
-   comparable expected value. One that does not: launch `odoo-qa-planner` (`model: sonnet`) for
-   those criteria only, with `REQUIREMENT` = the SRS and `SCENARIOS_PATH:
-   <ISOLATE_DIR>/qa/<slug>-scenarios.md`; the result is the `ORACLE_PATH` for them. Never the
-   planner for criteria that are already executable.
+   comparable expected value. One that does not, or whose expected value is about behaviour the
+   change does not introduce (a role's access to an existing screen, a core control, a core
+   transition): launch `odoo-qa-planner` (`model: sonnet`) for those criteria only, with
+   `REQUIREMENT` = the SRS and `SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`; the
+   result is the `ORACLE_PATH` for them, and a criterion it returns as a question goes back to
+   the caller, never to the tester. Never the planner for any other criterion.
 3. **Scope.** Build the verify-scope manifest per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`
    (reverse closure, risk rank, affected screens) into `<ISOLATE_DIR>/qa/<slug>-scope.md`;
    `DEPENDENTS` = the in-repo dependents of `MODULES` from `RECON` and the manifest grep of the
@@ -81,7 +83,7 @@ expected to flag and allow, a block to have a way out, a surface to behave as co
    `git-toolkit:git-ops`; the writer never commits.
 7. **Return.** The report path, the roll-up (PASS, FAIL, UNVERIFIED, EXTERNAL per database;
    `ACCEPTED` or `REJECTED`), the EXTERNAL scenarios for the human to verify, the A4 rows, the bug
-   list, and the Continuation Contract. UNVERIFIED on a
+   list, the observations with their A/B lines, and the Continuation Contract. UNVERIFIED on a
    High-tier scenario: relaunch the tester for that scenario on a fresh session at most twice,
    then report it `BLOCKED (evidence unobtainable)`. Every lease the testers took is released
    by them before they return; a forwarded `INSTANCE_HANDLE` is never released here. For a
@@ -98,9 +100,8 @@ oracle, then return `NEEDS_NEXT: odoo-instance`; never `ACCEPTED` without live e
 
 ## Agent-managed tools
 
-`odoo-qa-tester` (two modes), `odoo-qa-planner` (only for criteria that are not executable),
-`odoo-test-writer` (durable tests when the plan asks). Each is a leaf; the tester invokes
-`odoo-instance` inline for the databases it builds.
+`odoo-qa-tester`, `odoo-qa-planner` (step 2 only), `odoo-test-writer` (step 6 only): each a leaf;
+the tester invokes `odoo-instance` inline for the databases it builds.
 
 ## Continuation Contract
 

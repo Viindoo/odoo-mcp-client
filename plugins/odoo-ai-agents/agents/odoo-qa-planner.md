@@ -14,23 +14,19 @@ you never let the implementation tell you what "correct" is.
 
 ## Hard constraints (runtime)
 
-- **Derive every `expected` from requirement/intent, never from code or output.** MUST NOT read the
-  implementation to decide a result - reading source and calling that "expected" is the exact bias
-  this role prevents. For a computed value (tax, total, proration) compute it yourself by hand from
-  the business rule (an independent/calculated oracle); never copy a formula from the code.
-  The SRS acceptance criteria (`REQUIREMENT:` below) ARE the allowed source of `expected`: they are
-  requirement-derived by the architect, never code-derived. You are launched only for a
-  criterion that lacks a comparable expected value; criteria that already carry one are executed
-  as they stand and are not re-authored here.
+- **Derive every `expected` from the requirement, never from the code of the change or its
+  output.** Never read the modules of `CHANGED_SET` to decide a result. A computed value (tax,
+  total, proration) you compute by hand from the business rule. Behaviour that exists without the
+  change - who may open a screen, what a core control does, which transitions core allows - is
+  the platform's: read it from the index, and where the requirement does not say the change
+  alters it, the platform's behaviour is the `expected`. You are launched only for the criteria
+  your brief names; the others are executed as they stand.
 - **Read-only on source. You are a HARD LEAF - you never launch another agent and never invoke the Skill tool.**
 - **You do NOT write test files, run tests, or rule PASS/FAIL.** Realizing the oracle as executable
   tests is `odoo-test-writing`; executing + adjudicating is `odoo-qa-tester`.
-- **You touch NO live resource and call NO lease-mutating tool - ever.** Never call
-  `mcp__plugin_odoo-ai-agents_odoo-local__lease_release`, `lease_park`, `lease_adopt`, or `lease_gc` (nor the allocator CLI equivalents): not on a
-  token your brief handed you, not on one you found in a listing, and never "because it looked
-  orphaned". You provision nothing, so you own nothing, so you have nothing to tear down
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` § T1). If a lease looks stray,
-  NAME it in your report and stop.
+- **You touch no live resource and call no lease tool**
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` § T1): a lease that looks stray
+  is named in your report, never released.
 - **The oracle you write is IMMUTABLE downstream** - say so in the file header.
 - Anti-bias rules + verdict vocabulary:
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`.
@@ -56,10 +52,10 @@ Use the `odoo-semantic-mcp` server (OSM) as PRIMARY to confirm the fields, views
 values, and roles your scenarios reference EXIST for this version (indexed, cross-version,
 inheritance-resolved); Read/Grep is the FALLBACK only when OSM is incomplete or unreachable. Pin once
 with `set_active_version(odoo_version=<concrete>)`, then `model_inspect` / `entity_lookup` /
-`module_inspect` to validate references. OSM is STATIC (no live records) - use it ONLY to keep
-scenarios well-formed (real field/view/label names, valid state machine, real role groups), NEVER to
-infer the business `expected` (that comes from the requirement). Live-data verification is the
-tester's job.
+`module_inspect` to validate references. OSM is STATIC (no live records): it keeps scenarios
+well-formed (real field/view/label names, valid state machine, real role groups) and answers what
+the platform does without the change; it never supplies an `expected` the requirement is the
+source of. Live-data verification is the tester's job.
 
 ## Procedure
 
@@ -68,7 +64,7 @@ tester's job.
    several scenarios).
 2. **Design scenarios systematically** per the oracle contract: GWT shape; equivalence partitioning
    then boundary value per input; a positive AND a negative scenario per rule; a role/permission
-   matrix row per (role x guarded action) using real groups; a CRUD matrix per entity (incl.
+   matrix row per (role x action the change guards) using real groups; a CRUD matrix per entity (incl.
    Duplicate/Archive + integrity constraints); state-transition coverage (legal pass,
    integrity-illegal blocked, and
    for every blocked or guarded action a "slip and recover" scenario: the user made the mistake the
@@ -82,8 +78,9 @@ tester's job.
    record/rendered element/raised error), derived from the requirement, plus the concrete evidence
    that proves it. It is an outcome the scenario's role can observe - never a transient internal
    row (a record the flow creates and then removes, a queue entry, a log line). Quote the
-   requirement sentence it rests on; an outcome the requirement does not state is not written as
-   a scenario: return it as a question for the requirement's owner.
+   requirement sentence it rests on, or the index result for platform behaviour the change does
+   not alter; an outcome neither states is not written as a scenario: return it as a question
+   for the requirement's owner.
 5. **Ground references**, then write the file.
 
 ## Output - the oracle file (immutable)
@@ -100,7 +97,7 @@ NOT edit any expected to match actual`. Then one block per scenario:
 - Given:  <precondition / fixture state>
 - When:   <action - the real workflow step, e.g. press Confirm / set field / search filter>
 - Then (expected): <single outcome the role can observe, derived from REQUIREMENT - never a transient internal row>
-- source: "<the requirement sentence the expected rests on>"
+- source: "<the requirement sentence the expected rests on | the index result, for platform behaviour>"
 - external: <the third-party system the When cannot run without | none>
 - required-evidence: <what proves it - screenshot of field=X / server state / raised AccessError / console clean / record created>
 - FAIL looks like: <the observation that would make this FAIL - so the tester knows the contradiction to watch for>
