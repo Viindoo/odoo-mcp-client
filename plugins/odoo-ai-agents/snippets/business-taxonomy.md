@@ -20,10 +20,10 @@ first rule that answers wins:
    the first and take the first one that names a function of the table or something its Covers
    column lists. A segment that names none (a grouping word, an acronym you cannot expand) is
    skipped.
-3. **What it builds on**: classify its direct `depends` by rules 1-2, then theirs, one level
-   at a time, and stop at the first level that answers. `productivity` and `platform` answer
-   only when a level gives nothing else. Two functions left at one level: the one its `name`
-   and `summary` speak of, else rule 4.
+3. **What it builds on**: classify its `depends` by rules 1-2, then theirs, level by
+   level; the first level that gives a function other than `productivity` and `platform`
+   decides, and those two answer only when no level does. Two functions at one level: the
+   one its `name` and `summary` speak of, else rule 4.
 4. Nothing answers: `UNKNOWN`, never `platform`; the main agent decides and says from what.
 
 | `business_function` | Covers | Default audience |
