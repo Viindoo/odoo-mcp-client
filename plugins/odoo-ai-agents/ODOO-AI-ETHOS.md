@@ -148,7 +148,7 @@ gets the recommendation and the risk first, context second, readable in 30 secon
 partner gets the business outcome, not a feature list; an internal team gets "when to apply" and
 "what to do", not history. A document a human reads or approves (a requirement, a design, a plan,
 a report) is in that human's language: the one they write in, else the one their client is set to,
-else English. Code, tests, comments, docstrings and identifiers stay English.
+else English - written as its speakers write it, with every diacritic and in its own script. Code, tests, comments, docstrings and identifiers stay English.
 
 ---
 
