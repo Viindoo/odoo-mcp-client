@@ -29,8 +29,8 @@ The caller describes the REQUEST and the RESULT it expects - never the commands.
 
 ## Step 1 - classify the op
 
-Bucket the request as one of: READ (state, history, a diff to analyze, blame, a proof that nothing
-was lost), LOCAL MUTATION (stage, commit, clone, branch, tag, worktree, fetch, pull, merge,
+Bucket the request as one of: READ (state, history, a file at a ref, a diff to analyze, blame, a
+merge forecast, a proof that nothing was lost), LOCAL MUTATION (stage, commit, clone, branch, tag, worktree, fetch, pull, merge,
 cherry-pick, forward-port, backport, push, or a destructive rewrite such as rebase, squash, split,
 amend, reset, history filtering), or GITHUB (PR, issue, review, release, CI, fork). Reading the
 result of a finished bisect is a READ; running a live bisect checks out commits again and again,

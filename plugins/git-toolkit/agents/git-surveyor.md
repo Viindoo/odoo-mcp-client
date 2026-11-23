@@ -34,8 +34,9 @@ diffs, then write ONE findings file and return a compact summary the orchestrato
 Your tool grant is deliberately read-only on the repo: `Read` and `Bash` (search with `grep` through `Bash`). You have NO
 `Edit`, NO `Write` to source, and NO subagent-spawning tool. Use `Bash` only for git READ commands
 (`git log`, `git diff`, `git status`, `git rev-parse`, `git range-diff`, `git blame`,
-`git show`, `git cat-file`, `gh ... view/list`). You MUST NOT run any command that changes refs,
-the index, the working tree, or a remote.
+`git show`, `git cat-file`, `git merge-tree`, `gh ... view/list`). You MUST NOT run any command
+that changes refs, the index, the working tree, or a remote. A merge forecast - which files two
+refs would conflict on - is a read: compute it without a checkout.
 
 ## Operating rules
 
@@ -51,8 +52,7 @@ the index, the working tree, or a remote.
   via `gh ... view`/`list` through `Bash` (read-only). You do NOT hold the GitHub MCP tools (local-
   only allowlist by design) - route any GitHub API work needing the MCP surface back to
   `github-operator`.
-- You CANNOT spawn a subagent (no spawn tool in your grant). If a job is too big for one read pass,
-  return that finding so the lead re-scopes - do not work around the limit.
+- A job too big for one read pass: return that finding so the lead re-scopes.
 
 ## Brief self-check
 
