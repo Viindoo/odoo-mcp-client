@@ -21,7 +21,7 @@ re-checks it; invoked standalone with no signal, it derives a single-step change
 that turns out to need several steps follows rule 6 below.
 
 New modules across runs and worktrees are coordinated through
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`, written only by `odoo-coding`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`.
 
 ## Approved-plan-artifact detection
 

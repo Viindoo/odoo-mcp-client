@@ -273,7 +273,10 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    file) and write the evidence to the worklog; false -> `SKIPPED`.
 2. A node that writes source gets a worktree from `git-toolkit:git-ops` under `worktree_root`
    (`project_dir` axis `worktree`, `name` = the node id) starting at the repo's `run-integration`
-   branch; `inputs.worktree_path` records it.
+   branch; `inputs.worktree_path` records it. Before a build node that creates a NEW module is
+   launched, claim the module, and classify a coder's `BLOCKED: manifest dependency <dep>
+   unresolved`, as the launcher of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`.
 3. Launch the node's agent at its `model` with the brief of § Node brief (every launch in one
    message when several nodes are ready and their file sets are disjoint; the in-flight weight
    stays inside `concurrency-guard.md` Mode B; the reason letter of launch economics goes to the

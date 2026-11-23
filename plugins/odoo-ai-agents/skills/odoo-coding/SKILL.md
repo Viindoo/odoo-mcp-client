@@ -10,7 +10,7 @@ description: >-
 Developer front door: turn an approved node (or a small change with no plan) into committed,
 tested code by launching ONE `odoo-coder` per node, at the node's tier, inside the
 node's worktree. Compute nothing the plan already computed, write no source yourself, and own the
-cross-run module-coordination ledger.
+cross-run module-coordination ledger of a change that has no plan.
 
 ## Out of Scope
 
