@@ -81,7 +81,7 @@ module meets it: launch nothing and say so.
    smallest step; an existing bump of this PR is reused - extend its existing
    `migrations/<series>.<version>/` folder instead of adding a second one), `migration_gate.py
    check`, and a real upgrade within the series that reads the moved data back.
-4. **Review.** Launch `odoo-code-reviewer` `MODE: R1` (model `haiku`) on the coder's commit range;
+4. **Review.** Launch `odoo-code-reviewer` `MODE: R1` (model `haiku`) on the coder's commit range and diff file;
    a CRITICAL or HIGH finding goes back to the same coder with SendMessage, then to the same
    reviewer, at most twice.
 5. **Return** the commit range, `MIGRATION_GATE=` and the upgrade proof per module, and the

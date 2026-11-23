@@ -1,6 +1,6 @@
 # Plan schema and run rules (writes-files Approach)
 
-**Contents:** Block 1 - Node list - Block 2 - Dependency graph - Block 2 - Dependency graph - Block 3 - Assignment - Default tail - Running the plan (the main agent, inline) - Node brief - Run file (`<ISOLATE_DIR>/run-<id>.json`, `schema_version: run/2.0`) - Rejection flow
+**Contents:** Block 1 - Node list - Block 2 - Dependency graph - Block 3 - Assignment - Default tail - Running the plan (the main agent, inline) - Node brief - Run file (`<ISOLATE_DIR>/run-<id>.json`, `schema_version: run/2.0`) - Rejection flow
 
 **SSOT owned by `odoo-planning`** (authored by its `odoo-planner` agent, or filled by the main
 agent from the default tail for a one-node change).
@@ -154,7 +154,7 @@ place; the rest keep their order.
   # model sonnet when a Given needs a fixture built (concurrency-guard.md, Model-tier selection)
   depends_on: [<last verify>]
   when: the diff touches a screen (odoo-ui-contract.md), a menu, a controller, or a state change of a model with a workflow
-  # A4 (mode A4, model sonnet) follows when audience is not n/a and the diff adds or changes a screen
+  # A4 (mode A4, model sonnet) follows by step 5 of odoo-acceptance
 - id: ui-review
   approach: odoo-ui-review   # invoked inline with SCREENS = the screens the diff touches, the design's MOCKUPS and SELF_PROVISION: worktree-addons
   approach_kind: skill
@@ -293,9 +293,10 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
    file. A build node's range gets its mechanical review before it is integrated: launch
    `odoo-code-reviewer` `MODE: R1` (`model: haiku`; brief:
-   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`, `RUN_MODULES` =
-   the modules earlier nodes changed), send its CRITICAL and HIGH findings to that node's coder
-   with `SendMessage`, and resume the same reviewer on the fix; three rounds, then the node is
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`, `DIFF_PATH` =
+   the diff file the coder returned, `RUN_MODULES` = the modules earlier nodes changed), send
+   its CRITICAL and HIGH findings to that node's coder with `SendMessage`, and resume the same
+   reviewer with the diff file of the fix; three rounds, then the node is
    `BLOCKED` with the findings. Its report path joins the run's `R1_FINDINGS`. Then
    cherry-pick a source node's range onto `run-integration` through `git-ops`
    (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; a node that lands its own PR is
@@ -344,10 +345,12 @@ A build node gets the fields of
 `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID`, `WORKLOG`,
 `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SRS`, `RECON`, `DOMAIN`, `SELF_PROVISION: worktree-addons` or
 an `INSTANCE_HANDLE` with `ADDONS_PATH`, `SURVEY` (`none` when none), `CONSTRAINTS` (the Block 3
-cross-module assertions). A build node edits a module's `version` or `migrations/` only when its
+cross-module assertions, and that every commit of the node, a fix included, is requested plainly:
+`integrate` shapes the history, and a fix folded into a commit already on `run-integration`
+cannot be picked onto it). A build node edits a module's `version` or `migrations/` only when its
 brief asks for it; what existing data of the same series needs goes in its worklog for the
 `migration` node (a node of a series upgrade or a forward-port writes no such note). Return: the
-commit range `<base>..<head>` on the node's branch. A tail
+commit range `<base>..<head>` on the node's branch and its diff file. A tail
 node gets the brief of its skill's `references/` file (`odoo-code-review`, `odoo-acceptance`,
 `odoo-i18n`, `odoo-doc-illustration`; `odoo-ui-review` takes the inputs its body lists) with `WORKTREE_PATH: <repo>/run-integration` and
 `SELF_PROVISION: worktree-addons` where the agent builds its own instance (i18n always: an export
