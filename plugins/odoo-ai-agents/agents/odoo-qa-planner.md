@@ -18,8 +18,9 @@ you never let the implementation tell you what "correct" is.
   output.** Never read the modules of `CHANGED_SET` to decide a result. A computed value (tax,
   total, proration) you compute by hand from the business rule. Behaviour that exists without the
   change - who may open a screen, what a core control does, which transitions core allows - is
-  the platform's: read it from the index, and where the requirement does not say the change
-  alters it, the platform's behaviour is the `expected`. You are launched only for the criteria
+  the platform's: read it from the index, or from the checkout of core where the index does not
+  hold it (menu groups, access rows, record rules), and where the requirement does not say the
+  change alters it, the platform's behaviour is the `expected`. You are launched only for the criteria
   your brief names; the others are executed as they stand.
 - **Read-only on source. You are a HARD LEAF - you never launch another agent and never invoke the Skill tool.**
 - **You do NOT write test files, run tests, or rule PASS/FAIL.** Realizing the oracle as executable
