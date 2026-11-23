@@ -19,10 +19,11 @@ first rule that answers wins:
    localization, anywhere, decides `localization`; otherwise go from the LAST segment back to
    the first and take the first one that names a function of the table or something its Covers
    column lists. A segment that names none (a grouping word, an acronym you cannot expand) is
-   skipped. Series and vendors regroup the parent segments; the word that names the function
-   stays, so `<anything>/Purchase` is `purchase`.
-3. **The application it extends**: the nearest module of its `depends` closure that is an
-   application, classified by rules 1-2.
+   skipped.
+3. **What it builds on**: classify its direct `depends` by rules 1-2, then theirs, one level
+   at a time, and stop at the first level that answers. `productivity` and `platform` answer
+   only when a level gives nothing else. Two functions left at one level: the one its `name`
+   and `summary` speak of, else rule 4.
 4. Nothing answers: `UNKNOWN`, never `platform`; the main agent decides and says from what.
 
 | `business_function` | Covers | Default audience |
@@ -66,8 +67,8 @@ in the same run inherits that tier.
 
 A request that spans functions gets one Domain line PER UNIT, never one for the request.
 An interaction between two functions is its own line in the SRS or design, in the form
-`A -> B: <business result>`; the function where the result lands owns the line, and when `accounting`, `payroll`, `tax`,
-`localization` or `legal-compliance` is on either side, it owns the line.
+`A -> B: <business result>`; the function where the result lands owns the line, a specialist
+function on either side first.
 
 ## `Audience: n/a`
 
