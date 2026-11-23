@@ -291,7 +291,9 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    the node's coder before `integrate`, then have only the shots and scenes that show what the
    fix changed taken again.
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
-   file. A build node's range gets its mechanical review before it is integrated: launch
+   file. A build node's return that lacks a line of the coder's § Return goes back to that coder
+   once (`SendMessage`) for the missing step. Its range then gets its mechanical review before
+   it is integrated: launch
    `odoo-code-reviewer` `MODE: R1` (`model: haiku`; brief:
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`, `DIFF_PATH` =
    the diff file the coder returned, `RUN_MODULES` = the modules earlier nodes changed), send

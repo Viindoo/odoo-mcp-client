@@ -51,13 +51,13 @@ dependent modules.
 
 ### Effort - the blast radius drives it
 
-The tier is the kind of reasoning; the effort is how far the agent looks and how hard it checks
-before it concludes. Size moves the effort, never the tier. Pick the LOWEST row that matches:
+The tier is the kind of reasoning; the effort is how far the agent looks and how hard it checks.
+Size moves the effort, never the tier. Pick the LOWEST row that matches:
 
 | effort | pick when |
 |--------|-----------|
 | `low` | mechanical work with its rule stated: find and gather, instance operations, polling, list-driven edits |
-| `medium` | the default: a change inside one module and one business function, no recon flag |
+| `medium` | the default: a change inside one module and one business function, no recon flag; review `R1` |
 | `high` | `recon.md` raised a flag (an inheritance-axis change, an override chain of at least `OVERRIDE_CHAIN_MIN`, at least `DEPENDENTS_MIN` dependents of one symbol, a `noupdate` data file in scope, a stored compute over a many-record relation); the change touches two or more modules or business functions; a design session; review `R2`; debugging to a root cause; writing an acceptance oracle |
 | `xhigh` | a unit whose `business_function` is on the specialist list AND a recon flag; a design session whose request names a specialist business function; review `R3` |
 
