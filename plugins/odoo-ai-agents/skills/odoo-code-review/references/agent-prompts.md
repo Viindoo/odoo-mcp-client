@@ -59,7 +59,7 @@ Verifying a fix (§ 4 of that file; R1 verifies its own findings with `PRIOR_FIN
 ```
 ROUND: <n>
 PRIOR_FINDINGS: <that reviewer's earlier report path>
-FIX_DIFF: <BASE>..<HEAD> of the fix
+FIX_DIFF: <the diff file of the fix: the coder returns it; a caller that commits itself has git-ops write it>
 IMPACT_MAP: <updated path>
 ```
 

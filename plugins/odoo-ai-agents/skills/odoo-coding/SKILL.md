@@ -69,7 +69,7 @@ cross-run module-coordination ledger of a change that has no plan.
 5. **Launch** `odoo-coder` with the brief below, written per
    `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § What a brief carries. Several independent
    nodes launch in one message within the Mode B budget of the guard.
-6. **Collect.** A `DONE` carries a commit range (or a file list under `COMMIT: caller`), both test
+6. **Collect.** A `DONE` carries a commit range and its diff file (or a file list under `COMMIT: caller`), both test
    verdicts, the web-client boot evidence when the node touched `static/src/**`, the impact-map
    path and the mapping of every `REQUEST` item to its files; a return missing one of them is not
    `DONE`. `BLOCKED: manifest dependency <dep> unresolved` is
