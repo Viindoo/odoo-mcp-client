@@ -33,7 +33,9 @@ Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agent
    "one-shot" / "one-time" in a request means ONE RUN, not a different git shape: never a licence to
    cherry-pick; to land only part of the branch, pass that sub-range's TIP SHA (Hard rule 2).
 2. Enumerate the commits to forward (read-only; no worktree, no branch yet) with ONE git-ops request.
-   A source ref `TARGET_CLONE` cannot reach is brought in first: the request asks for the source
+   The source and the target named by the user are their remote-tracking refs, brought up to
+   date by that request; a local branch is never moved. A source ref `TARGET_CLONE` cannot reach
+   is brought in first: the request asks for the source
    branch to be fetched, from the source repository added as a remote when the source is another
    repository. Results, all written to
    `<ISOLATE_DIR>/forward-port/<slug>/range.md`:
@@ -48,9 +50,10 @@ Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agent
    - per commit, the files it touches with their change statistics (the input of the EXTRACT-tier
      triage below);
    - `modules:` - per touched module (the directory holding the descriptor above each touched
-     path), `installable`, `auto_install`, `application` and `version` as its descriptor states
-     them at the target ref and at the source ref (`<tgt-descriptor>` / `<src-descriptor>`, Hard
-     rule 11); `absent` where the descriptor is not on that ref;
+     path), its commits oldest first, and `installable`, `auto_install`, `application` and
+     `version` as its descriptor states them at the target ref and at the source ref (the two
+     descriptor filenames of Hard rule 11, stated at the head of the section); `absent` where
+     the descriptor is not on that ref;
    - `conflicts:` - the files a merge of the source ref into `<target-branch>` would conflict on,
      forecast without changing a branch, an index or a working tree.
 
@@ -61,22 +64,21 @@ Map each `--scope` module name to its directory path before requesting git-ops t
 by path (module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root
 or under an addons subdir, e.g. `addons/l10n_vn/`).
 
-**Group by module first (R2a).** `range.md` lists the touched files per commit for every commit in
-the range; map each touched path to its owning
-module (same resolution rule as `--scope` above). Build `module -> [ordered sha list]`
-(chronological, oldest first); a commit touching 3 modules appears in each of the 3 modules' lists.
-This map is what P1 dispatches over.
+**Group by module first (R2a).** The `modules:` rows of `range.md` are the map
+`module -> [ordered sha list]` (oldest first; a commit touching 3 modules appears in each of the
+3 modules' lists). This map is what P1 dispatches over.
 
 For each MODULE's commit bundle, triage the EXTRACT tier INLINE (the change statistics in `range.md` for every
 commit in the bundle; for an override-depth question, one `find_override_point` probe) per
 `references/fp-triage-table.md` Table 1 - the tier is the HIGHEST-priority row any commit in the
 bundle matches; triage inline, never dispatch an agent to decide a dispatch.
 
-Recon only: NO gate, NO `plan.md`, NO branch, NO worktree. Write the per-commit EXTRACT tier
-and the range facts to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` (each commit's row carries the
-tier its module's bundle resolved to), then READ that file back at the start of P1; a resumed run
-must not re-triage the range.
+Recon only: NO gate, NO `plan.md`, NO branch, NO worktree. Write the range facts and the tier
+of each module's bundle (`lint-only` for a module on that lane) to
+`<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` - one line per tier with the
+modules it holds, the per-commit detail staying in `range.md` - then READ that file back at the
+start of P1; a resumed run must not re-triage the range.
 
 ---
 
