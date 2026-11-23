@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.16.2] - 2026-11-23
+
+### Fixed
+
+- A reviewer runs no git, yet a resumed round handed it a commit range to read a fix from. The
+  coder's commit request now writes the diff of its range to a file and the coder returns it; the
+  mechanical review of a build node and every resumed round receive that file.
+- The mechanical review of a build node rules a behaviour test that sets a user-entered field
+  through `create` or `write` instead of the form, so the node's coder corrects it before the
+  range is integrated; the behaviour review no longer raises it at the tail of the run.
+- The business function of a module whose category names none is read from the modules it
+  depends on, one level at a time, not from the nearest module flagged as an application:
+  `productivity` and `platform` answer only when a level gives nothing else, and two functions
+  at one level are settled by the module's name and summary or left `UNKNOWN`.
+- An acceptance oracle states an expected list or count over the records its fixture creates, so
+  demo data and the records of earlier scenarios do not change a verdict. A tester runs an
+  observation again on a database without the module only when the triage asks for it, and the
+  triage opens the source line that shows who owns a behaviour itself.
+- A document written for a human keeps every diacritic and the script of its language.
+- The plan schema's contents line lists each section once, and the plan's `A4` comment points at
+  the step of `odoo-acceptance` that decides it.
+- git-toolkit 0.11.1 -> 0.11.2: a file a brief asks for is written at the exact path it names, and a tree is
+  never made to look clean by changing the repository's ignore rules, hooks or configuration.
+
 ## [8.16.1] - 2026-11-23
 
 ### Fixed
