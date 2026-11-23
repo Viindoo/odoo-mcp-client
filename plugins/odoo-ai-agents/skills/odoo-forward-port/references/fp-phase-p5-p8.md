@@ -1,6 +1,6 @@
 # Forward-Port Pipeline - P5 to P8 (merge, symbol survival, drift scan, adapt)
 
-**Contents:** P5 - P6 - P7 - P8 (8a, 8b, 8c and 8c-bis, 8e)
+**Contents:** P5 - P6 - P7 - P8 (8a, 8b, 8c, 8e)
 
 All paths are under the integration worktree unless noted. `<slug>` derives from the
 source/target series (`<source-series>-to-<target-series>`). Artifacts live under
@@ -45,7 +45,9 @@ the OSM grounding in this context.
 1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the conflict-marker scan AND the
    list of files the ported range changed (everything after `merge_base` up to the source SHA) in
    ONE dispatch (git-ops writes both to a findings file, filtered to non-empty entries, and returns
-   the path).
+   the path). The same dispatch proves the lint-only modules (`installable_false: yes`) as
+   `[[fp-installable-false]]` § Lint-only lane states; their files leave the list of step 2 and
+   of P7.
 2. Dispatch `Explore` (read-only, `model: haiku` on the launch) over that returned file list to ground every Odoo symbol it
    references (field / method / model / view ref / external-id / manifest depend / ORM chain)
    against the TARGET version, per `[[fp-symbol-survival-check]]` sections 1-2.5. Never issue the OSM
@@ -186,7 +188,6 @@ TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo
       that already test this behavior the target-idiomatic way>
 COMMIT: caller   (make NO commit - the batch's merge window stays open; return the file list and
       the test leg's report; P10 commits the batch)
-NEW MODULE: <yes | no>
 DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>   (P3's route-out result)
 MODULE SCOPE: <name>
   READ/WRITE (in the integration worktree, no separate child worktree): <path>/fp-integration/<module>/
@@ -202,9 +203,8 @@ ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT
 WORKLOG: <slug> - read, then append.
 CONSTRAINTS: C1 manifest version; C3 a pre-existing defect is reported with its evidence, not fixed in the open merge -
   ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md
-  [+ NEW MODULE yes: apply the installable:False checklist - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
-  [+ LINT-ONLY: the module is installable:False at the target - fix syntax/lint breakage only,
-     adapt no business logic (8c-bis) - ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
+  [+ LINT-ONLY: installable_false yes - the manifest flags, then syntax and lint only -
+     ${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md]
 WORKER_AGENT_ID: <id recorded for this module on its first invocation this run>   (omit on the
       module's FIRST invocation)
 USER LANGUAGE: <lang | omit when English>
@@ -215,23 +215,10 @@ exactly this union), the test leg's brief per-test report (what it broke, how th
 line each, free form), and any re-bucket the node reports as the new bucket + reason on that sha's row.
 P9 adjudicates the report.
 
-**8c - installable:False modules (LINT-ONLY lane)** - two sub-cases, same manifest action, both then
-lint-fix only. (i) **New module** (absent at target): `installable: False`, comment
-`auto_install`/`application`. (ii) **Upgraded-then-forwarded** (target clean-tip =
-`installable:False` but merge carries `True`): re-set to False + re-comment `auto_install`/`application`
-with `# TODO: Uncomment when upgrading module to production-ready status` breadcrumb BEFORE
-dispatching the coder. SSOT: `[[fp-installable-false]]`.
-
-**8c-bis - confirm the target flag, then brief lint-only.** BEFORE dispatching the coder/reviewer
-for any module, confirm its target installable flag. Re-read
-`<module>/<tgt-descriptor>` at `target_ref` (via git-ops, read-only) only if the manifest was touched
-by the merge; otherwise reuse the value P2 already resolved from `manifest_path`. If
-`installable: False` at the target, brief
-the coder in **lint-only mode**: run flake8 / eslint / prettier / ruff and fix ONLY syntax/lint
-breakage to keep CI green - do NOT adapt business logic, do NOT upgrade content. Add the
-`LINT-ONLY` clause to the 8b brief's `CONSTRAINTS` field, with the pointer
-`[[fp-installable-false]]`. The single exception to "no logic change" is a syntax/lint error that
-itself blocks the file from parsing. SSOT: `[[fp-installable-false]]`.
+**8c - lint-only modules** (`installable_false: yes` on the module's `merge-log.md` row; when the
+merge touched its descriptor, confirm the flag again through git-ops first). Apply the manifest
+flags and the P8 row of `[[fp-installable-false]]`: no adapt, no test leg, and a coder only under
+the `LINT-ONLY` clause of the 8b brief.
 
 **8e - i18n: COMPUTE and RECORD; the dispatch happens at P9.5.** Do NOT dispatch `odoo-i18n` here.
 Evaluate both mandate conditions now and record them on the module's `merge-log.md` row:

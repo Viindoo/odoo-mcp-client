@@ -157,12 +157,10 @@ Per-batch checks:
 
 ### P11 - End-to-end acceptance
 
-**P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
-only, BEFORE the P12 PR opens or reviews].** Runs after the P10 loop closes and BEFORE P12 pushes the
+**P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide].** Runs after the P10 loop closes and BEFORE P12 pushes the
 branch, opens the PR, or runs its review gate (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`
 § Default tail). Compute the verify scope by invoking `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`
-over every module touched across the batch (from `merge-log.md`), deriving the reverse-closure via
-OSM `impact_analysis` per that snippet's Step 1.
+over every module touched across the batch (from `merge-log.md`).
 Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch (never per commit
 or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
 (read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
@@ -171,12 +169,12 @@ or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/disp
 pointer) = each ported commit's behavioral contract recorded in the touched module's own
 `<module>/intents/<sha>.md` and any P3 design doc's §9 - NEVER a pre-built oracle. Do NOT hand it
 the implementation.
-**MANDATORY - narrow escape only.** Skip it ONLY when the touched set is a true dependency leaf with
-ZERO in-repo dependents AND no behavioral surface (no views, no models any other module consumes) -
-record that proof explicitly in `merge-log.md`; never skip silently. **The forward-port is not DONE
-until this stage returns ACCEPTED (PASS), or the narrow-escape condition above is explicitly met and
-recorded.**
-Carry the acceptance verdict (or the recorded narrow-escape) forward and present it ALONGSIDE the
-P12 human-merge decision below.
+**MANDATORY - two escapes only**, each recorded in `merge-log.md`, never silent: (1) the touched
+set is a true dependency leaf with ZERO in-repo dependents AND no behavioral surface (no views, no
+models any other module consumes) - record that proof; (2) every module of the batch is
+`installable_false: yes` - record the line `[[fp-installable-false]]` § Lint-only lane gives.
+Lint-only modules of a mixed batch stay out of the acceptance scope. **The forward-port is not
+DONE until this stage returns ACCEPTED (PASS) or an escape is recorded.**
+Present the verdict, or the recorded escape, ALONGSIDE the P12 human-merge decision below.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `merge-log.md`.

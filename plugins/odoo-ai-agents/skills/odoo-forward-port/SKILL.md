@@ -21,13 +21,13 @@ cherry-pick + squash -> `odoo-planning`; upgrade plan only -> `/odoo-plan-upgrad
 
 `/odoo-forward-port <source-ref> <target-branch> [--scope <mod1,mod2>] [--since <sha>]`, parsed from
 `$ARGUMENTS` in P0 (missing `source-ref` / `target-branch` -> ask once before any read
-or git-ops request). ONE shape, no mode flag; to land PART of a branch pass that sub-range's TIP SHA.
+or git-ops request). To land PART of a branch pass that sub-range's TIP SHA.
 
 ## Hard rules
 
 1. **Target-branch-lock** - NEVER checkout, switch, commit, merge, rebase, reset or push target
    branch B; reading B does not break the lock. Integrate only in the JOB-tier worktree
-   `fp/<slug>` branched FROM B (`<path>/fp-integration`); P8 adapts DIRECTLY there, no per-module
+   `fp/<slug>` branched FROM B (`<path>/fp-integration`); P8 adapts there, no per-module
    child worktree. Every git operation, a read included, is a request to `git-toolkit:git-ops`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`);
    saga: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
@@ -48,21 +48,20 @@ or git-ops request). ONE shape, no mode flag; to land PART of a branch pass that
 7. **Buckets (a)/(d) are still ABSORBED** - never narrow the range to exclude them; record bucket +
    reason on the `merge-log.md` row and in the merge commit body.
 8. **Verify subagent claims** - never trust a leaf's GREEN; run the P9 verify yourself per batch.
-9. **Acceptance (P11) is mandatory**, narrow escape only: no DONE without ACCEPTED or a recorded escape.
+9. **Acceptance (P11) is mandatory**: no DONE without ACCEPTED or one of its two escapes, recorded.
 10. **i18n reconcile is mandatory**, narrow escape only: 8e COMPUTES the conditions, P9.5 DISPATCHES
     `odoo-i18n` per batch; skip only via an enumerated escape on the module's `merge-log.md` row
     (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`); no DONE without a result or escape
     for each `i18n_due: yes` module.
 11. **Descriptor filename resolves ONCE, per side** - from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`
     row 6: at P0 record `<tgt-descriptor>` (`target_ref`) and `<src-descriptor>` (`source_ref`; they
-    can differ). Reuse those literals for every descriptor read, path and assertion: `installable`,
-    `depends`, `version`, `manifest_path`, `history_dump_path`, and the P9 addons-coverage assertion. An absent descriptor may mean the
+    can differ). Reuse those literals for every descriptor read, path and assertion. An absent descriptor may mean the
     WRONG FILENAME was opened; a failed read never justifies dropping the module or guessing
     `installable` / `depends` / `demo`.
 
 ## The pipeline
 
-Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan-out: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+Briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan-out: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 (Mode B). Before P0, sweep:
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/state_sweep.py <ISOLATE_DIR>/forward-port --older-than-minutes 43200`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3).
@@ -72,8 +71,7 @@ Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan
   -> `NEEDS_CONTEXT` naming `/odoo-ai-agents:odoo-setup docs-site`); ONE git-ops request writes the
   range, each module's descriptor flags and the conflict forecast to `range.md`; record
   `<src-first-SHA>` / `<src-tip-SHA>`; the source-tip merge lands every commit above the merge
-  base, colleagues' included: record the merge base and the unnamed commits, and show that real scope at
-  P4 before anything merges (empty range -> `DONE`); build `module -> [shas]`; EXTRACT tier inline (`references/fp-phase-p0-p4.md` § P0).
+  base, colleagues' included: show that real scope (`merge_base`, `unnamed`) at P4 before anything merges (empty range -> `DONE`); build `module -> [shas]`; EXTRACT tier inline (`references/fp-phase-p0-p4.md` § P0).
 - **P1 Intent** [parallel, read-only]: at most ONE `odoo-intent-extractor` per module for the whole
   run. `references/fp-phase-briefs.md` § P1.
 - **P2 Classify** + installable-probe: bucket a/b/c/d per commit, `merge-log.md` row, `installable_false`
@@ -104,7 +102,8 @@ Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan
 ## Model triage
 
 First match wins, EXTRACT and ADAPT tables independent (`references/fp-triage-table.md`);
-record every tier in `plan.md`. An `installable:False` module skips tiers (lint-only lane). Checkpoint: `<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json`; a crash in P6-P9 resumes in
+record every tier in `plan.md`. A module not installable at the target skips tiers:
+`[[fp-installable-false]]` § Lint-only lane, phase by phase. Checkpoint: `<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json`; a crash in P6-P9 resumes in
 place, never re-run P5 (`references/fp-phase-briefs.md` § Checkpoint, resume).
 
 ## MCP tools
