@@ -1,8 +1,8 @@
 # Module Coordination Ledger (cross-run / worktree)
 
 One run cannot see whether a module it depends on is being built right now by another run or
-worktree, was built elsewhere, or is absent. The ledger records that, so `odoo-coding` can turn a
-coder's raw `BLOCKED: manifest dependency <D> unresolved on addons-path` into a specific decision.
+worktree, was built elsewhere, or is absent. The ledger records that, and turns a coder's raw
+`BLOCKED: manifest dependency <D> unresolved on addons-path` into a specific decision.
 Inside one run every node's worktree forks from the `run-integration` branch and its coder
 provisions on its own tree (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`
 § Worktree-addons carve-out), so the ledger matters across runs only.
@@ -33,14 +33,13 @@ Timestamps: `date -u +%Y-%m-%dT%H:%M:%SZ`.
 
 ## Ownership
 
-`odoo-coding` alone writes the ledger, reads it for decisions and drives the wait below.
-`odoo-coder` never reads or writes it: it runs its dependency pre-flight and returns the raw
-`BLOCKED`. The plan runner receives `odoo-coding`'s classified result and never runs a wait or the
-decision table itself.
+The ledger belongs to the LAUNCHER of the node's coder: the plan runner for a build node of a
+plan, `odoo-coding` for a change with no plan. It alone writes the ledger, reads it and drives the wait below. `odoo-coder` never reads or writes it: it runs its dependency
+pre-flight and returns the raw `BLOCKED`.
 
 ## Claim = atomic `mkdir`
 
-The node claims; the key is the module's technical name. `odoo-coding` claims EVERY module of the
+The node claims; the key is the module's technical name. The launcher claims EVERY module of the
 node's `modules` list before dispatching the node's coder, in ascending technical-name order -
 never dependency order, which leaves independent modules unordered and lets two runs deadlock.
 
@@ -69,7 +68,7 @@ done | failed` and nothing else.
 
 ## State transitions
 
-`odoo-coding` sets `claimed` on winning the claim; `building` when the module's coder is
+The launcher sets `claimed` on winning the claim; `building` when the module's coder is
 dispatched; `done` on the module's DONE (built, reviewed, committed); `failed` on a terminal
 BLOCK. It refreshes `heartbeat_at` on every dispatch-loop tick for each module it is building, and
 at run end leaves none of its entries `claimed` or `building`.
@@ -81,7 +80,7 @@ a module whose coder did return a valid report is never failed on suspicion.
 
 ## Decision table - `BLOCKED: manifest dependency <D> unresolved`
 
-`odoo-coding` evaluates in order; the first match wins:
+The launcher evaluates in order; the first match wins:
 
 1. `D` is on the effective addons path: a false alarm - re-run the pre-flight and proceed.
 2. `D` is a module of THIS run still `claimed` or `building`: a dispatch-ordering error - re-queue
