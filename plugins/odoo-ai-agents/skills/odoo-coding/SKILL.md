@@ -69,10 +69,8 @@ cross-run module-coordination ledger of a change that has no plan.
 5. **Launch** `odoo-coder` with the brief below, written per
    `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § What a brief carries. Several independent
    nodes launch in one message within the Mode B budget of the guard.
-6. **Collect.** A `DONE` carries a commit range and its diff file (or a file list under `COMMIT: caller`), both test
-   verdicts, the web-client boot evidence when the node touched `static/src/**`, the impact-map
-   path and the mapping of every `REQUEST` item to its files; a return missing one of them is not
-   `DONE`. `BLOCKED: manifest dependency <dep> unresolved` is
+6. **Collect.** A `DONE` carries every line of the coder's § Return, filled or `not done: <reason>`; a
+   return that lacks a line goes back to the same coder once (`SendMessage`) for that step. `BLOCKED: manifest dependency <dep> unresolved` is
    classified with the ledger's decision table, never by the coder. `NEEDS_NEXT` naming a module
    outside the node: under a plan, a module outside the approved scope re-plans (same contract,
    rule 7); standalone, widen `MODULES` and
@@ -119,7 +117,7 @@ OSM unreachable: the module graph comes from the descriptors on disk (`__manifes
 ## Agent-managed tools
 
 This skill launches `odoo-coder` only. The coder launches `odoo-impact-recon` when it has no
-recon, a second `odoo-coder` only for a part that exceeds one agent's output budget, and
+recon and changes an existing symbol, a second `odoo-coder` only for a part that exceeds one agent's output budget, and
 `odoo-frontend-coder` only for a frontend part with new JS or OWL files disjoint from the backend
 files; it invokes `odoo-test-writing` inline and `odoo-instance` for every instance run.
 

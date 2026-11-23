@@ -42,7 +42,7 @@
     "snippets/module-coordination-ledger.md": 5185,
     "snippets/git-delegation.md": 7589,
     "snippets/resource-teardown-contract.md": 5512,
-    "skills/_shared/concurrency-guard.md": 9520,
+    "skills/_shared/concurrency-guard.md": 9513,
     "snippets/worker-brief.md": 2876,
     "snippets/spawner-completion-contract.md": 10099,
     "snippets/continuation-contract.md": 2761,

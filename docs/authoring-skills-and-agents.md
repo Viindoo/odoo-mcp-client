@@ -312,6 +312,15 @@ reviewer, a debugger, the design session) or is always mechanical (instance oper
 table. Allowed values are `low`, `medium`, `high`, `xhigh`; `max` is never a default (lint
 `[agent-effort]`).
 
+**A step leaves a line in the return.** An agent does what looks proportionate to the job, so a
+step nothing asks evidence for is the first one dropped on a small job. Every step of a procedure
+that a later gate relies on has a line in the agent's `## Return` (or in its report) holding what
+only that step produces: a file it wrote, a record, a verdict with its counts. The body says
+once that a line the agent cannot fill is a step it did not do - it does the step, or writes
+`not done: <reason>` on that line - and the launcher sends a return that lacks a line back once
+for it. A step that may be skipped states when, in the step itself. `odoo-coder` § Return and the
+per-check lines of `odoo-code-reviewer` `MODE: R1` are the reference shapes.
+
 **Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
 `snippets/dispatch-brief.md` says what a launcher (the main agent, a dispatching skill, a node
 owner) puts in the prompt of an agent it launches: the rules of a brief, the universal skeleton

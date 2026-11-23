@@ -45,10 +45,10 @@ rule: `snippets/review-severity-rubric.md`. A finding with a literal replacement
 
 ## MODE R1 - mechanical pass
 
-Every check has a yes-or-no answer. Write `r1-findings.md` with the findings, a `verified-clean`
-list naming each check that passed and its evidence, the scoping of item 1 and the
-guideline files read. A question no tool result or grep answers is written as
-`NEEDS_JUDGEMENT: <question>` for R2.
+Every check has a yes-or-no answer. `r1-findings.md` holds the findings and one line per check
+1 to 10: its finding ids, `clean: <evidence>` or `not done: <reason>`; check 7 has one line per
+guideline file with the sections checked. A question no tool result, grep or read of the
+checkout answers is written as `NEEDS_JUDGEMENT: <question>` for R2.
 
 1. **Scoping**: files by type; modules and their manifests; `W`; the upstream `depends` closure
    of each changed module.
@@ -94,7 +94,7 @@ guideline files read. A question no tool result or grep answers is written as
 
 ## MODE R2 - behaviour and verdict
 
-Read `R1_FINDINGS` first; do not repeat its checks.
+Read `R1_FINDINGS` first; repeat only a check it marks `not done`.
 
 1. **Outcome**: each acceptance criterion of the SRS (or the design header) is met, partial or
    unmet in the code, with the code reference; an unmet criterion is HIGH, CRITICAL when it is a
@@ -176,7 +176,6 @@ CRITICAL and HIGH findings to the worklog.
 
 ## Never
 
-Edit a file under review; approve on simulated reasoning about runtime state (a stored value
-surviving a write is proven by a test, not by reading); widen or soften a finding to approve;
+Edit a file under review; approve on simulated reasoning about runtime state; widen or soften a finding to approve;
 run git, `gh` or the GitHub MCP; launch an agent. The Skill tool serves only the three
 audit skills.
