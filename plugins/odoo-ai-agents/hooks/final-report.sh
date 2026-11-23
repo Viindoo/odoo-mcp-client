@@ -20,6 +20,11 @@
 . "${BASH_SOURCE[0]%/*}/transcript-lines.sh" 2>/dev/null || true
 declare -F _tool_call_lines >/dev/null 2>&1 || _tool_call_lines() { cat -- "$1" 2>/dev/null; }
 
+# The token the resumed-request gate (enforce-resumed-handback.sh) puts at the head of its block
+# reason. The harness records a block reason in the agent's transcript, so the token is how the
+# gate finds its own earlier block for a request (_resumed_without_report).
+_RESUMED_GATE_MARK='[resumed-request gate]'
+
 # The transcript a Stop / SubagentStop / PreToolUse payload is about. On SubagentStop that is
 # `agent_transcript_path` - the subagent's OWN transcript; the payload's `transcript_path` is the
 # WHOLE session's (parent plus every sibling), and reading it attributes other agents' calls and
@@ -52,7 +57,10 @@ _hook_last_message() {
 # Shared jq prelude: every record of the transcript, in order, as {i, role, meta, content, tur}.
 # Both on-disk shapes are read: the harness's {"type", "message": {"role", "content"}} and the bare
 # {"role", "content"}. `tur` is the record's toolUseResult (the structured tool result); `origin` is the
-# record's origin object (who sent a message), on a user record or on a queued-command attachment.
+# record's origin object (who sent a message): a `user` record when the message reached an IDLE agent
+# (it starts a turn), a `queued_command` attachment when it reached an agent still working (the
+# turn goes on); `atype` is the type of an attachment record ("" on any other record); `fbtext` is
+# the reason text a hook_blocking_error attachment carries ("" on any other record).
 _FR_JQ_RECORDS='
   def blocktext: if type == "string" then .
                  elif type == "array" then (map(select(type == "object" and .type == "text") | (.text // "")) | join("\n"))
@@ -61,7 +69,9 @@ _FR_JQ_RECORDS='
   | [ $L | to_entries[] | .key as $i | .value as $r | ($r.message // $r) as $m
       | {i: $i, role: ((($m.role // $r.type) // "") | tostring), meta: ($r.isMeta == true),
          content: ($m.content // []), tur: ($r.toolUseResult // null),
-         origin: ($r.origin // ($r.attachment | objects | .origin) // null)} ] as $R
+         origin: ($r.origin // ($r.attachment | objects | .origin) // null),
+         atype: (($r.attachment | objects | .type) // ""),
+         fbtext: (($r.attachment | objects | .blockingError | objects | .blockingError | strings) // "")} ] as $R
   # The FINAL TURN: every assistant record after the last non-meta user record (a tool_result
   # carrier or a real prompt). A meta record (a system reminder, hook feedback) does not end it.
   | ([ $R[] | select(.role == "user" and (.meta | not)) | .i ] | max // -1) as $last_user
@@ -118,16 +128,18 @@ _FR_JQ_DELIVERED='
 
 # The transcript lines the dispatch/delivery questions need, and nothing else: the SubagentHandback
 # calls and their results, the SendMessage calls, the results that name an `agentId` (the agents this
-# agent launched) and the records that carry a message origin (kind coordinator or peer; the
-# harness writes compact JSON, a hand-built record may carry spaces). A transcript with no such
-# origin record has had no launcher request, so only the SubagentHandback lines are read: a long
-# first dispatch (tens of MB) is scanned for one key, as before.
+# agent launched), the records that carry a message origin of any kind (a launcher request, a
+# hand-back, a task notification, a human message; the key `"origin"` is one fixed string in the
+# harness's compact JSON) and the records that carry the resumed-request gate's own block reason
+# (_RESUMED_GATE_MARK: the "Stop hook feedback:" user record and the hook_blocking_error
+# attachment a block leaves). A transcript with no coordinator or peer origin record has had no
+# launcher request, so only the SubagentHandback lines are read: a long first dispatch (tens of
+# MB) is scanned for one key.
 _dispatch_lines() {
   local transcript="$1"
   if grep -qF -e '"kind":"coordinator"' -e '"kind": "coordinator"' -e '"kind":"peer"' -e '"kind": "peer"' \
        -- "$transcript" 2>/dev/null; then
-    _tool_call_lines "$transcript" SubagentHandback SendMessage agentId \
-      '"kind":"coordinator"' '"kind": "coordinator"' '"kind":"peer"' '"kind": "peer"'
+    _tool_call_lines "$transcript" SubagentHandback SendMessage agentId '"origin"' "$_RESUMED_GATE_MARK"
   else
     _tool_call_lines "$transcript" SubagentHandback
   fi
@@ -325,31 +337,52 @@ _handback_delivered() {
 
 # Prints who sent the request an agent is answering without a report, and nothing otherwise: the
 # agent was RESUMED - its launcher sent a new request after a report it had delivered through
-# SubagentHandback - and no report has been delivered since. Output is `coordinator` (the main
-# conversation) or `peer <sender agent id>` (a nested launcher). Nothing is printed for:
+# SubagentHandback - and that request is still unanswered at the stop of the turn it started.
+# Output is `coordinator` (the main conversation) or `peer <sender agent id>` (a nested launcher).
+# Nothing is printed for:
 #   - a first dispatch (no launcher request), or a request with no delivered report before it (the
 #     agent is not known to report through SubagentHandback);
 #   - a report delivered since the latest request, or a handback call with no result recorded yet;
 #   - a handback refused as already delivered since the request AND a SendMessage after it (the
 #     refusal says to send the answer with the messaging tool);
-#   - a wake that is not a request (task notification, a child's hand-back, hook feedback).
+#   - a peer request followed by a successful SendMessage addressed to its sender (that message is
+#     the answer; a message to anyone else is not);
+#   - a stop that is not the end of the turn the request started. A message that reaches an agent
+#     that had stopped (a task notification, a human message, a hand-back, a request) is recorded
+#     as a `user` record with an origin, and starts a later turn; only the stop of the request's
+#     own turn is judged. A message that reaches the agent while it still works is a
+#     `queued_command` attachment: the turn goes on, so it excuses nothing. The record this
+#     gate's own block leaves (a user record or a hook_blocking_error attachment carrying
+#     _RESUMED_GATE_MARK) means the request was already blocked once, so a request is blocked at
+#     most once; another gate's block record does not count.
 _resumed_without_report() {
   local transcript="$1"
   command -v jq >/dev/null 2>&1 || return 0
   [[ -n "$transcript" && -r "$transcript" ]] || return 0
-  jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"'
+  jq -rRs --arg mark "$_RESUMED_GATE_MARK" "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"'
   | ([ $R[] | select(.role == "assistant") | .i as $i | .content
        | (if type == "array" then .[] else empty end)
        | select(type == "object" and .type == "tool_use" and (((.name // "") | tostring) == "SendMessage"))
-       | $i ]) as $messaged
+       | {i: $i, id: (.id // ""), to: ((.input.to // "") | tostring)} ]) as $messaged
   | ([ $sends[] | select(.i > $disp) | . as $s
        | select($res | any(.id == $s.id and $s.id != "" and .bad and .already)) | .i ]) as $refused
+  | def idlewake: .role == "user" and ((.origin | type) == "object");
+    def ownblock: (.role == "user" and ((.content | blocktext) | contains($mark)))
+                  or (.atype == "hook_blocking_error" and (.fbtext | contains($mark)));
+    def iswake: idlewake or ownblock;
+    ([ $R[] | select(.i == $disp) | .origin ] | first // {}) as $req
+  | (if $req.kind == "peer"
+     then [($req.from // ""), ($req.senderTaskId // "")] | map(tostring | select(length > 0))
+     else [] end) as $senders
   | if $disp < 0 then empty
     elif ($delivered_all | any(.i < $disp) | not) then empty
     elif ($delivered | length) > 0 then empty
     elif ([ $sends[] | select(.i > $disp) | . as $s | select($res | any(.id == $s.id) | not) ] | length) > 0 then empty
-    elif ($refused | any(. as $r | $messaged | any(. > $r))) then empty
-    else ($R[] | select(.i == $disp) | .origin) | if .kind == "peer" then "peer " + ((.from // "") | tostring) else "coordinator" end
+    elif ($R | any(.i > $disp and iswake)) then empty
+    elif ($messaged | any(.i > $disp and (.to as $t | $senders | any(. == $t))
+                          and (. as $m | $res | any(.id == $m.id and .bad) | not))) then empty
+    elif ($refused | any(. as $r | $messaged | any(.i > $r))) then empty
+    else if $req.kind == "peer" then "peer " + (($req.from // "") | tostring) else "coordinator" end
     end
   ' < <(_dispatch_lines "$transcript") 2>/dev/null || true
 }
