@@ -1,8 +1,8 @@
-# Acceptance Oracle Contract (derive the truth from intent, never from the code)
+# Acceptance Oracle Contract
 
-An acceptance oracle decides whether an observed result is CORRECT for a given input. Derived
-from the implementation or from the system's current output it always passes; derived from the
-REQUIREMENT it catches the gap between what the code does and what the business needs.
+An oracle derived from the implementation or from the system's current output always passes;
+derived from the REQUIREMENT it catches the gap between what the code does and what the business
+needs.
 
 ## The five invariants (non-negotiable)
 
@@ -37,14 +37,13 @@ Four verdicts, ruled only on a scenario of the oracle:
 - **PASS** - the observed result matches `expected` and every required-evidence item was captured.
 - **FAIL** - the observed result contradicts `expected`, with the evidence of the contradiction.
 - **UNVERIFIED** - required evidence was not obtained (a blocked step, an unavailable role or
-  instance). Surface it; never bury it.
+  instance).
 - **EXTERNAL** - the scenario needs a third-party system this environment cannot reach. It is
   not run, counts neither for nor against the roll-up, and is listed with the system it needs.
 
 Anything else the tester notices - a screen that blocks, a label a role cannot read, a symptom
-on a screen no scenario names - is an **observation**: recorded with its evidence and with
-whether it reproduces without the change, never a FAIL and never a bug. Its origin is decided at
-triage (`${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md`).
+on a screen no scenario names - is an **observation**: recorded with its evidence, never a FAIL and never a bug. Its
+origin is decided at triage (`${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md`).
 
 ## Scenario-design techniques (the author applies all that fit)
 
@@ -64,6 +63,10 @@ decision table where conditions combine, plus what Odoo adds:
 - **State-transition.** Every legal transition passes; the transitions core forbids or integrity
   requires are blocked, each with its way out (back to draft, cancel this record); a transition
   core allows is never narrowed; buttons appear only in the correct state.
+
+A database is never empty (demo data, earlier scenarios): an `expected` list or
+count is stated over the records the scenario's fixture creates, plus the property every other
+listed record must have.
 
 Each scenario must be capable of FAILING for the right reason, and one that fails because the
 screen or record it names does not exist never ran at all
