@@ -6,6 +6,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.16.0] - 2026-11-23
+
+### Changed
+
+- Review findings are fixed once, by cause, after one triage. The plan runner launches the
+  mechanical pass (R1) on each build node's range when the node returns and resumes that node's
+  coder before the range is integrated, so a test-hygiene finding no longer costs a fix round at
+  the tail; the default tail starts at R2. R2 writes a fix list in its report - one item per
+  cause with its origin (`code`, `pre-existing`, `platform`, `oracle`, `msgid`, `environment`),
+  the evidence of the cause or the word `hypothesis`, and what "fixed" looks like. One contract,
+  `snippets/fix-round.md`, replaces four descriptions of the round: wait for every gate, triage
+  once by resuming R2 with the acceptance and UI reports, check the evidence of each item bound
+  for the coder, resume the coder once, verify only what the fix touched, and after a fix that
+  does not hold bring a proven diagnosis instead of another patch. A CRITICAL or HIGH finding on
+  behaviour states its scenario; R1 asks for the break record of each behaviour test and no
+  longer rates the coder's citation block.
+- Acceptance rules a verdict only on a scenario of the oracle. An expected value about behaviour
+  that exists without the change - who may open a screen, what a core control does, which
+  transitions core allows - is the platform's, read from the index or the source; an oracle that
+  merely assumed otherwise is corrected before the run. What a tester notices outside the oracle
+  is an observation, listed apart from the bugs with whether it reproduces without the change,
+  and its origin is decided at the triage.
+- The SRS states the problem only. Its template lives in
+  `skills/odoo-solution-design/references/srs-template.md` with the line between the SRS and the
+  design: roles, business rules, observable outcomes and acceptance criteria per role or flow in
+  the SRS; models, fields, methods, files, overrides, migration scripts and delivery steps in the
+  design. The SRS review mode reports design content as a finding, and the design skill sends
+  such an SRS back before the human sees it.
+- `instance_build` takes `skip_auto_install`: the tool passes the option where the lease's Odoo
+  checkout declares it and reports `applied`, or `unavailable` on a series that declares none.
+  `--skip-auto-install` inside `extra_args` is refused like the other build facts.
+
+### Fixed
+
+- `odoo-instance-ops` no longer drops a requested flag because the index does not list it: only
+  the lease's checkout says whether a series has a flag, and `instance_build` refuses an
+  `extra_args` flag the checkout does not declare before anything starts. The option reader also
+  reads options declared through a wrapper call.
+- `enforce-resumed-handback` blocks only the turn an unanswered request started, once per
+  request. A message to the peer that asked counts as the answer, and a wake that reaches an
+  agent that had already stopped is never blocked for an older request, so two subagents can no
+  longer keep resuming each other.
+- `odoo-forward-port`: a module that is not installable at the target has one written path
+  through every phase (`snippets/fp-installable-false.md` § Lint-only lane), and a batch with no
+  installable module verifies through the lint gate and has its own acceptance escape. The
+  conductor runs no git at P0: one git-ops request writes the range, each module's descriptor
+  flags at both refs and a conflict forecast to `range.md`.
+- A guide video is never embedded on a module's App Store page or in its manifest video link:
+  those take the marketing video of the page's language, and the `docs` channel description no
+  longer names the App Store.
+- git-toolkit 0.10.2 -> 0.11.0: a merge forecast and the content of a file at a ref are reads the
+  read-only surveyor serves.
+
 ## [8.15.1] - 2026-11-20
 
 ### Fixed
