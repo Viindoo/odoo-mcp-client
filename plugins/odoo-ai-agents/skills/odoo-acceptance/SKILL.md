@@ -53,17 +53,18 @@ expected to flag and allow, a block to have a way out, a surface to behave as co
    `WORKTREE_PATH`; mint the run `SLUG`
    (`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1); sweep
    `<ISOLATE_DIR>/visual/qa/` (Clause 2).
-2. **Oracle readiness.** Every criterion of `SRS` has a role, a precondition, steps and a
-   comparable expected value. One that does not, or whose expected value is about behaviour the
-   change does not introduce (a role's access to an existing screen, a core control, a core
-   transition): launch `odoo-qa-planner` (`model: sonnet`) for those criteria only, with
-   `REQUIREMENT` = the SRS and `SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`; the
-   result is the `ORACLE_PATH` for them, and a criterion it returns as a question goes back to
-   the caller, never to the tester. Never the planner for any other criterion.
-3. **Scope.** Build the verify-scope manifest per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`
+2. **Scope.** Build the verify-scope manifest per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`
    (reverse closure, risk rank, affected screens) into `<ISOLATE_DIR>/qa/<slug>-scope.md`;
    `DEPENDENTS` = the in-repo dependents of `MODULES` from `RECON` and the manifest grep of the
    repo (`none` when there are none).
+3. **Oracle readiness.** Every criterion of `SRS` has a role, a precondition, steps and a
+   comparable expected value. One that does not, or whose expected value is about behaviour the
+   change does not introduce (a role's access to an existing screen, a core control, a core
+   transition): launch `odoo-qa-planner` (`model: sonnet`) for those criteria only, with
+   `REQUIREMENT` = the SRS, `odoo_version`, `CHANGED_SET` and `SCOPE_MANIFEST` = the manifest of
+   step 2, and `SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`; the result is the
+   `ORACLE_PATH` for them, and a criterion it returns as a question goes back to the caller, never
+   to the tester. Never the planner for any other criterion.
 4. **Launch `A1A2`** (`odoo-qa-tester`, `MODE: A1A2`, `model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection - `haiku` unless a
    Given needs a fixture built): `ORACLE_PATH`, `MODULES`,
    `DEPENDENTS`, `WORKTREE_PATH`, `ODOO VERSION`, `PROFILE`, `RUN_ID`, `SCOPE` (screens and roles
@@ -100,7 +101,7 @@ oracle, then return `NEEDS_NEXT: odoo-instance`; never `ACCEPTED` without live e
 
 ## Agent-managed tools
 
-`odoo-qa-tester`, `odoo-qa-planner` (step 2 only), `odoo-test-writer` (step 6 only): each a leaf;
+`odoo-qa-tester`, `odoo-qa-planner` (step 3 only), `odoo-test-writer` (step 6 only): each a leaf;
 the tester invokes `odoo-instance` inline for the databases it builds.
 
 ## Continuation Contract
