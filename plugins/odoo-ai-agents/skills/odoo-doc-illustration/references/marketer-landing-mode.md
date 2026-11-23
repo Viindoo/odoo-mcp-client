@@ -36,8 +36,8 @@ know is one sentence of outcome with a link to the guide.
    strictly per app-store-template: sections in Section Map order from the source each row names,
    the hero tagline from the manifest `summary`, the sanitizer rules of its § 1, the palette from
    `BRAND` (else the template's own fallbacks), legacy `oe_*` classes kept when the module
-   already uses them. The video of a page is the entry of `VIDEO` for that page's language; none,
-   no VIDEO section. FEATURES lists the catalog, grouped, within its line target: a capability
+   already uses them. The video of a page is the entry of `VIDEO` for that page's language, never
+   a `GUIDE VIDEO` or another URL; none, no VIDEO section. FEATURES lists the catalog, grouped, within its line target: a capability
    the catalog does not hold is not listed, and a claim of its closing group is verified like any
    other. After the hero, one line per `extends_in_scope` base, linked per
    `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module. The cards

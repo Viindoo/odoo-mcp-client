@@ -4,8 +4,10 @@ A video a run produced (`video-produce`, `odoo-demo-recording`) lives under
 `<ISOLATE_DIR>/video/<label>/` for the run and is deleted when the run ends; what survives is the
 URL in the artifact it illustrates. A video is embedded only on a page in its narration language
 (a shared-source docs site: one video per site language; the source holds the source-language id,
-the catalog entry of the embed holds the target-language id; an App Store page embeds the video
-of its own language or none).
+the catalog entry of the embed holds the target-language id). A video goes only where the row of
+its purpose says: the App Store page and the manifest's video link take the `marketing` video of
+the page's language, never a `docs` (tutorial) one; without it the page has no VIDEO section and
+the manifest no video link.
 
 | The video illustrates | Published to | When | Embedded as |
 |---|---|---|---|
