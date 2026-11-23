@@ -10,7 +10,7 @@ review verdict, the acceptance report, the files on disk.
 |---|---|---|
 | 1 | [new-feature-three-nodes](01-new-feature-three-nodes.md) | the whole chain from SRS to PR, launch count per tier, review rounds, acceptance verdict, docs a role understands |
 | 2 | [standard-change-two-modules](02-standard-change-two-modules.md) | a build node at haiku, databases built from the `depends` closure, red-then-green tests, no false finding from a lagging index, worktree path |
-| 3 | [seeded-defects-review-recall](03-seeded-defects-review-recall.md) | R1 + R2 recall of HIGH/CRITICAL defects against the baseline, including a behaviour test with no break record and a reference outside the closure |
+| 3 | [seeded-defects-review-recall](03-seeded-defects-review-recall.md) | R1 + R2 recall of HIGH/CRITICAL defects against the baseline, including an insensitive behaviour test and a reference outside the closure |
 | 4 | [domain-and-audience-labels](04-domain-and-audience-labels.md) | `business_function` and `audience` assigned from the manifest category, including multi-domain requests |
 | 5 | [forward-port-at-sonnet](05-forward-port-at-sonnet.md) | a forward-port of one or two modules with the orchestrator at sonnet |
 | 6 | [incident-root-cause](06-incident-root-cause.md) | one debugger per incident, time to the proven root cause |

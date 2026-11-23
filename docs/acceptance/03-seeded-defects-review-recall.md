@@ -1,7 +1,7 @@
 # Scenario 3 - seeded defects, review recall
 
 **Setup.** A sample module with a known list of defects planted before the run, including:
-- a behaviour test with no break record;
+- a behaviour test that still passes when its rule is removed;
 - a reference to a symbol owned by a module outside the `depends` closure;
 - an `@api.depends` that omits a field the compute reads;
 - a `sudo()` without a reason;

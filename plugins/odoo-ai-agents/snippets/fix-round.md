@@ -17,7 +17,7 @@ Each item is one cause with the findings, bugs and UI findings it explains:
 
 | `origin` | The item goes |
 |---|---|
-| `code` - the change causes it | to the coder |
+| `code` - the change causes it, its tests included | to the coder |
 | `pre-existing` - proved in a module the change touches | to the coder, in that module's own commit |
 | `msgid` - a source string is wrong | to the coder |
 | `platform` - core or an untouched module behaves so without the change | to the run summary, never to the coder |

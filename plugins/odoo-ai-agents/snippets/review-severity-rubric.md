@@ -8,9 +8,10 @@ owned by exactly one producer per pass.
 **CRITICAL / HIGH / MED / LOW**. The three dedicated audits map their native tiers into it (§ 2).
 
 A CRITICAL or HIGH finding on behaviour states its scenario: the state or input, and the wrong
-result a role or a caller observes. A concern for which no scenario can be stated is written as
-`NEEDS_JUDGEMENT: <question>`, never as a severity. A mechanical finding (a rule and the line
-that breaks it) needs none.
+result a role or a caller observes. A mechanical finding (a rule and the line that breaks it)
+needs none. `NEEDS_JUDGEMENT: <question>` is an open question for the next pass or the human,
+never a severity: a mechanical check no tool result answers, or a behaviour concern for which no
+scenario can be stated.
 
 ## 2. Audit-tier mapping
 
