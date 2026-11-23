@@ -8,9 +8,9 @@ description: >-
 ## Role
 
 Front door for reviewing Odoo code. It resolves the target, computes the changed set, launches
-`odoo-code-reviewer` in its three modes at three tiers, and returns the verdict. It launches and
-returns; it does not wait on a fix, and the findings go back to the coder that built the node
-through the caller's fix round. Every review mode judges the change against
+`odoo-code-reviewer` in its three modes at three tiers, and returns the verdict with the fix list
+by cause. It launches and returns; it does not wait on a fix: the caller owns the fix round
+(`${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md`). Every review mode judges the change against
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a block on a policy
 limit, a guard without a way out, or a surface that behaves unlike core's is a finding.
 
@@ -52,7 +52,8 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
 3. **Launch R1** (`odoo-code-reviewer`, `MODE: R1`, `model: haiku`) with the brief in
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`. A diff whose
    changed files exceed one agent's budget is split by module into several R1 launches in one
-   message.
+   message. A caller that passes `R1_FINDINGS` for the same range (a plan run reviews each build
+   node mechanically as it returns) skips this step.
 4. **Launch R2, and R3 when due**, in ONE message after R1 returns: R2 (`MODE: R2`,
    `model: sonnet`) with `R1_FINDINGS`; R3 (`MODE: R3`, `model: opus`) only when the unit's
    `business_function` is on the specialist list of the taxonomy or `RECON` records an override
@@ -62,7 +63,7 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
    plan run (a plan has its own `ui-review` node), when an `INSTANCE_HANDLE` is available and
    `CHANGED_SET` touches a screen, launch `odoo-ui-reviewer` (`model: sonnet`) in the same
    message as R2; R2 receives its report path as `UI_REVIEW`.
-5. **Return.** The R2 report path, verdict and score, the severity counts, and the Continuation
+5. **Return.** The R2 report path, verdict and score, the severity counts, the fix list, and the Continuation
    Contract (`next: odoo-ui-review` when the change touches a screen and no UI review ran). Present the summary in the user's
    language. Post to the PR only on the explicit keyword `post`: convert every finding row to
    `{path, startLine, line, severity, body, suggestion}` and invoke `git-toolkit:git-ops` to open
@@ -71,17 +72,15 @@ limit, a guard without a way out, or a surface that behaves unlike core's is a f
 
 ## A later round
 
-The caller sends the fix diff to the SAME reviewers with `SendMessage` (`PRIOR_FINDINGS` = their
-earlier reports), never to a new launch; R1 verifies its own findings, R2 verifies its own and
-re-issues the verdict. Acceptance failures go to R2 as `ACCEPTANCE_EVIDENCE` for classification
-(the reviewer's side: `references/resumed-round.md`).
-Three rounds per change; a fourth stops with the remaining findings for the human.
+The SAME reviewers are resumed with `SendMessage`, never launched again, by
+`${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md`: R2 triages once, then each reviewer verifies the
+fix of its own findings. Briefs: `references/agent-prompts.md`.
 
 ## Artifacts
 
 Under `<ISOLATE_DIR>/reviews/<slug>-<date>/`: `r1-findings.md`, `r3-findings.md` (when R3 ran),
 `ui-review-<module>.md` (when the UI reviewer ran), `review.md` (R2: findings, criteria table,
-verdict, score).
+fix list, verdict, score).
 
 ## Standalone-first fallback
 

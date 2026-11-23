@@ -105,14 +105,9 @@ in shipped code.
 ## Fix rounds
 
 Findings from review or acceptance, or a diagnosis from debug, go back to the coder that built the
-node with `SendMessage`, never to a new launch. Send the report path, the finding ids and the
-evidence; the coder decides the fix, and a cause you suspect travels as `HYPOTHESIS:` or not at
-all. At most three rounds per node; two consecutive rounds with a new HIGH finding in the same
-area stop the loop and return the evidence to the caller, because the design, not the patch, is
-then in question. A finding about how a screen looks is fixed like any other; the capture that showed it
-and the coder's capture after the fix go in the node's report so the human sees them without
-being asked to approve. Review
-itself is a plan node or the caller's next step, never driven from here.
+node with `SendMessage`, never to a new launch, by
+`${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md`: the fix list and its evidence, never a fix
+direction. Review itself is a plan node or the caller's next step, never driven from here.
 
 ## Standalone-first fallback
 

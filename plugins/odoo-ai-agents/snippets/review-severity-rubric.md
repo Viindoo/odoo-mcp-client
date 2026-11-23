@@ -1,64 +1,46 @@
 # Review Severity Rubric
 
-Do not invent a second severity scale or a parallel vocabulary anywhere in the review-plus-audit
-pipeline. Every finding - reviewer or audit - reports on this one scale, folds in by this one rule,
-and is owned by exactly one producer per pass.
+Every finding - reviewer or audit - reports on this one scale, folds in by this one rule, and is
+owned by exactly one producer per pass.
 
-## 1. The scale (single source)
+## 1. The scale
 
-**CRITICAL / HIGH / MED / LOW** - one scale for the whole review-plus-audit pipeline. The three
-dedicated audits do not define their own; they map their native tiers into it (`## 2`).
+**CRITICAL / HIGH / MED / LOW**. The three dedicated audits map their native tiers into it (§ 2).
 
-## 2. Audit-tier mapping (version-neutral)
+A CRITICAL or HIGH finding on behaviour states its scenario: the state or input, and the wrong
+result a role or a caller observes. A concern for which no scenario can be stated is written as
+`NEEDS_JUDGEMENT: <question>`, never as a severity. A mechanical finding (a rule and the line
+that breaks it) needs none.
 
-Map by IMPACT, never by a hardcoded Odoo version or version range - the same tier name carries the
-same severity on every indexed series.
+## 2. Audit-tier mapping
 
-- **`odoo-deprecation-audit`** (D5 owner on escalation): `BREAKING` -> CRITICAL or HIGH (CRITICAL
-  when the symbol is already removed at the pinned version; HIGH when deprecated with removal
-  scheduled but still present); `WARN` -> MED; `STYLE` -> LOW.
-- **`odoo-security-audit`** (D2 owner on escalation): exploit-path severity maps directly to
-  CRITICAL/HIGH/MED/LOW (e.g. an unauthenticated injection/RCE path is CRITICAL; a
-  privilege-widening `sudo()` is HIGH; a missing `groups=` on a low-sensitivity field is MED; a
-  hardening nit is LOW).
-- **`odoo-perf-audit`** (D3 owner on escalation): impact maps directly to CRITICAL/HIGH/MED/LOW
-  (e.g. an unbounded query hot-pathed on a high-volume model is CRITICAL/HIGH; an N+1 in a
-  low-volume loop is MED; a missing `index=True` with no observed load is LOW).
+Map by IMPACT, never by an Odoo version: the same tier carries the same severity on every series.
+
+- **`odoo-deprecation-audit`**: `BREAKING` -> CRITICAL when the symbol is already removed at the
+  pinned version, HIGH when deprecated with removal scheduled but still present; `WARN` -> MED;
+  `STYLE` -> LOW.
+- **`odoo-security-audit`**: by exploit path - an unauthenticated injection or RCE path is
+  CRITICAL; a privilege-widening `sudo()` is HIGH; a missing `groups=` on a low-sensitivity field
+  is MED; a hardening nit is LOW.
+- **`odoo-perf-audit`**: by impact - an unbounded query on the hot path of a high-volume model is
+  CRITICAL or HIGH; an N+1 in a low-volume loop is MED; a missing `index=True` with no observed
+  load is LOW.
 
 ## 3. Fold-in rule (diff vs pre-existing)
 
-- An audit finding **inside the diff** at CRITICAL or HIGH forces the review verdict to
-  `REQUEST_CHANGES`. MED/LOW findings inside the diff are advisory - recorded, but they do not by
-  themselves flip the verdict. The fix of a finding inside the diff belongs to the commit that
-  introduced it, never to a follow-up commit
+- A finding **inside the diff** at CRITICAL or HIGH forces the verdict to `REQUEST_CHANGES`; MED
+  and LOW inside the diff are advisory. The fix of a finding inside the diff belongs to the
+  commit that introduced it, never to a follow-up commit
   (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-history.md`).
-- An audit finding **outside the diff** (pre-existing / blast-radius) never changes the diff
-  verdict or score, at any severity. It surfaces as a `concerns:` sibling note carrying an
-  opt-in `next:` (e.g. `next: odoo-deprecation-audit` for a full pre-existing sweep) - never
-  silently dropped, never silently blocking the diff. A pre-existing defect the run PROVED in a
-  module the PR touches is expected fixed in the PR, in that module's own commit; left unfixed,
-  it is a HIGH concern naming the commit it belongs in.
+- A finding **outside the diff** (pre-existing, blast radius) never changes the diff verdict or
+  score, at any severity. It surfaces as a `concerns:` note carrying an opt-in `next:` (e.g.
+  `next: odoo-deprecation-audit` for a full sweep) - never silently dropped, never silently
+  blocking the diff. A pre-existing defect the run PROVED in a module the PR touches is expected
+  fixed in the PR, in that module's own commit; left unfixed, it is a HIGH concern naming the
+  commit it belongs in.
 
-## 4. Ownership-transfer / dedup rule (F2)
+## 4. Ownership-transfer
 
-When a dimension escalates to its dedicated audit for a given pass, the reviewer's inline check for
-that dimension DEGRADES TO TRIGGER-ONLY: it may still flag "escalate" but emits NO authoritative
-findings for that dimension. The audit becomes the SOLE owner of that dimension's findings in the
-merged report.
-
-Concretely:
-- `odoo-security-audit` fires -> D2's inline findings are suppressed in the merged report; D2 keeps
-  only its trigger role.
-- `odoo-perf-audit` fires -> D3's inline findings are suppressed in the merged report; D3 keeps only
-  its trigger role.
-- `odoo-deprecation-audit` fires -> D5's inline findings are suppressed in the merged report; D5
-  keeps only its trigger role.
-
-Deterministic dedup key: **(dimension, file:line, symbol)**. Two entries sharing a key collapse to
-the audit's entry - a collision never resolves to the reviewer's inline entry.
-
-## 5. One scale, one owner, everywhere
-
-This rubric is referenced by `odoo-code-reviewer` and by the three audit skills
-(`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) so one scale and one owner
-governs the whole pipeline.
+A dimension handed to its audit in a pass - security, performance or deprecation - is owned by
+that audit: the reviewer keeps only the trigger and writes no finding of its own for it. Two
+entries on the same file, line and symbol collapse to the audit's entry.

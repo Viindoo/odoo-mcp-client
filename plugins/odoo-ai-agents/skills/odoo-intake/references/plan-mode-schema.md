@@ -27,7 +27,7 @@ must land separately. Each node carries:
 | `objective` | the BUSINESS result in one line: who is helped and which job gets done; never a technical end-state ("add field X" names HOW, which belongs to the design and the coder). A tail node states the outcome it protects |
 | `modules` | technical names the node touches, in dependency order (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`); omitted for a node that touches no module. On an `odoo-instance` node this IS the suite scope |
 | `approach`, `approach_kind` | the skill, agent or workflow; `skill | agent | workflow | inline | integrate` |
-| `agent`, `mode` | the agent the node launches and its `MODE` (e.g. `odoo-code-reviewer` `R1`), when the node launches one directly |
+| `agent`, `mode` | the agent the node launches and its `MODE` (e.g. `odoo-code-reviewer` `R2`), when the node launches one directly |
 | `model`, `effort` | the launch tier (`haiku`, `sonnet`, `opus`, `fable`) and effort (`low`, `medium`, `high`, `xhigh`) of an agent node: from `build_tier_hint` for a build node, else the default tail's tier and the effort row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Effort that fits the node's work. A skill node is invoked inline and carries none: it runs in the runner's context and model |
 | `build_tier_hint` | a build node: the tier and effort the planner set from the design's hints for the units the node carries, with the six-item checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § 5.1); the runner checks presence |
 | `business_function`, `audience` | the unit's Domain line (`${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`); `audience: n/a` for a unit with no user-facing screen |
@@ -73,7 +73,7 @@ Template:
       modules: fleet_billing, fleet_billing_account
       depends-on: billing-accounting-bridge
 
-  [review-r1] [repo: fleet-addons] [agent: odoo-code-reviewer R1 @ haiku]
+  [review-r2] [repo: fleet-addons] [agent: odoo-code-reviewer R2 @ sonnet]
       depends-on: verify
   [acceptance] [repo: fleet-addons] [agent: odoo-qa-tester A1A2 @ haiku]
       depends-on: verify
@@ -85,7 +85,7 @@ Template:
   Edges:
     billing-core --> billing-accounting-bridge
     billing-accounting-bridge --> verify
-    verify --> review-r1
+    verify --> review-r2
     verify --> acceptance
     ... one line per `depends_on` entry
     monitor --> merge
@@ -134,20 +134,14 @@ written in the plan (an SRS with a language criterion puts `i18n` before `accept
 place; the rest keep their order.
 
 ```yaml
-- id: review-r1
-  approach: odoo-code-reviewer
-  approach_kind: agent
-  agent: odoo-code-reviewer
-  mode: R1
-  model: haiku
-  depends_on: [<last verify>]
 - id: review-r2
   approach: odoo-code-reviewer
   approach_kind: agent
   agent: odoo-code-reviewer
   mode: R2
   model: sonnet
-  depends_on: [review-r1]
+  depends_on: [<last verify>]
+  # R1_FINDINGS = the R1 report of every build node (Loop step 4).
   # R3 (mode R3, model opus) is launched in the same message as R2 and R2 waits for its report
   # when the unit's business_function is on the specialist list of business-taxonomy.md or
   # recon.md meets the thresholds of concurrency-guard.md section 5.2
@@ -169,17 +163,10 @@ place; the rest keep their order.
 - id: fix-round
   approach_kind: inline
   approach: >-
-    merge the findings of review-r2, acceptance and ui-review, deduplicated by symbol and line
-    and classified per acceptance-oracle-contract.md; SendMessage the node's coder once with the
-    findings and their evidence, never a fix direction; a finding about how a screen looks is
-    fixed like any other, and the capture that showed it and the coder's capture after the fix
-    go in the run summary for the human, with no approval asked; a difference from the mockup
-    that ui-review marks as core's rendering goes to that summary as a note on the design, never
-    to the coder; then
-    SendMessage review-r2 (FIX_DIFF), acceptance (the failed and the touched scenarios) and the
-    reviewer of ui-review (the screens the fix touched);
-    at most 3 rounds; two consecutive rounds with a new HIGH in the same area stop the run
-    and return to the design
+    the round of ${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md: triage once by resuming review-r2 with the reports of
+    acceptance and ui-review, check each item bound for the coder, SendMessage the node's coder
+    once with the fix list, then have review-r2, acceptance and the reviewer of ui-review verify
+    what the fix touched
   depends_on: [review-r2, acceptance, ui-review]
 - id: i18n
   approach: odoo-translator
@@ -301,7 +288,13 @@ command -v jq >/dev/null 2>&1 && find <ISOLATE_DIR>/integration/ -mindepth 1 -ma
    the node's coder before `integrate`, then have only the shots and scenes that show what the
    fix changed taken again.
 4. On return, record `status`, `produced`, the commit range and the evidence paths in the run
-   file; cherry-pick a source node's range onto `run-integration` through `git-ops`
+   file. A build node's range gets its mechanical review before it is integrated: launch
+   `odoo-code-reviewer` `MODE: R1` (`model: haiku`; brief:
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`, `RUN_MODULES` =
+   the modules earlier nodes changed), send its CRITICAL and HIGH findings to that node's coder
+   with `SendMessage`, and resume the same reviewer on the fix; three rounds, then the node is
+   `BLOCKED` with the findings. Its report path joins the run's `R1_FINDINGS`. Then
+   cherry-pick a source node's range onto `run-integration` through `git-ops`
    (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; a node that lands its own PR is
    exempt); a continuation `next[]` entry
    with confidence >= 0.5 becomes a dynamic node, below 0.5 a suggestion in the summary.

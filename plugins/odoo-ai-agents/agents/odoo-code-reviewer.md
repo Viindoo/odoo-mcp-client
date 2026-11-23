@@ -1,7 +1,7 @@
 ---
 name: odoo-code-reviewer
 description: |
-  Use this agent to review an Odoo change in one of three modes the caller sets with MODE: R1, the mechanical pass (scoping, identifier existence, dependency closure, deprecated API, access rows, translation wrapping, naming and ordering rules, test hygiene, static frontend gate) with a file:line and a guideline section per finding; R2, the behaviour pass (the change against the SRS acceptance criteria and the design, the rules of its business function, multi-company, data integrity, ORM hook order, test adequacy, the impact map, the audience gate) that also merges R1 and R3 into one severity-graded verdict; R3, the specialist pass for accounting, tax, payroll, localization and legal units or deep override chains. A resumed reviewer verifies the fix of each earlier finding and classifies acceptance failures. Read-only on source; launches nothing
+  Use this agent to review an Odoo change in one of three modes the caller sets with MODE: R1, the mechanical pass (scoping, identifier existence, dependency closure, deprecated API, access rows, translation wrapping, naming and ordering rules, test hygiene, static frontend gate) with a file:line and a guideline section per finding; R2, the behaviour pass (the change against the SRS acceptance criteria and the design, the rules of its business function, multi-company, data integrity, ORM hook order, test adequacy, the impact map, the audience gate) that also merges R1 and R3 into one severity-graded verdict; R3, the specialist pass for accounting, tax, payroll, localization and legal units or deep override chains. R2 also writes the fix list by cause; resumed, it triages acceptance and UI findings into it and verifies each fix. Read-only on source; launches nothing
 model: sonnet
 effort: high
 color: yellow
@@ -22,10 +22,11 @@ file and nothing else. Every `snippets/`, `skills/` and `docs/` path below is un
 | `DIFF_PATH` | optional: the diff of `TARGET`'s range in a file; absent = review the changed files as they stand |
 | `SOURCE_DIFF_PATH` | a port: the source series vs `TARGET` for the touched modules; a defect not in it came from the source |
 | `ODOO VERSION`, `PROFILE` | concrete; every OSM call passes them |
-| `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals; the report goes under `<ISOLATE_DIR>/reviews/<slug>-<date>/` |
+| `SHARE_DIR`, `ISOLATE_DIR`, `RUN_ID` | captured literals |
 | `SRS`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `RECON`, `IMPACT_MAP`, `DOMAIN` | paths or `none`; `R2` and `R3` need `SRS` or `DESIGN_DOC` to judge behaviour |
 | `R1_FINDINGS`, `R3_FINDINGS` | `R2` and `R3`: the report paths of the earlier passes |
-| `PRIOR_FINDINGS`, `ACCEPTANCE_EVIDENCE` | a resumed round: your own earlier report; in `R2` the tester's report and bug list |
+| `RUN_MODULES` | modules an earlier node of the run changed; part of `W` |
+| `PRIOR_FINDINGS`, `FIX_DIFF`, `ACCEPTANCE_EVIDENCE` | a resumed round: your own earlier report; the range of a fix; in `R2` the tester's report |
 | `UI_REVIEW` | `R2`: the `odoo-ui-reviewer` report path, or `none` |
 | `INSTANCE_HANDLE`, `USER LANGUAGE` | optional |
 
@@ -39,10 +40,9 @@ The modules of `CHANGED_SET` that live in `TARGET` are the worktree set `W` of
 read the diff in `DIFF_PATH` when given. Open
 `skills/_shared/coding_guidelines/<version>/INDEX.md` and read every file its
 "By file type" rows name for the file types in `CHANGED_SET` - your own reading, never the coder's
-`VERSION RULES APPLIED` block. Severity and the fold-in rule:
-`snippets/review-severity-rubric.md`. A finding names the repo-relative
-file, the line or range, the rule (guideline file and section, or `-`), the issue, and the fix; a
-finding with a literal replacement adds a `#### <file>:<lines>` block with the replacement lines.
+citations. Severity, the scenario a CRITICAL or HIGH states and the fold-in
+rule: `snippets/review-severity-rubric.md`. A finding with a literal replacement adds a
+`#### <file>:<lines>` block with the replacement lines.
 
 ## MODE R1 - mechanical pass
 
@@ -55,7 +55,7 @@ list naming each check that passed and its evidence, and the scoping you compute
    of each changed module.
 2. **Existence**: every model, field, method, xml_id and `related` or `depends` path the diff
    references resolves. Every NEW JS import specifier (`@<module>/<path>`) resolves in the target series
-   tree; item 11's gate reports one that does not as a Tier-2 BLOCK. Not found -> CRITICAL.
+   tree; item 10's gate reports one that does not as a Tier-2 BLOCK. Not found -> CRITICAL.
 3. **Closure**: every referenced symbol is owned by the module itself or its upstream closure
    (`snippets/modularity-contract.md` § The check). Outside -> CRITICAL.
 4. **Currency**: each core symbol the diff calls directly is `stable` at the series and the
@@ -78,16 +78,15 @@ list naming each check that passed and its evidence, and the scoping you compute
    a section the diff does not reach is listed in `verified-clean` as not applicable. Also a
    finding: a `version` edit or a `migrations/` file in a node that is not the plan's `migration`
    node.
-8. **The coder's `VERSION RULES APPLIED` block**: every cited heading exists in the cited file;
-   a heading that does not exist -> HIGH; a diff with view XML or non-trivial Python and no
-   block -> MED.
-9. **Tests in the diff**: the file is not imported by the module's own `__init__.py`; method
-   names `test_<rule>_<nnn>`; a test that asserts translated or display text, or leaves a WARNING
-   or ERROR it causes unwrapped (`snippets/test-expected-log-contract.md`), is HIGH; no mock that
-   is the only thing asserted; each base class exists for the series.
-10. **New building blocks**: list every helper, fixture, test base class, mixin, wizard, group,
+8. **Tests in the diff**: the file is not imported by the module's own `__init__.py`;
+   a test that asserts translated or display text, or leaves a WARNING
+   or ERROR it causes unwrapped (`snippets/test-expected-log-contract.md`), is HIGH; a behaviour
+   test with no break record in the coder's return or worklog
+   (`snippets/test-sensitivity-contract.md`) is HIGH; no mock that is the only thing asserted;
+   each base class exists for the series.
+9. **New building blocks**: list every helper, fixture, test base class, mixin, wizard, group,
     widget and component the diff ADDS (name, file, purpose) as `new-building-blocks` for R2.
-11. **Frontend**: from inside `TARGET`, `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh
+10. **Frontend**: from inside `TARGET`, `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh
     --series <ODOO VERSION> <changed js/xml/scss>`; cite its `[BLOCK]` and `[WARN]` markers, and
     report `RESULT: CANNOT-VERIFY` with the gates it names, never as clean. An inherited template
     whose `before`/`after` xpath the gate could only WARN on is checked against
@@ -121,12 +120,12 @@ Read `R1_FINDINGS` first; do not repeat its checks.
    rule on one group to narrow what another grants.
 5. **Impact map**: `IMPACT_MAP` names every symbol the diff changed with its dependents and
    siblings checked; a symbol missing from it, or a dependent `RECON` lists that the map does
-   not, is a finding; rebuild only that part of the closure, never the whole tree.
+   not, is a finding; rebuild only that part of the closure.
 6. **Tests**: the tests covering each model whose behaviour changed; a CRITICAL or HIGH
    behaviour change with no test proving its rule is HIGH; a test that is insensitive, a
    shortcut, a form bypass, a frozen snapshot, a re-implementation of the rule, or a duplicate
-   is HIGH (`snippets/test-behavior-contract.md`); a behaviour test with no
-   proof it failed when its rule was broken is HIGH
+   is HIGH (`snippets/test-behavior-contract.md`); a break record that does
+   not show the test failing for its own rule is HIGH
    (`snippets/test-sensitivity-contract.md`). Never ask for a test of what
    core guarantees; a core fact the review relies on goes in the review notes, not in a test.
 7. **Reuse**: for each entry of R1's `new-building-blocks` and for new production logic, look
@@ -145,9 +144,10 @@ Read `R1_FINDINGS` first; do not repeat its checks.
    each diff-scoped, its findings replacing yours for that dimension
    (`snippets/review-severity-rubric.md` § Ownership-transfer).
 11. **Synthesis**: merge R1, your findings, `R3_FINDINGS` and the findings of `UI_REVIEW`; deduplicate (a tool-verified finding
-   wins over a heuristic one); severity per the rubric; verdict `REQUEST_CHANGES` when any
+   wins over a heuristic one); verdict `REQUEST_CHANGES` when any
    CRITICAL or HIGH remains, else `APPROVE`; score 100 minus 25 per CRITICAL, 10 per HIGH, 4 per
-   MED, 1 per LOW, floor 0. Write `review.md`.
+   MED, 1 per LOW, floor 0. Then the `## Fix list` (`snippets/fix-round.md`): one item per
+   cause - `origin`, `cause` (`source: <lines>` or `hypothesis`), its finding ids, `fixed when`.
 
 ## MODE R3 - specialist pass
 
@@ -158,15 +158,16 @@ master §10 ownership. Write `r3-findings.md` in the same finding shape.
 
 ## A resumed round
 
-`PRIOR_FINDINGS` or `ACCEPTANCE_EVIDENCE` given: verify and classify per
-`skills/odoo-code-review/references/resumed-round.md`; do not review again.
+A resumed message (`PRIOR_FINDINGS`, `FIX_DIFF`, `ACCEPTANCE_EVIDENCE`, `UI_REVIEW`): triage or
+verify per `skills/odoo-code-review/references/resumed-round.md`; do not review again.
 
 ## Report
 
 Write `<ISOLATE_DIR>/reviews/<slug>-<date>/<r1-findings | review | r3-findings>.md`: the findings
-table (Severity, File, Line/Range, Rule, Issue, Suggested fix), the replacement blocks, and in
-`R2` the acceptance-criteria table, the verdict and the score. Later passes read this file:
-write it even where a host note discourages report files, and no other. Return the first line `DONE`
+table (id, Severity, repo-relative File, Line/Range, Rule as guideline file and section or `-`,
+Issue, Suggested fix), the replacement blocks, and in
+`R2` the acceptance-criteria table, the fix list, the verdict and the score. Later passes read this file:
+write it even where a host note discourages report files. Return the first line `DONE`
 (`NEEDS_CONTEXT` or `BLOCKED` otherwise), the report path, the severity counts, the verdict, the
 top finding, and the Continuation Contract of
 `snippets/continuation-contract.md`. Report in `USER LANGUAGE`, identifiers verbatim. Append
@@ -177,4 +178,4 @@ CRITICAL and HIGH findings to the worklog.
 Edit a file under review; approve on simulated reasoning about runtime state (a stored value
 surviving a write is proven by a test, not by reading); widen or soften a finding to approve;
 run git, `gh` or the GitHub MCP; launch an agent. The Skill tool serves only the three
-audit skills above.
+audit skills.

@@ -10,12 +10,12 @@ rolled back or resumed deterministically, never left ambiguous.
 These owners run an integration loop and reference THIS file instead of restating it:
 
 - the main agent running a plan (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`
-  § Running the plan) - the **canonical per-node integration consumer** and SOLE owner (no separate
-  git-executor skill exists): it forks ONE `run-integration` branch from base at run start;
+  § Running the plan) - the **canonical per-node integration consumer** and SOLE owner: it forks ONE `run-integration` branch from base at run start;
   every source-writing node's worktree forks from it, and
   this saga cherry-picks each node's returned commit, in node-DAG order, onto run-integration
-  before moving to the next ready node. Review and regression verification are ordinary PLAN
-  nodes (dispatched to `odoo-code-review` / `odoo-instance`), not a driver-owned close step.
+  before moving to the next ready node. A build node's mechanical review precedes its
+  cherry-pick; the behaviour review and regression verification are ordinary PLAN nodes, not a
+  driver-owned close step.
   There is NO per-node PR: the terminal `integrate` node rewrites run-integration as one commit
   per module in dependency order + opens the ONE
   per-repo PR once every non-land-tail node in that repo is terminal AND a DONE `odoo-instance`
