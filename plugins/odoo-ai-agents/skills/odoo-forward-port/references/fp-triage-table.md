@@ -127,7 +127,7 @@ This cluster (<modules>) is really a version-upgrade rewrite, not a mechanical p
 (The `(a)`/`(b)` here label the two OPTIONS, not the outcome buckets (a)-(d) above.)
 
 Record the choice in `plan.md`. On **(a)**, the cluster moves to the lint-only lane - its modules
-go `installable:False` and B2 deferral mode = CARRY (`[[fp-installable-false]]`). On **(b)**,
+go `installable:False`, deferral `CARRY` (`[[fp-installable-false]]`). On **(b)**,
 proceed normally at the Table-2 tier. Default when the user does not answer: **(a) defer** - never
 silently sink unbounded re-implement effort into a run the user expected to be mechanical.
 

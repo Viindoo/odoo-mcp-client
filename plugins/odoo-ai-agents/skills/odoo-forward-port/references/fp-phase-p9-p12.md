@@ -37,15 +37,14 @@ list contains `<path>/fp-integration/<module>/<tgt-descriptor>` for every module
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion) - on a
 miss, `BLOCKED`.
 
-**Install/verify the FULL transitive `depends` closure, not just the module you edited.**
-Resolve the closure per module, then install/verify its breadth:
-
-```python
-module_inspect(name='account_accountant', method='dependencies', odoo_version='<target_version>')
-```
-
-Union the closures of every directly-touched module and pass that whole set as `modules` in the
-dispatch below.
+**Install and verify the FULL transitive `depends` closure of each module, not just the module
+edited.**
+Union the closures of every directly-touched installable module (`installable_false: no`) and
+pass that whole set as `modules` in the dispatch below. A batch with no installable module has no
+such set: dispatch its verify as the lint gate instead (`[[fp-installable-false]]` § Lint-only
+lane) - the same block with `GATE_ROLE: pre-pr-lint-gate`, `modules` and `test_tags` left to the
+gate, and the batch's touched modules named in `CONFIRM` as the modules the gate is scoped to -
+then triage each red as below.
 
 **Lint toolchain present BEFORE the lint gate.** Confirm `flake8 --version` and `ruff --version`
 (and eslint / prettier for frontend) resolve in the verify env before relying on a green lint.
@@ -64,7 +63,7 @@ WORKTREE_PATH: <path>/fp-integration   # re-root per the Worktree re-root note a
 modules: <union of the touched modules' full transitive depends closure, comma-separated>
 test_tags: <`/<m>` for every module in that closure, comma-joined (narrowing rule below)>
 mode: fresh
-GATE_ROLE: node-verify    # a per-batch verify, never the run's pre-PR lint gate
+GATE_ROLE: node-verify    # pre-pr-lint-gate only for a batch with no installable module
 skip_auto_install: true
 CONFIRM: "confirm each module in this closure emits a Loading line before reading any test count;
           report per-module install status in modules_installed and the test result in findings_path"
@@ -73,23 +72,20 @@ CONFIRM: "confirm each module in this closure emits a Loading line before readin
 Capture the returned `instance-ops` block as this batch's `INSTANCE_HANDLE` (`db_name`,
 `lease_token`, `run_id`, `addons_path`) and relay it so later batches reuse the same instance; every
 build on that ONE database follows `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`
-§ One build or export per database. **Pass `test_tags`** (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`):
-`/<m>` for every module in the INSTALL CLOSURE this batch named, comma-joined. NEVER narrow below
-that to only the edited module. Record the tag set used in `merge-log.md`.
+§ One build or export per database. `test_tags` (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`)
+NEVER narrows below the install closure; record the tag set used in `merge-log.md`.
 
 For a SUBSEQUENT commit in the SAME batch touching only a subset, re-dispatch `odoo-instance` with
 the SAME `INSTANCE_HANDLE` forwarded, `mode: reuse` (`-u` semantics) and `GATE_ROLE: node-verify`
-on the changed modules only
-- skip re-running the full closure. Once a module is installed in this DB, re-running its tests
+on the changed modules only. Once a module is installed in this DB, re-running its tests
 MUST use `reuse` (`-u`; `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an
-existing database; confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+existing database). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 Relay the returned `instance-ops` block (`log_path`, `findings_path`, `modules_installed`,
 `failed`/`errors`/`warnings`/`skipped`) into `merge-log.md` verbatim (Hard rule 8). Reconcile
 `modules_installed` against the installable scan (`[[fp-symbol-survival-check]]` section 2.5f): a
 module that is `installable: False` at the target is EXPECTED to be absent from
-`modules_installed` - route it to the 8c-bis lint-only lane and do NOT count its absence as a
-break. A module that IS installable and absent from `modules_installed` is a real failure -
+`modules_installed` (the lint-only lane) - do NOT count its absence as a break. A module that IS installable and absent from `modules_installed` is a real failure -
 investigate via `log_path` before reading any test count.
 
 **Recover a batch stuck mid-run.** Do NOT `pkill` an `odoo-bin` process. The batch's lease was
@@ -229,8 +225,8 @@ in its own Continuation Contract. Do NOT act on it - P11 already ran acceptance 
 entity_lookup(kind='field', model='account.move', field='payment_state', odoo_version='<target_version>')
 ```
 
-**installable:False modules get a LINT-ONLY review.** For any module that is
-`installable: False` at the target (8c-bis lane), the reviewer rates ONLY syntax / lint findings - raise no business-logic findings against it; mark such findings out-of-scope.
+**A lint-only module gets a lint-only review** (`[[fp-installable-false]]` § Lint-only lane):
+a business-logic finding against it is out of scope.
 
 Only once the review above is addressed, invoke the `git-toolkit:git-ops` skill (via the Skill
 tool) to create the PR:
