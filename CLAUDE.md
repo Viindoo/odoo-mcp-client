@@ -152,8 +152,9 @@ Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
   pins the set of registered deny scripts - a new deny updates it. Every hook that reads
   a subagent's report reads it through `hooks/final-report.sh`: the `SubagentHandback` message
   delivered since the launcher's latest request, else the final message. A subagent resumed with a
-  new request owes a new hand-back; `enforce-resumed-handback.sh` (SubagentStop) stops, once, a
-  resumed turn that ends without one. `enforce-job-wait.sh` (Stop and SubagentStop) stops, once,
+  new request owes its answer - a new hand-back, or a message to the peer that asked;
+  `enforce-resumed-handback.sh` (SubagentStop) stops, once per request, the turn that request
+  started when it ends without one, and never a later wake. `enforce-job-wait.sh` (Stop and SubagentStop) stops, once,
   a turn that ends while a build or export job that agent started is still running: a finished
   job notifies no one.
 - **Every `odoo-bin` the scripts launch is memory-capped.** `scripts/lib/run_bounded.sh`

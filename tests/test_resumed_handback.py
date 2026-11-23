@@ -9,7 +9,10 @@ through a new `SubagentHandback` call (plain end-of-turn text reaches nobody). T
      stands in for it (grounding, teardown, strand telemetry read the current one) nor excuses the
      turn (a resumed turn that has delivered nothing is still an undelivered one).
   2. A resumed agent cannot silently end the turn without its answer having travelled: the stop is
-     refused once, with the way to deliver it (hooks/enforce-resumed-handback.sh).
+     refused once per request, with the way to deliver it (hooks/enforce-resumed-handback.sh). A
+     peer request is answered by a message to its sender; only the stop of the turn the request
+     started is judged: a message that reached the agent after it had stopped starts a later turn,
+     one that reached it while it still worked (a queued_command attachment) does not end the turn.
 
 A launcher request, as a transcript records it (measured on real subagent transcripts): a user
 record with `origin.kind` `coordinator` (the main conversation) or `peer` without `handback` (a
@@ -115,6 +118,51 @@ def _notification() -> str:
     return json.dumps({"type": "user", "isMeta": True, "origin": {"kind": "task-notification"},
                        "message": {"role": "user", "content": "[SYSTEM NOTIFICATION - NOT USER "
                                    "INPUT] A background task finished."}})
+
+
+def _human() -> str:
+    """A message a human typed into the agent's transcript view: origin kind `human`."""
+    return json.dumps({"type": "user", "origin": {"kind": "human"},
+                       "message": {"role": "user", "content": "a question typed in the transcript view"}})
+
+
+def _queued(origin: dict) -> str:
+    """A message that reached an agent still working its turn: the harness records it as an
+    attachment of type queued_command that carries the origin (the turn goes on). The same
+    messages reaching an agent that had stopped are the user records above."""
+    return json.dumps({"type": "attachment", "attachment": {
+        "type": "queued_command", "commandMode": "prompt", "isMeta": True,
+        "prompt": "<agent-message>queued</agent-message>", "origin": origin}})
+
+
+def _queued_notification() -> str:
+    return _queued({"kind": "task-notification"})
+
+
+def _queued_handback(sender: str = CHILD) -> str:
+    return _queued({"kind": "peer", "from": sender, "senderTaskId": sender, "handback": True})
+
+
+def _work(tid: str = "toolu_work") -> list[str]:
+    """A tool call and its result: the agent is mid-turn, working."""
+    return [_call("Bash", {"command": "make test"}, tid), _result(tid, "ok")]
+
+
+def _block_records(reason: str) -> list[list[str]]:
+    """The two shapes a SubagentStop block leaves in the agent's own transcript: a meta user record
+    "Stop hook feedback:" + the reason, and a hook_blocking_error attachment (hookEvent
+    SubagentStop) carrying the reason. The harness writes either or both."""
+    attachment = json.dumps({"type": "attachment", "attachment": {
+        "type": "hook_blocking_error", "hookEvent": "SubagentStop", "hookName": "SubagentStop",
+        "toolUseID": "toolu_hook", "blockingError": {"blockingError": reason, "command": "gate.sh"}}})
+    return [[block_feedback_record(reason)], [attachment], [block_feedback_record(reason), attachment]]
+
+
+def _gate_reason(tmp_path: Path, lines: list[str]) -> str:
+    """The block reason the gate itself gives for a transcript (not asserted on - only recorded)."""
+    rc, out, _ = _run(GATE, tmp_path, lines)
+    assert rc == 0 and out and out["decision"] == "block"
+    return out["reason"]
 
 
 def _launched_child(child: str = CHILD, tid: str = "toolu_launch") -> list[str]:
@@ -254,6 +302,121 @@ def test_a_wake_that_is_not_a_launcher_request_is_left_alone(tmp_path, wake):
     hand-back or a hook: those end in a one-line acknowledgement and must not be forced into a
     second report."""
     lines = [brief_record(), *_delivered("toolu_1"), wake, _text("noted")]
+    assert not _blocks(GATE, tmp_path, lines)
+
+
+_PEER_ASKED = [brief_record(), *_delivered("toolu_1"), _peer_request()]
+_PEER_ANSWERED = [*_PEER_ASKED, *_sent("toolu_s1"), _text("answered the peer")]
+
+
+def test_a_peer_request_answered_by_a_message_to_its_sender_passes(tmp_path):
+    """The answer to a nested launcher's request is a message to that launcher: it needs no refused
+    hand-back first, and the stop that follows is not blocked."""
+    assert not _blocks(GATE, tmp_path, _PEER_ANSWERED)
+
+
+@pytest.mark.parametrize("wake", [_notification(), _human(), _peer_handback(LAUNCHER)],
+                         ids=["task-notification", "human-message", "peer-handback"])
+def test_a_wake_after_an_answered_peer_request_is_never_blocked(tmp_path, wake):
+    """After the peer was answered the agent is woken by something that is not a request (its
+    background task, a human, the peer's own hand-back): the one-line acknowledgement it ends in is
+    not an unanswered request, so the two agents cannot resume each other forever."""
+    assert not _blocks(GATE, tmp_path, [*_PEER_ANSWERED, wake, _text("noted")])
+    # Answered more than once, then woken: still nothing to ask for.
+    assert not _blocks(GATE, tmp_path, [*_PEER_ANSWERED, *_sent("toolu_s2"), wake, _text("noted")])
+
+
+@pytest.mark.parametrize("request_record", [resume_record("Fix the second finding."), _peer_request()],
+                         ids=["coordinator", "peer"])
+@pytest.mark.parametrize("wake", [_notification(), _human(), _peer_handback(LAUNCHER)],
+                         ids=["task-notification", "human-message", "peer-handback"])
+def test_only_the_stop_of_the_requests_own_turn_is_judged(tmp_path, request_record, wake):
+    """An unanswered request is judged where its turn ends; a message that reaches the agent after
+    it had stopped (a user record with an origin) starts a later turn this gate never judges for
+    the older request."""
+    base = [brief_record(), *_delivered("toolu_1"), request_record]
+    assert _blocks(GATE, tmp_path, [*base, _text("no answer")])
+    assert not _blocks(GATE, tmp_path, [*base, _text("no answer"), wake, _text("noted")])
+
+
+def test_a_peer_request_never_answered_is_stopped(tmp_path):
+    assert _blocks(GATE, tmp_path, [*_PEER_ASKED, _text("no answer")])
+
+
+def test_a_message_to_someone_other_than_the_requests_sender_is_not_the_answer(tmp_path):
+    other = [_call("SendMessage", {"to": "a9stranger", "message": "fyi"}, "toolu_o"),
+             _result("toolu_o", "Message sent.")]
+    assert _blocks(GATE, tmp_path, [*_PEER_ASKED, *other, _text("done")])
+    # A message sent BEFORE the request is not its answer either.
+    assert _blocks(GATE, tmp_path, [brief_record(), *_delivered("toolu_1"), *_sent("toolu_s0"),
+                                    _peer_request(), _text("done")])
+
+
+@pytest.mark.parametrize("shape", [0, 1, 2], ids=["feedback-record", "blocking-error-attachment", "both"])
+@pytest.mark.parametrize("request_record", [resume_record("Fix the second finding."), _peer_request()],
+                         ids=["coordinator", "peer"])
+def test_a_request_is_blocked_once_across_stops(tmp_path, request_record, shape):
+    """The record this gate's own block leaves in the transcript (either shape the harness writes)
+    marks the request as blocked: the next stop of the same request passes."""
+    stopped = [brief_record(), *_delivered("toolu_1"), request_record, _text("no answer")]
+    reason = _gate_reason(tmp_path, stopped)
+    after_block = [*stopped, *_block_records(reason)[shape], _text("still no answer")]
+    assert not _blocks(GATE, tmp_path, after_block)
+    # A second stop after further work (a tool call in between) is the same request: still passes.
+    assert not _blocks(GATE, tmp_path, [*after_block, *_work(), _text("again no answer")])
+
+
+def test_another_gates_block_does_not_use_up_the_request(tmp_path):
+    """Only this gate's own block counts: a different hook's feedback after the request leaves the
+    unanswered request to be blocked once."""
+    other = [block_feedback_record("a teardown gate said something"), *_block_records("another reason")[1]]
+    lines = [brief_record(), *_delivered("toolu_1"), resume_record(), _text("no answer"), *other,
+             _text("still no answer")]
+    assert _blocks(GATE, tmp_path, lines)
+
+
+def test_a_new_request_after_a_block_is_judged_again(tmp_path):
+    """The once-only rule belongs to one request: a later request is a new one."""
+    stopped = [*_PEER_ASKED, _text("no answer")]
+    reason = _gate_reason(tmp_path, stopped)
+    lines = [*stopped, *_block_records(reason)[0], _text("still no answer"), resume_record("and another"),
+             _text("no answer")]
+    assert _blocks(GATE, tmp_path, lines)
+
+
+@pytest.mark.parametrize("request_record", [resume_record("Fix the second finding."), _peer_request()],
+                         ids=["coordinator", "peer"])
+@pytest.mark.parametrize("wake", [_queued_notification(), _queued_handback(), _queued_handback(LAUNCHER),
+                                  _queued({"kind": "human"})],
+                         ids=["task-notification", "child-handback", "peer-handback", "human-message"])
+def test_a_message_delivered_mid_turn_does_not_excuse_an_unanswered_request(tmp_path, request_record, wake):
+    """The agent works the request, a background task or a child reports while it is still working,
+    and it then ends the turn in plain text: the launcher is still waiting for its answer."""
+    lines = [brief_record(), *_launched_child(), *_delivered("toolu_1"), request_record, *_work(),
+             wake, *_work("toolu_work2"), _text("no answer")]
+    assert _blocks(GATE, tmp_path, lines)
+
+
+@pytest.mark.parametrize("wake", [_queued_notification(), _queued_handback()],
+                         ids=["task-notification", "child-handback"])
+def test_a_request_answered_around_a_mid_turn_message_passes(tmp_path, wake):
+    """The same mid-turn transcript, with the answer delivered (a hand-back for a coordinator
+    request, a message to the sender for a peer request): nothing to ask for."""
+    head = [brief_record(), *_launched_child(), *_delivered("toolu_1")]
+    coordinator = [*head, resume_record(), *_work(), wake, *_delivered("toolu_2"), _text("done")]
+    assert not _blocks(GATE, tmp_path, coordinator)
+    peer = [*head, _peer_request(), *_work(), wake, *_sent("toolu_s1"), _text("done")]
+    assert not _blocks(GATE, tmp_path, peer)
+
+
+def test_a_mid_turn_message_then_a_stop_after_a_block_passes(tmp_path):
+    """Blocked once for the request, then more mid-turn messages and another plain-text stop: the
+    request has had its one block."""
+    head = [brief_record(), *_delivered("toolu_1"), resume_record(), *_work(), _queued_notification(),
+            _text("no answer")]
+    reason = _gate_reason(tmp_path, head)
+    lines = [*head, *_block_records(reason)[0], *_work("toolu_work2"), _queued_notification(),
+             _text("still no answer")]
     assert not _blocks(GATE, tmp_path, lines)
 
 
