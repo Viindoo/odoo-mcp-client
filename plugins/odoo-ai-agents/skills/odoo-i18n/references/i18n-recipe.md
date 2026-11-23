@@ -57,8 +57,8 @@ from it: a dependency translated in the same run gets a build of its own.
 
 The build itself goes through the `odoo-instance` skill (the `odoo-i18n` P2 dispatch) as ONE
 `instance_build` op `init` on every series: `modules` = the module, `demo` `on` (KT4), `languages` =
-every target language (KT1; the tool adds `en_US`, KT3), and skip-auto-install in `extra_args` where
-the series' `cli_help` lists it (§ Isolate the term inventory). The tool emits the
+every target language (KT1; the tool adds `en_US`, KT3), and `skip_auto_install: true`
+(§ Isolate the term inventory). The tool emits the
 language-activation flag and the series' demo flag itself - never compose either, and never activate
 a language by any other path. Before exporting, confirm the `INSTANCE_HANDLE` that build's final
 `job_wait` returned: its `languages_loaded` lists `en_US` and every target language (a code in
@@ -153,11 +153,11 @@ which is the target's own. Re-exporting an existing translation always REQUIRES 
 Export from a DB where ONLY the target module + its dependency closure is installed, so terms from
 auto-installed siblings do not leak into the `.pot`:
 
-- **Where the series' `cli_help` lists `--skip-auto-install`**, pass it in the export build's
-  `extra_args`. It is load-bearing: omit it and every `auto_install: True` module whose deps are met
+- **Where the build's result says `skip_auto_install: applied`** (the export build passes
+  `skip_auto_install: true`). It is load-bearing: without it every `auto_install: True` module whose deps are met
   installs alongside the target, injecting THEIR terms into the registry and polluting the
   `.pot`/`.po` with foreign `msgid`s.
-- **Where it does not exist, isolate by DATABASE:** one build per module, installed in dependency
+- **Where it says `unavailable`, isolate by DATABASE:** one build per module, installed in dependency
   order, exported from a DB that does NOT contain its children, so a parent's `.pot` carries only
   the parent's terms.
 

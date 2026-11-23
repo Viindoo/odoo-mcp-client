@@ -6,10 +6,12 @@ and an instance agent reports. API and view changes by series are in
 
 ## Build facts the odoo-local tools apply
 
-`instance_build` and `instance_serve` apply three build facts themselves, on every series: the
-server-wide modules (`--load`), the languages (`--load-language`) and the series' demo flag. Never
-put any of them in `extra_args` and never compose them by hand. The judgement left to you is which
-`demo` and which `languages` to ask for, and what to do with the warnings `job_wait` reports.
+`instance_build` and `instance_serve` apply the build facts themselves, on every series: the
+server-wide modules (`--load`), the languages (`--load-language`), the series' demo flag and, on
+a build that asks for it, `skip_auto_install`. Never put any of them in `extra_args` and never
+compose them by hand; any other flag there must be one the lease's checkout declares. The
+judgement left to you is which `demo` and which `languages` to ask for, and what to do with the
+warnings `job_wait` reports.
 
 - **Server-wide modules.** The tools load the series' core default (read from the lease's Odoo
   checkout) plus the catalog row's `server_wide_modules`, fixed on the lease when it is acquired:
@@ -86,8 +88,7 @@ this is not a mirror of them, and a class that fails any of the three does not b
 
 > **A tag that matches nothing is a SILENT no-op, not an error** - whether the spec is misspelled or
 > the series ships a different name. The run exits 0 having tested nothing. So CONFIRM the class name
-> against the target build's own `addons/<module>/tests/` before tagging it: this table has been
-> wrong twice, once on a bound and once by reading "the old name is absent" as "the thing is gone".
+> against the target build's own `addons/<module>/tests/` before tagging it.
 > An UNTAGGED run needs none of this - it already includes every framework class - so prefer it
 > wherever the cost of running the full closure is acceptable.
 

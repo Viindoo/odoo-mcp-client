@@ -98,10 +98,10 @@ A running instance on a lease THIS dispatch obtained keeps its database, filesto
 
 For documentation capture (`CONTEXT: doc`), one `instance_build` init carries `demo` `on` and `languages` = the capture locales. The auto-install shape follows `SKIP_AUTO_INSTALL`:
 
-- `true` (the default under `CONTEXT: doc`) - a module's own documentation: the skip-auto-install flag goes in `extra_args` where `cli_help` lists it, so the instance renders the target module and its `depends` only. When the skip makes the target module fail to install, return `NEEDS_CONTEXT: auto-install bridge <name> required - install selectively?`; on the caller's yes, add only that bridge to `modules`, keep the flag, and name the bridge in `notes`.
-- `false` - the product as users run it (a documentation site): no skip flag, so Odoo installs every auto-install module whose dependencies are met.
+- `true` (the default under `CONTEXT: doc`) - a module's own documentation: the build takes `skip_auto_install: true`, so the instance renders the target module and its `depends` only. When the skip makes the target module fail to install, return `NEEDS_CONTEXT: auto-install bridge <name> required - install selectively?`; on the caller's yes, add only that bridge to `modules`, keep `skip_auto_install`, and name the bridge in `notes`.
+- `false` - the product as users run it (a documentation site): no `skip_auto_install`, so Odoo installs every auto-install module whose dependencies are met.
 
-State the shape in `notes`: `auto_install: on`, `auto_install: skipped`, or `auto_install: on (the series has no skip flag)`.
+State the shape in `notes`: `auto_install: on`, `auto_install: skipped` (the result says `applied`), or `auto_install: on (the series has no skip flag)` (it says `unavailable`).
 
 ### `MODE_HINT: path-incremental` - never yours
 

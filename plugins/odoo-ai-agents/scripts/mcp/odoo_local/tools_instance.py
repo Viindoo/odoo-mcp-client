@@ -83,13 +83,26 @@ Build facts the TOOL applies (instance_build), never the agent:
                        the same database are merged (tools_lease.database_built). facts_source
                        (handle) / diagnostics.facts_source (refusal) names who answered.
 
+  skip_auto_install    `--skip-auto-install`, passed when the argument is true and the lease's checkout
+                       declares the option (odoo_source_facts.skip_auto_install_declared); a checkout
+                       that is readable but does not declare it builds without it, and the result's
+                       `skip_auto_install` says "unavailable" instead of "applied". False or absent:
+                       never passed (null in the result). The flag rides in the build's --extra
+                       words, so it applies to init, update and test alike.
+
 Extra odoo-bin flags (instance_build extra_args) may not set anything the tool itself controls - the
 database and its connection, the addons path, the config file and --save, the data dir, the module
 ops, the stop-after-init switch, the test switches, a listening port, the log destination, or the
-build facts above (--load, --load-language, -l/--language, --with-demo, --without-demo):
-`refused_extra_flag` below, which parses a short-option cluster the way optparse does (`-sdother`
-is -s then -d), with the short options the lease's checkout declares. Odoo takes the LAST occurrence of a flag, so an extra `--database=other` would
-silently retarget the build at another database.
+build facts above (--load, --load-language, -l/--language, --with-demo, --without-demo,
+--skip-auto-install): `refused_extra_flag` below, which parses a short-option cluster the way
+optparse does (`-sdother` is -s then -d), with the short options the lease's checkout declares. Odoo
+takes the LAST occurrence of a flag, so an extra `--database=other` would silently retarget the
+build at another database. Every other long option must be one the lease's checkout declares
+(`undeclared_long_option`, matched the way optparse matches: the declared spelling or a prefix of
+it); extra_args is read against the checkout's option table only when it is not empty, and a table
+that cannot be read is ODOO_SOURCE_FACT_UNKNOWN. A table with a declaration the reader cannot take
+apart (odoo_source_facts.option_table_complete false) is not evidence that a flag is absent, so such
+a checkout refuses only the tool-controlled flags.
 
 Extra config keys (instance_build conf_options) go into the build's generated config file
 (55-instance-ops.sh --conf-option), never a key the tool owns: `_conf_options` / _TOOL_CONF_KEYS.
@@ -273,7 +286,8 @@ TOOL_CONTROLLED_LONG = ("database", "db-filter", "db-host", "db-port", "db-user"
                         "addons-path", "config", "save", "data-dir", "init", "update",
                         "stop-after-init", "test-enable", "test-tags", "test-file", "http-port",
                         "xmlrpc-port", "gevent-port", "longpolling-port", "logfile", "syslog",
-                        "pidfile", "load", "load-language", "language", "with-demo", "without-demo")
+                        "pidfile", "load", "load-language", "language", "with-demo", "without-demo",
+                        "skip-auto-install")
 
 # The build facts among them, and the tool input that sets each instead (named in the refusal).
 _BUILD_FACT_OWNER = {
@@ -286,6 +300,7 @@ _BUILD_FACT_OWNER = {
                 "i18n export/import file)",
     "with-demo": "use the demo argument",
     "without-demo": "use the demo argument",
+    "skip-auto-install": "use the skip_auto_install argument",
 }
 
 # instance_build conf_options: extra `[options]` keys for the config file the build's Odoo reads
@@ -382,6 +397,21 @@ def refused_extra_flag(token, shorts=None):
     return None
 
 
+def undeclared_long_option(token, options):
+    """The long option `token` names (without any `=value`) when the checkout's option table does
+    not declare it, else None. `options` is odoo_source_facts.cli_options. Odoo's parser (optparse)
+    takes a long option by its declared spelling - `_` and `-` are not interchangeable there - or
+    by a prefix of one; a token that is neither is undeclared. A token that is not a long option
+    (a value, a short option) is None: short options are judged by `refused_extra_flag` and odoo-bin
+    itself."""
+    if not token.startswith("--"):
+        return None
+    name = token.split("=", 1)[0]
+    if name in options or any(flag.startswith(name) for flag in options):
+        return None
+    return name
+
+
 def lease_checkout(row, lease):
     """The Odoo checkout this lease builds and serves: the lease row's odoo_root, else the core repo
     on its addons_path (odoo_source_facts.locate_odoo_root - the one locator). None when none."""
@@ -402,6 +432,58 @@ def _checkout_fact(row, lease, token, fact, reader):
     return value
 
 
+def _refuse_extra_args(extra, row, lease, token):
+    """Refuse (INVALID_ARGUMENTS) an extra_args token that sets what the tool controls, or a long
+    option the lease's checkout does not declare. Reads the checkout's option table only when
+    `extra` is not empty (ODOO_SOURCE_FACT_UNKNOWN when it cannot be read). A checkout whose
+    config.py has an option declaration the reader cannot take apart (`option_table_complete`
+    false) may accept options the table lacks, so its long flags are never called undeclared - only
+    the tool-controlled flags are refused; odoo-bin itself rejects a flag it does not know."""
+    if not extra:
+        return
+    options = _checkout_fact(row, lease, token, "the option table (odoo/tools/config.py)",
+                             "cli_options")
+    complete = _checkout_fact(row, lease, token, "the option table (odoo/tools/config.py)",
+                              "option_table_complete")
+    shorts = None
+    if any(is_short_option_token(a) for a in extra):
+        shorts = _checkout_fact(row, lease, token, "the short options (odoo/tools/config.py)",
+                                "short_options")
+    for a in extra:
+        refused = refused_extra_flag(a, shorts)
+        if refused:
+            name = refused[2:] if refused.startswith("--") else shorts[refused[1:]]["long"]
+            owner = _BUILD_FACT_OWNER.get(name)
+            raise ToolError("INVALID_ARGUMENTS",
+                            "arguments.extra_args: %r sets %s, which instance_build controls itself "
+                            "(%s) - drop it" % (a, refused, owner or
+                                                "database, connection, addons path, config file and "
+                                                "--save, data dir, module ops, test switches, ports, "
+                                                "log destination; use the tool's own arguments or "
+                                                "another lease"),
+                            {"flag": refused, "token": a})
+        unknown = undeclared_long_option(a, options) if complete else None
+        if unknown:
+            raise ToolError("INVALID_ARGUMENTS",
+                            "arguments.extra_args: %r - the lease's Odoo checkout declares no "
+                            "option %s" % (a, unknown),
+                            {"flag": unknown, "token": a, "reason": "undeclared",
+                             "token_prefix": token[:8]})
+
+
+def _skip_auto_install(args, row, lease, token):
+    """The skip_auto_install fact of this build: None when not asked (false or absent),
+    SKIP_AUTO_INSTALL_APPLIED when the lease's checkout declares --skip-auto-install (the build
+    passes it), SKIP_AUTO_INSTALL_UNAVAILABLE when the checkout is readable and does not. A
+    checkout whose options cannot be read is ODOO_SOURCE_FACT_UNKNOWN."""
+    if not args.get("skip_auto_install"):
+        return None
+    declared = _checkout_fact(row, lease, token, "the skip-auto-install option "
+                              "(--skip-auto-install in odoo/tools/config.py)",
+                              "skip_auto_install_declared")
+    return SKIP_AUTO_INSTALL_APPLIED if declared else SKIP_AUTO_INSTALL_UNAVAILABLE
+
+
 def _second_port_key(row, lease, token):
     return _checkout_fact(row, lease, token, "the second port option (--gevent-port / "
                           "--longpolling-port in odoo/tools/config.py)", "second_port_key")
@@ -413,6 +495,9 @@ def _second_port_key(row, lease, token):
 # Kinds of job that write a database: instance_build's and instance_i18n_export's (tools_i18n).
 # Two at once on one database race inside Odoo (module states, registry, translations), whether
 # they came through one lease or two leases of the same database.
+SKIP_AUTO_INSTALL_APPLIED = "applied"
+SKIP_AUTO_INSTALL_UNAVAILABLE = "unavailable"
+SKIP_AUTO_INSTALL_FLAG = "--skip-auto-install"
 BUILD_JOB_KIND = "build"
 EXPORT_JOB_KIND = "i18n_export"
 DATABASE_JOB_KINDS = (BUILD_JOB_KIND, EXPORT_JOB_KIND)
@@ -660,23 +745,8 @@ def _build(args, ctx):
                             "arguments.extra_args: %r - one token per item, no whitespace (use --flag=value)" % a)
     row = _require_row(token)
     lease = tools_lease.lease_from_row(row)
-    shorts = None
-    if any(is_short_option_token(a) for a in extra):
-        shorts = _checkout_fact(row, lease, token, "the short options (odoo/tools/config.py)",
-                                "short_options")
-    for a in extra:
-        refused = refused_extra_flag(a, shorts)
-        if refused:
-            name = refused[2:] if refused.startswith("--") else shorts[refused[1:]]["long"]
-            owner = _BUILD_FACT_OWNER.get(name)
-            raise ToolError("INVALID_ARGUMENTS",
-                            "arguments.extra_args: %r sets %s, which instance_build controls itself "
-                            "(%s) - drop it" % (a, refused, owner or
-                                                "database, connection, addons path, config file and "
-                                                "--save, data dir, module ops, test switches, ports, "
-                                                "log destination; use the tool's own arguments or "
-                                                "another lease"),
-                            {"flag": refused, "token": a})
+    _refuse_extra_args(extra, row, lease, token)
+    skip_auto_install = _skip_auto_install(args, row, lease, token)
     conf_options = _conf_options(args, row, lease, token)
     db = _lease_field(lease, "db_name", token)
     python = _lease_field(lease, "venv_python", token)
@@ -720,8 +790,9 @@ def _build(args, ctx):
             argv += ["--log-mode", args["log_mode"]]
     for key, value in conf_options:
         argv += ["--conf-option", "%s=%s" % (key, value)]
-    if extra:
-        argv += ["--extra", " ".join(extra)]
+    own_flags = [SKIP_AUTO_INSTALL_FLAG] if skip_auto_install == SKIP_AUTO_INSTALL_APPLIED else []
+    if own_flags or extra:
+        argv += ["--extra", " ".join(own_flags + extra)]
 
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base = os.path.join(_logs_dir(), "%s-%s_%s" % (db, stamp, uuid.uuid4().hex[:4]))
@@ -732,7 +803,8 @@ def _build(args, ctx):
             "profile": lease.get("profile") or "",
             "modules": list(modules), "server_wide_modules": load,
             "server_wide_adjustment": adjustment, "languages": languages,
-            "demo": demo or "", "venv_python": python, "conf_options": dict(conf_options)})
+            "demo": demo or "", "skip_auto_install": skip_auto_install or "",
+            "venv_python": python, "conf_options": dict(conf_options)})
     with database_job_slot(lease):
         # Recorded BEFORE the build starts: a build that fails half-way may already have loaded
         # demo data, and demo is sticky (record-build), so recording early can only over-state it.
@@ -748,7 +820,7 @@ def _build(args, ctx):
     return {"job_id": rec["job_id"], "pid": rec["pid"], "op": op, "log_path": log_path,
             "output_path": output_path, "lease_token": token, "server_wide_modules": load,
             "server_wide_adjustment": adjustment, "languages": languages, "demo": demo or None,
-            "conf_options": dict(conf_options)}
+            "skip_auto_install": skip_auto_install, "conf_options": dict(conf_options)}
 
 
 # --------------------------------------------------------------------------- #
@@ -987,6 +1059,7 @@ def _job_wait(args, ctx):
         "server_wide_modules": list(meta.get("server_wide_modules") or []),
         "server_wide_adjustment": meta.get("server_wide_adjustment") or None,
         "demo": meta.get("demo") or None,
+        "skip_auto_install": meta.get("skip_auto_install") or None,
         "languages_loaded": loaded,
         "languages_failed": failed,
         "languages_source": languages_source,
@@ -1451,6 +1524,11 @@ SERVER_WIDE_PROP = {
     "required": [],
     "additionalProperties": False,
 }
+SKIP_AUTO_INSTALL_OUT = {
+    "type": ["string", "null"], "enum": [SKIP_AUTO_INSTALL_APPLIED, SKIP_AUTO_INSTALL_UNAVAILABLE, None],
+    "description": "skip_auto_install asked for: applied = the build ran with --skip-auto-install; "
+                   "unavailable = the lease's Odoo checkout declares no such option, so the build "
+                   "ran without it; null = not asked (the option is never passed)."}
 SERVER_WIDE_ADJUSTMENT_OUT = {
     "anyOf": [_obj({"exclude": {"type": "array", "items": {"type": "string"}},
                     "include": {"type": "array", "items": {"type": "string"}}},
@@ -1521,6 +1599,7 @@ JOB_WAIT_OUTPUT = _obj({
              "description": "The demo value the build ran with (op test: the series default the "
                             "tool read); null = not stated (op update, or a job that is not a "
                             "build)."},
+    "skip_auto_install": SKIP_AUTO_INSTALL_OUT,
     "languages_loaded": {"type": ["array", "null"], "items": {"type": "string"},
                          "description": "Once the job finished, the languages active in the "
                                         "lease's database (en_US first), read from the database "
@@ -1547,7 +1626,8 @@ JOB_WAIT_OUTPUT = _obj({
                                        "null while running or when the lease is gone."},
 }, ["job_id", "result", "state", "exit_code", "op", "marker", "progress", "test_result", "summary",
     "log_path", "output_path", "log_tail", "output_tail", "detail", "server_wide_modules",
-    "server_wide_adjustment", "demo", "languages_loaded", "languages_failed", "languages_source",
+    "server_wide_adjustment", "demo", "skip_auto_install", "languages_loaded", "languages_failed",
+    "languages_source",
     "warnings", "exports", "instance_handle"])
 
 
@@ -1560,7 +1640,7 @@ def register(registry, ctx):
         "read FROM THE LEASE - never pass them; the build binds the lease's reserved port. op test "
         "needs a lease with a port (lease_acquire ports 1): a test build always starts Odoo's HTTP "
         "server, so on a lease without one it is refused with LEASE_HAS_NO_PORT. "
-        "The tool applies three build facts itself - never put them in extra_args: "
+        "The tool applies four build facts itself - never put them in extra_args: "
         "(1) server-wide modules: --load = the series' core default read from the lease's Odoo "
         "checkout + the catalog row's server_wide_modules recorded on the lease; when the task "
         "needs a different set, adjust it for this call with server_wide (exclude / include); "
@@ -1572,7 +1652,11 @@ def register(registry, ctx):
         "to installed modules; any value is refused with INVALID_ARGUMENTS); op test takes NO demo "
         "either (refused likewise): a test build always runs with the series default read from that "
         "checkout (demo loaded where the series loads it by default, none where demo is opt-in) "
-        "and reports the value used. Where the checkout loads no demo data by default (it "
+        "and reports the value used; (4) skip_auto_install true: Odoo does not auto-install modules "
+        "whose dependencies are present - the tool passes the option where the lease's checkout "
+        "declares it and reports skip_auto_install applied, or unavailable on a series that "
+        "declares none (the build then runs without it); omitted or false: never passed. "
+        "Where the checkout loads no demo data by default (it "
         "declares --with-demo), op test refuses a database that holds demo data - read from the "
         "database itself (else from the builds recorded on any lease of it, e.g. the one a "
         "forwarded INSTANCE_HANDLE came from) (TEST_DB_HAS_DEMO); build a demo instance on its own lease "
@@ -1582,16 +1666,17 @@ def register(registry, ctx):
         "with job_id; the build runs in the background and "
         "survives this server restarting. Then call job_wait(job_id) until its result is not timeout; "
         "job_wait reports languages_loaded / languages_failed and warnings. "
-        "Other version-specific Odoo flags go in extra_args, one token per item (--flag=value form), "
-        "resolved for the lease's series with Odoo Semantic cli_help - never guessed; a flag the tool "
+        "Other odoo-bin flags go in extra_args, one token per item (--flag=value form); the tool "
+        "checks each against the options the lease's Odoo checkout declares, so a long flag the "
+        "checkout does not declare is refused with INVALID_ARGUMENTS naming it, as is a flag the tool "
         "sets itself or that would move what it reads (database / db connection, addons path, config "
         "and --save, data dir, -i/-u, stop-after-init, test switches, any port, "
         "--logfile/--syslog/--pidfile, --load, --load-language, -l/--language, --with-demo, "
-        "--without-demo) is refused with INVALID_ARGUMENTS naming it - long flags are matched by any "
+        "--without-demo, --skip-auto-install) - long flags are matched by any "
         "prefix Odoo would accept, and short flags are read the way Odoo reads them, so a combined "
-        "-sd... is refused for its -d. The demo default, the second port option and the short "
-        "options are read from the lease's Odoo checkout; one it does not state is refused with "
-        "ODOO_SOURCE_FACT_UNKNOWN. VENV_MISSING = the lease has no venv python: follow the "
+        "-sd... is refused for its -d. The options, the demo default, the second port option and "
+        "the short options are read from the lease's Odoo checkout; one it does not state is "
+        "refused with ODOO_SOURCE_FACT_UNKNOWN. VENV_MISSING = the lease has no venv python: follow the "
         "remedy. For op test pass test_tags to select whose tests run (omitted = every loaded "
         "module's tests); test_mode fresh (-i) for modules not yet installed in the lease's "
         "database, reuse (-u) for modules already installed - -u is right for that on every series, "
@@ -1625,9 +1710,19 @@ def register(registry, ctx):
                           "description": "Language codes to load besides en_US (always loaded), "
                                          "e.g. [\"vi_VN\", \"fr_BE\"]. Omit when only en_US is "
                                          "needed."},
+            "skip_auto_install": {"type": "boolean",
+                                  "description": "true = Odoo does not auto-install modules whose "
+                                                 "dependencies are present. The tool passes "
+                                                 "--skip-auto-install where the lease's checkout "
+                                                 "declares it and reports skip_auto_install "
+                                                 "applied; on a series that declares none the build "
+                                                 "runs without it and reports unavailable. Omit or "
+                                                 "false: never passed."},
             "extra_args": {"type": "array", "items": {"type": "string"},
-                           "description": "Other odoo-bin flags for this series, one token each, e.g. "
-                                          "[\"--workers=2\"], resolved via Odoo Semantic cli_help. "
+                           "description": "Other odoo-bin flags, one token each, e.g. "
+                                          "[\"--workers=2\"]; each long flag must be one the "
+                                          "lease's Odoo checkout declares (INVALID_ARGUMENTS naming "
+                                          "it otherwise). "
                                           "Never a flag the tool controls (-d/--database, "
                                           "--db-filter, -r/--db_user, -w/--db_password, "
                                           "--db_host/--db_port/--db-template/--db_replica_*, "
@@ -1635,7 +1730,8 @@ def register(registry, ctx):
                                           "--stop-after-init, --test-enable/--test-tags/--test-file "
                                           "(and -t where it means --test-tags), any port flag, "
                                           "--logfile/--syslog/--pidfile, --load, --load-language, "
-                                          "-l/--language, --with-demo, --without-demo), alone, as an "
+                                          "-l/--language, --with-demo, --without-demo, "
+                                          "--skip-auto-install), alone, as an "
                                           "accepted prefix, or inside a combined short-flag token: "
                                           "refused - adjust the server-wide set with server_wide, "
                                           "never --load here."},
@@ -1677,12 +1773,13 @@ def register(registry, ctx):
                      "description": "The demo value this build runs with (op test: the series "
                                     "default read from the checkout); null = not stated (op "
                                     "update)."},
+            "skip_auto_install": SKIP_AUTO_INSTALL_OUT,
             "conf_options": {"type": "object",
                              "additionalProperties": {"type": "string"},
                              "description": "The extra config keys this build's config file carries, "
                                             "as written (empty = none)."},
         }, ["job_id", "pid", "op", "log_path", "output_path", "lease_token", "server_wide_modules",
-            "server_wide_adjustment", "languages", "demo", "conf_options"]),
+            "server_wide_adjustment", "languages", "demo", "skip_auto_install", "conf_options"]),
         _build, title="Start an Odoo build/test job", destructive=True,
     )
     registry.add(

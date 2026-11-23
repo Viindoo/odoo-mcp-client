@@ -524,6 +524,60 @@ def test_skipping_auto_install_is_a_series_option_read_from_the_checkout(tmp_pat
     assert facts.skip_auto_install_declared(tmp_path / "absent") is None
 
 
+WRAPPED_OPTIONS = (
+    'group.add_option("-p", "--http-port", dest="http_port", type="int")\n'
+    'group.add_option(PosixOnlyOption(\n'
+    '                 "--workers", dest="workers", my_default=0,\n'
+    '                 help="the number of workers, 0 disables prefork mode.",\n'
+    '                 type="int"))\n'
+    'group.add_option(PosixOnlyOption("-w", "--wrapped-flag", dest="wrapped_flag",\n'
+    '                                 action=\'store_true\', my_default=\'x\'))\n'
+    'parser.add_option(FileOnlyOption(dest=\'admin_passwd\', my_default=\'admin\'))\n')
+
+
+def test_an_option_declared_through_a_wrapper_call_is_in_the_option_table(tmp_path):
+    """Series declare some options as add_option(Wrapper("--flag", ...)): the flags are the
+    arguments of a call nested inside add_option, and the server's parser accepts them like the
+    plain ones. A wrapper that takes no flag is a config-file option, not a command-line one."""
+    root = _config(tmp_path / "wrapped", "odoo", WRAPPED_OPTIONS)
+    options = facts.cli_options(root)
+    assert options["--workers"] == {"short": None, "dest": "workers", "takes_value": True,
+                                    "default": None, "action": "store"}
+    assert options["--wrapped-flag"] == {"short": "w", "dest": "wrapped_flag",
+                                         "takes_value": False, "default": "x",
+                                         "action": "store_true"}
+    assert options["--http-port"]["short"] == "p", "the plain declarations are read as before"
+    assert facts.short_options(root)["w"] == {"long": "wrapped-flag", "takes_value": False}
+    assert sorted(options) == ["--http-port", "--workers", "--wrapped-flag"], (
+        "a flag-less wrapper adds no option")
+    assert facts.option_table_complete(root) is True
+
+
+@pytest.mark.parametrize("series", ["17.0", "18.0", "19.0", "20.0"])
+def test_real_checkout_option_table_holds_the_multiprocessing_options(series):
+    """The server flags a prefork build passes are in the table whichever way the series declares
+    them (plain up to 18.0, through a wrapper call from 19.0), and every declaration is read."""
+    root = _checkout(series)
+    options = facts.cli_options(root)
+    for flag in ("--workers", "--limit-memory-hard", "--limit-memory-soft", "--limit-request",
+                 "--limit-time-cpu", "--limit-time-real", "--max-cron-threads"):
+        assert flag in options, (series, flag)
+    assert options["--workers"]["dest"] == "workers" and options["--workers"]["takes_value"] is True
+    assert facts.option_table_complete(root) is True
+
+
+def test_an_option_table_with_a_declaration_the_reader_cannot_take_apart_is_not_complete(tmp_path):
+    """An option string that is a variable cannot be read: the table may then lack options the
+    server accepts, which option_table_complete says (the other options stay readable)."""
+    root = _config(tmp_path / "opaque", "odoo",
+                   'group.add_option("--http-port", dest="http_port", type="int")\n'
+                   'group.add_option(FLAG_NAME, dest="hidden")\n'
+                   'group.add_option(Wrapper(FLAG_NAME, dest="hidden2"))\n')
+    assert sorted(facts.cli_options(root)) == ["--http-port"]
+    assert facts.option_table_complete(root) is False
+    assert facts.option_table_complete(tmp_path / "absent") is None
+
+
 @pytest.mark.parametrize("body", [None, "", "# placeholder\n",
                                   'group.add_option("--load", dest="server_wide_modules")\n'])
 def test_demo_default_unreadable_is_none_never_a_guess(tmp_path, body):

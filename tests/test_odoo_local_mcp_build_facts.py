@@ -745,3 +745,158 @@ def test_conf_options_land_in_the_generated_conf_and_the_tools_own_keys_are_refu
     for options in ({"Bad-Key": "x"}, {"lint_scope": "two\nlines"}, {"lint_scope": ["a", "b"]}):
         assert _build(client, world, lease["token"], conf_options=options)["isError"] is True, options
     assert len(_odoo_calls(world)) == 1 and len(_jobs(world)) == 1, "nothing may start"
+
+
+# --------------------------------------------------------------------------- #
+# skip_auto_install: a build fact the tool applies from the lease's checkout
+# --------------------------------------------------------------------------- #
+SKIP_FLAG = "--skip-auto-install"
+
+
+def _config_py(world):
+    return world["odoo_bin"].parent / "odoo" / "tools" / "config.py"
+
+
+def _declare_skip_auto_install(world):
+    """The checkout's config.py declares --skip-auto-install, as the series that have it do."""
+    config = _config_py(world)
+    config.write_text(config.read_text(encoding="utf-8") +
+                      '        group.add_option("--skip-auto-install", dest="skip_auto_install", '
+                      'action="store_true")\n', encoding="utf-8")
+
+
+def _nothing_started(world):
+    return not _odoo_calls(world) and not _jobs(world)
+
+
+@pytest.mark.parametrize("over", [{"op": "init"}, {"op": "update"}])
+def test_skip_auto_install_is_passed_where_the_checkout_declares_it_and_reported(client, world, over):
+    _declare_skip_auto_install(world)
+    lease = _lease(client, world)
+    job = _ok(_build(client, world, lease["token"], skip_auto_install=True, **over))
+    assert job["skip_auto_install"] == "applied"
+    done = _wait(client, job["job_id"])
+    assert done["result"] == "success", done
+    assert done["skip_auto_install"] == "applied", "job_wait states the fact the build ran with"
+    (argv,) = _odoo_calls(world)
+    assert argv.count(SKIP_FLAG) == 1
+
+
+def test_a_build_never_skips_auto_install_unless_asked(client, world):
+    _declare_skip_auto_install(world)
+    lease = _lease(client, world)
+    for over in ({}, {"skip_auto_install": False}):
+        job = _ok(_build(client, world, lease["token"], **over))
+        assert job["skip_auto_install"] is None, over
+        assert _wait(client, job["job_id"])["skip_auto_install"] is None, over
+    calls = _odoo_calls(world)
+    assert len(calls) == 2 and not [a for argv in calls for a in argv if a.startswith("--skip")]
+
+
+def test_skip_auto_install_on_a_series_that_declares_no_such_option_runs_without_it_and_says_so(
+        client, world):
+    lease = _lease(client, world)  # the fixture checkout declares no --skip-auto-install
+    job = _ok(_build(client, world, lease["token"], skip_auto_install=True))
+    assert job["skip_auto_install"] == "unavailable"
+    done = _wait(client, job["job_id"])
+    assert done["result"] == "success", done
+    assert done["skip_auto_install"] == "unavailable"
+    (argv,) = _odoo_calls(world)
+    assert SKIP_FLAG not in argv
+
+
+def test_skip_auto_install_with_an_unreadable_checkout_is_refused_not_guessed(client, world):
+    lease = _lease(client, world)
+    _config_py(world).unlink()
+    # op update states no demo, so the auto-install fact is the only checkout fact the build reads
+    err = _err(_build(client, world, lease["token"], op="update", skip_auto_install=True))
+    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "skip-auto-install" in err["diagnostics"]["fact"]
+    assert _nothing_started(world)
+
+
+def test_the_auto_install_option_is_refused_inside_extra_args_and_conf_options(client, world):
+    _declare_skip_auto_install(world)
+    lease = _lease(client, world)
+    for token in (SKIP_FLAG, "--skip-auto-install=1", "--skip-auto", "--skip"):
+        err = _err(_build(client, world, lease["token"], extra_args=[token]))
+        assert err["code"] == "INVALID_ARGUMENTS", (token, err)
+        assert err["diagnostics"]["flag"] == SKIP_FLAG and err["diagnostics"]["token"] == token
+        assert "skip_auto_install" in err["message"], "names the argument to use instead"
+    err = _err(_build(client, world, lease["token"], conf_options={"skip_auto_install": True}))
+    assert err["code"] == "INVALID_ARGUMENTS"
+    assert "arguments.conf_options.skip_auto_install" in err["message"]
+    assert _nothing_started(world)
+
+
+@pytest.mark.parametrize("token", ["--no-such-option", "--no-such-option=1", "--log_level=debug",
+                                   "--workers-extra=2"])
+def test_a_long_flag_the_checkout_does_not_declare_is_refused_before_anything_starts(
+        client, world, token):
+    lease = _lease(client, world)
+    err = _err(_build(client, world, lease["token"], extra_args=["--workers=2", token]))
+    assert err["code"] == "INVALID_ARGUMENTS"
+    assert err["diagnostics"]["flag"] == token.split("=")[0] and err["diagnostics"]["token"] == token
+    assert err["diagnostics"]["reason"] == "undeclared"
+    assert _nothing_started(world)
+
+
+def test_a_long_flag_the_checkout_declares_reaches_odoo_bin_by_name_or_accepted_prefix(client, world):
+    lease = _lease(client, world)
+    # the declared name, a prefix Odoo's parser accepts, and a plain value token
+    extra = ["--workers=2", "--log-lev=debug", "debug"]
+    job = _ok(_build(client, world, lease["token"], extra_args=extra))
+    assert _wait(client, job["job_id"])["result"] == "success"
+    (argv,) = _odoo_calls(world)
+    assert argv[-len(extra):] == extra
+
+
+def test_a_flag_the_checkout_declares_through_a_wrapper_call_reaches_odoo_bin(client, world):
+    """19.0 declares the multiprocessing options as add_option(PosixOnlyOption("--workers", ...)):
+    the server accepts them, so the build must too (a prefork build, the memory cap)."""
+    _declare_series(world, "19.0")
+    config = _config_py(world)
+    assert "PosixOnlyOption(" in config.read_text(encoding="utf-8"), "the fixture declares them wrapped"
+    lease = _lease(client, world, series="19.0")
+    extra = ["--workers=2", "--limit-memory-hard=1000000", "--wor=3"]
+    job = _ok(_build(client, world, lease["token"], extra_args=extra))
+    assert _wait(client, job["job_id"])["result"] == "success"
+    (argv,) = _odoo_calls(world)
+    assert argv[-len(extra):] == extra
+    # the table is complete there (wrapped options and the flag-less wrapper all read), so a flag
+    # that is no option of the series is still refused
+    err = _err(_build(client, world, lease["token"], extra_args=["--no-such-option"]))
+    assert err["code"] == "INVALID_ARGUMENTS" and err["diagnostics"]["reason"] == "undeclared"
+
+
+def test_a_checkout_whose_options_cannot_all_be_read_never_has_a_flag_called_undeclared(
+        client, world):
+    """An option string that is a variable is a declaration the reader cannot take apart: the
+    table may lack options the server accepts, so only the tool-controlled flags are refused."""
+    config = _config_py(world)
+    config.write_text(config.read_text(encoding="utf-8") +
+                      '        group.add_option(SOME_FLAG, dest="opaque")\n', encoding="utf-8")
+    lease = _lease(client, world)
+    job = _ok(_build(client, world, lease["token"], extra_args=["--opaque-option=1"]))
+    assert _wait(client, job["job_id"])["result"] == "success"
+    (argv,) = _odoo_calls(world)
+    assert argv[-1] == "--opaque-option=1"
+    err = _err(_build(client, world, lease["token"], extra_args=["--database=other"]))
+    assert err["code"] == "INVALID_ARGUMENTS" and err["diagnostics"]["flag"] == "--database"
+
+
+def test_extra_args_against_an_unreadable_checkout_are_refused_and_an_empty_list_reads_nothing(
+        client, world):
+    lease = _lease(client, world)
+    _config_py(world).unlink()
+    err = _err(_build(client, world, lease["token"], extra_args=["--workers=2"]))
+    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN"
+    assert _nothing_started(world)
+
+    from odoo_local_mcp_harness import import_package
+    import_package()
+    from odoo_local import tools_instance
+
+    class Unread:
+        def get(self, *_args):
+            raise AssertionError("the checkout was read for an empty extra_args")
+    assert tools_instance._refuse_extra_args([], Unread(), Unread(), "t" * 8) is None

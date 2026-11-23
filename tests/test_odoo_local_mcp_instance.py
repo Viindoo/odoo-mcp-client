@@ -924,11 +924,12 @@ REFUSED_EXTRA = ["--database=other", "--datab=other", "-d", "-dother", "--db-fil
                  "--load=base,web", "--load", "--loa=base", "--load-language=fr_FR",
                  "--load-lang=fr_FR", "--language=fr_FR", "--lang=fr_FR", "-lfr_FR", "-ldother",
                  "-l", "-slfr_FR", "--with-demo", "--with", "--without-demo=all",
-                 "--without-demo=True", "--without-demo", "--witho"]
+                 "--without-demo=True", "--without-demo", "--witho",
+                 # the auto-install build fact: set by the skip_auto_install argument
+                 "--skip-auto-install", "--skip-auto", "--skip"]
 ALLOWED_EXTRA = ["--log-level=debug", "--dev=xml", "--log-handler=odoo.sql_db:DEBUG",
                  "--http-interface=127.0.0.1", "--workers=0", "--i18n-overwrite",
-                 "--db_maxconn=4", "--limit-time-real=600", "--limit-memory-soft=1",
-                 "--skip-auto-install", "debug"]
+                 "--db_maxconn=4", "--limit-time-real=600", "--limit-memory-soft=1", "debug"]
 
 
 def _shorts(tmp_path, series):

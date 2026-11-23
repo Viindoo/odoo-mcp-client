@@ -115,7 +115,7 @@ Every install step is an `instance_build` op `init` carrying the same three inpu
 
 - **`demo` `on`** - the tool spells the series' own flag.
 - **`languages`** = every resolved locale (the tool adds `en_US` itself).
-- **skip-auto-install** in `extra_args`, spelled per the series' OSM `cli_help` (never hardcoded) -
+- **`skip_auto_install: true`** (the tool applies it where the series has the option) -
   install ONLY the target + its declared deps; do not let Odoo pull in `auto_install=True` modules
   (see `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`
   for demo seeding; a legitimately-required auto-install bridge is added EXPLICITLY to `modules`,
@@ -181,7 +181,7 @@ parallelism:
     # convergence node mod_a2 runs AFTER branch-1 (inst-c2-b) has doc'd its own modules
 provision_cadence:
   incremental: true                      # keep each instance ALIVE; install the next delta between doc steps
-  per_step_build: {demo: on, languages: [<locales>], extra_args: [skip-auto-install]}   # instance_build inputs; flag spelled via cli_help
+  per_step_build: {demo: on, languages: [<locales>], skip_auto_install: true}   # instance_build inputs
   loop: "per instance: for step in install_doc_sequence: install_delta -> doc(if doc:true) -> verify -> commit; then convergence: reuse -> install_fill -> doc"
 purity: strict-branch                    # (default) linear paths share; independent branches split; convergence reuses+fills. Override: fresh-per-module
 ```

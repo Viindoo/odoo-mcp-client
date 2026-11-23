@@ -124,8 +124,10 @@ Bash or a skill, and no tool result carries one (`tests/test_odoo_media_mcp.py`,
   `instance_serve` and `instance_i18n_export` pass `--load` (core default + the row's list; an agent
   adjusts it per call only through `server_wide` {exclude, include}, never through `extra_args`, and
   the lease and catalog stay unchanged); `instance_build` / `instance_serve` also pass
-  `--load-language` (`en_US` + `languages`) and the series' demo flag (from `demo`, on `init` only),
-  and `extra_args` refuses those flags. `instance_i18n_export` runs Odoo's own exporter (`.pot`
+  `--load-language` (`en_US` + `languages`) and the series' demo flag (from `demo`, on `init` only);
+  `instance_build` passes the skip-auto-install option where the checkout declares it
+  (`skip_auto_install`, reported `applied` or `unavailable`). `extra_args` refuses those flags and
+  any long flag the lease's checkout does not declare. `instance_i18n_export` runs Odoo's own exporter (`.pot`
   first, then one `.po` per language, from one database). One build or export runs on a database at a time (`DATABASE_BUSY`).
 - **A served instance is the installed build.** `instance_serve` passes no developer option and
   drops the environment's `ODOO_DEV`, so the server neither restarts on a saved file nor reads

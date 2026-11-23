@@ -24,8 +24,19 @@ Public API (stable - other scripts import it):
       Every option the core package's `tools/config.py` adds:
       {"--long-name": {"short", "dest", "takes_value", "default"}}, "default"
       being the string literal of its `my_default` / `default` (None when it
-      states none or a non-string). The readers below answer from it; None
-      when config.py is unreadable.
+      states none or a non-string). An option is read whether its flags are the
+      arguments of the `add_option(...)` call itself or of a wrapper call nested
+      as its argument (`add_option(PosixOnlyOption("--workers", ...))`); a
+      wrapper that takes no flag (a config-file-only option) adds no command-line
+      option. The readers below answer from it; None when config.py is
+      unreadable.
+
+  option_table_complete(odoo_root) -> bool | None
+      True when every `add_option(...)` call of config.py yields flags or is a
+      flag-less config-file option, False when some call's flags cannot be read
+      (a variable or an expression where an option string is expected) - then
+      cli_options may miss options and a caller must not treat an absent one as
+      undeclared. None when config.py is unreadable.
 
   python_requirements(odoo_root) -> list[str] | None
       The normalised names of the Python packages listed in the `requirements.txt` at the
@@ -249,6 +260,7 @@ __all__ = [
     "locate_odoo_launcher",
     "locate_odoo_root",
     "module_dirs",
+    "option_table_complete",
     "module_manifest",
     "module_search_dirs",
     "optional_test_imports",
@@ -552,29 +564,55 @@ def _core_config_text(odoo_root):
     return None, None
 
 
-def cli_options(odoo_root) -> dict | None:
-    """Every option the checkout's config.py adds: {"--long-name": {"short": "p" | None,
-    "dest": "http_port" | None, "takes_value": bool}}. Long names are kept as declared (the oldest
-    series spell some with `_`, e.g. `--db_user`). None when config.py is unreadable."""
-    _pkg, text = _core_config_text(odoo_root)
-    if text is None:
-        return None
-    text = _strip_comment_lines(text)
-    out = {}
+_WRAPPER_RE = re.compile(r"\s*[A-Za-z_][\w.]*\(")
+_KEYWORD_RE = re.compile(r"\s*[A-Za-z_]\w*\s*=(?!=)")
+
+
+def _option_calls(text):
+    """[(call text, [option strings] | None)] for every `add_option(...)` call of config.py `text`
+    (comment lines already stripped). The option strings are the leading quoted flags of the call,
+    or - when its first argument is a wrapper call such as `PosixOnlyOption(` - of that wrapper (any
+    nesting). A call that carries keyword arguments only (an option read from the config file, no
+    command-line spelling) gives []. None = the first argument is neither a flag string, a wrapper
+    call nor a keyword: the flags cannot be read."""
+    out = []
     for m in re.finditer(r"\badd_option\(", text):
         end = _balanced_span(text, m.end() - 1)
         if end is None:
             continue
         call = text[m.end():end - 1]
-        flags = []
         pos = 0
+        while True:
+            wm = _WRAPPER_RE.match(call, pos)
+            if not wm:
+                break
+            pos = wm.end()
+        flags = []
         while True:
             fm = _FLAG_RE.match(call, pos)
             if not fm:
                 break
             flags.append(fm.group(2))
             pos = fm.end()
-        longs = [f for f in flags if f.startswith("--")]
+        if not flags and call[pos:].strip() and not _KEYWORD_RE.match(call, pos):
+            flags = None
+        out.append((call, flags))
+    return out
+
+
+def cli_options(odoo_root) -> dict | None:
+    """Every option the checkout's config.py adds: {"--long-name": {"short": "p" | None,
+    "dest": "http_port" | None, "takes_value": bool}}. Long names are kept as declared (the oldest
+    series spell some with `_`, e.g. `--db_user`). Options declared through a wrapper call
+    (`add_option(PosixOnlyOption("--workers", ...))`) are read like the plain ones. None when
+    config.py is unreadable."""
+    _pkg, text = _core_config_text(odoo_root)
+    if text is None:
+        return None
+    text = _strip_comment_lines(text)
+    out = {}
+    for call, flags in _option_calls(text):
+        longs = [f for f in flags or [] if f.startswith("--")]
         if not longs:
             continue
         short = next((f[1:] for f in flags if not f.startswith("--") and len(f) == 2), None)
@@ -593,6 +631,16 @@ def cli_options(odoo_root) -> dict | None:
                          "default": default.group(2) if default else None,
                          "action": action}
     return out
+
+
+def option_table_complete(odoo_root) -> bool | None:
+    """True when every `add_option(...)` call of the checkout's config.py was read (flags found, or
+    a config-file-only option with none), False when some call's flags are not literals (so
+    cli_options may lack options the server accepts), None when config.py is unreadable."""
+    _pkg, text = _core_config_text(odoo_root)
+    if text is None:
+        return None
+    return all(flags is not None for _call, flags in _option_calls(_strip_comment_lines(text)))
 
 
 def _declared(options, *names):
