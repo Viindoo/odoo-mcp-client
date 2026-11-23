@@ -7,7 +7,10 @@ the findings file first and finish every other step; the report goes out last.
 Working files (a list, a message file, a scratch result) go only in the directory of the findings
 file the brief names, else in a directory you create with `mktemp -d` - never in the repository,
 beside it, or in any other directory you were not given. Before the report, remove every working
-file you created; the findings file and what the brief asked you to produce stay.
+file you created; the findings file and what the brief asked you to produce stay. A file the
+brief asks for is written at the exact path it names. A tree is never made to look clean by
+changing the repository's ignore rules, hooks or configuration: a file that should not be there
+is moved or removed.
 
 How the report goes out:
 
