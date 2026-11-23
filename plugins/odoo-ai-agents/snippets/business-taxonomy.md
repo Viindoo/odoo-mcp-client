@@ -7,31 +7,41 @@ It is derived from data, written once, and read by every later step; no agent re
 Domain: <business_function>; Audience: <role, role | n/a>; Outcome: <the business result the unit delivers>
 ```
 
-## `business_function` from the manifest `category`
+## `business_function`
 
-Read `category` from the module's `__manifest__.py` (on disk for a module in the worktree set,
-`describe_module` otherwise) and map its FIRST path segment; a second segment refines it. A value
-not in the table is `UNKNOWN`; the main agent decides and the taxonomy gains a row.
+A closed set that does not change with the Odoo series: the table, plus `tax` and
+`legal-compliance` by the signals of § Specialist list. Derive it from the module's own data
+(`__manifest__.py` on disk for a module of the worktree set, `describe_module` otherwise); the
+first rule that answers wins:
 
-| `category` (first segment / refinement) | `business_function` | Default audience |
+1. **Name**: `l10n_*` is `localization`; `hr_payroll*` is `payroll`.
+2. **`category`**, read by meaning, never matched as a string: a segment that names
+   localization, anywhere, decides `localization`; otherwise go from the LAST segment back to
+   the first and take the first one that names a function of the table or something its Covers
+   column lists. A segment that names none (a grouping word, an acronym you cannot expand) is
+   skipped. Series and vendors regroup the parent segments; the word that names the function
+   stays, so `<anything>/Purchase` is `purchase`.
+3. **The application it extends**: the nearest module of its `depends` closure that is an
+   application, classified by rules 1-2.
+4. Nothing answers: `UNKNOWN`, never `platform`; the main agent decides and says from what.
+
+| `business_function` | Covers | Default audience |
 |---|---|---|
-| `Accounting` | `accounting` | accountant, chief accountant |
-| `Accounting/Localizations/...`, any module named `l10n_*` | `localization` | accountant of that country |
-| `Sales`, `Sales/Sales`, `Sales/CRM` | `sales` | salesperson, sales manager |
-| `Sales/Point of Sale` | `point-of-sale` | cashier, shop manager |
-| `Inventory` (any refinement except Purchase), `Operations/Inventory`, `Marketplace/Inventory`, `Warehouse`, `Warehouse Management` | `inventory` | warehouse operator, inventory manager |
-| `Inventory/Purchase` | `purchase` | purchaser, purchase manager |
-| `Manufacturing` | `manufacturing` | production planner, shop-floor operator |
-| `Human Resources` (any refinement except Payroll) | `human-resources` | HR officer, employee, manager |
-| `Human Resources/Payroll`, any module named `hr_payroll*` | `payroll` | payroll officer, accountant |
-| `Services/Project`, `Services/Timesheets`, `Services/Field Service` | `project-services` | project manager, consultant |
-| `Services/Helpdesk` | `helpdesk` | support agent, support manager |
-| `Website`, `Website/eCommerce` | `website` | website visitor, web editor, shop manager |
-| `Marketing` | `marketing` | marketer |
-| `Productivity`, `Discuss` | `productivity` | every user |
-| `Hidden`, `Technical`, `Administration`, `Theme` | `platform` | administrator, maintainer |
-
-A module whose manifest has no `category` is `UNKNOWN`, never `platform`.
+| `accounting` | invoicing, payments, bank, assets, analytic | accountant, chief accountant |
+| `localization` | one country's chart, taxes, reports, e-invoicing | accountant of that country |
+| `payroll` | payslips, salary rules | payroll officer, accountant |
+| `sales` | quotations, orders, CRM, subscriptions | salesperson, sales manager |
+| `point-of-sale` | shop and restaurant counters | cashier, shop manager |
+| `inventory` | warehouse, stock, delivery, shipping | warehouse operator, inventory manager |
+| `purchase` | requests for quotation, purchase orders | purchaser, purchase manager |
+| `manufacturing` | production, quality, maintenance, repair | production planner, shop-floor operator |
+| `human-resources` | employees, recruitment, time off, attendance, expenses, fleet | HR officer, employee, manager |
+| `project-services` | projects, timesheets, field service | project manager, consultant |
+| `helpdesk` | tickets, support | support agent, support manager |
+| `website` | pages, eCommerce, eLearning, live chat | website visitor, web editor, shop manager |
+| `marketing` | campaigns, events, surveys, social | marketer |
+| `productivity` | discuss, calendar, documents, dashboards | every user |
+| `platform` | hidden, technical, administration, tools, themes, tests | administrator, maintainer |
 
 ## Specialist list (the model-tier rules read it)
 
@@ -54,11 +64,9 @@ in the same run inherits that tier.
 
 ## Several functions in one request
 
-A request that spans functions (a forward-port of a whole branch, "confirm the order and post the
-invoice", an ERP-wide requirement list) gets one Domain line PER UNIT, never one for the request.
+A request that spans functions gets one Domain line PER UNIT, never one for the request.
 An interaction between two functions is its own line in the SRS or design, in the form
-`A -> B: <business result>` (`sales -> accounting: revenue is recognized on confirmation`); the
-function where the result lands owns the line, and when `accounting`, `payroll`, `tax`,
+`A -> B: <business result>`; the function where the result lands owns the line, and when `accounting`, `payroll`, `tax`,
 `localization` or `legal-compliance` is on either side, it owns the line.
 
 ## `Audience: n/a`

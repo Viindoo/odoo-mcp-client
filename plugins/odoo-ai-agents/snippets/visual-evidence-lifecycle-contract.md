@@ -24,6 +24,9 @@ never the literal `<slug>` token in a path. The same shape names a demo recordin
 (`visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}`; a before/after pair shares one
 value and appends `-before` / `-after`) and the id of a `run-<id>.json`.
 
+A path written `<slug>-<date>` (`designs/`, `recon/`, `coding/`, `reviews/`, `i18n/`) takes the
+intent slug alone, then the date as `YYYY-MM-DD`: no random characters.
+
 ## Clause 2 - the four evidence directories under `visual/`
 
 Each owner sweeps its own directory at its Phase or Round 0, before it mints its own slug, and
@@ -39,7 +42,7 @@ is as old as its newest file.
 | Directory | Owner | Kept |
 |---|---|---|
 | `visual/current/<slug>/` | `odoo-visual-regression` | deleted by its own run at its terminal status; 24h (1440) for a crashed run |
-| `visual/qa/<slug>/<module>/` | `odoo-acceptance` | 30 days (43200): it is the evidence a verdict cites |
+| `visual/qa/<slug>/<module>/` | `odoo-acceptance` | 30 days (43200) |
 | `visual/debug/<slug>/` | `odoo-debug` | 30 days |
 | `visual/screenshots/<slug>/` | `odoo-ui-review` | 30 days |
 
@@ -47,8 +50,7 @@ A live run keeps writing into its own directory, so it is never swept.
 
 ## Clause 3 - every other run-scoped path
 
-The same rule and command: the owner sweeps its own path at its Phase 0, before creating this
-run's own.
+The command of Clause 2 on the owner's own path, at its Phase 0, before creating this run's own.
 
 | Path (under `<ISOLATE_DIR>`) | Owner | Kept |
 |---|---|---|
@@ -57,7 +59,7 @@ run's own.
 | `coding/<slug>-<date>/`, `reviews/<slug>-<date>/`, `i18n/<slug>-<date>/` | `odoo-coding`, `odoo-code-review`, `odoo-i18n` | 30 days |
 | `pr-monitoring/<id>.md`, `followups/<slug>.md`, `visual/videos/*` (files: `--files`) | `odoo-pr-monitoring`, the follow-up command, `odoo-demo-recording` | 30 days |
 | a workflow's `output_dir` | `workflow-chaining`, once, for the active workflow | 30 days |
-| `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | deleted at the end of its run; 24h for a crashed run. Its sweep runs on `visual/` itself, so it excludes every named sibling (`baselines`, `doc`, `current`, `qa`, `debug`, `screenshots`, `videos`, `adhoc`) by name |
+| `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | deleted at the end of its run; 24h for a crashed run. Its sweep runs on `visual/` itself and excludes every named sibling |
 | `integration/<slug>/` | the plan runner | § 3.6 |
 
 Never swept by a skill:
@@ -66,8 +68,8 @@ Never swept by a skill:
 - `recon/<slug>-<date>/` - kept (`scouting-persistence-contract.md`).
 - `brainstorm/state.json` - one file, overwritten.
 - `visual/adhoc/<slug>/` - the plugin runtime prunes it after 30 days.
-- Every SHARE path (baselines, the doc cache, designs, plans, surveys, the documentation cache):
-  its value is surviving across runs; the consumer checks staleness when it reads.
+- Every SHARE path (baselines, designs, plans, surveys, the documentation cache): it outlives
+  runs; the consumer checks staleness when it reads.
 - Tier-1 `logs/` and `conf/` - reclaimed by the instance tools, by age and lease reachability.
 
 ### 3.6 - `integration/<slug>/` is deleted on the run's status, not on age alone
