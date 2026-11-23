@@ -9,7 +9,7 @@ risk, never by step count. Goal: keep the caller's context clean, including for 
 
 | Op | Agent | Notes |
 |---|---|---|
-| Read: state, history, a diff to analyze, a proof of no loss | `git-surveyor` | read-only; bounded or not, a read goes here |
+| Read: state, history, a file at a ref, a diff to analyze, a merge forecast, a proof of no loss | `git-surveyor` | read-only; bounded or not, a read goes here |
 | Local mutation, reversible or destructive: commit, integrate, branch/tag/worktree, rebase, squash, reset, push | `git-operator` | carries the safety contract |
 | GitHub API: PR, issue, review, release, CI, fork | `github-operator` | MCP-first, the GitHub CLI as fallback |
 | Large or complex change per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2 | `git-pipeline-lead` | runs P1-P5 below the caller |
