@@ -17,6 +17,9 @@ date -u +%Y%m%d%H%M%S                         # <ts>
 git branch --no-track backup/<branch>-<ts> <sha>
 ```
 
+Removing a worktree is not a destructive op: it takes a backup only when its HEAD holds commits
+that no local branch and no remote holds.
+
 A backup exists only for a destructive op, under that name, and is local: it is never pushed. The
 report names it. It lives until the rewrite is verified (S6) and the rewritten branch reaches its
 end: the branch is pushed, merged into another local branch, or its worktree is removed. The
