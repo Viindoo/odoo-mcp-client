@@ -41,7 +41,8 @@ What each phase does for a module with `installable_false: yes`:
 
 | Phase | The module |
 |---|---|
-| P1 intent, P3 design, the EXTRACT and ADAPT tiers | skipped |
+| P1 intent, P3 design, the EXTRACT and ADAPT tiers | skipped; `plan.md` records its tier as `lint-only` |
+| P5 merge | a conflict in its files resolves to the source side, by git-ops; the manifest flags then apply |
 | P6 symbol-survival, P6 test-survival, P7 drift scan | no symbol grounding and no scan. The P6 git-ops dispatch proves instead: no conflict marker in its files, the end-state `installable` flag of its descriptor, and its tree equal to the source tip's except the flag lines above |
 | P8 adapt | 8c: the manifest flags. A coder runs only for a file that does not parse or a lint failure the gate reports in the module, under the `LINT-ONLY` constraint: fix syntax and lint, adapt no logic, refactor nothing |
 | P9 verify | outside the install and test set, so its absence from `modules_installed` is expected. A batch with no installable module has no install set: its verify is the lint gate - `GATE_ROLE: pre-pr-lint-gate` with the modules of `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` - and a red whose evidence names only files outside the worktree is recorded as pre-existing |
