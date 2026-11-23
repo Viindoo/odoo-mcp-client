@@ -26,8 +26,8 @@ These guidelines apply to every new module and to all new development. Two warni
 ## By file type
 
 Before the first line of a file type, read every file its row names. The row is the gate: a
-`VERSION RULES APPLIED` block cites the file and the section heading it took each rule from, and
-a cited heading that does not exist in the file is a review finding. Snippet path prefix:
+`VERSION RULES APPLIED` block cites the file and the section heading it took each rule from.
+Snippet path prefix:
 `${CLAUDE_PLUGIN_ROOT}/snippets/`.
 
 | File you will write | Read first |

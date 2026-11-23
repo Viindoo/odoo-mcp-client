@@ -9,8 +9,8 @@ description: >-
 
 Front door for proving, on a live instance, that a change does what its SRS criteria say. It
 resolves the scope, launches `odoo-qa-tester` in its modes at their tiers, and returns the
-verdict with evidence. It launches and returns; the fix round belongs to the caller, who resumes
-the node's coder and the reviewer with the tester's report. The oracle author, the coder and the
+verdict with evidence. It launches and returns; the fix round belongs to the caller
+(`${CLAUDE_PLUGIN_ROOT}/snippets/fix-round.md`). The oracle author, the coder and the
 adjudicator stay three contexts
 (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`). The oracle and the verdicts
 obey `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0: a policy limit is

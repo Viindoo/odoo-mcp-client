@@ -131,8 +131,9 @@ question; nothing under an approved plan enters Plan Mode again. From there:
   blast-radius facts, and writes a light or full design with a build-tier hint per work unit; you
   approve the SRS and the design as text questions. `odoo-planning` (via `odoo-planner`) turns
   the design into the plan, approved in Plan Mode: a flat DAG of work NODES (`depends_on` edges only), each
-  naming the agent, mode and model it launches, followed by the default tail - review R1 then R2
-  (R3 for specialist domains), acceptance in parallel, one merged fix round (at most three),
+  naming the agent, mode and model it launches (each build node gets its mechanical review R1 as
+  it returns), followed by the default tail - review R2 (R3 for specialist domains), acceptance
+  and UI review in parallel, one fix round by cause after a single triage (at most three),
   i18n, migration and docs behind `when:` conditions, then integrate, monitor and the merge gate
   (`skills/odoo-intake/references/plan-mode-schema.md` § Default tail). `odoo-intake` serializes
   the approved plan to a run file (`<ISOLATE_DIR>/run-<id>.json`) and the **main agent runs it**
@@ -184,7 +185,7 @@ flowchart TD
     PK -->|"build node"| NODE["ONE odoo-coder per node (tier from the design)<br/>code + tests + instance run + commit<br/>-> cherry-pick the node's commit range<br/>onto run-integration"]
     NODE --> PK
     PK -->|"integrate node<br/>(once per repo)"| INT["main agent invokes git-toolkit:git-ops<br/>pre-PR lint, squash, push, open the run's ONE PR"]
-    PK -->|"tail: review R1 -> R2 (R3 when due)<br/>|| acceptance A1A2 (A4 when due)"| REV["odoo-code-reviewer + odoo-qa-tester<br/>one merged fix round, max 3"]
+    PK -->|"R1 per build node; tail: review R2 (R3 when due)<br/>|| acceptance A1A2 (A4 when due)"| REV["odoo-code-reviewer + odoo-qa-tester<br/>one triage, one fix round by cause, max 3"]
     REV --> PK
     PK -->|"when: new msgids / user-visible feature"| DOC["odoo-translator per language<br/>docs-module: odoo-doc-illustration<br/>docs-site: odoo-doc-site<br/>migration: odoo-data-migration"]
 
@@ -254,8 +255,8 @@ changed (desktop and phone captures, the dark scheme where the instance renders 
 symbols it changed in `impact-map.md`, and commits through `git-toolkit:git-ops`. It launches `odoo-frontend-coder`
 only for a frontend part with new JS/OWL files disjoint from the backend files, and a second
 `odoo-coder` only when a part exceeds one agent's output budget. When review or acceptance finds
-a defect, the main agent resumes the same coder with `SendMessage`; it still holds the node's
-context.
+a defect, the main agent resumes the same coder with `SendMessage` and the fix list
+(`snippets/fix-round.md`); it still holds the node's context.
 
 The node's **model** is chosen at design time, never by size: `haiku` when the design's six-item
 checklist holds (scope, rules, values, placement, tests and dependencies all stated), `sonnet` by
@@ -287,8 +288,9 @@ flowchart TD
     DES --> PLAN["plan node: agent + mode + model + when:"]
     PLAN --> NODE["ONE odoo-coder per node<br/>guidelines by file type -> tests red -> code<br/>-> stand-alone + with-dependents runs<br/>-> impact-map.md -> commit via git-ops"]
     NODE -.->|"new JS/OWL files, disjoint"| FE["odoo-frontend-coder"]
-    NODE --> REV["R1 haiku -> R2 sonnet (R3 opus when due)<br/>|| A1A2 haiku, sonnet when fixtures are built (A4 sonnet when due)"]
-    REV -->|"merged findings, SendMessage"| NODE
+    NODE -->|"R1 haiku, fixed in the node"| NODE
+    NODE --> REV["R2 sonnet (R3 opus when due)<br/>|| A1A2 haiku, sonnet when fixtures are built (A4 sonnet when due)"]
+    REV -->|"fix list by cause, SendMessage"| NODE
     REV -->|"clean"| TAIL["i18n when: -> docs when: -> integrate"]
 ```
 

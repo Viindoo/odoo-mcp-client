@@ -31,7 +31,7 @@ Every `snippets/`, `skills/` and `docs/` path below is under `${CLAUDE_PLUGIN_RO
 | `PRIOR ATTEMPT`, `USER LANGUAGE` | optional |
 
 Missing `MODULES`, `WORKTREE_PATH`, `ODOO VERSION`, `SHARE_DIR`, `ISOLATE_DIR` or `RUN_ID`:
-`NEEDS_CONTEXT(<field>)`; a missing version is never defaulted.
+`NEEDS_CONTEXT(<field>)`.
 
 ## Steps
 
@@ -39,7 +39,7 @@ Missing `MODULES`, `WORKTREE_PATH`, `ODOO VERSION`, `SHARE_DIR`, `ISOLATE_DIR` o
 
 **1. Guidelines, by file type.** Open `skills/_shared/coding_guidelines/<version>/INDEX.md` and follow its "By file type" table for every file type you will write, tests included; every section of the files it names binds your code. Also read `snippets/odoo-platform-design-principles.md` and `snippets/modularity-contract.md`; under a porting or upgrade caller (`MODE: adapt`, or its `CONSTRAINTS`) also `snippets/upg-conventions.md`. Before the first code block write `VERSION RULES APPLIED (v<N>):` naming each guideline file and the section heading each rule came from.
 
-**2. Ground and reuse.** For every EXISTING symbol you touch: a module in `W` from disk; outside `W`, its definition, its override chain and `super()` position, and its status at the series (`stable`, else the replacement) from OSM. Reuse before you add a helper, a mixin, a stored copy of a value, a wizard, a group, a view, a widget or a component; never add a dependency only to reach a helper. Your return names each one reused, or `none found` with where you looked. No `RECON` in the brief: launch ONE `odoo-impact-recon` (model `haiku`, reason (d)) for the node's scope before writing, and read its file.
+**2. Ground and reuse.** For every EXISTING symbol you touch: a module in `W` from disk; outside `W`, its definition, its override chain and `super()` position, and its status at the series (`stable`, else the replacement) from OSM. Reuse before you add a helper, a mixin, a stored copy of a value, a wizard, a group, a view, a widget or a component; never add a dependency only to reach a helper. No `RECON` in the brief: launch ONE `odoo-impact-recon` (model `haiku`, reason (d)) for the node's scope before writing, and read its file.
 
 **3. Ownership and closure.** Place each change in the lowest module that legitimately owns it; a base module never depends on a business module, a reusable module never on its consumer, no cycle. Every reference you write passes `snippets/modularity-contract.md` § The check. A placement the design got wrong is reported with the module that should own it, not implemented silently.
 
@@ -80,23 +80,23 @@ backend symbols it binds exist. Write the reason letter of the guard's launch ec
 ## Git and paths
 
 You run no git (`snippets/git-delegation.md`): a repo fact comes from `repo_facts`, everything
-else is a request to `Skill(git-toolkit:git-ops)`, and a leaf you launch returns its file list to
-you. Write only inside `WORKTREE_PATH` (and `ISOLATE_DIR` for scratch), confirming each target
+else is a request to `Skill(git-toolkit:git-ops)`. Write only inside `WORKTREE_PATH` (and `ISOLATE_DIR` for scratch), confirming each target
 path before the first write. A call the permission classifier refuses:
 `snippets/permission-denial.md`.
 
 ## When the caller resumes you
 
-A resumed message carries review findings, acceptance failures, or a widened `MODULES`. Fix each
-finding at its root in the same worktree; re-run only the affected tests and the stand-alone run of the touched
-modules, update the impact map, commit the fix
-(`snippets/commit-history.md`) and return its diff with one line per finding
-(`fixed at <file:line>` or `not a defect: <evidence>`).
+A resumed message carries a fix list (`snippets/fix-round.md`), R1 findings or a widened
+`MODULES`. Per item: find the root before changing code (an item marked `hypothesis` is proved or
+refuted first) and fix it wherever the same cause holds; re-run the affected tests and the
+stand-alone run of the touched modules, update the impact map, commit the fix
+(`snippets/commit-history.md`) and return its diff with, per item, the root, the change, the test
+that fails without it and where else you looked - or `not a defect: <evidence>`.
 
 ## Return
 
 First line: `DONE`, `BLOCKED`, `NEEDS_NEXT` or `NEEDS_CONTEXT`. Then: the commit range or file
-list; both test runs' verdicts with the counts; what you reused or `none found` (step 2); run (c)'s evidence (gate verdict, console errors,
+list; both test runs' verdicts with the counts; what you reused, or `none found` with where you looked (step 2); run (c)'s evidence (gate verdict, console errors,
 loader sets, the list of § 4 step 6 of the contract); the per-test line of the test-writing skill; `OBSOLETE TESTS` you adjusted and why; the impact map
 path; the mapping of every `REQUEST` item to its files; the Continuation Contract of
 `snippets/continuation-contract.md`. Prose in `USER LANGUAGE`; identifiers

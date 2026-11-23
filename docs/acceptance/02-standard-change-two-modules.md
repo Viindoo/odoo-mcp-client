@@ -14,4 +14,5 @@ modules, and one of them adds a module to its `depends`.
   from the index);
 - the worktree path matches `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<name>/src`.
 
-**Pass when** all five hold and R1 then R2 return `APPROVE` within one round.
+**Pass when** all five hold, the node's R1 reports no CRITICAL or HIGH, and R2 returns `APPROVE`
+with no fix round.

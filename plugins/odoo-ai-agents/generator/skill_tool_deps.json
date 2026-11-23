@@ -850,13 +850,15 @@
           "R1_FINDINGS",
           "R3_FINDINGS",
           "PRIOR_FINDINGS",
+          "FIX_DIFF",
           "ACCEPTANCE_EVIDENCE",
           "UI_REVIEW",
+          "RUN_MODULES",
           "INSTANCE_HANDLE",
           "USER LANGUAGE"
         ]
       },
-      "notes": "Static reviewer in three caller-set modes: R1 mechanical (haiku), R2 behaviour and verdict (sonnet), R3 specialist (opus, only for a specialist business function or a deep override chain). Resumed with SendMessage to verify fixes and to classify acceptance failures. Read-only on source; invokes the three audit skills inline; launches nothing."
+      "notes": "Static reviewer in three caller-set modes: R1 mechanical (haiku), R2 behaviour and verdict (sonnet), R3 specialist (opus, only for a specialist business function or a deep override chain). R2 writes the fix list by cause; resumed with SendMessage it triages acceptance and UI findings into that list and verifies each fix. Read-only on source; invokes the three audit skills inline; launches nothing."
     },
     "odoo-ui-reviewer": {
       "role": "leaf",
@@ -1406,7 +1408,7 @@
       "spawn_class": "spawner-agent",
       "handoff": "send-message",
       "spawns": [
-        "odoo-code-reviewer (MODE R1 at haiku, then MODE R2 at sonnet and MODE R3 at opus when the unit is specialist or the override chain is deep; later rounds resume the same reviewers with SendMessage)",
+        "odoo-code-reviewer (MODE R1 at haiku, skipped when the caller passes R1_FINDINGS; then MODE R2 at sonnet and MODE R3 at opus when the unit is specialist or the override chain is deep; later rounds resume the same reviewers with SendMessage)",
         "odoo-ui-reviewer (when an instance exists and views changed)",
         "git-ops (PR worktree checkout, bounded diff reads, inline-comment posting on the keyword post - via git-ops skill - git-toolkit)"
       ],
