@@ -26,9 +26,10 @@ or git-ops request). ONE shape, no mode flag; to land PART of a branch pass that
 ## Hard rules
 
 1. **Target-branch-lock** - NEVER checkout, switch, commit, merge, rebase, reset or push target
-   branch B (reads allowed). Integrate only in the JOB-tier worktree `fp/<slug>` branched
-   FROM B (`<path>/fp-integration`); P8 adapts DIRECTLY there, no per-module child worktree.
-   Every mutation goes via `git-toolkit:git-ops` (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`);
+   branch B; reading B does not break the lock. Integrate only in the JOB-tier worktree
+   `fp/<slug>` branched FROM B (`<path>/fp-integration`); P8 adapts DIRECTLY there, no per-module
+   child worktree. Every git operation, a read included, is a request to `git-toolkit:git-ops`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`);
    saga: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
 2. **ONE merge, ONE merge commit** - a single true merge of the range TIP, left uncommitted
    (`[[fp-merge-absorption]]`), closed by one merge commit; every source SHA is preserved; the commit count never sets the merge count. BANNED:
@@ -68,8 +69,9 @@ Dispatch briefs: `references/fp-phase-briefs.md` § Dispatch-brief skeleton; fan
 
 - **P0 Recon** [read-only]: read the Forward-port row of `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-act.md`;
   resolve `REPO KIND` (descriptor in tree -> `addons`; declared docs-site row -> `docs-site`; neither
-  -> `NEEDS_CONTEXT` naming `/odoo-ai-agents:odoo-setup docs-site`); enumerate the range via git-ops,
-  record `<src-first-SHA>` / `<src-tip-SHA>`; the source-tip merge lands every commit above the merge
+  -> `NEEDS_CONTEXT` naming `/odoo-ai-agents:odoo-setup docs-site`); ONE git-ops request writes the
+  range, each module's descriptor flags and the conflict forecast to `range.md`; record
+  `<src-first-SHA>` / `<src-tip-SHA>`; the source-tip merge lands every commit above the merge
   base, colleagues' included: record the merge base and the unnamed commits, and show that real scope at
   P4 before anything merges (empty range -> `DONE`); build `module -> [shas]`; EXTRACT tier inline (`references/fp-phase-p0-p4.md` § P0).
 - **P1 Intent** [parallel, read-only]: at most ONE `odoo-intent-extractor` per module for the whole

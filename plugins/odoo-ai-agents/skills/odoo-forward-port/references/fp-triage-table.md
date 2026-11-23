@@ -14,22 +14,10 @@ part of the approved plan, not a runtime improvisation.
 
 ## Table 1 - EXTRACT tier (P0 triage -> P1 intent extraction)
 
-> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row - executable AT P0, P2 has not
-> run yet):**
-> If the module's `installable` field is `False` at the TARGET clean tip -> this module is on the
-> **lint-only lane**. Resolve this yourself, right now, via the SAME disk-read Discriminator
-> `[[fp-installable-false]]` § Discriminator defines: read `<module>/<tgt-descriptor>` at the target
-> ref through `git-toolkit:git-ops` (read-only) - `<tgt-descriptor>` is the descriptor filename
-> SKILL.md Hard rule 11 resolved once for the target side (`__manifest__.py`, or `__openerp__.py` on
-> v8.0-v9.0). An absent key means installable; an absent FILE means the module is not on the clean
-> tip - never conclude that from a read of the OTHER era's filename. OSM does NOT carry this flag (`module_inspect` /
-> `describe_module` / `check_module_exists` all omit it) - a disk read is the only path. Do NOT wait
-> for P2's `manifest_path` artifact (a later phase; it independently re-reads the SAME ref into its
-> own file, then records `installable_false` in `merge-log.md` for the module-keyed record - the
-> two reads agree because they read the identical target-ref manifest).
-> Do NOT walk the tier rows below. Do NOT dispatch extract or adapt logic.
-> Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
-> See [[fp-installable-false]] for the full lint-only lane specification.
+> **SHORT-CIRCUIT GATE (check first, before walking any tier row).** A module whose `modules:`
+> row of `range.md` makes it `installable_false: yes` by `[[fp-installable-false]]` § Discriminator
+> is on the lint-only lane of that file: walk no tier row and dispatch no extract or adapt work
+> for it.
 
 Intent extraction is read-only analysis: read the commit message, PR/issue, tests, and
 OSM-ground the touched symbols at the SOURCE version. fable is not available for this phase.
@@ -59,13 +47,8 @@ Constraints:
 
 ## Table 2 - ADAPT tier (P8 code adapt)
 
-> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
-> If the module's `installable` field is `False` at the TARGET clean tip
-> (read `<module>/<tgt-descriptor>` at the target ref - the value P2 resolved into `manifest_path`;
-> an absent key means installable) -> this module is on the **lint-only lane**.
-> Do NOT walk the tier rows below. Do NOT dispatch adapt logic or business-logic review.
-> Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
-> See [[fp-installable-false]] for the full lint-only lane specification.
+> **SHORT-CIRCUIT GATE (check first).** `installable_false: yes` on the module's `merge-log.md`
+> row: the lint-only lane of `[[fp-installable-false]]`; walk no tier row below.
 
 Code adapt WRITES production code on the target platform. Its tier comes from
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (5.1 checklist, 5.2 opus conditions) - read it there; it is not restated here. Only the
