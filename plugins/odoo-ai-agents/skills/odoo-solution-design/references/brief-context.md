@@ -3,10 +3,9 @@
 What the architect hands back, so this skill can gate it.
 
 - **SRS** (`<SHARE_DIR>/designs/<slug>-<date>-srs.md`): the WHAT, for the human approver and for
-  every later step - the Domain line, the roles and their jobs, scope, cross-function
-  interactions, non-functional requirements, demo data, and the acceptance criteria with expected
-  values (the acceptance oracle). Written only when `SRS_REQUIRED: yes`; otherwise its content is
-  the header of the design.
+  every later step, in business terms only - its sections and its line against the design:
+  `srs-template.md` beside this file. Written only when `SRS_REQUIRED: yes`; otherwise its
+  content is the header of the design.
 - **Recon** (`<SHARE_DIR>/recon/<slug>-<date>/recon.md`, by `odoo-impact-recon`): the dependency,
   dependent, sibling, existing-feature and existing-test facts, one row each with its source.
 - **Design** (`<SHARE_DIR>/designs/<slug>-<date>.md`): the HOW. Light (one `## Work units` block) when

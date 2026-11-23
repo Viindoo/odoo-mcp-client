@@ -68,7 +68,9 @@ Every gate here is a text question, never Plan Mode: the request's one Plan-Mode
 later, on the execution plan (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § One
 Plan-Mode gate per request). The architect stops with `status: NEEDS_CONTEXT` and `gate: srs` or
 `gate: design`. Read the `artifact` itself, not only the `summary`, and check its pivotal claims
-against the request and the source; then present, in the user's language (paths, module and model
+against the request and the source. An SRS that holds what
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/srs-template.md` assigns to the
+design goes back to the architect as a `refine` before the human sees it. Then present, in the user's language (paths, module and model
 names verbatim): what the document decides, the points that need the human with your
 recommendation on each, and the path. At the SRS gate those points include every report or
 dashboard the SRS marks `proposed` (`${CLAUDE_PLUGIN_ROOT}/snippets/management-insight.md`): the
@@ -143,11 +145,8 @@ A caller such as `odoo-forward-port` supplies `return_to` and a payload; map it 
 
 ## Deliverable shape
 
-Three documents under `<SHARE_DIR>/designs/`: the SRS (`<slug>-<date>-srs.md`: roles, scope,
-interactions, non-functional, demo data, acceptance criteria with expected values, effort, the
-Domain line), the recon (`<SHARE_DIR>/recon/<slug>-<date>/recon.md`, written by
-`odoo-impact-recon`), and the design (`<slug>-<date>.md`, light or full, with one `## Work units`
-block carrying `build_tier_hint` per unit).
+The SRS, the recon and the design:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/brief-context.md`.
 
 ## Standalone-first fallback
 
