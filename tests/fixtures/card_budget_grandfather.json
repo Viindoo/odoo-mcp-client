@@ -5,7 +5,7 @@
   "budgets": {
     "snippets/module-doc-references.md": 5252,
     "skills/_shared/debug-method.md": 6688,
-    "skills/_shared/doc-cluster-plan.md": 11935,
+    "skills/_shared/doc-cluster-plan.md": 11888,
     "skills/_shared/integration-loop.md": 6702,
     "skills/_shared/odoo-failure-modes.md": 8178,
     "skills/_shared/odoo-frontend-fidelity.md": 10487,
@@ -24,7 +24,7 @@
     "snippets/new-module-manifest.md": 4047,
     "snippets/odoo-bin-resource-limits.md": 4268,
     "snippets/odoo-era-boundaries.md": 10382,
-    "snippets/odoo-build-facts.md": 7550,
+    "snippets/odoo-build-facts.md": 7543,
     "snippets/lint-gate-modules.md": 4571,
     "snippets/modularity-contract.md": 4613,
     "snippets/odoo-version-pivots.md": 10305,

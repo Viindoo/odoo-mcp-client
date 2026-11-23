@@ -1,7 +1,7 @@
 {
   "agents": {
     "plugins/odoo-ai-agents/agents/odoo-instance-ops.md": {
-      "bytes": 15911
+      "bytes": 15896
     },
     "plugins/odoo-ai-agents/agents/odoo-planner.md": {
       "bytes": 12915

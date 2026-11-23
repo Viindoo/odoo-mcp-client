@@ -121,7 +121,21 @@ def core_package(series):
 
 def _option_lines(series):
     with_demo, main, second, dev, t_long = OPTIONS[series]
-    out = ['        group.add_option("--without-demo", dest="without_demo", my_default=False)']
+    out = ['        group.add_option("--without-demo", dest="without_demo", my_default=False)',
+           '        group.add_option("--log-level", dest="log_level", type="choice")']
+    if _major(series) >= 19:
+        # The multiprocessing options go through a wrapper call from 19.0 (the flag is the first
+        # argument of a call nested inside add_option); a config-file-only option has no flag.
+        out += ['        parser.add_option(FileOnlyOption(dest=\'admin_passwd\', my_default=\'admin\'))',
+                '        group.add_option(PosixOnlyOption(',
+                '                         "--workers", dest="workers", my_default=0,',
+                '                         help="Specify the number of workers",',
+                '                         type="int"))',
+                '        group.add_option(PosixOnlyOption(',
+                '                         "--limit-memory-hard", dest="limit_memory_hard", my_default=0,',
+                '                         type="int"))']
+    else:
+        out += ['        group.add_option("--workers", dest="workers", type="int")']
     if with_demo:
         out.append('        group.add_option("--with-demo", dest="with_demo", action=\'store_true\')')
     for flag, dest in main:

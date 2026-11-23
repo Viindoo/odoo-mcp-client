@@ -84,7 +84,7 @@ phases:
     #   - Inter-instance parallelism W = min(#independent instance-paths, browser-family pool,
     #     ephemeral instance cap) with within_path: sequential; a batch schedule[].
     #   - Per-step build inputs (instance_build: demo on, languages = the resolved locales,
-    #     skip-auto-install in extra_args spelled via OSM cli_help).
+    #     skip_auto_install true).
     # Optional brief overrides consumed if present: CHANGE (per module, update or re-doc), MAX_CLUSTER_MODULES
     # (split threshold, default ~6), purity (strict-branch | fresh-per-module).
     # OSM-verify the disk edges opportunistically (trust-but-verify) with the CONCRETE version.

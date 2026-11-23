@@ -158,8 +158,8 @@ cross-referenced sections):
    series - else 0). Never reuse the single declared db/port for a mutation. A refused acquire
    writes no lease: follow the error code's remedy, never retry blind. A result with
    `venv_missing: true` is a lease no build can use: release it, build the venv, acquire again.
-2. **Pin series + ground CLI flags** - `set_active_version` then `cli_help` per the agent's "Common
-   preamble" Steps A-B (every flag from this series' `cli_help`, never from memory).
+2. **Pin series + flags** - `set_active_version`, then the agent's Steps A-B: a flag's spelling
+   from `cli_help` or the lease's checkout, never from memory; the checkout decides what exists.
 3. **Apply the HARD RULES** as the agent does - `languages`, the caller's `server_wide` (when it
    names one, on every build AND serve) and (never on a test build) `demo` passed as build arguments
    and every `job_wait` warning acted on (`odoo-instance-ops`'s own "Demo, languages and
@@ -170,7 +170,7 @@ cross-referenced sections):
    module. Resolve + PIN the profile before any probe; never probe
    profile-less.
 4. **Run the operation** - `instance_build` (op `init` / `update` / `test`, `demo` on `init` only, `languages`,
-   only `cli_help`-grounded flags in `extra_args` and never a port flag - the build binds the
+   in `extra_args` only flags the checkout declares, never a port flag - the build binds the
    lease's own port; a test build carries the resolved `test_tags`), then `job_wait(job_id)` as the VERY NEXT call, re-called
    while `result` is `timeout`, every response carrying a tool call until the result is terminal;
    only `success` passes. Serve a listening instance with `instance_serve(lease_token)` (no `profile`)
@@ -194,7 +194,7 @@ one thing and returns the `instance-ops` block.
   (`odoo-instance-ops`'s own "Doc-context provision"), `job_wait`, then `instance_serve(lease_token)`.
   Do NOT run step 5: hold the `lease_token` and return the block as the path's `INSTANCE_HANDLE`.
 - **B. Init-delta.** `instance_build` op `init` for the next module on the HELD `lease_token`, with
-  the SAME demo as step A, and with the skip-auto-install flag AND the no-HTTP flag in `extra_args`
+  the SAME demo as step A, and with `skip_auto_install: true` AND the no-HTTP flag in `extra_args`
   on EVERY delta (the served process already holds the lease's port), then `job_wait`. Never
   acquire a second lease for the path.
 - **C. Ensure-up.** `instance_serve(lease_token)` on the held token, when the driving skill asks.

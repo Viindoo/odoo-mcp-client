@@ -43,7 +43,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     demo flag from its `demo` argument; `instance_serve` applies the same server-wide set. A caller
     passes `languages`, passes `demo` on an `init` build only (a test build runs the series default),
     adjusts the server-wide set for one call with `server_wide` when the task needs a different one,
-    and never puts those flags in `extra_args`. The rules: SSOT
+    asks for `skip_auto_install` as an argument, and never puts those flags in `extra_args`. The rules: SSOT
     `snippets/odoo-build-facts.md` § Build facts the odoo-local tools apply.
 11. **A build's warnings are acted on before its instance is trusted.** `job_wait` reports problems
     a build logged without failing. A module Odoo says must be loaded server-wide means the set that
