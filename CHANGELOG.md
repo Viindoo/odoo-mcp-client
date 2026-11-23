@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.16.3] - 2026-11-23
+
+### Fixed
+
+- `odoo-coder` returns one line per step of its procedure, each holding what only that step
+  produces (the guideline sections applied, the recon file, a break record per behaviour test,
+  the verdicts of its runs, the impact map, the commit range and diff file); a line it cannot
+  fill is a step it does now or marks `not done: <reason>`. Its launcher sends a return that
+  lacks a line back once. The impact recon is due only when the node changes an existing symbol.
+- The mechanical review writes one line per check, with its findings, `clean: <evidence>` or
+  `not done: <reason>`, and one line per guideline file; the behaviour review repeats only a
+  check marked `not done`. A question the checkout answers is no longer passed on as
+  `NEEDS_JUDGEMENT`. The effort table names the mechanical review: `medium`.
+- Rule 3 of the business taxonomy looks past glue and base modules: `productivity` and
+  `platform` answer only when no level of the dependencies gives another function.
+- git-toolkit 0.11.2 -> 0.11.3: deleting a local branch whose commits another branch or a remote
+  holds, or that were merged as equivalent patches, takes no backup; neither does an op that
+  only adds commits.
+
 ## [8.16.2] - 2026-11-23
 
 ### Fixed
