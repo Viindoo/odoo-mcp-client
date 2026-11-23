@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [8.16.1] - 2026-11-23
+
+### Fixed
+
+- A review of a change that has no coder (a pull request, a pasted diff) no longer reports a
+  missing break record: the mechanical pass asks for the record only where the change comes
+  with a coder's impact map. The fix list takes its `origin` from the closed set, a test of the
+  change being `code`; `NEEDS_JUDGEMENT` is an open question for the next pass, never a
+  severity; and the review of a pull request diffs against the merge base of its head and its
+  base branch, so a merged pull request still shows its change.
+- `odoo-forward-port` P0: the source and the target are the remote-tracking refs the one git-ops
+  request brings up to date, and `range.md` carries each module's commits, so the module map
+  survives a resumed run. The recon findings hold one line per tier, and a lint-only module
+  records `lint-only` as its tier and resolves a merge conflict to the source side.
+- The coordination ledger of new modules belongs to whoever launches the node's coder - the plan
+  runner for a build node of a plan, `odoo-coding` otherwise - so a plan run claims its new
+  modules and classifies an unresolved manifest dependency.
+- `odoo-acceptance` builds the verify scope before it checks the oracle, so the planner receives
+  the scope manifest its brief requires; the planner reads access rules the index does not hold
+  from the checkout of core.
+- The business function of a module is derived by rule, not from a table of category strings:
+  its name, then its manifest category read by meaning from the last segment back, then the
+  application it extends - so a category that a new series or a vendor regroups needs no new
+  row. The
+  first writer of a run's worklog has the sweep command in the worklog contract, and the
+  architect's write boundary names its worklog entry. A path written `<slug>-<date>` is defined:
+  the intent slug alone, then the date as `YYYY-MM-DD`.
+- git-toolkit 0.11.0 -> 0.11.1: removing a worktree takes a backup only when its HEAD holds
+  commits that no local branch and no remote holds.
+
 ## [8.16.0] - 2026-11-23
 
 ### Changed
