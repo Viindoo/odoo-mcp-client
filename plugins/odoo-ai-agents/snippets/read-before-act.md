@@ -15,7 +15,7 @@ next write.
 |---|---|
 | Any Odoo code (write, review, debug, adapt) | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<series>/INDEX.md` and every file its "By file type" row names for the file types touched; `odoo-platform-design-principles.md` |
 | Module or cluster upgrade to a higher series | `upg-conventions.md`; `odoo-platform-design-principles.md` § Migrations are decided last |
-| Forward-port (code or docs) | `fp-merge-absorption.md`, `fp-installable-false.md` |
+| Forward-port (code or docs) | `fp-merge-absorption.md`, `fp-installable-false.md`, `git-delegation.md` |
 | A design, a plan, an acceptance oracle or a QA pass | `odoo-platform-design-principles.md` § 0; `artifact-voice.md` |
 | Tests | `test-sensitivity-contract.md`, `test-scope-contract.md`, `odoo-platform-design-principles.md` § 0 |
 | Docs that ship in a module | `public-docs-contract.md`, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/doc-artifacts.md`, `module-doc-references.md`, `rst-validity-contract.md` |

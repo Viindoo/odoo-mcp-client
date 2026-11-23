@@ -46,7 +46,16 @@ Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agent
      source TIP lands every commit above the merge base, so the real scope is the merge base plus
      these commits;
    - per commit, the files it touches with their change statistics (the input of the EXTRACT-tier
-     triage below).
+     triage below);
+   - `modules:` - per touched module (the directory holding the descriptor above each touched
+     path), `installable`, `auto_install`, `application` and `version` as its descriptor states
+     them at the target ref and at the source ref (`<tgt-descriptor>` / `<src-descriptor>`, Hard
+     rule 11); `absent` where the descriptor is not on that ref;
+   - `conflicts:` - the files a merge of the source ref into `<target-branch>` would conflict on,
+     forecast without changing a branch, an index or a working tree.
+
+   Nothing else of P0-P4 needs git: the triage gate, the P2 installable state and the P4 plan
+   read these rows.
 
 Map each `--scope` module name to its directory path before requesting git-ops to filter
 by path (module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root
@@ -135,29 +144,22 @@ upgrade-scale re-implement (not a mechanical port) gets the `upgrade-scale` flag
 the flag becomes a defer-or-do line in the P4 plan. A `(b) do now` cluster that ALSO meets the P3
 non-trivial criterion proceeds to P3 design before P4.
 
-**Installable-probe (TARGET CLEAN-TIP rule).** For each touched module, resolve its `installable` flag
-at the target clean-tip (BEFORE merge) by reading `<module>/<tgt-descriptor>` at `target_ref` - written
-by git-ops (read-only) to `manifest_path` in the pre-step below, which runs for EVERY touched
-module. `<tgt-descriptor>` and `<src-descriptor>` are the per-side descriptor filenames SKILL.md
-Hard rule 11 resolved once. An absent `installable` key means installable; an absent FILE means the
-module is not on the clean tip. Produce `manifest_path` for EVERY touched module, unconditionally:
-it is the prober's required input and the prober is a `role: leaf` that cannot fetch it.
+**Installable state (TARGET CLEAN-TIP rule).** For each touched module, take its `installable` flag
+at the target ref from the `modules:` rows of `range.md` and decide per
+`[[fp-installable-false]]` § Discriminator. Record `installable_false=yes|no` as the module's OWN
+row in `merge-log.md`, keyed by module and distinct from the per-commit rows - the ONE field any
+later phase reads for its installable state.
 
 DISPATCH the read-only haiku leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
-needed to disambiguate category 3 (manifest NOT touched by the forwarded commit range and target
-state unclear). For categories 1-2 your own clean-tip read suffices. Whether resolved directly or via the prober,
-record `installable_false=yes|no` as the module's OWN row in `merge-log.md`, keyed by module and
-distinct from the per-commit rows - the ONE field any later phase reads for its installable state.
-
-Pre-step (for EVERY touched module): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files:
+needed (the range does not touch the module's descriptor and the target state is unclear). The
+prober is a `role: leaf` that cannot fetch its inputs: for each module it probes, invoke the
+`git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files:
 
 - `manifest_path`: read `<module>/<tgt-descriptor>` at `target_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`
 - `history_dump_path`: the history, as patches and following renames, of the commits that modified
   `<module>/<src-descriptor>` (the SOURCE side's name) up to `source_ref`, written to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`
-
-Assign the resulting absolute paths before launching the prober (both fields mandatory).
 
 Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
 
@@ -170,7 +172,7 @@ Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
   that has the source remote added + fetched in the P0 bootstrap.
 - `source_ref` / `target_ref` are the refs P0 enumerated.
 - `target_version` is the concrete target series for OSM grounding.
-- `manifest_path` / `history_dump_path` are absolute paths to the pre-step files.
+- `manifest_path` / `history_dump_path` are the absolute paths of the two files above; both are mandatory.
 
 The prober consumes those and returns BOTH:
 
