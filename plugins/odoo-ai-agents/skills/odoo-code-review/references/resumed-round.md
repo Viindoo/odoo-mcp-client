@@ -13,8 +13,9 @@ item, however many places show it. Set each item's `origin` on evidence:
 - `pre-existing` - the lines that produce it stand outside the diff, in a module the change
   touches;
 - `platform` - core or a module the change does not touch produces it: the tester's
-  `reproduces without module: yes`, or the source line that shows who owns the behaviour (the
-  groups of a menu, an access rule, a core control);
+  `reproduces without module: yes`, or the source line, opened by you, that shows who owns the
+  behaviour (the groups of a menu, an access rule, a core control); neither at hand, ask the
+  caller for the tester's run without the module;
 - `oracle` - the scenario's expected value contradicts the SRS, or assumes platform behaviour
   the platform does not have and the SRS does not ask for;
 - `msgid` - a source string, not its translation, is wrong;

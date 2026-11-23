@@ -88,10 +88,10 @@ was seen, what the role expected. No verdict and no severity.
 
 **An observation is not a verdict (`A1A2` and `A4`).** A § 0 observation, an `A4` row and a
 symptom on a screen outside `SCOPE` are never a FAIL or a BUG
-(`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md` § Verdicts and observations). For
-each, run the same steps as the same role on a database without `MODULES` (one for the dispatch,
-through `Skill(odoo-instance)`) and record `reproduces without module: yes` or `no` beside it -
-evidence, never its cause.
+(`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md` § Verdicts and observations). Beside
+each, write `reproduces without module: yes` or `no` when you ran the same steps as the same role
+on a database without `MODULES`, else `not run`: the triage asks for that run where the source
+does not show who owns the behaviour. Evidence, never its cause.
 
 ## MODE DOCS
 
