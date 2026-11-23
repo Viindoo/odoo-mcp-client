@@ -42,7 +42,9 @@ follows them.
 
 **Step 1 - SRS** (`SRS_REQUIRED: yes`). Check the standard product first: invoke skill
 `odoo-feature-check` for the capability; a feature that exists is not re-specified. Write
-`<SHARE_DIR>/designs/<slug>-<date>-srs.md` with the SRS template below, then STOP. Every blocking
+`<SHARE_DIR>/designs/<slug>-<date>-srs.md` from
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/srs-template.md` - its template and
+its line between the SRS and the design - then STOP. Every blocking
 guard the SRS introduces (a constraint, a refused transition, a cascade) names its evidence and
 its way out for the same role as an acceptance criterion (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` § 0); a guard with no way out is dropped from the SRS, not deferred:
 
@@ -55,7 +57,7 @@ summary: <Domain line>; <scope in one line>; <effort>; <count of acceptance crit
 
 `SRS_REQUIRED: no`: write the Domain line, the outcome, the acceptance criteria and, when the
 change touches a legal value or rule, the Legal rules as data section as the header of the design
-instead, and go to Step 2.
+instead, by the same file, and go to Step 2.
 
 **Step 2 - scope and survey** (on resume with `approve` or `refine: <text>`; apply a refine to the
 SRS first). Compute the scope yourself from the request and the SRS - modules, models, business
@@ -103,32 +105,6 @@ the gate. `approve` ends the session with the Continuation Contract of
 decisions to `<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-architect.md`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-## SRS template
-
-```
-# SRS - <change name>
-Domain: <business_function>; Audience: <roles | n/a>; Outcome: <business result>
-Odoo version: <v>   Profile: <p>   Effort: Standard | Config | Extension | Extension-L | Custom-XL
-
-## Roles and their jobs        (per role: what the role does today, what changes for them)
-## Scope                       (modules and models in; what is explicitly out)
-## Interactions                (`A -> B: <business result>` per cross-function interaction)
-## Non-functional              (multi-company; languages; volumes and performance; access and
-                                security; upgrade impact; localization)
-## Management insight          (${CLAUDE_PLUGIN_ROOT}/snippets/management-insight.md § At design)
-## Demo data                   (per user-visible model: the records to ship; time-relative dates)
-## Legal rules as data         (only when a law or regulation sets a value or rule the change
-                                touches: per element, the four questions of
-                                odoo-platform-design-principles.md § 6)
-## Acceptance criteria         (per module: Given / When / Then with the expected VALUE, hand-
-                                computed for a calculation; never taken from code or OSM output)
-```
-
-The Domain line follows `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`. Effort follows
-`GAP_MATRIX` when given. The acceptance criteria are the acceptance oracle
-(`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`): every criterion names a
-comparable value.
-
 ## Design templates
 
 Header of both: `SRS: <path or none>`, `Recon: <path>`, `grounded: osm | hybrid | local-source`,
@@ -140,7 +116,8 @@ one reason; the planner, not you, turns units into nodes) with `modules`, `model
 by a source row), `fields` (name, type, relation target, required, compute `depends` and rule as
 condition -> value), `overrides` (method, `super()` position, rule as condition -> outcome),
 `views` (parent xml_id, xpath or anchor field), `security` (groups for ACL and record rules),
-`acceptance` (the SRS criteria the unit satisfies), `build_tier_hint` - the tier with the six 5.1 items ticked and the
+`demo` (the records that show the SRS situations; time-relative dates), `acceptance` (the ids of
+the SRS criteria the unit satisfies), `build_tier_hint` - the tier with the six 5.1 items ticked and the
 5.2 answer, and the effort with the row that holds
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, § Effort).
 
@@ -179,7 +156,8 @@ the document. A design: re-derive its conclusions from the source and name the s
 assumption with one concrete alternative. An SRS: read it as each business role it names, against
 the general standard of the business function (a localization: against the law's text when the
 brief gives its source), and against the target series' architecture per role - a criterion that
-names no acting role cannot be tested as that role. Write `_review-<date>.md` as severity-graded
+names no acting role cannot be tested as that role; content that `srs-template.md` assigns to the
+design is a finding. Write `_review-<date>.md` as severity-graded
 findings with the replacement text, never a rewrite.
 
 ## Grounding you may source yourself
